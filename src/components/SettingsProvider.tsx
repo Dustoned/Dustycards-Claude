@@ -29,6 +29,7 @@ import {
   type UiScale,
   type UserSettings,
 } from "@/lib/user-settings";
+import { createLatestSettingsSaveQueue } from "@/lib/settings-save-queue";
 
 export type {
   AppearancePalette,
@@ -90,15 +91,24 @@ function getInitialSettings(initialSettings?: UserSettings | null): UserSettings
 }
 
 function saveToBrowser(s: UserSettings) {
-  localStorage.setItem(SETTINGS_STORAGE_KEY, serializeSettings(s));
-  document.cookie = buildSettingsCookie(s);
-  document.cookie = buildResolvedThemeCookie(resolveAppearanceColorScheme(s.appearance));
+  try {
+    localStorage.setItem(SETTINGS_STORAGE_KEY, serializeSettings(s));
+  } catch {
+    // Cookies still preserve preferences when browser storage is unavailable.
+  }
+  try {
+    document.cookie = buildSettingsCookie(s);
+    document.cookie = buildResolvedThemeCookie(resolveAppearanceColorScheme(s.appearance));
+  } catch {
+    // The in-memory setting remains active for this session.
+  }
 }
 
 async function saveToAccount(s: UserSettings) {
   const response = await fetch("/api/account/settings", {
     method: "PUT",
     credentials: "same-origin",
+    keepalive: true,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ settings: s }),
   });
@@ -183,6 +193,13 @@ export default function SettingsProvider({
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(initialMobileViewport);
   const didSyncInitialSettingsRef = useRef(false);
+  const settingsRef = useRef(settings);
+  const settingsSaveQueueRef = useRef<ReturnType<typeof createLatestSettingsSaveQueue> | null>(
+    null
+  );
+  if (settingsSaveQueueRef.current === null) {
+    settingsSaveQueueRef.current = createLatestSettingsSaveQueue(saveToAccount);
+  }
   const displaySettings = getDisplaySettings(settings, isMobileViewport);
 
   useEffect(() => {
@@ -197,6 +214,7 @@ export default function SettingsProvider({
       if (cancelled) return;
 
       if (nextRaw !== initialRaw) {
+        settingsRef.current = s;
         setSettings(s);
       }
       setIsLoaded(true);
@@ -254,35 +272,32 @@ export default function SettingsProvider({
     if (!syncToAccount || !isLoaded || didSyncInitialSettingsRef.current) return;
 
     didSyncInitialSettingsRef.current = true;
-    void saveToAccount(settings).catch(() => {
-      didSyncInitialSettingsRef.current = false;
-    });
+    void settingsSaveQueueRef.current?.enqueue(settings);
   }, [isLoaded, settings, syncToAccount]);
 
   function set<K extends keyof UserSettings>(key: K, value: UserSettings[K]) {
-    setSettings((prev) => {
-      const next = { ...prev, [key]: value };
-      saveToBrowser(next);
-      if (syncToAccount) {
-        void saveToAccount(next).catch(() => undefined);
-      }
-      if (key === "theme") applyTheme(value as Theme);
-      if (key === "appearance") {
-        applyAppearance(value as AppearanceSettings);
-      }
-      if (key === "desktopNavigation") {
-        applyDesktopNavigation(value as DesktopNavigation);
-      }
-      if (key === "widescreen") {
-        const effectiveSettings = getDisplaySettings(next, isMobileViewport);
-        applyWidescreen(effectiveSettings.widescreen);
-      }
-      if (key === "uiScale" || key === "mobileUiScale") {
-        const effectiveSettings = getDisplaySettings(next, isMobileViewport);
-        applyUiScale(effectiveSettings.uiScale);
-      }
-      return next;
-    });
+    const next = { ...settingsRef.current, [key]: value };
+    settingsRef.current = next;
+    saveToBrowser(next);
+    setSettings(next);
+    if (syncToAccount) {
+      void settingsSaveQueueRef.current?.enqueue(next);
+    }
+    if (key === "theme") applyTheme(value as Theme);
+    if (key === "appearance") {
+      applyAppearance(value as AppearanceSettings);
+    }
+    if (key === "desktopNavigation") {
+      applyDesktopNavigation(value as DesktopNavigation);
+    }
+    if (key === "widescreen") {
+      const effectiveSettings = getDisplaySettings(next, isMobileViewport);
+      applyWidescreen(effectiveSettings.widescreen);
+    }
+    if (key === "uiScale" || key === "mobileUiScale") {
+      const effectiveSettings = getDisplaySettings(next, isMobileViewport);
+      applyUiScale(effectiveSettings.uiScale);
+    }
   }
 
   function setDisplay<K extends keyof UserSettings>(key: K, value: UserSettings[K]) {

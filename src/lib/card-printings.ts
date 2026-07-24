@@ -5,7 +5,7 @@ import sharp from "sharp";
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
 const MAX_PRINTING_CANDIDATES = 80;
 const MAX_RELATED_PRINTINGS = 8;
-const MIN_REPRINT_IMAGE_SIMILARITY = 0.68;
+const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.62;
 const STRONG_REPRINT_IMAGE_SIMILARITY = 0.82;
 const MAX_CACHED_ARTWORK_HASHES = 512;
 const artworkHashCache = new Map<string, Promise<ArtworkHash | null>>();
@@ -120,7 +120,11 @@ export function getTcgdexCardId(input: {
         const languageIndex = parts.findIndex((part) => part === "en");
         const setId = languageIndex >= 0 ? parts[languageIndex + 2] : null;
         const localId = languageIndex >= 0 ? parts[languageIndex + 3] : null;
-        if (setId && localId) return `${setId}-${localId}`;
+        if (setId && localId) {
+          if (/^TG\d+$/i.test(localId)) return `${setId}.5tg-${localId}`;
+          if (/^GG\d+$/i.test(localId)) return `${setId}gg-${localId}`;
+          return `${setId}-${localId}`;
+        }
       }
     } catch {
       // Fall through to the stored source id.
@@ -128,6 +132,18 @@ export function getTcgdexCardId(input: {
   }
 
   return input.tcgid?.trim() || null;
+}
+
+function getTcgdexCardIds(input: {
+  image_url?: string | null;
+  tcgid?: string | null;
+}): string[] {
+  return Array.from(
+    new Set(
+      [getTcgdexCardId(input), input.tcgid?.trim()]
+        .filter((cardId): cardId is string => Boolean(cardId))
+    )
+  );
 }
 
 export function buildCardIdentityFingerprint(card: TcgDexCardIdentity): string | null {
@@ -181,6 +197,80 @@ export function buildCardIdentityFingerprint(card: TcgDexCardIdentity): string |
   return hasRulesIdentity ? JSON.stringify(fingerprint) : null;
 }
 
+function buildCoreRulesFingerprint(card: TcgDexCardIdentity): string | null {
+  const fingerprint = {
+    effect: normalizeText(card.effect),
+    energyType: normalizeText(card.energyType),
+    abilities: (card.abilities ?? []).map((ability) => ({
+      type: normalizeRulesLabel(ability.type),
+      name: normalizeText(ability.name),
+      effect: normalizeText(ability.effect),
+    })),
+    attacks: (card.attacks ?? []).map((attack) => ({
+      cost: normalizeStringArray(attack.cost),
+      name: normalizeText(attack.name),
+      effect: normalizeText(attack.effect),
+      damage:
+        typeof attack.damage === "number"
+          ? String(attack.damage)
+          : normalizeText(attack.damage),
+    })),
+  };
+  const hasCoreRules =
+    fingerprint.effect != null ||
+    fingerprint.energyType != null ||
+    fingerprint.abilities.length > 0 ||
+    fingerprint.attacks.length > 0;
+
+  return hasCoreRules ? JSON.stringify(fingerprint) : null;
+}
+
+function knownScalarMatches(left: string | number | null, right: string | number | null) {
+  return left == null || right == null || left === right;
+}
+
+function knownArrayMatches(left: unknown[], right: unknown[]) {
+  return left.length === 0 ||
+    right.length === 0 ||
+    JSON.stringify(left) === JSON.stringify(right);
+}
+
+function haveCompatibleKnownIdentityFields(
+  current: TcgDexCardIdentity,
+  candidate: TcgDexCardIdentity
+): boolean {
+  const currentTypes = normalizeStringArray(current.types);
+  const candidateTypes = normalizeStringArray(candidate.types);
+  const currentWeaknesses = (current.weaknesses ?? []).map((weakness) => ({
+    type: normalizeText(weakness.type),
+    value: normalizeText(weakness.value),
+  }));
+  const candidateWeaknesses = (candidate.weaknesses ?? []).map((weakness) => ({
+    type: normalizeText(weakness.type),
+    value: normalizeText(weakness.value),
+  }));
+  const currentResistances = (current.resistances ?? []).map((resistance) => ({
+    type: normalizeText(resistance.type),
+    value: normalizeText(resistance.value),
+  }));
+  const candidateResistances = (candidate.resistances ?? []).map((resistance) => ({
+    type: normalizeText(resistance.type),
+    value: normalizeText(resistance.value),
+  }));
+
+  return (
+    knownScalarMatches(current.hp ?? null, candidate.hp ?? null) &&
+    knownScalarMatches(normalizeText(current.evolveFrom), normalizeText(candidate.evolveFrom)) &&
+    knownScalarMatches(normalizeText(current.stage), normalizeText(candidate.stage)) &&
+    knownScalarMatches(normalizeText(current.suffix), normalizeText(candidate.suffix)) &&
+    knownScalarMatches(normalizeText(current.trainerType), normalizeText(candidate.trainerType)) &&
+    knownScalarMatches(current.retreat ?? null, candidate.retreat ?? null) &&
+    knownArrayMatches(currentTypes, candidateTypes) &&
+    knownArrayMatches(currentWeaknesses, candidateWeaknesses) &&
+    knownArrayMatches(currentResistances, candidateResistances)
+  );
+}
+
 export function getPerceptualHashSimilarity(left: string, right: string): number {
   if (left.length === 0 || left.length !== right.length) return 0;
   let equalBits = 0;
@@ -200,14 +290,24 @@ export function getPrintingMatchType(
     normalizeText(current.name) === normalizeText(candidate.name) &&
     normalizeText(current.illustrator) != null &&
     normalizeText(current.illustrator) === normalizeText(candidate.illustrator);
-  if (!samePrintedIdentity || imageSimilarity < MIN_REPRINT_IMAGE_SIMILARITY) {
-    return null;
-  }
+  if (!samePrintedIdentity) return null;
 
   const currentFingerprint = buildCardIdentityFingerprint(current);
   const candidateFingerprint = buildCardIdentityFingerprint(candidate);
   if (currentFingerprint && candidateFingerprint) {
-    return currentFingerprint === candidateFingerprint ? "reprint" : null;
+    const currentCoreRules = buildCoreRulesFingerprint(current);
+    const candidateCoreRules = buildCoreRulesFingerprint(candidate);
+    const rulesMatch =
+      currentFingerprint === candidateFingerprint ||
+      (
+        currentCoreRules != null &&
+        currentCoreRules === candidateCoreRules &&
+        haveCompatibleKnownIdentityFields(current, candidate)
+      );
+
+    return rulesMatch && imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY
+      ? "reprint"
+      : null;
   }
 
   const sameHp =
@@ -217,6 +317,36 @@ export function getPrintingMatchType(
   return sameHp && imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY
     ? "reprint"
     : null;
+}
+
+export function getConnectedPrintingIndexes(
+  identities: TcgDexCardIdentity[],
+  getImageSimilarity: (leftIndex: number, rightIndex: number) => number
+): number[] {
+  if (identities.length <= 1) return [];
+
+  const connected = new Set<number>([0]);
+  const queue = [0];
+  while (queue.length > 0) {
+    const currentIndex = queue.shift();
+    if (currentIndex == null) break;
+
+    for (let candidateIndex = 1; candidateIndex < identities.length; candidateIndex += 1) {
+      if (connected.has(candidateIndex)) continue;
+      if (
+        getPrintingMatchType(
+          identities[currentIndex],
+          identities[candidateIndex],
+          getImageSimilarity(currentIndex, candidateIndex)
+        )
+      ) {
+        connected.add(candidateIndex);
+        queue.push(candidateIndex);
+      }
+    }
+  }
+
+  return Array.from(connected).filter((index) => index !== 0);
 }
 
 function getComparableArtworkUrl(imageUrl: string): string {
@@ -315,20 +445,20 @@ async function fetchTcgdexCard(card: {
   image_url: string | null;
   tcgid?: string | null;
 }): Promise<TcgDexCardIdentity | null> {
-  const cardId = getTcgdexCardId(card);
-  if (!cardId) return null;
-
-  try {
-    const response = await fetch(`${TCGDEX_CARD_ENDPOINT}/${encodeURIComponent(cardId)}`, {
-      headers: { accept: "application/json" },
-      next: { revalidate: 60 * 60 * 24 * 7 },
-      signal: AbortSignal.timeout(2_500),
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as TcgDexCardIdentity;
-  } catch {
-    return null;
+  for (const cardId of getTcgdexCardIds(card)) {
+    try {
+      const response = await fetch(`${TCGDEX_CARD_ENDPOINT}/${encodeURIComponent(cardId)}`, {
+        headers: { accept: "application/json" },
+        next: { revalidate: 60 * 60 * 24 * 7 },
+        signal: AbortSignal.timeout(2_500),
+      });
+      if (response.ok) return (await response.json()) as TcgDexCardIdentity;
+    } catch {
+      // Try the stored provider id when the image-derived id is unavailable.
+    }
   }
+
+  return null;
 }
 
 export async function loadRelatedCardPrintings(
@@ -372,41 +502,47 @@ export async function loadRelatedCardPrintings(
   });
   if (candidates.length === 0) return [];
 
-  const [identities, currentArtworkHash] = await Promise.all([
+  const [loadedIdentities, currentArtworkHash] = await Promise.all([
     Promise.all([
       fetchTcgdexCard(current),
       ...candidates.map((candidate) => fetchTcgdexCard(candidate)),
     ]),
     loadArtworkHash(current.image_url),
   ]);
-  const [currentIdentity, ...candidateIdentities] = identities;
+  const [currentIdentity, ...candidateIdentities] = loadedIdentities;
   if (!currentArtworkHash) return [];
 
   const candidateArtworkHashes = await Promise.all(
     candidates.map((candidate) => loadArtworkHash(candidate.image_url))
   );
+  const identities: TcgDexCardIdentity[] = [
+    currentIdentity ?? {
+      category: current.supertype ?? undefined,
+      name: current.name,
+      illustrator: current.artist ?? undefined,
+      hp: current.hp ?? undefined,
+    },
+    ...candidates.map((candidate, index) =>
+      candidateIdentities[index] ?? {
+        category: candidate.supertype ?? undefined,
+        name: candidate.name,
+        illustrator: candidate.artist ?? undefined,
+        hp: candidate.hp ?? undefined,
+      }
+    ),
+  ];
+  const artworkHashes = [currentArtworkHash, ...candidateArtworkHashes];
+  const connectedIndexes = new Set(
+    getConnectedPrintingIndexes(
+      identities,
+      (leftIndex, rightIndex) =>
+        getArtworkHashSimilarity(artworkHashes[leftIndex], artworkHashes[rightIndex])
+    )
+  );
 
   return candidates
     .map((candidate, index): RelatedCardPrinting | null => {
-      const candidateIdentity = candidateIdentities[index];
-      const candidateArtworkHash = candidateArtworkHashes[index];
-      if (!candidateArtworkHash) return null;
-      const matchType = getPrintingMatchType(
-        currentIdentity ?? {
-          category: current.supertype ?? undefined,
-          name: current.name,
-          illustrator: current.artist ?? undefined,
-          hp: current.hp ?? undefined,
-        },
-        candidateIdentity ?? {
-          category: candidate.supertype ?? undefined,
-          name: candidate.name,
-          illustrator: candidate.artist ?? undefined,
-          hp: candidate.hp ?? undefined,
-        },
-        getArtworkHashSimilarity(currentArtworkHash, candidateArtworkHash)
-      );
-      if (!matchType) return null;
+      if (!connectedIndexes.has(index + 1)) return null;
       const latestPrice = candidate.prices[0] ?? null;
 
       return {
@@ -421,7 +557,7 @@ export async function loadRelatedCardPrintings(
         episode_code: candidate.episode.code,
         episode_release_date: candidate.episode.release_date,
         price: latestPrice ? getCurrentRawCardmarketValue(latestPrice) : null,
-        match_type: matchType,
+        match_type: "reprint",
       };
     })
     .filter((printing): printing is RelatedCardPrinting => printing != null)

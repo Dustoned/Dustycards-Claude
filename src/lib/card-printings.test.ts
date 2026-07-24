@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCardIdentityFingerprint,
+  getConnectedPrintingIndexes,
   getPerceptualHashSimilarity,
   getPrintingMatchType,
   getTcgdexCardId,
@@ -45,6 +46,21 @@ describe("card printings", () => {
     ).toBe("sv04.5-054");
   });
 
+  it("derives TCGdex subset ids for Trainer and Galarian Gallery cards", () => {
+    expect(
+      getTcgdexCardId({
+        image_url: "https://assets.tcgdex.net/en/swsh/swsh11/TG30/high.webp",
+        tcgid: "swsh11tg-TG30",
+      })
+    ).toBe("swsh11.5tg-TG30");
+    expect(
+      getTcgdexCardId({
+        image_url: "https://assets.tcgdex.net/en/swsh/swsh12.5/GG01/high.webp",
+        tcgid: "swsh12pt5gg-GG01",
+      })
+    ).toBe("swsh12.5gg-GG01");
+  });
+
   it("rejects identical rules when the artwork is visibly different", () => {
     expect(
       getPrintingMatchType(
@@ -65,6 +81,24 @@ describe("card printings", () => {
           effect: `  ${ability.effect}  `,
         })),
       }, 0.74)
+    ).toBe("reprint");
+  });
+
+  it("accepts a rules-verified rainbow treatment below the normal artwork threshold", () => {
+    expect(getPrintingMatchType(CHARIZARD_RULES, CHARIZARD_RULES, 0.645)).toBe("reprint");
+  });
+
+  it("accepts matching core rules when optional source metadata is absent", () => {
+    expect(
+      getPrintingMatchType(
+        CHARIZARD_RULES,
+        {
+          ...CHARIZARD_RULES,
+          weaknesses: undefined,
+          resistances: undefined,
+        },
+        0.637
+      )
     ).toBe("reprint");
   });
 
@@ -131,6 +165,33 @@ describe("card printings", () => {
         attacks: [{ cost: ["Fire"], name: "A different Charizard", damage: "90" }],
       }, 1)
     ).toBeNull();
+  });
+
+  it("connects treatment variants through a verified base printing", () => {
+    const regular = CHARIZARD_RULES;
+    const rainbow = { ...CHARIZARD_RULES };
+    const gallery = {
+      ...CHARIZARD_RULES,
+      weaknesses: undefined,
+      resistances: undefined,
+    };
+    const alternateArtwork = {
+      ...CHARIZARD_RULES,
+      illustrator: "Different Artist",
+    };
+    const similarities = [
+      [1, 0.645, 0.422, 0.9],
+      [0.645, 1, 0.637, 0.9],
+      [0.422, 0.637, 1, 0.9],
+      [0.9, 0.9, 0.9, 1],
+    ];
+
+    expect(
+      getConnectedPrintingIndexes(
+        [rainbow, regular, gallery, alternateArtwork],
+        (leftIndex, rightIndex) => similarities[leftIndex][rightIndex]
+      )
+    ).toEqual([1, 2]);
   });
 
   it("refuses weak identities without actual card rules", () => {

@@ -41,5 +41,7 @@ export const getServerUserSettings = cache(async function getServerUserSettings(
   });
   const accountSettings = parseStoredSettings(user?.settings_json);
 
-  return mergeSettings(accountSettings ?? cookieSettings ?? DEFAULT_SETTINGS);
+  // The cookie is written synchronously, while the account copy is saved over
+  // the network and can briefly lag behind during a refresh or navigation.
+  return mergeSettings(cookieSettings ?? accountSettings ?? DEFAULT_SETTINGS);
 });

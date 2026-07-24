@@ -2571,6 +2571,14 @@ test.describe("DustyCards smoke", () => {
           )
         )
         .toBe("#2457A6");
+      await expect
+        .poll(async () => {
+          const response = await page.request.get("/api/account/settings");
+          const payload = await response.json();
+          const savedAppearance = payload.settings?.appearance;
+          return `${savedAppearance?.preset}:${savedAppearance?.custom?.primary}`;
+        })
+        .toBe("custom:#2457A6");
 
       await page.reload();
       await expect(root).toHaveAttribute("data-appearance", "custom");
