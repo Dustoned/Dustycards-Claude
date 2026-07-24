@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.14",
+    releasedAt: "July 24, 2026",
+    title: "Printed card number first",
+    summary:
+      "DustyCards 3.8.14 makes the printed reference the primary scanner identity and adds complete support for modern Pokémon promo numbers.",
+    tone: "fixed",
+    highlights: [
+      "Pokémon promo references such as SVP EN 210, SVP 210 and SVP210 now resolve to the same exact printing key.",
+      "The printed card number now outweighs a shared Pokémon name or similar artwork when scanner candidates are ranked.",
+      "A centred promo number remains recoverable when outlined typography turns one digit into a nearby OCR character, but only inside the already confirmed card-name family.",
+      "Targeted name and number OCR passes improve outlined Pokémon titles and tiny footer references without accepting unsupported free-text guesses.",
+      "Transparent catalog artwork is trimmed before visual comparison, allowing standard and Pokémon Center promo variants to be ordered more accurately.",
+      "The SV Black Star Promos catalog is refreshed through promo 225, including both Tornadus SVP 210 variants.",
+    ],
+  },
+  {
     version: "3.8.13",
     releasedAt: "July 24, 2026",
     title: "Accurate camera-frame card recognition",

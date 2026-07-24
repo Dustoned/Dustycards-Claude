@@ -13,6 +13,7 @@ import {
   canAutoAcceptScannerCandidate,
   extractScannerCardReferences,
   getScannerAttackSimilarity,
+  getScannerCardReferenceAliases,
   getScannerCandidateConfidence,
   getScannerMatchReasons,
   getScannerNameObservation,
@@ -206,7 +207,23 @@ async function createDifferenceHash(
 
 async function createScannerArtworkHash(image: Buffer): Promise<ScannerArtworkHash | null> {
   try {
-    const metadata = await sharp(image, { limitInputPixels: 28_000_000 }).metadata();
+    const source = sharp(image, {
+      limitInputPixels: 28_000_000,
+      animated: false,
+    }).rotate();
+    const sourceMetadata = await source.metadata();
+    const normalizedCard = await (
+      sourceMetadata.hasAlpha
+        ? source.trim({
+            background: { r: 0, g: 0, b: 0, alpha: 0 },
+            threshold: 8,
+          })
+        : source
+    )
+      .flatten({ background: "#ffffff" })
+      .png({ compressionLevel: 4 })
+      .toBuffer();
+    const metadata = await sharp(normalizedCard).metadata();
     if (!metadata.width || !metadata.height) return null;
 
     const illustrationBounds = {
@@ -216,8 +233,8 @@ async function createScannerArtworkHash(image: Buffer): Promise<ScannerArtworkHa
       height: Math.max(1, Math.floor(metadata.height * 0.43)),
     };
     const [full, illustration] = await Promise.all([
-      createDifferenceHash(image),
-      createDifferenceHash(image, illustrationBounds),
+      createDifferenceHash(normalizedCard),
+      createDifferenceHash(normalizedCard, illustrationBounds),
     ]);
     return { full, illustration };
   } catch {
@@ -548,7 +565,74 @@ async function recognizeScannerFieldUnsafe(
     }
 
     const primaryImage = fieldZones[0] ?? normalizedImage;
-    if (!isFieldBandLayout) {
+    if (isFieldBandLayout && metadata.width && metadata.height) {
+      const guidedBounds =
+        scanRegion === "focus"
+          ? { left: 0.06, top: 0.08, width: 0.88, height: 0.84 }
+          : field === "name"
+            ? { left: 0.12, top: 0, width: 0.44, height: 0.5 }
+            : field === "number"
+              ? { left: 0, top: 0.28, width: 0.4, height: 0.58 }
+              : { left: 0.02, top: 0.02, width: 0.96, height: 0.96 };
+      const left = Math.floor(metadata.width * guidedBounds.left);
+      const top = Math.floor(metadata.height * guidedBounds.top);
+      const width = Math.max(
+        1,
+        Math.min(
+          metadata.width - left,
+          Math.floor(metadata.width * guidedBounds.width)
+        )
+      );
+      const height = Math.max(
+        1,
+        Math.min(
+          metadata.height - top,
+          Math.floor(metadata.height * guidedBounds.height)
+        )
+      );
+      const guidedImage = await sharp(normalizedImage)
+        .extract({ left, top, width, height })
+        .resize({ width: 1_800, withoutEnlargement: false })
+        .normalize()
+        .sharpen({ sigma: 1.15 })
+        .extend({
+          top: 24,
+          bottom: 24,
+          left: 24,
+          right: 24,
+          background: "#ffffff",
+        })
+        .png({ compressionLevel: 4 })
+        .toBuffer();
+      await worker.setParameters({
+        tessedit_pageseg_mode:
+          field === "attack"
+            ? PSM.SINGLE_BLOCK
+            : field === "number"
+              ? PSM.SPARSE_TEXT
+              : PSM.SINGLE_LINE,
+        tessedit_char_whitelist:
+          field === "number"
+            ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
+            : "",
+        thresholding_method: "0",
+        user_defined_dpi: "300",
+      });
+      results.push(await recognizeFieldPass(worker, guidedImage));
+      if (field === "name" && scanRegion === "expected") {
+        const thresholdNameImage = await sharp(guidedImage)
+          .threshold(80)
+          .png({ compressionLevel: 4 })
+          .toBuffer();
+        await worker.setParameters({
+          tessedit_pageseg_mode: PSM.SINGLE_WORD,
+          tessedit_char_whitelist: "",
+          thresholding_method: "0",
+          user_defined_dpi: "300",
+        });
+        results.push(await recognizeFieldPass(worker, thresholdNameImage));
+      }
+    } else if (!isFieldBandLayout) {
       if (field === "name") {
         await worker.setParameters({
           tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
@@ -720,7 +804,16 @@ export async function scanCardImage(input: {
     .filter((value): value is string => Boolean(value?.trim()))
     .join("\n");
   const combinedOcrText = [rememberedText, ocr.text].filter(Boolean).join("\n");
-  const initialRank = rankScannerCandidates(catalog, combinedOcrText);
+  const confirmedReferences = input.knownReference
+    ? [input.knownReference]
+    : [];
+  const initialRank = rankScannerCandidates(
+    catalog,
+    combinedOcrText,
+    new Map(),
+    new Map(),
+    confirmedReferences
+  );
   const strongestTextMatch = initialRank[0];
   const textMatchIsConclusive = Boolean(
     !rememberedText &&
@@ -749,7 +842,8 @@ export async function scanCardImage(input: {
     catalog,
     combinedOcrText,
     visualSimilarities,
-    attackSimilarities
+    attackSimilarities,
+    confirmedReferences
   ).slice(0, 5);
   const ids = ranked.map((candidate) => candidate.card.id);
 
@@ -856,10 +950,8 @@ export async function readScannerFieldImage(input: {
     matchingNameCatalog.length > 0 ? matchingNameCatalog : catalog;
   const matchingReferenceCatalog = normalizedKnownReference
     ? catalog.filter((card) =>
-        [card.printed_card_number, card.card_number].some(
-          (value) =>
-            normalizeScannerCardReference(value ?? "") ===
-            normalizedKnownReference
+        getScannerCardReferenceAliases(card).includes(
+          normalizedKnownReference
         )
       )
     : [];
@@ -889,7 +981,10 @@ export async function readScannerFieldImage(input: {
   if (numberObservation) {
     observations.number = {
       value: numberObservation.value,
-      confidence: ocr.confidence,
+      confidence:
+        ocr.confidence == null
+          ? numberObservation.confidence
+          : Math.min(numberObservation.confidence, ocr.confidence),
       catalogMatches: numberObservation.catalogMatches,
     };
     const inferredName = getScannerNameFromUniqueReference(
@@ -912,10 +1007,8 @@ export async function readScannerFieldImage(input: {
           normalizeScannerText(card.name) === normalizedKnownName;
         const numberMatches =
           normalizedKnownReference &&
-          [card.printed_card_number, card.card_number].some(
-            (value) =>
-              normalizeScannerCardReference(value ?? "") ===
-              normalizedKnownReference
+          getScannerCardReferenceAliases(card).includes(
+            normalizedKnownReference
           );
         return Boolean(nameMatches && numberMatches);
       })

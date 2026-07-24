@@ -39,6 +39,8 @@ const OTHER_CARD: CardScannerCatalogCard = {
 describe("card scanner recognition", () => {
   it("normalizes printed and One Piece card references", () => {
     expect(normalizeScannerCardReference("#105/086")).toBe("105/86");
+    expect(normalizeScannerCardReference("SVP EN 210")).toBe("SVP210");
+    expect(normalizeScannerCardReference("SVP 210")).toBe("SVP210");
     expect(normalizeScannerCardReference("OP16 - 056")).toBe("OP16-056");
     expect(normalizeScannerCardReference("ST29-012")).toBe("ST29-012");
   });
@@ -47,11 +49,140 @@ describe("card scanner recognition", () => {
     expect(
       extractScannerCardReferences("EISmitoad\nweakness\n105/086\nGAME FREAK")
     ).toEqual(["105/86"]);
+    expect(
+      extractScannerCardReferences("Tornadus\nSVP EN 210\nPromo")
+    ).toEqual(["SVP210"]);
     expect(extractScannerCardReferences("Mr.3(Galdino) OP16-056")).toEqual(["OP16-056"]);
+  });
+
+  it("matches an SV promo from either its printed prefix or centred local number", () => {
+    const promo = {
+      ...SEISMITOAD,
+      id: "svp-210",
+      name: "Tornadus",
+      card_number: "SVP 210",
+      printed_card_number: null,
+      rarity: "Promo",
+      episode: {
+        id: "svp",
+        name: "SV Black Star Promos",
+        code: "PR-SV",
+      },
+    };
+    expect(getScannerNumberObservation([promo], "SVP EN 210")).toMatchObject({
+      value: "SVP210",
+      catalogMatches: 1,
+    });
+    expect(getScannerNumberObservation([promo], "210")).toMatchObject({
+      value: "210",
+      catalogMatches: 1,
+    });
+    expect(
+      getScannerNumberObservation(
+        [
+          promo,
+          {
+            ...promo,
+            id: "wht-78",
+            card_number: "78",
+            printed_card_number: "78/86",
+            rarity: "Rare",
+            episode: { id: "wht", name: "White Flare", code: "WHT" },
+          },
+        ],
+        "SVP N\n27002"
+      )
+    ).toMatchObject({
+      value: "SVP210",
+      catalogMatches: 1,
+    });
+    expect(
+      getScannerNumberObservation(
+        [
+          promo,
+          {
+            ...promo,
+            id: "wht-78",
+            card_number: "78",
+            printed_card_number: "78/86",
+            rarity: "Rare",
+            episode: { id: "wht", name: "White Flare", code: "WHT" },
+          },
+        ],
+        "2025PK N C GAME FREAK\nSVP N\n270"
+      )
+    ).toMatchObject({
+      value: "SVP210",
+    });
+    expect(
+      rankScannerCandidates(
+        [SEISMITOAD, promo],
+        "Tornadus",
+        new Map(),
+        new Map(),
+        ["210"]
+      )[0]
+    ).toMatchObject({
+      card: { id: "svp-210" },
+      numberMatch: "exact",
+    });
+  });
+
+  it("keeps an exact printed reference ahead of a stronger wrong-name guess", () => {
+    const promo = {
+      ...SEISMITOAD,
+      id: "svp-210",
+      name: "Tornadus",
+      card_number: "SVP 210",
+      printed_card_number: null,
+      rarity: "Promo",
+      episode: {
+        id: "svp",
+        name: "SV Black Star Promos",
+        code: "PR-SV",
+      },
+    };
+    const wrongNameSameLocalNumber = {
+      ...OTHER_CARD,
+      id: "other-210",
+      name: "Thorton",
+      card_number: "210",
+      printed_card_number: "210/196",
+    };
+    expect(
+      rankScannerCandidates(
+        [wrongNameSameLocalNumber, promo],
+        "Thorton",
+        new Map(),
+        new Map(),
+        ["SVP210"]
+      )[0]
+    ).toMatchObject({
+      card: { id: "svp-210" },
+      numberMatch: "exact",
+    });
   });
 
   it("keeps a strong fuzzy match when OCR drops the first letter", () => {
     expect(getScannerTextSimilarity("Seismitoad", "Eismitoad")).toBeGreaterThan(0.85);
+  });
+
+  it("recovers the promo name from the outlined title OCR", () => {
+    const tornado = {
+      ...SEISMITOAD,
+      id: "svp-210",
+      name: "Tornadus",
+      card_number: "SVP 210",
+      printed_card_number: null,
+    };
+    expect(
+      getScannerNameObservation(
+        [tornado, OTHER_CARD],
+        "BASIC T\nToynadu oT\nTopnadusw"
+      )
+    ).toMatchObject({
+      value: "Tornadus",
+    });
   });
 
   it("ranks exact printing numbers above cards sharing only the local number", () => {

@@ -148,6 +148,23 @@ function normalizeDigits(value: string): string {
   return normalized || "0";
 }
 
+function getScannerEditDistance(left: string, right: string): number {
+  const previous = Array.from({ length: right.length + 1 }, (_, index) => index);
+  for (let leftIndex = 1; leftIndex <= left.length; leftIndex += 1) {
+    let diagonal = previous[0];
+    previous[0] = leftIndex;
+    for (let rightIndex = 1; rightIndex <= right.length; rightIndex += 1) {
+      const above = previous[rightIndex];
+      previous[rightIndex] =
+        left[leftIndex - 1] === right[rightIndex - 1]
+          ? diagonal
+          : Math.min(diagonal, above, previous[rightIndex - 1]) + 1;
+      diagonal = above;
+    }
+  }
+  return previous[right.length];
+}
+
 export function normalizeScannerCardReference(value: string): string | null {
   const compact = stripDiacritics(value)
     .toUpperCase()
@@ -156,6 +173,13 @@ export function normalizeScannerCardReference(value: string): string | null {
     .replace(/^#+/, "")
     .replace(/O(?=\d)/g, "0");
 
+  const pokemonPromo =
+    /^(SVP|MEP|SWSH|SM|XY|BW|HGSS|DP|NP)(?:EN)?-?(\d{1,4})$/.exec(
+      compact
+    );
+  if (pokemonPromo) {
+    return `${pokemonPromo[1]}${normalizeDigits(pokemonPromo[2])}`;
+  }
   const onePiece = /^(OP|ST|EB|PRB)(\d{1,2})-?(\d{1,4})$/.exec(compact);
   if (onePiece) {
     return `${onePiece[1]}${normalizeDigits(onePiece[2]).padStart(2, "0")}-${normalizeDigits(onePiece[3]).padStart(3, "0")}`;
@@ -177,6 +201,9 @@ export function normalizeScannerCardReference(value: string): string | null {
 export function extractScannerCardReferences(text: string): string[] {
   const normalized = stripDiacritics(text).toUpperCase().replace(/[—–_]/g, "-");
   const rawMatches = [
+    ...normalized.matchAll(
+      /\b(?:SVP|MEP|SWSH|SM|XY|BW|HGSS|DP|NP)\s*(?:EN\s*)?-?\s*\d{1,4}\b/g
+    ),
     ...normalized.matchAll(/\b(?:OP|ST|EB|PRB)\s*\d{1,2}\s*-\s*\d{3,4}\b/g),
     ...normalized.matchAll(/\bP\s*-\s*\d{3,4}\b/g),
     ...normalized.matchAll(/#?\s*\d{1,4}\s*\/\s*\d{1,4}\b/g),
@@ -185,6 +212,22 @@ export function extractScannerCardReferences(text: string): string[] {
     .map((match) => normalizeScannerCardReference(match[0]))
     .filter((value): value is string => Boolean(value));
   return [...new Set(references)];
+}
+
+export function getScannerCardReferenceAliases(
+  card: Pick<CardScannerCatalogCard, "printed_card_number" | "card_number">
+): string[] {
+  const references = [card.printed_card_number, card.card_number]
+    .map((value) => normalizeScannerCardReference(value ?? ""))
+    .filter((value): value is string => Boolean(value));
+  const promoLocalNumbers = references.flatMap((reference) => {
+    const promo =
+      /^(?:SVP|MEP|SWSH|SM|XY|BW|HGSS|DP|NP)(\d{1,4})$/.exec(
+        reference
+      );
+    return promo ? [normalizeDigits(promo[1])] : [];
+  });
+  return [...new Set([...references, ...promoLocalNumbers])];
 }
 
 function buildBigrams(value: string): Set<string> {
@@ -289,6 +332,7 @@ function getMeaningfulOcrLines(text: string): string[] {
     .map(normalizeScannerText)
     .filter(Boolean)
     .filter((line) => !COMMON_CARD_TEXT.has(line))
+    .filter((line) => !/^basic\s+[a-z]$/i.test(line))
     .slice(0, 80);
   const lines = rawLines.filter((line) => line.length >= 3);
   const joinedFragments = rawLines.flatMap((_, startIndex) =>
@@ -324,15 +368,19 @@ function getNumberMatch(
   card: CardScannerCatalogCard,
   references: string[]
 ): RankedScannerCandidate["numberMatch"] {
-  const printed = normalizeScannerCardReference(card.printed_card_number ?? "");
-  const cardNumber = normalizeScannerCardReference(card.card_number ?? "");
-
-  if (printed && references.includes(printed)) return "exact";
-  if (cardNumber && references.includes(cardNumber)) return "exact";
+  const aliases = getScannerCardReferenceAliases(card);
+  if (aliases.some((reference) => references.includes(reference))) {
+    return "exact";
+  }
 
   const localNumbers = references.map((reference) => reference.split("/")[0]);
-  if (printed && localNumbers.includes(printed.split("/")[0])) return "local";
-  if (cardNumber && localNumbers.includes(cardNumber.split("/")[0])) return "local";
+  if (
+    aliases.some((reference) =>
+      localNumbers.includes(reference.split("/")[0])
+    )
+  ) {
+    return "local";
+  }
   return null;
 }
 
@@ -347,11 +395,19 @@ export function rankScannerCandidates(
   cards: CardScannerCatalogCard[],
   ocrText: string,
   visualSimilarities: ReadonlyMap<string, number> = new Map(),
-  attackSimilarities: ReadonlyMap<string, number> = new Map()
+  attackSimilarities: ReadonlyMap<string, number> = new Map(),
+  confirmedReferences: readonly string[] = []
 ): RankedScannerCandidate[] {
   const normalizedOcr = normalizeScannerText(ocrText);
   const ocrLines = getMeaningfulOcrLines(ocrText);
-  const references = extractScannerCardReferences(ocrText);
+  const references = [
+    ...new Set([
+      ...extractScannerCardReferences(ocrText),
+      ...confirmedReferences
+        .map(normalizeScannerCardReference)
+        .filter((value): value is string => Boolean(value)),
+    ]),
+  ];
 
   return cards
     .map((card): RankedScannerCandidate => {
@@ -361,9 +417,11 @@ export function rankScannerCandidates(
       const visualSimilarity = visualSimilarities.get(card.id) ?? null;
       const attackSimilarity = attackSimilarities.get(card.id) ?? null;
 
-      let score = nameSimilarity * 52;
-      if (numberMatch === "exact") score += 38;
-      if (numberMatch === "local") score += 22;
+      // A printed reference identifies a printing much more precisely than
+      // artwork or a Pokémon name shared by many different cards.
+      let score = nameSimilarity * 34;
+      if (numberMatch === "exact") score += 56;
+      if (numberMatch === "local") score += 36;
       if (setMatch) score += 10;
       if (visualSimilarity != null) {
         score += Math.max(0, (visualSimilarity - 0.45) / 0.55) * 24;
@@ -606,7 +664,16 @@ export function getScannerNumberObservation(
       return candidates;
     }
   );
+  const localNumberTokens = [...ocrText.matchAll(/\b\d{1,4}\b/g)]
+    .map((match) => normalizeScannerCardReference(match[0]))
+    .filter((value): value is string => Boolean(value));
   const referenceQuality = new Map<string, number>();
+  for (const reference of localNumberTokens) {
+    referenceQuality.set(
+      reference,
+      Math.max(referenceQuality.get(reference) ?? 0, 1)
+    );
+  }
   for (const reference of inferredSeparators) {
     referenceQuality.set(reference, Math.max(referenceQuality.get(reference) ?? 0, 1));
   }
@@ -620,13 +687,9 @@ export function getScannerNumberObservation(
     .map((reference) => ({
       reference: reference[0],
       quality: reference[1],
-      matches: cards.filter((card) => {
-        const printed = normalizeScannerCardReference(
-          card.printed_card_number ?? ""
-        );
-        const local = normalizeScannerCardReference(card.card_number ?? "");
-        return printed === reference[0] || local === reference[0];
-      }).length,
+      matches: cards.filter((card) =>
+        getScannerCardReferenceAliases(card).includes(reference[0])
+      ).length,
     }))
     .filter((candidate) => candidate.matches > 0)
     .sort(
@@ -634,13 +697,92 @@ export function getScannerNumberObservation(
         right.quality - left.quality || left.matches - right.matches
     )[0];
 
-  return supported
-    ? {
-        value: supported.reference,
-        confidence: 100,
-        catalogMatches: supported.matches,
+  if (supported) {
+    return {
+      value: supported.reference,
+      confidence: 100,
+      catalogMatches: supported.matches,
+    };
+  }
+
+  // Once the name has narrowed the catalog to one card family, recover the
+  // occasional single OCR error in a short printed number. This is especially
+  // useful for outlined promo typography where `210` is often read as `270`.
+  // Never make this correction against the entire catalog: a bare local
+  // number is only trustworthy inside an already confirmed name family.
+  const nameFamilies = new Set(cards.map((card) => normalizeScannerText(card.name)));
+  if (cards.length === 0 || cards.length > 24 || nameFamilies.size !== 1) {
+    return null;
+  }
+  const digitRuns = [...ocrText.matchAll(/\d{2,7}/g)].flatMap((match) => {
+    const token = match[0];
+    if (token.length <= 4) return [token];
+    const windows: string[] = [];
+    for (let size = 2; size <= 4; size += 1) {
+      for (let start = 0; start + size <= token.length; start += 1) {
+        windows.push(token.slice(start, start + size));
       }
-    : null;
+    }
+    return windows;
+  });
+  const promoPrefix = /\b(SVP|MEP|SWSH|SM|XY|BW|HGSS|DP|NP)\b/i.exec(
+    ocrText.replace(/\s+/g, " ")
+  )?.[1]?.toUpperCase();
+  const fuzzyCandidates = cards.flatMap((card) => {
+    const canonicalReferences = [
+      card.printed_card_number,
+      card.card_number,
+    ]
+      .map((value) => normalizeScannerCardReference(value ?? ""))
+      .filter((value): value is string => Boolean(value));
+    return canonicalReferences.flatMap((reference) => {
+      const promo = /^(SVP|MEP|SWSH|SM|XY|BW|HGSS|DP|NP)(\d{1,4})$/.exec(
+        reference
+      );
+      const localNumber = promo
+        ? promo[2]
+        : reference.split("/")[0].replace(/\D/g, "");
+      if (localNumber.length < 2) return [];
+      const bestDistance = Math.min(
+        ...digitRuns
+          .filter((observed) => observed.length === localNumber.length)
+          .map((observed) => getScannerEditDistance(observed, localNumber))
+      );
+      if (bestDistance > 1) return [];
+      return [
+        {
+          reference,
+          distance: bestDistance,
+          prefixMatch: Boolean(promoPrefix && promo?.[1] === promoPrefix),
+        },
+      ];
+    });
+  });
+  const rankedFuzzy = fuzzyCandidates.sort(
+    (left, right) =>
+      left.distance - right.distance ||
+      Number(right.prefixMatch) - Number(left.prefixMatch)
+  );
+  const bestFuzzy = rankedFuzzy[0];
+  const runnerUpFuzzy = rankedFuzzy.find(
+    (candidate) => candidate.reference !== bestFuzzy?.reference
+  );
+  if (
+    !bestFuzzy ||
+    (runnerUpFuzzy &&
+      runnerUpFuzzy.distance === bestFuzzy.distance &&
+      runnerUpFuzzy.prefixMatch === bestFuzzy.prefixMatch)
+  ) {
+    return null;
+  }
+  const matchingCards = cards.filter((card) =>
+    getScannerCardReferenceAliases(card).includes(bestFuzzy.reference)
+  ).length;
+  return {
+    value: bestFuzzy.reference,
+    confidence: bestFuzzy.distance === 0 ? 94 : 82,
+    catalogMatches: matchingCards,
+  };
 }
 
 export function getScannerNameFromUniqueReference(
@@ -651,10 +793,7 @@ export function getScannerNameFromUniqueReference(
   if (!normalizedReference) return null;
 
   const exactCards = cards.filter((card) =>
-    [card.printed_card_number, card.card_number].some(
-      (value) =>
-        normalizeScannerCardReference(value ?? "") === normalizedReference
-    )
+    getScannerCardReferenceAliases(card).includes(normalizedReference)
   );
   const exactNames = [
     ...new Set(exactCards.map((card) => normalizeScannerText(card.name))),
