@@ -215,6 +215,12 @@ describe("card scanner recognition", () => {
         "i\nTognad u Z= a |\noF\nSwi\nN20 %\nPF"
       )
     ).toMatchObject({ value: "Tornadus" });
+    expect(
+      getScannerNameObservation(
+        cards,
+        "FES\nBAS\nTognad usHs\n0,\nBASIC ef a BYR 4)"
+      )
+    ).toMatchObject({ value: "Tornadus" });
   });
 
   it("keeps an exact printed reference ahead of a stronger wrong-name guess", () => {

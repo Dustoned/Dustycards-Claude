@@ -566,13 +566,20 @@ export function getScannerNameObservation(
     (best?.nameSimilarity ?? 0) >= 0.9 && similarityGap >= 0.08;
   const hasClearFuzzyRead =
     (best?.nameSimilarity ?? 0) >= 0.84 && similarityGap >= 0.13;
+  const hasClearLongFuzzyRead =
+    (best?.nameSimilarity ?? 0) >= 0.86 &&
+    similarityGap >= 0.08 &&
+    compactScannerText(best?.card.name ?? "").length >= 7;
   const hasVeryClearNoisyRead =
     (best?.nameSimilarity ?? 0) >= 0.81 &&
     similarityGap >= 0.22 &&
     compactScannerText(best?.card.name ?? "").length >= 7;
   if (
     !best ||
-    (!hasClearExactRead && !hasClearFuzzyRead && !hasVeryClearNoisyRead)
+    (!hasClearExactRead &&
+      !hasClearFuzzyRead &&
+      !hasClearLongFuzzyRead &&
+      !hasVeryClearNoisyRead)
   ) {
     return null;
   }

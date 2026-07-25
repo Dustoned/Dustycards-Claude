@@ -880,12 +880,6 @@ export default function CardScannerClient() {
     ]);
 
     try {
-      // Give the live reader first access to the next card. The exact-printing
-      // artwork check is deliberately background work and must not make the
-      // camera feel frozen during a bulk session.
-      await new Promise<void>((resolve) => {
-        window.setTimeout(resolve, 2_000);
-      });
       if (controller.signal.aborted) return;
       const data = await requestCardScan(file, controller, identity);
       const topMatch = data.result.matches[0] ?? null;
@@ -955,6 +949,10 @@ export default function CardScannerClient() {
     }
     captureInProgressRef.current = true;
     try {
+      fieldControllerRef.current?.abort();
+      fieldControllerRef.current = null;
+      fieldInProgressRef.current = false;
+      setActiveField(null);
       drawCentralCardCrop(
         canvas,
         video,
@@ -1040,32 +1038,13 @@ export default function CardScannerClient() {
           return;
         }
 
-        const remembered = observedIdentityRef.current;
-        const scannerFields = getScannerFields(game);
-        const missingPrimaryFields = scannerFields.filter(
-          (field) =>
-            field !== "attack" &&
-            !remembered[field]
-        );
-        const primaryIdentityReady = missingPrimaryFields.length === 0;
-        const shouldTryOptionalAttack =
-          scannerFields.includes("attack") &&
-          primaryIdentityReady &&
-          !remembered.attack &&
-          fieldAttemptCountsRef.current.attack < 2;
-        const missingFields = [
-          ...missingPrimaryFields,
-          ...(shouldTryOptionalAttack ? (["attack"] as const) : []),
-        ];
         const preferredField = focusFieldRef.current;
-        const fieldsStillWorthTrying =
-          preferredField && missingFields.includes(preferredField)
-            ? [preferredField]
-            : missingFields;
-        if (fieldsStillWorthTrying.length > 0) {
+        if (
+          preferredField &&
+          !observedIdentityRef.current[preferredField]
+        ) {
           readyFrameStreakRef.current = 0;
           if (
-            !autoCaptureEnabled ||
             fieldInProgressRef.current ||
             Date.now() < fieldCooldownUntilRef.current ||
             readiness.brightness < 7 ||
@@ -1078,14 +1057,7 @@ export default function CardScannerClient() {
           fieldStableStreakRef.current += 1;
           if (fieldStableStreakRef.current >= 1) {
             fieldStableStreakRef.current = 0;
-            const startIndex = scannerFields.indexOf(nextFieldRef.current);
-            const targetField =
-              scannerFields.map(
-                (_, offset) =>
-                  scannerFields[(startIndex + offset) % scannerFields.length]
-              ).find((field) => fieldsStillWorthTrying.includes(field)) ??
-              fieldsStillWorthTrying[0];
-            fieldReadActionRef.current(targetField);
+            fieldReadActionRef.current(preferredField);
           }
           return;
         }

@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.17",
+    releasedAt: "July 25, 2026",
+    title: "Full-card scanner that cannot get stuck",
+    summary:
+      "DustyCards 3.8.17 replaces the blocking field-by-field camera loop with one full-card recognition route backed by targeted OCR and catalog evidence.",
+    tone: "fixed",
+    highlights: [
+      "Automatic capture no longer waits indefinitely for Name and Number chips to turn green; a stable card is photographed immediately and analyzed as a whole.",
+      "The server now performs a dedicated title pass, resolves noisy reads such as Tognad usHs to the catalog family and compares only relevant printings.",
+      "Stacked mobile OCR bands are split back into separate source regions instead of being interpreted as one noisy text collage.",
+      "Modern promo footers receive a dedicated lower-left number crop, while attack text such as Hurricane provides independent printing evidence when foil glare hides tiny digits.",
+      "Artwork comparison now checks several realistic inset alignments, so a card sitting slightly inside the guide is compared to reference artwork instead of its surrounding holder.",
+      "The reported Tornadus camera frame now returns both SVP 210 variants first instead of unrelated cards and proceeds to review rather than remaining on Reading card number.",
+    ],
+  },
+  {
     version: "3.8.16",
     releasedAt: "July 24, 2026",
     title: "Position-aware automatic card reading",

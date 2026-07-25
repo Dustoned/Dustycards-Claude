@@ -121,7 +121,24 @@ function getTcgdexScannerCardId(card: CardScannerCatalogCard): string | null {
       // Fall through to the stored TCGdex id.
     }
   }
-  return card.tcgid?.trim() || null;
+  const storedId = card.tcgid?.trim();
+  if (storedId) return storedId;
+
+  const promoReference = normalizeScannerCardReference(card.card_number ?? "");
+  const promo = /^(SVP|MEP|SWSH|SM|XY|BW)(\d{1,4})$/.exec(
+    promoReference ?? ""
+  );
+  if (!promo) return null;
+  const setIdByPrefix: Record<string, string> = {
+    SVP: "svp",
+    MEP: "mep",
+    SWSH: "swshp",
+    SM: "smp",
+    XY: "xyp",
+    BW: "bwp",
+  };
+  const setId = setIdByPrefix[promo[1]];
+  return setId ? `${setId}-${Number(promo[2])}` : null;
 }
 
 async function fetchScannerAttackTexts(
@@ -260,6 +277,46 @@ function getArtworkSimilarity(
     getHashSimilarity(left.full, right.full),
     getHashSimilarity(left.illustration, right.illustration)
   );
+}
+
+async function createScannedArtworkHashes(
+  image: Buffer
+): Promise<ScannerArtworkHash[]> {
+  const metadata = await sharp(image).metadata();
+  if (!metadata.width || !metadata.height) return [];
+  const trims = [
+    { left: 0.025, top: 0.035, width: 0.95, height: 0.94 },
+    { left: 0.04, top: 0.055, width: 0.92, height: 0.91 },
+    { left: 0.06, top: 0.07, width: 0.88, height: 0.88 },
+  ];
+  const trimmedImages = await Promise.all(
+    trims.map((trim) => {
+      const left = Math.floor(metadata.width! * trim.left);
+      const top = Math.floor(metadata.height! * trim.top);
+      const width = Math.max(
+        1,
+        Math.min(
+          metadata.width! - left,
+          Math.floor(metadata.width! * trim.width)
+        )
+      );
+      const height = Math.max(
+        1,
+        Math.min(
+          metadata.height! - top,
+          Math.floor(metadata.height! * trim.height)
+        )
+      );
+      return sharp(image)
+        .extract({ left, top, width, height })
+        .png({ compressionLevel: 4 })
+        .toBuffer();
+    })
+  );
+  const hashes = await Promise.all(
+    [image, ...trimmedImages].map(createScannerArtworkHash)
+  );
+  return hashes.filter((hash): hash is ScannerArtworkHash => hash != null);
 }
 
 async function loadRemoteArtworkHash(imageUrl: string): Promise<ScannerArtworkHash | null> {
@@ -508,9 +565,40 @@ async function recognizeScannerFieldUnsafe(
     };
 
     if (isFieldBandLayout) {
-      fieldZones = [
-        await extractZone({ left: 0, top: 0, width: 1, height: 1 }),
-      ];
+      const hasStackedExpectedBands =
+        scanRegion === "expected" && field !== "attack";
+      if (hasStackedExpectedBands) {
+        // The browser stacks two independent high-resolution search bands with
+        // a 24px white gutter. Reading that collage as one page made Tesseract
+        // merge the title/footer with unrelated text and then re-read only the
+        // upper name band. Split them back into their original zones first.
+        const gutter = Math.max(
+          8,
+          Math.round(metadata.width * (24 / 1_440))
+        );
+        const bandHeight = Math.floor((metadata.height - gutter) / 2);
+        if (bandHeight > 0) {
+          fieldZones = await Promise.all([
+            extractZone({
+              left: 0,
+              top: 0,
+              width: 1,
+              height: bandHeight / metadata.height,
+            }),
+            extractZone({
+              left: 0,
+              top: (bandHeight + gutter) / metadata.height,
+              width: 1,
+              height: bandHeight / metadata.height,
+            }),
+          ]);
+        }
+      }
+      if (fieldZones.length === 0) {
+        fieldZones = [
+          await extractZone({ left: 0, top: 0, width: 1, height: 1 }),
+        ];
+      }
     } else if (isCardShaped) {
       const expectedBounds =
         field === "name"
@@ -524,10 +612,18 @@ async function recognizeScannerFieldUnsafe(
           : field === "number"
             ? { left: 0.23, top: 0.43, width: 0.54, height: 0.14 }
             : { left: 0.08, top: 0.35, width: 0.84, height: 0.3 };
-      fieldZones = await Promise.all([
-        extractZone(expectedBounds),
-        extractZone(focusBounds),
-      ]);
+      const zoneBounds =
+        field === "number"
+          ? [
+              expectedBounds,
+              focusBounds,
+              // Modern Pokemon promo/set references are printed in the tiny
+              // lower-left footer. Isolating that area avoids attack damage,
+              // retreat costs and copyright text dominating OCR.
+              { left: 0.035, top: 0.89, width: 0.45, height: 0.105 },
+            ]
+          : [expectedBounds, focusBounds];
+      fieldZones = await Promise.all(zoneBounds.map(extractZone));
     }
   }
 
@@ -547,9 +643,16 @@ async function recognizeScannerFieldUnsafe(
         isFieldBandLayout
           ? scanRegion === "focus"
           : sourceIndex === focusResultIndex;
+      const isFooterNumberZone =
+        !isFieldBandLayout &&
+        field === "number" &&
+        sourceImages.length >= 3 &&
+        sourceIndex === sourceImages.length - 1;
       await worker.setParameters({
         tessedit_pageseg_mode:
-          isFieldBandLayout && field === "attack"
+          isFooterNumberZone
+            ? PSM.RAW_LINE
+            : isFieldBandLayout && field === "attack"
               ? PSM.SINGLE_BLOCK
               : isCentreFocusBand
                 ? PSM.SINGLE_LINE
@@ -566,73 +669,51 @@ async function recognizeScannerFieldUnsafe(
 
     const primaryImage = fieldZones[0] ?? normalizedImage;
     if (isFieldBandLayout && metadata.width && metadata.height) {
-      const guidedBounds =
-        scanRegion === "focus"
-          ? { left: 0.02, top: 0.06, width: 0.96, height: 0.88 }
-          : field === "name"
-            ? { left: 0.01, top: 0, width: 0.98, height: 0.49 }
-            : field === "number"
-              ? { left: 0.01, top: 0.01, width: 0.98, height: 0.98 }
-              : { left: 0.02, top: 0.02, width: 0.96, height: 0.96 };
-      const left = Math.floor(metadata.width * guidedBounds.left);
-      const top = Math.floor(metadata.height * guidedBounds.top);
-      const width = Math.max(
-        1,
-        Math.min(
-          metadata.width - left,
-          Math.floor(metadata.width * guidedBounds.width)
-        )
-      );
-      const height = Math.max(
-        1,
-        Math.min(
-          metadata.height - top,
-          Math.floor(metadata.height * guidedBounds.height)
-        )
-      );
-      const guidedImage = await sharp(normalizedImage)
-        .extract({ left, top, width, height })
-        .resize({ width: 1_800, withoutEnlargement: false })
-        .normalize()
-        .sharpen({ sigma: 1.15 })
-        .extend({
-          top: 24,
-          bottom: 24,
-          left: 24,
-          right: 24,
-          background: "#ffffff",
-        })
-        .png({ compressionLevel: 4 })
-        .toBuffer();
-      await worker.setParameters({
-        tessedit_pageseg_mode:
-          field === "attack"
-            ? PSM.SINGLE_BLOCK
-            : field === "number" && scanRegion === "focus"
-              ? PSM.RAW_LINE
-              : field === "number"
-                ? PSM.SPARSE_TEXT
-              : PSM.SINGLE_LINE,
-        tessedit_char_whitelist:
-          field === "number"
-            ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
-            : "",
-        thresholding_method: "0",
-        user_defined_dpi: "300",
-      });
-      results.push(await recognizeFieldPass(worker, guidedImage));
-      if (field === "name" && scanRegion === "expected") {
-        const thresholdNameImage = await sharp(guidedImage)
-          .threshold(80)
+      for (const zone of fieldZones) {
+        const zoneMetadata = await sharp(zone).metadata();
+        if (!zoneMetadata.width || !zoneMetadata.height) continue;
+        const inset = scanRegion === "focus" ? 0.02 : 0.01;
+        const left = Math.floor(zoneMetadata.width * inset);
+        const top = Math.floor(zoneMetadata.height * inset);
+        const width = Math.max(
+          1,
+          zoneMetadata.width - left - Math.floor(zoneMetadata.width * inset)
+        );
+        const height = Math.max(
+          1,
+          zoneMetadata.height - top - Math.floor(zoneMetadata.height * inset)
+        );
+        const guidedImage = await sharp(zone)
+          .extract({ left, top, width, height })
+          .resize({ width: 1_800, withoutEnlargement: false })
+          .normalize()
+          .sharpen({ sigma: 1.15 })
+          .extend({
+            top: 24,
+            bottom: 24,
+            left: 24,
+            right: 24,
+            background: "#ffffff",
+          })
           .png({ compressionLevel: 4 })
           .toBuffer();
         await worker.setParameters({
-          tessedit_pageseg_mode: PSM.SINGLE_WORD,
-          tessedit_char_whitelist: "",
+          tessedit_pageseg_mode:
+            field === "attack"
+              ? PSM.SINGLE_BLOCK
+              : field === "number" && scanRegion === "focus"
+                ? PSM.RAW_LINE
+                : field === "number"
+                  ? PSM.SPARSE_TEXT
+                  : PSM.SINGLE_LINE,
+          tessedit_char_whitelist:
+            field === "number"
+              ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
+              : "",
           thresholding_method: "0",
           user_defined_dpi: "300",
         });
-        results.push(await recognizeFieldPass(worker, thresholdNameImage));
+        results.push(await recognizeFieldPass(worker, guidedImage));
       }
     } else if (!isFieldBandLayout) {
       if (field === "name") {
@@ -642,12 +723,15 @@ async function recognizeScannerFieldUnsafe(
         });
         results.push(await recognizeFieldPass(worker, primaryImage));
       } else if (field === "number") {
-        const thresholdImage = await sharp(primaryImage)
-          .threshold(130)
+        const footerImage = fieldZones.at(-1) ?? primaryImage;
+        const thresholdImage = await sharp(footerImage)
+          .grayscale()
+          .normalize()
+          .threshold(120)
           .png({ compressionLevel: 4 })
           .toBuffer();
         await worker.setParameters({
-          tessedit_pageseg_mode: PSM.SPARSE_TEXT,
+          tessedit_pageseg_mode: PSM.RAW_LINE,
           tessedit_char_whitelist:
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- ",
         });
@@ -751,12 +835,30 @@ async function loadScannerCatalog(game: TradingCardGame): Promise<CardScannerCat
   return promise;
 }
 
+function getScannerNameFamily(value: string): string {
+  return normalizeScannerText(value)
+    .replace(/[-\s]+(?:break|ex|gx|lv x|v|vmax|vstar)$/i, "")
+    .trim();
+}
+
+function narrowScannerCatalogByName(
+  catalog: CardScannerCatalogCard[],
+  knownName: string | null
+): CardScannerCatalogCard[] {
+  const knownFamily = getScannerNameFamily(knownName ?? "");
+  if (!knownFamily) return catalog;
+  const familyCards = catalog.filter(
+    (card) => getScannerNameFamily(card.name) === knownFamily
+  );
+  return familyCards.length > 0 ? familyCards : catalog;
+}
+
 async function getVisualSimilarities(
   normalizedImage: Buffer,
   candidates: CardScannerCatalogCard[]
 ): Promise<Map<string, number>> {
-  const scannedHash = await createScannerArtworkHash(normalizedImage);
-  if (!scannedHash) return new Map();
+  const scannedHashes = await createScannedArtworkHashes(normalizedImage);
+  if (scannedHashes.length === 0) return new Map();
 
   const candidateHashes = await Promise.all(
     candidates.map(async (candidate) => ({
@@ -767,7 +869,17 @@ async function getVisualSimilarities(
 
   return new Map(
     candidateHashes
-      .map(({ id, hash }) => [id, getArtworkSimilarity(scannedHash, hash)] as const)
+      .map(
+        ({ id, hash }) =>
+          [
+            id,
+            Math.max(
+              ...scannedHashes.map((scannedHash) =>
+                getArtworkSimilarity(scannedHash, hash)
+              )
+            ),
+          ] as const
+      )
       .filter(([, similarity]) => similarity > 0)
   );
 }
@@ -790,7 +902,8 @@ export async function scanCardImage(input: {
   const hasRememberedPrimaryIdentity = Boolean(
     input.knownName?.trim() && input.knownReference?.trim()
   );
-  const [ocr, catalog] = await Promise.all([
+  const shouldDetectName = !input.knownName?.trim();
+  const [ocr, catalog, nameOcr] = await Promise.all([
     hasRememberedPrimaryIdentity
       ? normalizeScanImage(input.image).then(
           (normalizedImage): OcrResult => ({
@@ -801,16 +914,26 @@ export async function scanCardImage(input: {
         )
       : recognizeCardText(input.image),
     loadScannerCatalog(input.game),
+    shouldDetectName
+      ? recognizeScannerField(input.image, "name", "expected")
+      : Promise.resolve(null),
   ]);
-  const rememberedText = [input.knownName, input.knownReference]
+  const detectedName =
+    input.knownName?.trim() ||
+    getScannerNameObservation(catalog, nameOcr?.text ?? "")?.value ||
+    null;
+  const candidateCatalog = narrowScannerCatalogByName(catalog, detectedName);
+  const rememberedText = [detectedName, input.knownReference]
     .filter((value): value is string => Boolean(value?.trim()))
     .join("\n");
-  const combinedOcrText = [rememberedText, ocr.text].filter(Boolean).join("\n");
+  const combinedOcrText = [rememberedText, nameOcr?.text, ocr.text]
+    .filter(Boolean)
+    .join("\n");
   const confirmedReferences = input.knownReference
     ? [input.knownReference]
     : [];
   const initialRank = rankScannerCandidates(
-    catalog,
+    candidateCatalog,
     combinedOcrText,
     new Map(),
     new Map(),
@@ -825,7 +948,9 @@ export async function scanCardImage(input: {
   );
   const analysisCandidateLimit = hasRememberedPrimaryIdentity
     ? 3
-    : MAX_VISUAL_CANDIDATES;
+    : detectedName
+      ? Math.min(40, candidateCatalog.length)
+      : MAX_VISUAL_CANDIDATES;
   const visualCandidateCards = textMatchIsConclusive
     ? []
     : initialRank
@@ -836,12 +961,12 @@ export async function scanCardImage(input: {
       ? getVisualSimilarities(ocr.normalizedImage, visualCandidateCards)
       : Promise.resolve(new Map<string, number>()),
     getAttackSimilarities(
-      input.knownAttackText,
+      input.knownAttackText || (detectedName ? ocr.text : null),
       initialRank.slice(0, analysisCandidateLimit).map((candidate) => candidate.card)
     ),
   ]);
   const ranked = rankScannerCandidates(
-    catalog,
+    candidateCatalog,
     combinedOcrText,
     visualSimilarities,
     attackSimilarities,
@@ -909,7 +1034,7 @@ export async function scanCardImage(input: {
     matches,
     detected: {
       cardReferences: extractScannerCardReferences(combinedOcrText),
-      strongestText: input.knownName ?? getStrongestScannerText(ocr.text),
+      strongestText: detectedName ?? getStrongestScannerText(ocr.text),
       ocrConfidence: ocr.confidence,
     },
   };
