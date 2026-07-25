@@ -4,6 +4,7 @@ import {
   canAutoAcceptScannerCandidate,
   getScannerAttackObservation,
   getScannerAttackSimilarity,
+  getScannerAutoAcceptContext,
   getScannerConfidence,
   getScannerNameObservation,
   getScannerNameFromUniqueReference,
@@ -334,6 +335,54 @@ describe("card scanner recognition", () => {
       score: 90,
     };
     expect(canAutoAcceptScannerCandidate(exactButAmbiguous, 82)).toBe(false);
+  });
+
+  it("auto-accepts a visually clear printing group without tiny footer OCR", () => {
+    const inferredPrinting = {
+      card: {
+        ...SEISMITOAD,
+        id: "svp-210-standard",
+        card_number: "SVP 210",
+        printed_card_number: null,
+      },
+      score: 42.8,
+      nameSimilarity: 1,
+      numberMatch: null,
+      setMatch: false,
+      visualSimilarity: 0.652,
+      attackSimilarity: null,
+    };
+    expect(
+      canAutoAcceptScannerCandidate(inferredPrinting, 37.5, {
+        allowVisualPrintingInference: true,
+      })
+    ).toBe(true);
+    expect(canAutoAcceptScannerCandidate(inferredPrinting, 37.5)).toBe(false);
+
+    const context = getScannerAutoAcceptContext(
+      [
+        inferredPrinting,
+        {
+          ...inferredPrinting,
+          card: { ...inferredPrinting.card, id: "svp-210-pokemon-center" },
+          score: 41.5,
+        },
+        {
+          ...inferredPrinting,
+          card: {
+            ...inferredPrinting.card,
+            id: "tornadus-124",
+            card_number: "124",
+          },
+          score: 39.1,
+        },
+      ],
+      0
+    );
+    expect(context).toEqual({
+      runnerUpScore: 39.1,
+      allowVisualPrintingInference: true,
+    });
   });
 
   it("stores a card name only after a clear catalog lead", () => {

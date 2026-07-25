@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.18",
+    releasedAt: "July 25, 2026",
+    title: "Automatic live card selection",
+    summary:
+      "DustyCards 3.8.18 immediately selects a confidently recognized live card instead of sending equivalent database printings to manual review.",
+    tone: "fixed",
+    highlights: [
+      "Equivalent catalog rows sharing one structured printing reference are treated as one card during the auto-accept decision.",
+      "A clear title, artwork lead and grouped printing now places the best visual variant directly in the scanned-card queue without a Review click.",
+      "Successful targeted title OCR skips the expensive second full-card OCR worker, reducing the reported Tornadus frame from a long cold request to roughly four seconds locally.",
+      "The exact reported iPhone frame now returns Tornadus SVP 210 with high confidence and autoAccept enabled.",
+    ],
+  },
+  {
     version: "3.8.17",
     releasedAt: "July 25, 2026",
     title: "Full-card scanner that cannot get stuck",

@@ -844,20 +844,76 @@ export function getScannerConfidence(score: number): CardScannerConfidence {
  */
 export function canAutoAcceptScannerCandidate(
   candidate: RankedScannerCandidate,
-  runnerUpScore: number | null
+  runnerUpScore: number | null,
+  options: { allowVisualPrintingInference?: boolean } = {}
 ): boolean {
   const gap = candidate.score - (runnerUpScore ?? 0);
   const artworkSimilarity = candidate.visualSimilarity ?? 0;
 
-  if (candidate.numberMatch !== "exact" || gap < 12) return false;
+  if (candidate.numberMatch === "exact" && gap >= 12) {
+    if (candidate.nameSimilarity >= 0.84) return true;
+    return candidate.nameSimilarity >= 0.68 && artworkSimilarity >= 0.88;
+  }
 
-  if (candidate.nameSimilarity >= 0.84) return true;
-
+  if (!options.allowVisualPrintingInference || gap < 3.5) return false;
+  const hasStrongAttackEvidence = (candidate.attackSimilarity ?? 0) >= 0.9;
   return (
-    candidate.nameSimilarity >= 0.68 &&
-    artworkSimilarity >= 0.88 &&
-    gap >= 14
+    candidate.nameSimilarity >= 0.9 &&
+    artworkSimilarity >= (hasStrongAttackEvidence ? 0.6 : 0.64)
   );
+}
+
+export function getScannerAutoAcceptContext(
+  candidates: RankedScannerCandidate[],
+  index: number
+): {
+  runnerUpScore: number | null;
+  allowVisualPrintingInference: boolean;
+} {
+  const candidate = candidates[index];
+  if (!candidate) {
+    return {
+      runnerUpScore: null,
+      allowVisualPrintingInference: false,
+    };
+  }
+  const printingKey =
+    normalizeScannerCardReference(candidate.card.printed_card_number ?? "") ??
+    normalizeScannerCardReference(candidate.card.card_number ?? "");
+  const equivalentPrintingCount = printingKey
+    ? candidates.filter((item) => {
+        const itemKey =
+          normalizeScannerCardReference(
+            item.card.printed_card_number ?? ""
+          ) ??
+          normalizeScannerCardReference(item.card.card_number ?? "");
+        return itemKey === printingKey;
+      }).length
+    : 0;
+  const runnerUpScore =
+    index === 0 && printingKey
+      ? candidates.find((item) => {
+          const itemKey =
+            normalizeScannerCardReference(
+              item.card.printed_card_number ?? ""
+            ) ??
+            normalizeScannerCardReference(item.card.card_number ?? "");
+          return itemKey !== printingKey;
+        })?.score ?? null
+      : index === 0
+        ? candidates[1]?.score ?? null
+        : candidates[0]?.score ?? null;
+
+  return {
+    runnerUpScore,
+    allowVisualPrintingInference:
+      index === 0 &&
+      equivalentPrintingCount >= 2 &&
+      Boolean(
+        printingKey &&
+          (/[A-Z]/.test(printingKey) || printingKey.includes("/"))
+      ),
+  };
 }
 
 export function getScannerCandidateConfidence(

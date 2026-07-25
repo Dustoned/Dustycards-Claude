@@ -13,6 +13,7 @@ import {
   canAutoAcceptScannerCandidate,
   extractScannerCardReferences,
   getScannerAttackSimilarity,
+  getScannerAutoAcceptContext,
   getScannerCardReferenceAliases,
   getScannerCandidateConfidence,
   getScannerMatchReasons,
@@ -903,25 +904,29 @@ export async function scanCardImage(input: {
     input.knownName?.trim() && input.knownReference?.trim()
   );
   const shouldDetectName = !input.knownName?.trim();
-  const [ocr, catalog, nameOcr] = await Promise.all([
-    hasRememberedPrimaryIdentity
-      ? normalizeScanImage(input.image).then(
-          (normalizedImage): OcrResult => ({
-            text: "",
-            confidence: null,
-            normalizedImage,
-          })
-        )
-      : recognizeCardText(input.image),
+  const [normalizedImage, catalog, nameOcr] = await Promise.all([
+    normalizeScanImage(input.image),
     loadScannerCatalog(input.game),
     shouldDetectName
       ? recognizeScannerField(input.image, "name", "expected")
       : Promise.resolve(null),
   ]);
-  const detectedName =
+  let detectedName =
     input.knownName?.trim() ||
     getScannerNameObservation(catalog, nameOcr?.text ?? "")?.value ||
     null;
+  let usedFullCardOcr = false;
+  let ocr: OcrResult = {
+    text: nameOcr?.text ?? "",
+    confidence: nameOcr?.confidence ?? null,
+    normalizedImage,
+  };
+  if (!detectedName) {
+    usedFullCardOcr = true;
+    ocr = await recognizeCardText(input.image);
+    detectedName =
+      getScannerNameObservation(catalog, ocr.text)?.value ?? null;
+  }
   const candidateCatalog = narrowScannerCatalogByName(catalog, detectedName);
   const rememberedText = [detectedName, input.knownReference]
     .filter((value): value is string => Boolean(value?.trim()))
@@ -961,7 +966,7 @@ export async function scanCardImage(input: {
       ? getVisualSimilarities(ocr.normalizedImage, visualCandidateCards)
       : Promise.resolve(new Map<string, number>()),
     getAttackSimilarities(
-      input.knownAttackText || (detectedName ? ocr.text : null),
+      input.knownAttackText || (usedFullCardOcr ? ocr.text : null),
       initialRank.slice(0, analysisCandidateLimit).map((candidate) => candidate.card)
     ),
   ]);
@@ -1002,9 +1007,14 @@ export async function scanCardImage(input: {
   const matches = ranked.map((candidate, index): CardScannerMatch => {
     const details = detailsById.get(candidate.card.id);
     const want = details?.wants[0] ?? null;
-    const runnerUpScore =
-      index === 0 ? ranked[1]?.score ?? null : ranked[0]?.score ?? null;
+    const { runnerUpScore, allowVisualPrintingInference } =
+      getScannerAutoAcceptContext(ranked, index);
     const runnerUpGap = Math.max(0, candidate.score - (runnerUpScore ?? 0));
+    const autoAccept =
+      index === 0 &&
+      canAutoAcceptScannerCandidate(candidate, runnerUpScore, {
+        allowVisualPrintingInference,
+      });
     return {
       ...candidate.card,
       price: details?.prices[0]?.cm_en_lowest_nm ?? null,
@@ -1014,11 +1024,12 @@ export async function scanCardImage(input: {
             created_at: want.created_at.toISOString(),
           }
         : null,
-      confidence: getScannerCandidateConfidence(candidate, runnerUpScore),
+      confidence: autoAccept
+        ? "high"
+        : getScannerCandidateConfidence(candidate, runnerUpScore),
       score: candidate.score,
       reasons: getScannerMatchReasons(candidate),
-      autoAccept:
-        index === 0 && canAutoAcceptScannerCandidate(candidate, runnerUpScore),
+      autoAccept,
       runnerUpGap,
       evidence: {
         nameSimilarity: candidate.nameSimilarity,
