@@ -17,6 +17,22 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.20",
+    releasedAt: "July 27, 2026",
+    title: "Hands-free scanning",
+    summary:
+      "DustyCards 3.8.20 reworks the live scanner flow: the camera now reads the name and printed number by itself and grabs the card the moment both are confirmed — no taps, no shutter button.",
+    tone: "improved",
+    highlights: [
+      "Name and number are read automatically in a continuous loop; previously the live reads only started after tapping a field's focus target, so the identity points never filled hands-free.",
+      "The moment name and number are both confirmed, the card is captured and queued instantly — the old flow kept waiting for a perfectly still, perfectly lit frame that a handheld phone rarely produces.",
+      "A clear, catalog-verified read turns a point green in one pass instead of always demanding a second confirmation, roughly halving the time from framing a card to grabbing it.",
+      "The white-ink footer extraction that fixed printed numbers in 3.8.19 now also runs on the live camera bands, so modern outline numbers are readable during the hands-free loop and not only on a full photo.",
+      "Number OCR stops as soon as an explicit printed reference is found instead of grinding through every remaining pass, cutting seconds off every live read.",
+      "If the live reads keep failing (glare, sleeves, damaged footers), the scanner falls back to a full-photo capture with far milder stability requirements than before.",
+    ],
+  },
+  {
     version: "3.8.19",
     releasedAt: "July 27, 2026",
     title: "Card recognition that actually works",

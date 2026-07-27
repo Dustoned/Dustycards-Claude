@@ -119,17 +119,13 @@ const EMPTY_OBSERVED_IDENTITY: ObservedScannerIdentity = {
   attack: null,
 };
 const EMPTY_PENDING_IDENTITY: PendingScannerIdentity = {};
-const SCANNER_FIELDS: CardScannerField[] = ["name", "number", "attack"];
+// Naam + nummer identificeren de druk volledig. Attack-tekst kan server-side
+// pas gelezen worden nadat beide al bekend zijn en hield de handsfree flow
+// alleen maar op — de kaart wordt gepakt zodra deze twee punten vaststaan.
+const ACTIVE_SCANNER_FIELDS: CardScannerField[] = ["name", "number"];
 
-function getScannerFields(game: TradingCardGame): CardScannerField[] {
-  return game === POKEMON_GAME ? SCANNER_FIELDS : ["name", "number"];
-}
-
-function nextScannerField(
-  field: CardScannerField,
-  game: TradingCardGame
-): CardScannerField {
-  const fields = getScannerFields(game);
+function nextScannerField(field: CardScannerField): CardScannerField {
+  const fields = ACTIVE_SCANNER_FIELDS;
   return fields[(fields.indexOf(field) + 1) % fields.length];
 }
 
@@ -461,7 +457,6 @@ export default function CardScannerClient() {
   );
   const focusFieldRef = useRef<CardScannerField | null>(null);
   const fieldInProgressRef = useRef(false);
-  const fieldStableStreakRef = useRef(0);
   const fieldCooldownUntilRef = useRef(0);
   const nextFieldRef = useRef<CardScannerField>("name");
   const fieldAttemptCountsRef = useRef<Record<CardScannerField, number>>({
@@ -573,7 +568,6 @@ export default function CardScannerClient() {
       readyFrameStreakRef.current = 0;
       changedFrameStreakRef.current = 0;
       autoCaptureArmedRef.current = true;
-      fieldStableStreakRef.current = 0;
       fieldCooldownUntilRef.current = 0;
       nextFieldRef.current = "name";
       fieldAttemptCountsRef.current = { name: 0, number: 0, attack: 0 };
@@ -656,7 +650,6 @@ export default function CardScannerClient() {
     nextFieldRef.current = field;
     fieldAttemptCountsRef.current[field] = 0;
     fieldCooldownUntilRef.current = 0;
-    fieldStableStreakRef.current = 0;
   }
 
   function clearObservedField(field: CardScannerField) {
@@ -785,7 +778,7 @@ export default function CardScannerClient() {
             : {};
       let savedAnObservation = false;
       let confirmationField: CardScannerField | null = null;
-      for (const detectedField of getScannerFields(game)) {
+      for (const detectedField of ACTIVE_SCANNER_FIELDS) {
         const observation = detectedObservations[detectedField];
         if (!observation || observedIdentityRef.current[detectedField]) {
           continue;
@@ -795,18 +788,26 @@ export default function CardScannerClient() {
         const confirmsPrevious =
           previous?.value === observation.value &&
           now - previous.lastSeenAt <= 12_000;
+        // Elke observatie is server-side al tegen de catalogus gevalideerd.
+        // Een duidelijke read mag daarom in één keer groen; alleen twijfel-
+        // gevallen (fuzzy nummer-correctie, nét-genoeg naam) vragen om een
+        // tweede bevestiging — dubbel bevestigen op alles maakte de flow
+        // tergend traag zonder extra zekerheid op te leveren.
+        const instantAccept =
+          detectedField === "name"
+            ? (observation.confidence ?? 0) >= 90
+            : (observation.confidence ?? 0) >= 55 ||
+              (focusFieldRef.current === "number" &&
+                observation.catalogMatches === 1 &&
+                (observation.confidence ?? 0) >= 25);
         const pendingPoint: PendingScannerPoint = {
           value: observation.value,
           confidence: observation.confidence,
-          confirmations:
-            detectedField === "number" &&
-            focusFieldRef.current === "number" &&
-            observation.catalogMatches === 1 &&
-            (observation.confidence ?? 0) >= 25
-              ? 2
-              : confirmsPrevious
-                ? previous.confirmations + 1
-                : 1,
+          confirmations: instantAccept
+            ? 2
+            : confirmsPrevious
+              ? previous.confirmations + 1
+              : 1,
           lastSeenAt: now,
         };
         const nextPending = {
@@ -825,12 +826,20 @@ export default function CardScannerClient() {
         });
         savedAnObservation = true;
       }
+      let triggeredCapture = false;
       if (savedAnObservation) {
         setCameraError(null);
+        const identity = observedIdentityRef.current;
+        // De kaart is geïdentificeerd zodra naam én nummer vastliggen:
+        // meteen pakken, zonder shutter-klik of stabiliteits-wachttijd.
+        if (autoCaptureEnabled && identity.name && identity.number) {
+          triggeredCapture = true;
+          autoCaptureActionRef.current();
+        }
       }
-      if (!focusFieldRef.current) {
+      if (!triggeredCapture && !focusFieldRef.current) {
         nextFieldRef.current =
-          confirmationField ?? nextScannerField(field, game);
+          confirmationField ?? nextScannerField(field);
       }
     } catch (fieldError) {
       if (!controller.signal.aborted) {
@@ -841,7 +850,7 @@ export default function CardScannerClient() {
         );
       }
       if (!focusFieldRef.current) {
-        nextFieldRef.current = nextScannerField(field, game);
+        nextFieldRef.current = nextScannerField(field);
       }
     } finally {
       window.clearTimeout(timeout);
@@ -1038,41 +1047,64 @@ export default function CardScannerClient() {
           return;
         }
 
-        const preferredField = focusFieldRef.current;
-        if (
-          preferredField &&
-          !observedIdentityRef.current[preferredField]
-        ) {
-          readyFrameStreakRef.current = 0;
-          if (
-            fieldInProgressRef.current ||
-            Date.now() < fieldCooldownUntilRef.current ||
-            readiness.brightness < 7 ||
-            readiness.contrast < 5
-          ) {
-            fieldStableStreakRef.current = 0;
-            return;
-          }
+        const observed = observedIdentityRef.current;
+        const canCapture =
+          !captureInProgressRef.current &&
+          backgroundControllersRef.current.size < 6;
 
-          fieldStableStreakRef.current += 1;
-          if (fieldStableStreakRef.current >= 1) {
-            fieldStableStreakRef.current = 0;
-            fieldReadActionRef.current(preferredField);
-          }
+        // Naam + nummer bekend → de kaart is geïdentificeerd. Direct pakken;
+        // niet wachten op een perfect stil frame of een shutter-klik.
+        if (autoCaptureEnabled && observed.name && observed.number) {
+          readyFrameStreakRef.current = 0;
+          if (canCapture) autoCaptureActionRef.current();
           return;
         }
 
-        fieldStableStreakRef.current = 0;
+        // Lees handsfree het volgende ongelezen veld; een focus-tik van de
+        // speler wint van de round-robin.
+        const focused = focusFieldRef.current;
+        let targetField =
+          focused && !observed[focused] ? focused : null;
+        if (!targetField) {
+          const start = ACTIVE_SCANNER_FIELDS.indexOf(nextFieldRef.current);
+          const rotation =
+            start > 0
+              ? [
+                  ...ACTIVE_SCANNER_FIELDS.slice(start),
+                  ...ACTIVE_SCANNER_FIELDS.slice(0, start),
+                ]
+              : ACTIVE_SCANNER_FIELDS;
+          targetField = rotation.find((field) => !observed[field]) ?? null;
+        }
         if (
-          !autoCaptureEnabled ||
-          captureInProgressRef.current ||
-          backgroundControllersRef.current.size >= 6
+          targetField &&
+          !fieldInProgressRef.current &&
+          Date.now() >= fieldCooldownUntilRef.current &&
+          readiness.brightness >= 7 &&
+          readiness.contrast >= 5
         ) {
+          fieldReadActionRef.current(targetField);
+        }
+
+        // Vangnet: pas wanneer de losse velden meermaals niets opleverden
+        // (glans, sleeve, beschadigde voetregel) een volledige foto nemen en
+        // de kaart server-side laten identificeren. De eis is bewust milder
+        // dan de oude "perfect stil + scherp"-heuristiek die op een telefoon
+        // vrijwel nooit afging.
+        const attemptsExhausted = ACTIVE_SCANNER_FIELDS.every(
+          (field) =>
+            Boolean(observed[field]) ||
+            fieldAttemptCountsRef.current[field] >= 3
+        );
+        if (!autoCaptureEnabled || !attemptsExhausted || !canCapture) {
           readyFrameStreakRef.current = 0;
           return;
         }
-
-        readyFrameStreakRef.current = readiness.ready
+        const fallbackReady =
+          readiness.cardInFrame &&
+          readiness.lightingGood &&
+          (readiness.motion == null || readiness.motion <= 10);
+        readyFrameStreakRef.current = fallbackReady
           ? readyFrameStreakRef.current + 1
           : 0;
         if (readyFrameStreakRef.current >= 4) {
@@ -1085,7 +1117,7 @@ export default function CardScannerClient() {
     }, 280);
 
     return () => window.clearInterval(timer);
-  }, [autoCaptureEnabled, game, stage]);
+  }, [autoCaptureEnabled, stage]);
 
   useEffect(() => {
     if (!lastAutoMatch) return;
@@ -1188,7 +1220,6 @@ export default function CardScannerClient() {
     currentFrameRef.current = null;
     capturedFrameRef.current = null;
     autoCaptureArmedRef.current = true;
-    fieldStableStreakRef.current = 0;
     fieldCooldownUntilRef.current = 0;
     nextFieldRef.current = "name";
     fieldAttemptCountsRef.current = { name: 0, number: 0, attack: 0 };
@@ -1300,10 +1331,7 @@ export default function CardScannerClient() {
   const readingJobs = scanJobs.filter((job) => job.status === "reading");
   const reviewJobs = scanJobs.filter((job) => job.status === "review");
   const failedJobs = scanJobs.filter((job) => job.status === "failed");
-  const activeScannerFields = getScannerFields(game);
-  const savedIdentityCount = activeScannerFields.filter((field) =>
-    Boolean(observedIdentity[field])
-  ).length;
+  const activeScannerFields = ACTIVE_SCANNER_FIELDS;
   const identityReady = Boolean(
     observedIdentity.name && observedIdentity.number
   );
@@ -1327,16 +1355,14 @@ export default function CardScannerClient() {
     : focusField
       ? `${focusFieldLabel} focus · place only this detail in the centre`
     : identityReady
-      ? game !== POKEMON_GAME || observedIdentity.attack
-        ? `${savedIdentityCount} details saved · show the full card`
-        : "Name and number saved · checking attack text"
+      ? autoCaptureEnabled
+        ? "Card identified · grabbing it now"
+        : "Card identified · tap the shutter"
       : observedIdentity.name
-        ? `${observedIdentity.name.value} saved · show the card number`
+        ? `${observedIdentity.name.value} saved · reading the card number`
         : observedIdentity.number
-          ? `${observedIdentity.number.value} saved · show the name`
-          : observedIdentity.attack
-            ? "Attack text saved · show the name or card number"
-            : "Show the name, number or attack text";
+          ? `${observedIdentity.number.value} saved · reading the name`
+          : "Hold the card in the frame · reading name and number";
   const allIdentityPoints: Array<{
     field: CardScannerField;
     label: string;
@@ -1372,8 +1398,8 @@ export default function CardScannerClient() {
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-relaxed text-[var(--dc-text-muted)] sm:text-[15px]">
                 Keep the camera open and scan cards one after another. DustyCards reads
-                the name, printed number and attack text, remembers every real read,
-                then compares the full artwork to confirm the exact printing.
+                the name and printed number live, and the moment both are confirmed it
+                grabs the card automatically and verifies the exact printing.
               </p>
             </div>
             {settings.onePieceLibraryEnabled ? (

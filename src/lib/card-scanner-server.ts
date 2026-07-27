@@ -486,6 +486,19 @@ async function buildFooterInkVariants(image: Buffer): Promise<Buffer[]> {
   return variants;
 }
 
+// Zodra een expliciet kaartnummer in de OCR-tekst staat is elke verdere
+// nummer-pass verspilde tijd: de referentie wordt daarna toch tegen de
+// catalogus gevalideerd. Live reads moeten in seconden klaar zijn.
+function containsExplicitCardReference(
+  results: ReadonlyArray<{ data: { text: string } }>
+): boolean {
+  return (
+    extractScannerCardReferences(
+      results.map((item) => item.data.text).join("\n")
+    ).length > 0
+  );
+}
+
 async function normalizeScanImage(image: Buffer): Promise<Buffer> {
   return sharp(image, { limitInputPixels: 28_000_000, animated: false })
     .rotate()
@@ -819,16 +832,30 @@ async function recognizeScannerFieldUnsafe(
       });
       // Number footers are white-on-dark on modern cards; read the footer via
       // ink-extraction variants and other zones via polarity variants, merged
-      // into one result so zone indices stay stable.
+      // into one result so zone indices stay stable. Live band-crops krijgen
+      // de ink-extractie ook op de onderste band: outline-voetregels waren in
+      // het live pad anders net zo onleesbaar als vroeger in de full photo.
+      const includeInkVariants =
+        isFieldBandLayout &&
+        field === "number" &&
+        sourceIndex === sourceImages.length - 1;
       const polarityVariants = isFooterNumberZone
         ? [sourceImage, ...(await buildFooterInkVariants(sourceImage))]
-        : await buildOcrPolarityVariants(
-            sourceImage,
-            field === "number" ? "both" : "auto"
-          );
+        : [
+            ...(await buildOcrPolarityVariants(
+              sourceImage,
+              field === "number" ? "both" : "auto"
+            )),
+            ...(includeInkVariants
+              ? await buildFooterInkVariants(sourceImage)
+              : []),
+          ];
       const zoneResults: Array<{ data: { text: string; confidence: number } }> = [];
       for (const variant of polarityVariants) {
         zoneResults.push(await recognizeFieldPass(worker, variant));
+        if (field === "number" && containsExplicitCardReference(zoneResults)) {
+          break;
+        }
       }
       results.push(
         zoneResults.length === 1
@@ -845,10 +872,20 @@ async function recognizeScannerFieldUnsafe(
               },
             }
       );
+      if (field === "number" && containsExplicitCardReference(results)) {
+        break;
+      }
     }
 
+    const numberResolved =
+      field === "number" && containsExplicitCardReference(results);
     const primaryImage = fieldZones[0] ?? normalizedImage;
-    if (isFieldBandLayout && metadata.width && metadata.height) {
+    if (
+      isFieldBandLayout &&
+      !numberResolved &&
+      metadata.width &&
+      metadata.height
+    ) {
       for (const zone of fieldZones) {
         const zoneMetadata = await sharp(zone).metadata();
         if (!zoneMetadata.width || !zoneMetadata.height) continue;
@@ -898,6 +935,12 @@ async function recognizeScannerFieldUnsafe(
           field === "number" ? "both" : "auto"
         )) {
           results.push(await recognizeFieldPass(worker, variant));
+          if (field === "number" && containsExplicitCardReference(results)) {
+            break;
+          }
+        }
+        if (field === "number" && containsExplicitCardReference(results)) {
+          break;
         }
       }
     } else if (!isFieldBandLayout) {
@@ -908,26 +951,32 @@ async function recognizeScannerFieldUnsafe(
         });
         results.push(await recognizeFieldPass(worker, primaryImage));
       } else if (field === "number") {
-        const footerImage = fieldZones.at(-1) ?? primaryImage;
-        const thresholdImage = await sharp(footerImage)
-          .grayscale()
-          .normalize()
-          .threshold(120)
-          .png({ compressionLevel: 4 })
-          .toBuffer();
-        // White-on-dark footers survive threshold() as white-on-black, which
-        // Tesseract cannot read — scan the inverted variant as well.
-        const invertedThresholdImage = await sharp(thresholdImage)
-          .negate({ alpha: false })
-          .png({ compressionLevel: 4 })
-          .toBuffer();
-        await worker.setParameters({
-          tessedit_pageseg_mode: PSM.RAW_LINE,
-          tessedit_char_whitelist:
-            "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- ",
-        });
-        results.push(await recognizeFieldPass(worker, thresholdImage));
-        results.push(await recognizeFieldPass(worker, invertedThresholdImage));
+        if (!numberResolved) {
+          const footerImage = fieldZones.at(-1) ?? primaryImage;
+          const thresholdImage = await sharp(footerImage)
+            .grayscale()
+            .normalize()
+            .threshold(120)
+            .png({ compressionLevel: 4 })
+            .toBuffer();
+          // White-on-dark footers survive threshold() as white-on-black, which
+          // Tesseract cannot read — scan the inverted variant as well.
+          const invertedThresholdImage = await sharp(thresholdImage)
+            .negate({ alpha: false })
+            .png({ compressionLevel: 4 })
+            .toBuffer();
+          await worker.setParameters({
+            tessedit_pageseg_mode: PSM.RAW_LINE,
+            tessedit_char_whitelist:
+              "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- ",
+          });
+          results.push(await recognizeFieldPass(worker, thresholdImage));
+          if (!containsExplicitCardReference(results)) {
+            results.push(
+              await recognizeFieldPass(worker, invertedThresholdImage)
+            );
+          }
+        }
       } else {
         await worker.setParameters({
           tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
