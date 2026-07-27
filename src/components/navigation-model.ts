@@ -17,6 +17,7 @@ import {
   UserRound,
   UsersRound,
 } from "lucide-react";
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import { GAME_SEARCH_PARAM } from "@/lib/games";
 
 export interface NavigationSummary {
@@ -79,7 +80,17 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
       },
       { href: "/categories", label: "Categories", icon: Sparkles, badge: null, key: "categories" },
       { href: "/illustrators", label: "Illustrators", icon: Brush, badge: null, key: "illustrators" },
-      { href: "/scan", label: "Card Scanner", icon: ScanLine, badge: null, key: "scan" },
+      ...(CARD_SCANNER_ENABLED
+        ? [
+            {
+              href: "/scan",
+              label: "Card Scanner",
+              icon: ScanLine,
+              badge: null,
+              key: "scan",
+            } satisfies NavigationItem,
+          ]
+        : []),
       { href: "/submit-card", label: "Submit Card", icon: Search, badge: null, key: "submit-card" },
     ],
   },

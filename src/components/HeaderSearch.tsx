@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ScanLine, Search, X } from "lucide-react";
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import {
   buildSearchHref,
   buildPathWithQuery,
@@ -318,19 +319,23 @@ export default function HeaderSearch() {
             autoComplete="off"
             spellCheck={false}
           />
-          <span
-            aria-hidden="true"
-            className="mx-1 h-5 w-px bg-white/10"
-          />
-          <Link
-            href={scannerHref}
-            prefetch={false}
-            aria-label="Scan a card"
-            title="Scan a card"
-            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/42 transition-colors hover:bg-white/[0.07] hover:text-white"
-          >
-            <ScanLine className="h-4 w-4" />
-          </Link>
+          {CARD_SCANNER_ENABLED ? (
+            <>
+              <span
+                aria-hidden="true"
+                className="mx-1 h-5 w-px bg-white/10"
+              />
+              <Link
+                href={scannerHref}
+                prefetch={false}
+                aria-label="Scan a card"
+                title="Scan a card"
+                className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-white/42 transition-colors hover:bg-white/[0.07] hover:text-white"
+              >
+                <ScanLine className="h-4 w-4" />
+              </Link>
+            </>
+          ) : null}
         </div>
       </form>
 
@@ -343,14 +348,16 @@ export default function HeaderSearch() {
         <Search className="h-4 w-4" />
       </button>
 
-      <Link
-        href={scannerHref}
-        prefetch={false}
-        aria-label="Scan a card"
-        className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/72 shadow-sm shadow-black/20 transition-colors hover:border-white/18 hover:bg-white/[0.085] hover:text-white lg:hidden"
-      >
-        <ScanLine className="h-[1.05rem] w-[1.05rem]" />
-      </Link>
+      {CARD_SCANNER_ENABLED ? (
+        <Link
+          href={scannerHref}
+          prefetch={false}
+          aria-label="Scan a card"
+          className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/[0.055] text-white/72 shadow-sm shadow-black/20 transition-colors hover:border-white/18 hover:bg-white/[0.085] hover:text-white lg:hidden"
+        >
+          <ScanLine className="h-[1.05rem] w-[1.05rem]" />
+        </Link>
+      ) : null}
 
       {mobileOpen && (
         <form

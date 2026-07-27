@@ -7,6 +7,7 @@ import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Package, ScanLine } from "lucide-react";
 import { CardLoadingOverlay } from "@/components/CardLoadingOverlay";
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
@@ -540,18 +541,20 @@ function SearchPageContent({
             </div>
           ) : null}
         </div>
-        <Link
-          href={
-            activeGame === "one-piece"
-              ? "/scan?game=one-piece"
-              : "/scan"
-          }
-          prefetch={false}
-          className="inline-flex min-h-11 w-fit shrink-0 items-center justify-center gap-2 rounded-full border border-[rgb(var(--dc-primary-soft-rgb)/0.28)] bg-[rgb(var(--dc-primary-rgb)/0.11)] px-4 text-xs font-black text-[var(--dc-primary-soft)] transition-colors hover:border-[rgb(var(--dc-primary-soft-rgb)/0.48)] hover:bg-[rgb(var(--dc-primary-rgb)/0.17)]"
-        >
-          <ScanLine className="h-4 w-4" />
-          Scan card
-        </Link>
+        {CARD_SCANNER_ENABLED ? (
+          <Link
+            href={
+              activeGame === "one-piece"
+                ? "/scan?game=one-piece"
+                : "/scan"
+            }
+            prefetch={false}
+            className="inline-flex min-h-11 w-fit shrink-0 items-center justify-center gap-2 rounded-full border border-[rgb(var(--dc-primary-soft-rgb)/0.28)] bg-[rgb(var(--dc-primary-rgb)/0.11)] px-4 text-xs font-black text-[var(--dc-primary-soft)] transition-colors hover:border-[rgb(var(--dc-primary-soft-rgb)/0.48)] hover:bg-[rgb(var(--dc-primary-rgb)/0.17)]"
+          >
+            <ScanLine className="h-4 w-4" />
+            Scan card
+          </Link>
+        ) : null}
         {sectionChips ? (
           <div className="flex shrink-0 flex-wrap items-center justify-start gap-1.5 sm:ml-auto sm:justify-end">
             {sectionChips.map((chip) => {

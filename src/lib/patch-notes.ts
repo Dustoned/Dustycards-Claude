@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.21",
+    releasedAt: "July 27, 2026",
+    title: "Card Scanner paused",
+    summary:
+      "DustyCards 3.8.21 switches the Card Scanner off for now: live recognition is not reliable enough yet, and a half-working scanner is worse than none.",
+    tone: "system",
+    highlights: [
+      "All scanner entry points are hidden: the navigation item, the scan buttons in the search bar and the shortcut on the search page.",
+      "Opening /scan directly shows a clear notice with a link to search instead of a broken camera flow, and the scan API refuses requests while the feature is paused.",
+      "Everything sits behind a single feature flag, so the scanner can return the moment recognition is solid.",
+    ],
+  },
+  {
     version: "3.8.20",
     releasedAt: "July 27, 2026",
     title: "Hands-free scanning",

@@ -23,6 +23,7 @@ import {
   getCollectionCardAddedEffects,
   type CollectionCardAddedDetail,
 } from "@/lib/collection-client-events";
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import { WANTS_CHANGED_EVENT } from "@/lib/wants-client-events";
 
 interface NavItem {
@@ -206,9 +207,13 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
     },
     {
       label: "Browse",
-      items: onePieceEnabled
-        ? [SEARCH_ITEM, SCANNER_ITEM, ...BASE_BROWSE_ITEMS, ONE_PIECE_BROWSE_ITEM, SUBMIT_CARD_ITEM]
-        : [SEARCH_ITEM, SCANNER_ITEM, ...BASE_BROWSE_ITEMS, SUBMIT_CARD_ITEM],
+      items: [
+        SEARCH_ITEM,
+        ...(CARD_SCANNER_ENABLED ? [SCANNER_ITEM] : []),
+        ...BASE_BROWSE_ITEMS,
+        ...(onePieceEnabled ? [ONE_PIECE_BROWSE_ITEM] : []),
+        SUBMIT_CARD_ITEM,
+      ],
     },
     { label: "Market", items: [MARKET_ITEM, SIGNAL_RADAR_ITEM, COLLECTION_SELLING_ITEM] },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },

@@ -10,6 +10,7 @@ import {
   readScannerFieldImage,
   scanCardImage,
 } from "@/lib/card-scanner-server";
+import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import { normalizeTradingCardGame } from "@/lib/games";
 
 export const dynamic = "force-dynamic";
@@ -26,6 +27,12 @@ const SUPPORTED_IMAGE_TYPES = new Set([
 
 export async function POST(request: Request) {
   const startedAt = Date.now();
+  if (!CARD_SCANNER_ENABLED) {
+    return NextResponse.json(
+      { ok: false, error: "The Card Scanner is temporarily disabled." },
+      { status: 503 }
+    );
+  }
   try {
     const user = await requireUser();
     const body = await request.formData();
