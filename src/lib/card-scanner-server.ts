@@ -1,6 +1,7 @@
 import "server-only";
 
 import path from "node:path";
+import { readFile } from "node:fs/promises";
 import sharp from "sharp";
 import {
   OEM,
@@ -12,6 +13,7 @@ import { db } from "@/lib/db";
 import {
   canAutoAcceptScannerCandidate,
   extractScannerCardReferences,
+  filterScannerCardsByNumberEvidence,
   getScannerAttackSimilarity,
   getScannerAutoAcceptContext,
   getScannerCardReferenceAliases,
@@ -29,6 +31,10 @@ import {
   type CardScannerFieldObservations,
   type CardScannerMatch,
 } from "@/lib/card-scanner";
+import {
+  ensureImageCached,
+  parseCacheableImageUrl,
+} from "@/lib/image-cache-server";
 import {
   normalizeTradingCardGame,
   type TradingCardGame,
@@ -331,6 +337,21 @@ async function loadRemoteArtworkHash(imageUrl: string): Promise<ScannerArtworkHa
   }
 
   const pending = (async () => {
+    // De lokale image-cache eerst: vrijwel elke kandidaat staat al op schijf,
+    // en dat maakt de artwork-vergelijking deterministisch in plaats van
+    // afhankelijk van een netwerk-fetch met korte timeout.
+    const cacheable = parseCacheableImageUrl(comparableUrl);
+    if (cacheable) {
+      try {
+        const result = await ensureImageCached(cacheable);
+        const image = result.buffer ?? (await readFile(result.imagePath));
+        if (image.length > 0 && image.length <= 5_000_000) {
+          return await createScannerArtworkHash(image);
+        }
+      } catch {
+        // Val terug op de directe fetch hieronder.
+      }
+    }
     try {
       const response = await fetch(comparableUrl, {
         headers: {
@@ -348,6 +369,14 @@ async function loadRemoteArtworkHash(imageUrl: string): Promise<ScannerArtworkHa
     }
   })();
   scannerArtworkHashCache.set(comparableUrl, pending);
+  // Een mislukte hash niet permanent cachen: de volgende scan verdient een
+  // nieuwe poging (tijdelijke netwerk-fout mag een kaart niet blijvend
+  // uitsluiten van artwork-matching).
+  void pending.then((hash) => {
+    if (!hash && scannerArtworkHashCache.get(comparableUrl) === pending) {
+      scannerArtworkHashCache.delete(comparableUrl);
+    }
+  });
   return pending;
 }
 
@@ -395,6 +424,66 @@ function getFieldOcrWorker(): Promise<Worker> {
     throw error;
   });
   return fieldOcrWorkerPromise;
+}
+
+// Tesseract expects dark text on a light background, but modern cards print
+// the set/number footer (and full-art names) in WHITE text on dark panels —
+// the single biggest reason scans never produced a card number. "both" returns
+// the dark-first polarity pair for critical zones; "auto" negates only when
+// the crop is predominantly dark.
+async function buildOcrPolarityVariants(
+  image: Buffer,
+  mode: "auto" | "both"
+): Promise<Buffer[]> {
+  try {
+    const stats = await sharp(image).grayscale().stats();
+    const mean = stats.channels[0]?.mean ?? 255;
+    if (mode === "both") {
+      const negated = await sharp(image).negate({ alpha: false }).toBuffer();
+      return mean < 128 ? [negated, image] : [image, negated];
+    }
+    if (mean < 115) {
+      return [await sharp(image).negate({ alpha: false }).toBuffer()];
+    }
+    return [image];
+  } catch {
+    return [image];
+  }
+}
+
+// Kaartnummers op moderne kaarten zijn lichte outline-cijfers op een drukke
+// achtergrond; gewone binarisatie (en zelfs negatie) leest ze niet. Het
+// rood-kanaal + hoge threshold maakt de outline leesbaar als donker-op-licht,
+// en een extra blur+threshold-pass vult de holle cijfers dicht tot massieve
+// glyphs — empirisch de enige combinatie die "168/086"-voetregels oplevert.
+async function buildFooterInkVariants(image: Buffer): Promise<Buffer[]> {
+  const variants: Buffer[] = [];
+  try {
+    const channelImage = await sharp(image)
+      .removeAlpha()
+      .extractChannel(0)
+      .normalize()
+      .toBuffer();
+    for (const threshold of [180, 215]) {
+      const ink = await sharp(channelImage)
+        .blur(0.6)
+        .threshold(threshold)
+        .negate({ alpha: false })
+        .extend({
+          top: 24,
+          bottom: 24,
+          left: 24,
+          right: 24,
+          background: "#ffffff",
+        })
+        .toBuffer();
+      variants.push(ink);
+      variants.push(await sharp(ink).blur(3.5).threshold(165).toBuffer());
+    }
+  } catch {
+    // Bij een verwerkingsfout blijft alleen de originele zone over.
+  }
+  return variants;
 }
 
 async function normalizeScanImage(image: Buffer): Promise<Buffer> {
@@ -469,7 +558,40 @@ async function recognizeCardTextUnsafe(image: Buffer): Promise<OcrResult> {
     .png({ compressionLevel: 4 })
     .toBuffer();
   const referenceResult = await worker.recognize(referenceBand);
-  const text = [result.data.text.trim(), referenceResult.data.text.trim()]
+  // The card number lives in the tiny footer corners (white-on-dark on modern
+  // cards). Scan both bottom corners at high scale in both polarities — the
+  // whitelist from the reference pass is still active.
+  const footerTop = Math.floor(metadata.height * 0.86);
+  const footerHeight = Math.max(1, metadata.height - footerTop);
+  const footerHalfWidth = Math.max(1, Math.floor(metadata.width / 2));
+  const footerStrips = await Promise.all(
+    [0, footerHalfWidth].map((left) =>
+      sharp(normalizedImage)
+        .extract({
+          left,
+          top: footerTop,
+          width: Math.min(footerHalfWidth, metadata.width - left),
+          height: footerHeight,
+        })
+        .resize({ width: 1_600, withoutEnlargement: false })
+        .sharpen({ sigma: 1.1 })
+        .png({ compressionLevel: 4 })
+        .toBuffer()
+    )
+  );
+  const footerTexts: string[] = [];
+  for (const strip of footerStrips) {
+    for (const variant of await buildOcrPolarityVariants(strip, "both")) {
+      const footerResult = await worker.recognize(variant);
+      const trimmed = footerResult.data.text.trim();
+      if (trimmed) footerTexts.push(trimmed);
+    }
+  }
+  const text = [
+    result.data.text.trim(),
+    referenceResult.data.text.trim(),
+    ...footerTexts,
+  ]
     .filter(Boolean)
     .join("\n");
   const confidences = [
@@ -613,18 +735,48 @@ async function recognizeScannerFieldUnsafe(
           : field === "number"
             ? { left: 0.23, top: 0.43, width: 0.54, height: 0.14 }
             : { left: 0.08, top: 0.35, width: 0.84, height: 0.3 };
-      const zoneBounds =
-        field === "number"
-          ? [
-              expectedBounds,
-              focusBounds,
-              // Modern Pokemon promo/set references are printed in the tiny
-              // lower-left footer. Isolating that area avoids attack damage,
-              // retreat costs and copyright text dominating OCR.
-              { left: 0.035, top: 0.89, width: 0.45, height: 0.105 },
-            ]
-          : [expectedBounds, focusBounds];
+      const zoneBounds = [expectedBounds, focusBounds];
       fieldZones = await Promise.all(zoneBounds.map(extractZone));
+      if (field === "number") {
+        // Modern Pokemon promo/set references are printed in the tiny
+        // lower-left footer. Crop that area straight from the ORIGINAL image
+        // (single lanczos upscale) — the normalized pipeline's double resize
+        // plus sharpen halos degrades the tiny digits beyond recognition.
+        try {
+          const sourceCard = await sharp(image, {
+            limitInputPixels: 28_000_000,
+            animated: false,
+          })
+            .rotate()
+            .png({ compressionLevel: 4 })
+            .toBuffer();
+          const sourceMetadata = await sharp(sourceCard).metadata();
+          if (sourceMetadata.width && sourceMetadata.height) {
+            const footerTop = Math.floor(sourceMetadata.height * 0.89);
+            fieldZones.push(
+              await sharp(sourceCard)
+                .extract({
+                  left: Math.floor(sourceMetadata.width * 0.02),
+                  top: footerTop,
+                  width: Math.max(
+                    1,
+                    Math.floor(sourceMetadata.width * 0.55)
+                  ),
+                  height: Math.max(1, sourceMetadata.height - footerTop),
+                })
+                .resize({
+                  width: 1_600,
+                  withoutEnlargement: false,
+                  kernel: "lanczos3",
+                })
+                .png({ compressionLevel: 4 })
+                .toBuffer()
+            );
+          }
+        } catch {
+          // Zonder footer-crop blijven de twee standaardzones over.
+        }
+      }
     }
   }
 
@@ -652,7 +804,7 @@ async function recognizeScannerFieldUnsafe(
       await worker.setParameters({
         tessedit_pageseg_mode:
           isFooterNumberZone
-            ? PSM.RAW_LINE
+            ? PSM.SPARSE_TEXT
             : isFieldBandLayout && field === "attack"
               ? PSM.SINGLE_BLOCK
               : isCentreFocusBand
@@ -662,10 +814,37 @@ async function recognizeScannerFieldUnsafe(
           field === "number"
             ? "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- "
             : "",
-        thresholding_method: "2",
+        thresholding_method: isFooterNumberZone ? "0" : "2",
         user_defined_dpi: "300",
       });
-      results.push(await recognizeFieldPass(worker, sourceImage));
+      // Number footers are white-on-dark on modern cards; read the footer via
+      // ink-extraction variants and other zones via polarity variants, merged
+      // into one result so zone indices stay stable.
+      const polarityVariants = isFooterNumberZone
+        ? [sourceImage, ...(await buildFooterInkVariants(sourceImage))]
+        : await buildOcrPolarityVariants(
+            sourceImage,
+            field === "number" ? "both" : "auto"
+          );
+      const zoneResults: Array<{ data: { text: string; confidence: number } }> = [];
+      for (const variant of polarityVariants) {
+        zoneResults.push(await recognizeFieldPass(worker, variant));
+      }
+      results.push(
+        zoneResults.length === 1
+          ? zoneResults[0]
+          : {
+              data: {
+                text: zoneResults
+                  .map((zoneResult) => zoneResult.data.text.trim())
+                  .filter(Boolean)
+                  .join("\n"),
+                confidence: Math.max(
+                  ...zoneResults.map((zoneResult) => zoneResult.data.confidence ?? 0)
+                ),
+              },
+            }
+      );
     }
 
     const primaryImage = fieldZones[0] ?? normalizedImage;
@@ -714,7 +893,12 @@ async function recognizeScannerFieldUnsafe(
           thresholding_method: "0",
           user_defined_dpi: "300",
         });
-        results.push(await recognizeFieldPass(worker, guidedImage));
+        for (const variant of await buildOcrPolarityVariants(
+          guidedImage,
+          field === "number" ? "both" : "auto"
+        )) {
+          results.push(await recognizeFieldPass(worker, variant));
+        }
       }
     } else if (!isFieldBandLayout) {
       if (field === "name") {
@@ -731,12 +915,19 @@ async function recognizeScannerFieldUnsafe(
           .threshold(120)
           .png({ compressionLevel: 4 })
           .toBuffer();
+        // White-on-dark footers survive threshold() as white-on-black, which
+        // Tesseract cannot read — scan the inverted variant as well.
+        const invertedThresholdImage = await sharp(thresholdImage)
+          .negate({ alpha: false })
+          .png({ compressionLevel: 4 })
+          .toBuffer();
         await worker.setParameters({
           tessedit_pageseg_mode: PSM.RAW_LINE,
           tessedit_char_whitelist:
             "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789/#- ",
         });
         results.push(await recognizeFieldPass(worker, thresholdImage));
+        results.push(await recognizeFieldPass(worker, invertedThresholdImage));
       } else {
         await worker.setParameters({
           tessedit_pageseg_mode: PSM.SINGLE_BLOCK,
@@ -904,11 +1095,17 @@ export async function scanCardImage(input: {
     input.knownName?.trim() && input.knownReference?.trim()
   );
   const shouldDetectName = !input.knownName?.trim();
-  const [normalizedImage, catalog, nameOcr] = await Promise.all([
+  const shouldDetectNumber = !input.knownReference?.trim();
+  const [normalizedImage, catalog, nameOcr, numberOcr] = await Promise.all([
     normalizeScanImage(input.image),
     loadScannerCatalog(input.game),
     shouldDetectName
       ? recognizeScannerField(input.image, "name", "expected")
+      : Promise.resolve(null),
+    // Het kaartnummer is de beslissende disambiguator tussen drukken van
+    // dezelfde naam; zonder deze pass koos de scanner altijd alleen op naam.
+    shouldDetectNumber
+      ? recognizeScannerField(input.image, "number", "expected")
       : Promise.resolve(null),
   ]);
   let detectedName =
@@ -927,13 +1124,31 @@ export async function scanCardImage(input: {
     detectedName =
       getScannerNameObservation(catalog, ocr.text)?.value ?? null;
   }
-  const candidateCatalog = narrowScannerCatalogByName(catalog, detectedName);
   const rememberedText = [detectedName, input.knownReference]
     .filter((value): value is string => Boolean(value?.trim()))
     .join("\n");
-  const combinedOcrText = [rememberedText, nameOcr?.text, ocr.text]
+  const combinedOcrText = [rememberedText, nameOcr?.text, numberOcr?.text, ocr.text]
     .filter(Boolean)
     .join("\n");
+  // Naam-vernauwing plus alle kaarten met nummer-bewijs in de OCR-tekst: een
+  // verkeerd gelezen naam (bv. de "Evolves from"-regel) mag de echte kaart
+  // niet uit de kandidaten houden wanneer het kaartnummer wel gelezen is.
+  const nameNarrowedCatalog = narrowScannerCatalogByName(catalog, detectedName);
+  const numberEvidenceCards = filterScannerCardsByNumberEvidence(
+    catalog,
+    combinedOcrText
+  );
+  const candidateCatalog =
+    numberEvidenceCards.length > 0
+      ? [
+          ...new Map(
+            [...nameNarrowedCatalog, ...numberEvidenceCards].map((card) => [
+              card.id,
+              card,
+            ])
+          ).values(),
+        ]
+      : nameNarrowedCatalog;
   const confirmedReferences = input.knownReference
     ? [input.knownReference]
     : [];

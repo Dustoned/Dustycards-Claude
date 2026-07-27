@@ -364,13 +364,75 @@ function getCardNameSimilarity(cardName: string, ocrText: string, ocrLines: stri
   return best;
 }
 
+// OCR leest de slash in "168/086"-voetregels vaak als 7 of 1, of laat hem
+// weg; de cijfers zelf komen wel door. Match het gedrukte nummer daarom ook
+// als cijferreeks met één willekeurig teken op de slash-positie, met een
+// cijfer-grens links zodat "…1687086…" wel matcht maar een langere reeks
+// niet halverwege wordt aangesneden.
+function getScannerPrintedDigitPatterns(
+  card: Pick<CardScannerCatalogCard, "printed_card_number" | "card_number">
+): RegExp[] {
+  const patterns: RegExp[] = [];
+  for (const value of [card.printed_card_number, card.card_number]) {
+    const printed = /^(\d{1,4})\/(\d{1,4})$/.exec((value ?? "").trim());
+    if (!printed) continue;
+    // De catalogus bewaart nummers zonder voorloopnullen ("168/86"), maar op
+    // de kaart staat de gepadde vorm ("168/086") — probeer beide.
+    const locals = new Set([printed[1], printed[1].padStart(3, "0")]);
+    const totals = new Set([printed[2], printed[2].padStart(3, "0")]);
+    for (const local of locals) {
+      for (const total of totals) {
+        if (local.length + total.length < 6) continue;
+        patterns.push(new RegExp(`(?<![0-9])${local}.?${total}`));
+      }
+    }
+  }
+  return patterns;
+}
+
+// Spatieloze OCR-regels met minimaal drie aaneengesloten cijfers, voor de
+// fuzzy cijferreeks-match op gedrukte nummers.
+function getScannerDigitLines(ocrText: string): string[] {
+  return ocrText
+    .split(/\n+/)
+    .map((line) => line.toUpperCase().replace(/\s+/g, ""))
+    .filter((line) => /\d{3}/.test(line));
+}
+
+// Naam-vernauwing kan de echte kaart uitsluiten (bv. wanneer OCR de
+// "Evolves from"-naam als kaartnaam aanziet). Kaarten waarvan het nummer in
+// de OCR-tekst terugkomt horen daarom altijd bij de kandidaten.
+export function filterScannerCardsByNumberEvidence(
+  cards: readonly CardScannerCatalogCard[],
+  ocrText: string
+): CardScannerCatalogCard[] {
+  // Alleen echt geextraheerde referenties tellen als bewijs voor verbreding;
+  // de fuzzy cijferreeks-match is over de volle catalogus veel te los (ruis
+  // matcht dan altijd wel ergens een kaartnummer).
+  const references = extractScannerCardReferences(ocrText);
+  if (references.length === 0) return [];
+  return cards.filter((card) => getNumberMatch(card, references) != null);
+}
+
 function getNumberMatch(
   card: CardScannerCatalogCard,
-  references: string[]
+  references: string[],
+  digitLines: readonly string[] = []
 ): RankedScannerCandidate["numberMatch"] {
   const aliases = getScannerCardReferenceAliases(card);
   if (aliases.some((reference) => references.includes(reference))) {
     return "exact";
+  }
+
+  if (digitLines.length > 0) {
+    const digitPatterns = getScannerPrintedDigitPatterns(card);
+    if (
+      digitPatterns.some((pattern) =>
+        digitLines.some((line) => pattern.test(line))
+      )
+    ) {
+      return "exact";
+    }
   }
 
   const localNumbers = references.map((reference) => reference.split("/")[0]);
@@ -408,11 +470,19 @@ export function rankScannerCandidates(
         .filter((value): value is string => Boolean(value)),
     ]),
   ];
+  const digitLines = getScannerDigitLines(ocrText);
 
   return cards
     .map((card): RankedScannerCandidate => {
       const nameSimilarity = getCardNameSimilarity(card.name, normalizedOcr, ocrLines);
-      const numberMatch = getNumberMatch(card, references);
+      // De fuzzy cijferreeks-match is alleen betrouwbaar voor kaarten die ook
+      // naam-steun hebben; zonder die gate matcht OCR-cijferruis over een
+      // grote kandidatenset altijd wel ergens een gedrukt nummer.
+      const numberMatch = getNumberMatch(
+        card,
+        references,
+        nameSimilarity >= 0.6 ? digitLines : []
+      );
       const setMatch = getSetMatch(card, normalizedOcr);
       const visualSimilarity = visualSimilarities.get(card.id) ?? null;
       const attackSimilarity = attackSimilarities.get(card.id) ?? null;
@@ -524,7 +594,14 @@ export function getScannerNameObservation(
     normalizeScannerText(value)
       .replace(/[-\s]+(?:break|ex|gx|lv x|v|vmax|vstar)$/i, "")
       .trim();
-  const lines = getMeaningfulOcrLines(ocrText);
+  // "Evolves from <name>" sits directly under the title and used to win the
+  // name match (a photo of Jellicent matched "Frillish"). Drop that phrase
+  // before looking for the card name.
+  const sanitizedOcrText = ocrText.replace(
+    /evolves?\s*from\s+[^\n·]{0,40}/gi,
+    " "
+  );
+  const lines = getMeaningfulOcrLines(sanitizedOcrText);
   const rankedNames = cards
     .flatMap((card) => {
       const compactName = compactScannerText(card.name);
