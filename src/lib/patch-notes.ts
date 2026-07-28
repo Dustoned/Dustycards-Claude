@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.22",
+    releasedAt: "July 28, 2026",
+    title: "Search finds cards while you type",
+    summary:
+      "DustyCards 3.8.22 refines search so partially typed card numbers already return results instead of demanding the complete reference.",
+    tone: "improved",
+    highlights: [
+      "A partly typed printed number such as 185/19 now already shows 185/196; previously the card only appeared once the full number was entered.",
+      "Name-plus-number searches match while the number is still being typed: umbreon 16 already lists 161/131.",
+      "The exact number you typed stays on top of the results, so broader prefix matches never push the intended card down.",
+    ],
+  },
+  {
     version: "3.8.21",
     releasedAt: "July 27, 2026",
     title: "Card Scanner paused",
