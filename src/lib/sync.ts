@@ -3604,6 +3604,69 @@ export async function runSealedProductRefresh(
   );
 }
 
+export interface SealedHistoryTopUpResult {
+  candidates: number;
+  synced: number;
+}
+
+const SEALED_HISTORY_TOPUP_MAX_PRODUCTS = 400;
+const SEALED_HISTORY_TOPUP_STALE_DAYS = 2;
+
+// The automatic native-history backfill only ever selects products that have
+// never been synced (native_history_synced_at IS NULL). Once a product got its
+// initial history it was never topped up again, so long price gaps appeared
+// whenever the daily sealed catalog sync was not running. This pass extends
+// the history of already-synced products whose latest snapshot went stale,
+// bounded per run so it drains over a few days instead of eating the quota.
+export async function runSealedHistoryTopUpSync(options?: {
+  maxProducts?: number;
+  staleDays?: number;
+}): Promise<SealedHistoryTopUpResult> {
+  const maxProducts = options?.maxProducts ?? SEALED_HISTORY_TOPUP_MAX_PRODUCTS;
+  const staleDays = options?.staleDays ?? SEALED_HISTORY_TOPUP_STALE_DAYS;
+
+  return runLoggedSync(
+    "sealed-history-topup",
+    "Topping up sealed price history from TCGGO",
+    (result) =>
+      `Topped up sealed price history for ${result.synced} of ${result.candidates} stale products`,
+    async (progress) => {
+      await progress.throwIfCancelled();
+
+      const cutoff = new Date(
+        Date.now() - staleDays * 24 * 60 * 60 * 1000
+      ).toISOString();
+      const rows = await db.$queryRawUnsafe<Array<{ id: string; episode_id: string }>>(
+        `SELECT p.id, p.episode_id
+         FROM "SealedProduct" p
+         LEFT JOIN (
+           SELECT product_id, MAX(fetched_at) AS latest_fetched_at
+           FROM "SealedPriceSnapshot"
+           GROUP BY product_id
+         ) s ON s.product_id = p.id
+         WHERE (p.native_history_status IS NULL OR p.native_history_status <> 'unavailable')
+           AND (s.latest_fetched_at IS NULL OR s.latest_fetched_at < ?)
+         ORDER BY s.latest_fetched_at ASC
+         LIMIT ?`,
+        cutoff,
+        maxProducts
+      );
+
+      if (rows.length === 0) {
+        return { candidates: 0, synced: 0 };
+      }
+
+      const synced = await backfillSealedNativeHistory(
+        rows.map((row) => ({ id: row.id, episodeId: row.episode_id })),
+        new Date(),
+        progress.throwIfCancelled
+      );
+
+      return { candidates: rows.length, synced };
+    }
+  );
+}
+
 export async function runSealedProductHistorySync(
   productId: string
 ): Promise<SealedProductHistorySyncResult> {

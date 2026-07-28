@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { runSealedSync } from "@/lib/sync";
+import { runSealedHistoryTopUpSync, runSealedSync } from "@/lib/sync";
 
 // Sealed product prices (and their snapshots, which feed sealed sudden drops,
 // the value drivers and set-lifecycle observations) previously only refreshed
@@ -77,12 +77,16 @@ export async function maybeStartSealedSyncJob(options: {
     return { ...base, skippedReason: "retry-backoff" };
   }
 
-  void runSealedSync().catch((error: unknown) => {
-    console.error(
-      "[sealed-sync-job] scheduled sealed sync failed:",
-      error instanceof Error ? error.message : String(error)
-    );
-  });
+  void runSealedSync()
+    // After fresh current prices, extend stale product histories so gaps from
+    // paused sync periods fill back in (bounded per pass, drains over days).
+    .then(() => runSealedHistoryTopUpSync())
+    .catch((error: unknown) => {
+      console.error(
+        "[sealed-sync-job] scheduled sealed sync failed:",
+        error instanceof Error ? error.message : String(error)
+      );
+    });
 
   return { ...base, started: true, running: true };
 }

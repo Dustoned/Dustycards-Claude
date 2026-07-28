@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.27",
+    releasedAt: "July 28, 2026",
+    title: "Sealed price history catches up",
+    summary:
+      "DustyCards 3.8.27 backfills the sealed price history gap: TCGGO history for already-synced products is now topped up automatically instead of only on first sync.",
+    tone: "fixed",
+    highlights: [
+      "The automatic history backfill only ever ran once per product; after that a product's history never grew again unless its detail page was opened. The daily sealed pass now also tops up products whose latest snapshot went stale.",
+      "The top-up asks TCGGO only for history since each product's last snapshot and is capped per pass, so the missing May-July window fills back in over a few days without draining the API quota.",
+      "Because the sealed sync had not run since April, the very first scheduled pass is due immediately — sealed prices, sudden drops, value drivers and charts all recover from the same run.",
+    ],
+  },
+  {
     version: "3.8.26",
     releasedAt: "July 28, 2026",
     title: "Sealed prices refresh themselves again",
