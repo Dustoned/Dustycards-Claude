@@ -15,7 +15,7 @@ import {
   CardListTilePrice,
 } from "@/components/CardListTile";
 import type { ModalCardData } from "@/components/card-modal/types";
-import { Tag, X } from "lucide-react";
+import { BadgeEuro, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   modalActionRowClass,
@@ -932,10 +932,11 @@ export default function ExpansionView({
                   type="button"
                   onClick={openSaleListingDialog}
                   disabled={savingSaleListing || selectedCardIds.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-amber-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-45"
+                  title="Move to For Sale"
+                  aria-label="Move to For Sale"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-amber-400/28 bg-amber-400/[0.09] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] leading-none text-amber-300 transition-colors hover:border-amber-300/45 hover:bg-amber-400/[0.16] hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
                 >
-                  <Tag className="h-3.5 w-3.5" />
-                  For sale
+                  <BadgeEuro className="h-4 w-4" />
                 </button>
               </>
             )}

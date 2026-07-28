@@ -4,7 +4,7 @@ import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState 
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Minus, Tag, TrendingDown, TrendingUp, X } from "lucide-react";
+import { BadgeEuro, CheckCircle2, Minus, TrendingDown, TrendingUp, X } from "lucide-react";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -953,7 +953,14 @@ export default function CollectionCardsView({
       items: selectedSaleListingItems,
       mode: "stack",
       totalPaid: "",
-      prices: Object.fromEntries(selectedSaleListingItems.map(({ itemId }) => [itemId, ""])),
+      // Prefill with what each card already has on record, so existing paid
+      // amounts are visible and carried over untouched.
+      prices: Object.fromEntries(
+        selectedSaleListingItems.map(({ itemId, item }) => [
+          itemId,
+          item.purchase_price != null ? String(item.purchase_price) : "",
+        ])
+      ),
       error: null,
     });
   }
@@ -1572,10 +1579,11 @@ export default function CollectionCardsView({
                           type="button"
                           onClick={handleBulkSendToSale}
                           disabled={savingSaleListing || selectedSaleListingItems.length === 0}
-                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-amber-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-45"
+                          title="Move to For Sale"
+                          aria-label="Move to For Sale"
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-amber-400/28 bg-amber-400/[0.09] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] leading-none text-amber-300 transition-colors hover:border-amber-300/45 hover:bg-amber-400/[0.16] hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
                         >
-                          <Tag className="h-3.5 w-3.5" />
-                          For sale
+                          <BadgeEuro className="h-4 w-4" />
                         </button>
                       )}
                       {canMarkSold && (
@@ -1753,10 +1761,11 @@ export default function CollectionCardsView({
                         type="button"
                         onClick={handleBulkSendToSale}
                         disabled={savingSaleListing || selectedSaleListingItems.length === 0}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-45"
+                        title="Move to For Sale"
+                        aria-label="Move to For Sale"
+                        className="inline-flex items-center rounded-full border border-amber-400/28 bg-amber-400/[0.09] px-2.5 py-1.5 text-amber-500 transition-colors hover:border-amber-300/45 hover:bg-amber-400/[0.16] dark:text-amber-300 dark:hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
                       >
-                        <Tag className="h-3.5 w-3.5" />
-                        For sale
+                        <BadgeEuro className="h-4 w-4" />
                       </button>
                     )}
                     {canMarkSold && (
@@ -1926,10 +1935,11 @@ export default function CollectionCardsView({
                   type="button"
                   onClick={handleBulkSendToSale}
                   disabled={savingSaleListing || selectedSaleListingItems.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-amber-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+                  title="Move to For Sale"
+                  aria-label="Move to For Sale"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-amber-400/28 bg-amber-400/[0.09] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] leading-none text-amber-300 transition-colors hover:border-amber-300/45 hover:bg-amber-400/[0.16] hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  <Tag className="h-3.5 w-3.5" />
-                  For sale
+                  <BadgeEuro className="h-4 w-4" />
                 </button>
               )}
               {canMarkSold && (

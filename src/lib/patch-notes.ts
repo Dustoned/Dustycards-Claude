@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.30",
+    releasedAt: "July 28, 2026",
+    title: "Cleaner For Sale button",
+    summary:
+      "DustyCards 3.8.30 slims the For Sale action down to a single amber euro-badge icon and prefills per-card paid amounts that were already on record.",
+    tone: "improved",
+    highlights: [
+      "The selection bar now shows a compact amber euro-badge button instead of a labeled button — same action, less clutter, with a tooltip for clarity.",
+      "Cards that already have a paid amount keep it automatically when moved to For Sale, and the per-card fields come prefilled with those amounts so you can see and adjust them.",
+    ],
+  },
+  {
     version: "3.8.29",
     releasedAt: "July 28, 2026",
     title: "For Sale popup: paid per card",
