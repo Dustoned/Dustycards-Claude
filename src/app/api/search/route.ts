@@ -509,25 +509,45 @@ function containsCondition(field: string, value: string) {
   return { [field]: { contains: value } } as Record<string, { contains: string }>;
 }
 
-function buildCardNumberCondition(cardNumber: string): Prisma.CardWhereInput {
+function buildCardNumberCondition(
+  cardNumber: string,
+  options?: { matchNumericPrefix?: boolean }
+): Prisma.CardWhereInput {
   const aliases = buildCardNumberSearchAliases(cardNumber);
   if (aliases.length === 0) return { card_number: cardNumber };
 
   if (cardNumber.includes("/")) {
-    const conditions = aliases.flatMap((alias) => [
-      { card_number: alias },
-      { printed_card_number: alias },
-    ]);
+    // A partially typed total such as "185/19" must already match "185/196".
+    const conditions = aliases.flatMap((alias): Prisma.CardWhereInput[] =>
+      alias.includes("/")
+        ? [
+            { card_number: { startsWith: alias } },
+            { printed_card_number: { startsWith: alias } },
+          ]
+        : [{ card_number: alias }, { printed_card_number: alias }]
+    );
     return conditions.length === 1 ? conditions[0] : { OR: conditions };
   }
 
   if (/^\d+$/.test(cardNumber)) {
-    const conditions = aliases.flatMap((alias) => [
+    const conditions: Prisma.CardWhereInput[] = aliases.flatMap((alias) => [
       { card_number: alias },
       { card_number: { startsWith: `${alias}/` } },
       { printed_card_number: alias },
       { printed_card_number: { startsWith: `${alias}/` } },
     ]);
+
+    if (options?.matchNumericPrefix) {
+      // Name-plus-number searches keep matching while the number is still
+      // being typed ("umbreon 16" already finds 161/131).
+      conditions.push(
+        ...aliases.flatMap((alias) => [
+          { card_number: { startsWith: alias } },
+          { printed_card_number: { startsWith: alias } },
+        ])
+      );
+    }
+
     return conditions.length === 1 ? conditions[0] : { OR: conditions };
   }
 
@@ -998,7 +1018,7 @@ function buildFuzzyCardCandidateWhere(
 function buildFuzzyNumberCardCandidateWhere(parsed: ParsedQuery): Prisma.CardWhereInput | undefined {
   if (!parsed.name || !parsed.cardNumber) return undefined;
 
-  return buildCardNumberCondition(parsed.cardNumber);
+  return buildCardNumberCondition(parsed.cardNumber, { matchNumericPrefix: true });
 }
 
 function buildFuzzySealedCandidateWhere(
@@ -1035,10 +1055,25 @@ function buildFuzzyExpansionCandidateWhere(rawQuery: string): Prisma.EpisodeWher
   return combineWhere("OR", conditions);
 }
 
+function cardNumberExactlyMatches(
+  cardNumber: string | null,
+  queriedCardNumber: string | null | undefined
+): boolean {
+  if (!cardNumber || !queriedCardNumber) return false;
+
+  const aliases = new Set([
+    ...buildCardNumberSearchAliases(cardNumber),
+    // A plain "161" query must count "161/131" as an exact hit too.
+    ...buildCardNumberSearchAliases(cardNumber.split("/")[0]),
+  ]);
+  return buildCardNumberSearchAliases(queriedCardNumber).some((alias) => aliases.has(alias));
+}
+
 function formatSingleResults(
   cards: SearchCardRecord[],
   relevanceQuery: string,
-  rankingMode: SearchRankingMode = "direct"
+  rankingMode: SearchRankingMode = "direct",
+  queriedCardNumber: string | null = null
 ) {
   return cards
     .map((card) => {
@@ -1072,6 +1107,15 @@ function formatSingleResults(
           getCardResultRelevanceScore(b, relevanceQuery, rankingMode)
         );
         if (scoreDiff !== 0) return scoreDiff;
+      }
+
+      if (queriedCardNumber) {
+        // With prefix number matching, "umbreon 16" also returns 160-169;
+        // the exact number the user typed must stay on top.
+        const exactDiff =
+          Number(cardNumberExactlyMatches(b.card_number, queriedCardNumber)) -
+          Number(cardNumberExactlyMatches(a.card_number, queriedCardNumber));
+        if (exactDiff !== 0) return exactDiff;
       }
 
       const priceDiff = compareSingleSearchPriceDesc(a, b);
@@ -1317,7 +1361,7 @@ async function runFuzzyFallback(
     .slice(0, 12)
     .map((entry) => entry.episode);
 
-  const formattedSingles = formatSingleResults(singles, rawQuery, "fuzzy");
+  const formattedSingles = formatSingleResults(singles, rawQuery, "fuzzy", parsed.cardNumber);
   const formattedSealed = formatSealedResults(sealed, rawQuery, "fuzzy");
   const formattedExpansions = formatExpansionResults(expansions, rawQuery, "fuzzy");
 
@@ -1365,7 +1409,7 @@ async function runDirectSearch(
       );
     } else {
       cardAndConditions.push(
-        buildCardNumberCondition(cardNumber)
+        buildCardNumberCondition(cardNumber, { matchNumericPrefix: Boolean(name) })
       );
     }
   } else if (setCode) {
@@ -1483,7 +1527,10 @@ async function runDirectSearch(
   ]);
 
   const relevanceQuery = name ?? q;
-  const singles = formatSingleResults(cards, relevanceQuery).slice(0, singleResultLimit);
+  const singles = formatSingleResults(cards, relevanceQuery, "direct", cardNumber).slice(
+    0,
+    singleResultLimit
+  );
   const sealedResults = formatSealedResults(sealed, relevanceQuery).slice(0, MAX_RESULTS);
   const expansionResults = formatExpansionResults(expansions, relevanceQuery);
   const total = singles.length + sealedResults.length + expansionResults.length;
