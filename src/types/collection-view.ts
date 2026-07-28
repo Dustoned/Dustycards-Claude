@@ -16,6 +16,7 @@ export interface CollectionCardViewItem {
   name: string;
   image_url: string | null;
   card_number: string | null;
+  version?: string | null;
   rarity: string | null;
   supertype: string | null;
   episode_id: string;

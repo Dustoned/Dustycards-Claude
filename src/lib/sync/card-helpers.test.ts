@@ -23,6 +23,7 @@ function makeCard(overrides: Partial<CardWriteData> = {}): CardWriteData {
     game: "pokemon",
     name: "Test Card",
     card_number: "001",
+    version: null,
     rarity: "Rare",
     hp: null,
     supertype: "Pokemon",

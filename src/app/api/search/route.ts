@@ -43,6 +43,7 @@ interface SearchCardRecord {
   name: string;
   card_number: string | null;
   printed_card_number: string | null;
+  version: string | null;
   rarity: string | null;
   supertype: string | null;
   image_url: string | null;
@@ -682,6 +683,8 @@ function buildCardFreeTextCondition(query: string): Prisma.CardWhereInput {
       AND: tokens.map((token) => ({
         OR: [
           fieldContains<Prisma.CardWhereInput>(token),
+          // Variant labels ("Pokémon Center", "Oversized") live in version.
+          fieldContains<Prisma.CardWhereInput>(token, "version"),
           { episode: fieldContains<Prisma.EpisodeWhereInput>(token, "name") },
           { episode: fieldContains<Prisma.EpisodeWhereInput>(token, "code") },
         ],
@@ -731,6 +734,7 @@ function buildEpisodeFreeTextCondition(query: string): Prisma.EpisodeWhereInput 
 function buildCardSearchText(card: {
   name: string;
   card_number: string | null;
+  version?: string | null;
   episode_name?: string | null;
   episode_code?: string | null;
   episode?: { name: string; code: string | null };
@@ -744,7 +748,16 @@ function buildCardSearchText(card: {
     ? cardNumberAliases.map((cardNumber) => `${episodeCode}${cardNumber}`)
     : [];
 
-  return [card.name, displayCardNumber ?? "", ...cardNumberAliases, episodeName, episodeCode, compactRef, ...compactRefAliases]
+  return [
+    card.name,
+    displayCardNumber ?? "",
+    ...cardNumberAliases,
+    card.version ?? "",
+    episodeName,
+    episodeCode,
+    compactRef,
+    ...compactRefAliases,
+  ]
     .filter(Boolean)
     .join(" ");
 }
@@ -1145,6 +1158,7 @@ function formatSingleResults(
         id: card.id,
         name: card.name,
         card_number: getDisplayCardNumber(card),
+        version: card.version,
         rarity: card.rarity,
         supertype: card.supertype,
         image_url: card.image_url,
@@ -1273,6 +1287,7 @@ async function runFuzzyFallback(
         name: true,
         card_number: true,
         printed_card_number: true,
+        version: true,
         rarity: true,
         supertype: true,
         image_url: true,
@@ -1330,6 +1345,7 @@ async function runFuzzyFallback(
           name: true,
           card_number: true,
           printed_card_number: true,
+          version: true,
           rarity: true,
           supertype: true,
           image_url: true,
@@ -1368,6 +1384,7 @@ async function runFuzzyFallback(
           name: true,
           card_number: true,
           printed_card_number: true,
+          version: true,
           rarity: true,
           supertype: true,
           image_url: true,
@@ -1532,6 +1549,7 @@ async function runDirectSearch(
         name: true,
         card_number: true,
         printed_card_number: true,
+        version: true,
         rarity: true,
         supertype: true,
         image_url: true,

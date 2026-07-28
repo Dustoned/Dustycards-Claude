@@ -77,6 +77,9 @@ interface RawCard {
   id: number;
   name: string;
   card_number?: number | string | null;
+  version?: string | null;
+  card_version?: string | null;
+  variant?: string | null;
   rarity?: string;
   hp?: number;
   supertype?: string;
@@ -252,6 +255,7 @@ export interface NormalizedCard {
   game: TradingCardGame;
   name: string;
   card_number: string | null;
+  version: string | null;
   rarity: string | null;
   hp: number | null;
   supertype: string | null;
@@ -751,6 +755,15 @@ function normalizeCardScore(card: RawCard): TcggoCardScoreData {
   };
 }
 
+// TCGGO's variant printings ("Pokémon Center", "Oversized", ...) share a card
+// number and are only told apart by a version label. The docs do not pin the
+// field name down, so accept every plausible spelling.
+function normalizeCardVersion(card: RawCard): string | null {
+  const version = card.version ?? card.card_version ?? card.variant;
+  const normalized = typeof version === "string" ? version.replace(/\s+/g, " ").trim() : "";
+  return normalized || null;
+}
+
 function normalizeCard(
   card: RawCard,
   tcgdexImageLookup: ReadonlyMap<string, string>,
@@ -767,6 +780,7 @@ function normalizeCard(
     game,
     name: card.name,
     card_number: card.card_number != null ? String(card.card_number) : null,
+    version: normalizeCardVersion(card),
     rarity: card.rarity ?? null,
     hp: card.hp ?? null,
     supertype: card.supertype ?? null,

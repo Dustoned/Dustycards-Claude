@@ -699,6 +699,7 @@ export default function CardModal({
       </Link>,
     ],
     ["Card number", modalCard.card_number ? `#${modalCard.card_number}` : "--"],
+    ...(modalCard.version ? [["Version", modalCard.version] as const] : []),
     ["Rarity", modalCard.rarity ?? "--"],
     [
       "Illustrator",

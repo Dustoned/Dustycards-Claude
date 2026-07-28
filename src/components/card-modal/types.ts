@@ -24,6 +24,7 @@ export interface ModalCardData {
   game: TradingCardGame;
   name: string;
   card_number: string | null;
+  version?: string | null;
   rarity: string | null;
   hp: number | string | null;
   image_url: string | null;

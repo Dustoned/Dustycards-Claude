@@ -60,6 +60,7 @@ interface SingleResult {
   id: string;
   name: string;
   card_number: string | null;
+  version?: string | null;
   rarity: string | null;
   supertype: string | null;
   image_url: string | null;
@@ -793,6 +794,11 @@ function SearchPageContent({
                               <span className="shrink-0 text-white/42">
                                 {card.card_number ? `#${card.card_number}` : "--"}
                               </span>
+                              {card.version ? (
+                                <span className="min-w-0 truncate rounded-md border border-amber-300/30 bg-amber-400/12 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-amber-200 sm:text-[9px]">
+                                  {card.version}
+                                </span>
+                              ) : null}
                             </div>
                             {!isMobileViewport ? (
                               <Link

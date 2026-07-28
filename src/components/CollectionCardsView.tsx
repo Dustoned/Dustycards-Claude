@@ -1820,6 +1820,11 @@ export default function CollectionCardsView({
                               <span className="shrink-0">
                                 {item.card_number ? `#${item.card_number}` : "--"}
                               </span>
+                              {item.version ? (
+                                <span className="min-w-0 truncate rounded-md border border-amber-300/30 bg-amber-400/12 px-1 py-px text-[9px] font-bold uppercase tracking-wide text-amber-200">
+                                  {item.version}
+                                </span>
+                              ) : null}
                               <Link
                                 href={getExpansionHref(item.episode_id)}
                                 prefetch={false}
@@ -2353,6 +2358,11 @@ export default function CollectionCardsView({
                       <span className="shrink-0 text-white/42">
                         {item.card_number ? `#${item.card_number}` : "--"}
                       </span>
+                      {item.version ? (
+                        <span className="min-w-0 truncate rounded-md border border-amber-300/30 bg-amber-400/12 px-1 py-px text-[8px] font-bold uppercase tracking-wide text-amber-200">
+                          {item.version}
+                        </span>
+                      ) : null}
                     </div>
                   </div>
 

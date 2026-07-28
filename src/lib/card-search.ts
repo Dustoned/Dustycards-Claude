@@ -154,6 +154,7 @@ export function cardMatchesSearchQuery(
     episodeName: string | null | undefined;
     episodeCode: string | null | undefined;
     rarity?: string | null | undefined;
+    version?: string | null | undefined;
   },
   query: string
 ): boolean {
@@ -171,6 +172,7 @@ export function cardMatchesSearchQuery(
     card.episodeName,
     card.episodeCode,
     card.rarity,
+    card.version,
     ...compactRefs,
   ];
 

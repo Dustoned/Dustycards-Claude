@@ -23,6 +23,7 @@ function itemMatchesSearch(item: CollectionCardViewItem, query: string): boolean
       episodeName: item.episode_name,
       episodeCode: item.episode_code,
       rarity: item.rarity,
+      version: item.version,
     },
     query
   );

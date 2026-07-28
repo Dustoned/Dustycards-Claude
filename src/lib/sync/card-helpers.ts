@@ -12,6 +12,7 @@ const CARD_FIELDS = [
   "game",
   "name",
   "card_number",
+  "version",
   "rarity",
   "hp",
   "supertype",
@@ -57,6 +58,7 @@ export type CardWriteData = {
   game: TradingCardGame | string;
   name: string;
   card_number: string | null;
+  version: string | null;
   rarity: string | null;
   hp: number | null;
   supertype: string | null;
@@ -109,6 +111,7 @@ export const syncCardBaseSelect = {
   game: true,
   name: true,
   card_number: true,
+  version: true,
   rarity: true,
   hp: true,
   supertype: true,
@@ -202,6 +205,7 @@ export function buildCardWriteData(
     game: card.game ?? existing?.game ?? POKEMON_GAME,
     name: card.name,
     card_number: card.card_number ?? existing?.card_number ?? null,
+    version: card.version ?? existing?.version ?? null,
     rarity,
     hp: card.hp ?? existing?.hp ?? null,
     supertype: normalizedSupertype ?? fallbackSupertype ?? existing?.supertype ?? null,

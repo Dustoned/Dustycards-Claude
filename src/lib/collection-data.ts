@@ -1,4 +1,4 @@
-import { db } from "@/lib/db";
+﻿import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
 import type { CollectionCardViewItem, CollectionSealedViewItem } from "@/types/collection-view";
 import {
@@ -289,6 +289,7 @@ const collectionCardSelect = {
       image_url: true,
       card_number: true,
       printed_card_number: true,
+      version: true,
       rarity: true,
       supertype: true,
       episode_id: true,
@@ -398,6 +399,7 @@ const collectionWantSelect = {
       image_url: true,
       card_number: true,
       printed_card_number: true,
+      version: true,
       rarity: true,
       supertype: true,
       prices: {
@@ -617,7 +619,7 @@ function isValueDriverSnapshotStale(
 // A card only counts as a window-length mover when we actually have a baseline
 // snapshot near the window start. If the newest snapshot at or before the
 // baseline date is older than this, the "change" really spans a longer, unknown
-// period (the card simply was not refreshed in between), so we exclude it — that
+// period (the card simply was not refreshed in between), so we exclude it â€” that
 // is what kept stale moves pinned to the panel for days instead of dropping off
 // after the window passed.
 export function isValueDriverBaselineTooOld(
@@ -753,6 +755,7 @@ type CollectionCardRecord = CollectionCardMetricRecord & {
     image_url: string | null;
     card_number: string | null;
     printed_card_number: string | null;
+    version: string | null;
     rarity: string | null;
     supertype: string | null;
     episode: {
@@ -777,6 +780,7 @@ type CollectionWantRecord = {
     image_url: string | null;
     card_number: string | null;
     printed_card_number: string | null;
+    version: string | null;
     rarity: string | null;
     supertype: string | null;
     prices: Array<{
@@ -1243,6 +1247,7 @@ function buildCardViewItem(
     name: record.card.name,
     image_url: record.card.image_url,
     card_number: getDisplayCardNumber(record.card),
+    version: record.card.version,
     rarity: record.card.rarity,
     supertype: record.card.supertype,
     episode_id: record.card.episode.id,
@@ -1283,6 +1288,7 @@ function buildWantViewItem(record: CollectionWantRecord): CollectionCardViewItem
     name: record.card.name,
     image_url: record.card.image_url,
     card_number: getDisplayCardNumber(record.card),
+    version: record.card.version,
     rarity: record.card.rarity,
     supertype: record.card.supertype,
     episode_id: record.card.episode.id,
@@ -1704,7 +1710,7 @@ function buildCollectionValueDrivers({
     } else {
       // Graded / eBay-sold cards are compared the way they are priced in the
       // collection: this week's graded value vs the SAME graded label + source
-      // a week ago (never graded vs raw — that premium is a constant offset,
+      // a week ago (never graded vs raw â€” that premium is a constant offset,
       // not a market move). The baseline reuses the exact label matching that
       // produces the current value, restricted to snapshots inside the window.
       const gradedLatestDate = gradedLatestSnapshotDates.get(item.card_id) ?? null;
@@ -1828,8 +1834,8 @@ function buildCollectionValueDrivers({
     previousDate: previousPoint.date,
     previousLabel: previousPoint.label,
     // Net must equal the drivers we actually show. Using the collection chart
-    // delta (current total vs the weekly baseline) leaked the graded premium back in —
-    // current value uses graded prices while the drivers are raw-only — so the
+    // delta (current total vs the weekly baseline) leaked the graded premium back in â€”
+    // current value uses graded prices while the drivers are raw-only â€” so the
     // badge disagreed with the list and the source breakdown.
     totalChange: roundCurrency(gainsTotal + dropsTotal),
     gainsTotal,
@@ -2114,7 +2120,7 @@ export async function getCollectionOverviewData(
   });
 
   // Same rule as the drivers: raw copies chart raw, graded copies chart their
-  // own graded price history — chart, value tile and drivers stay in sync.
+  // own graded price history â€” chart, value tile and drivers stay in sync.
   const overviewRawChartQuantities = buildCardQuantityMap(
     metricCards.filter((record) => !record.grading_company)
   );
@@ -3197,6 +3203,7 @@ export async function getBinderPageData(
           image_url: true,
           card_number: true,
           printed_card_number: true,
+          version: true,
           rarity: true,
           supertype: true,
           episode_id: true,

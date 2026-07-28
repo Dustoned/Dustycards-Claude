@@ -366,6 +366,7 @@ model Card {
   name                        String
   card_number                 String?
   printed_card_number         String?
+  version                     String?
   rarity                      String?
   hp                          Int?
   supertype                   String?

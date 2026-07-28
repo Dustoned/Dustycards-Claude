@@ -111,6 +111,7 @@ function cardItemMatchesSearch(item: CollectionCardViewItem, query: string): boo
       episodeName: item.episode_name,
       episodeCode: item.episode_code,
       rarity: item.rarity,
+      version: item.version,
     },
     query
   );
