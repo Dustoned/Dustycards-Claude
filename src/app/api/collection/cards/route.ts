@@ -234,6 +234,7 @@ export async function PATCH(req: NextRequest) {
     binderId?: unknown;
     forSale?: unknown;
     totalPurchasePrice?: unknown;
+    purchasePrices?: unknown;
     }>(req);
 
   const itemIds = (() => {
@@ -272,6 +273,26 @@ export async function PATCH(req: NextRequest) {
     forSale && totalPurchasePriceInput != null && totalPurchasePriceInput >= 0
       ? Number((totalPurchasePriceInput / itemIds.length).toFixed(2))
       : null;
+
+  // Optional explicit paid amounts per collection item; wins over the spread
+  // total and only touches the items it names.
+  const itemIdSet = new Set(itemIds);
+  const purchasePricesByItemId = new Map<string, number>();
+  if (forSale && body.purchasePrices && typeof body.purchasePrices === "object") {
+    for (const [itemId, rawPrice] of Object.entries(
+      body.purchasePrices as Record<string, unknown>
+    )) {
+      if (!itemIdSet.has(itemId)) continue;
+      const price = toNullableNumber(rawPrice);
+      if (price == null || price < 0) {
+        return NextResponse.json(
+          { error: "Purchase prices must be zero or positive numbers" },
+          { status: 400 }
+        );
+      }
+      purchasePricesByItemId.set(itemId, Number(price.toFixed(2)));
+    }
+  }
 
   const collectionItems = await db.collectionCard.findMany({
     where: { id: { in: itemIds }, user_id: user.id },
@@ -320,9 +341,18 @@ export async function PATCH(req: NextRequest) {
         for_sale: forSale,
         sale_price: null,
         sold_at: null,
-        ...(perItemPurchasePrice != null ? { purchase_price: perItemPurchasePrice } : {}),
+        ...(perItemPurchasePrice != null && purchasePricesByItemId.size === 0
+          ? { purchase_price: perItemPurchasePrice }
+          : {}),
       },
     });
+
+    for (const [itemId, price] of purchasePricesByItemId) {
+      await tx.collectionCard.updateMany({
+        where: { id: itemId, user_id: user.id },
+        data: { purchase_price: price },
+      });
+    }
 
     if (!forSale) {
       await tx.collectionWant.deleteMany({

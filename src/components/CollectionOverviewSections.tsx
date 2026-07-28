@@ -312,6 +312,7 @@ export default function CollectionOverviewSections({
           <CollectionCardsView
             items={filteredGradedLooseSingles}
             allowCollectionRemoval={!readOnly}
+            allowSaleListing={!readOnly}
             showGradedSlabPreview
             emptyTitle={hasSearch ? "No matching graded cards" : "No graded cards yet"}
             emptyText={
@@ -336,6 +337,7 @@ export default function CollectionOverviewSections({
           <CollectionCardsView
             items={filteredRawLooseSingles}
             allowCollectionRemoval={!readOnly}
+            allowSaleListing={!readOnly}
             showGradedSlabPreview
             emptyTitle={hasSearch ? "No matching loose singles" : "No loose singles yet"}
             emptyText={

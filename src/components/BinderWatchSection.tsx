@@ -122,6 +122,7 @@ export default function BinderWatchSection({
         forcedSortDir="desc"
         showGradedSlabPreview={showGradedSlabPreview}
         splitByGrading={splitBinderWatchByGrading}
+        allowSaleListing={!readOnlyCollectionItems}
         readOnlyCollectionItems={readOnlyCollectionItems}
       />
     </section>

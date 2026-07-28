@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.29",
+    releasedAt: "July 28, 2026",
+    title: "For Sale popup: paid per card",
+    summary:
+      "DustyCards 3.8.29 lets the For Sale popup take a paid amount per card, and brings the For Sale action to the Complete Collection view.",
+    tone: "improved",
+    highlights: [
+      "The Move To For Sale popup now has a Paid total / Paid per card switch: fill in exactly what each card cost, or one amount for the whole stack.",
+      "Per-card amounts are optional per row — rows left empty keep the paid amount the card already had.",
+      "The Complete Collection view gained the same amber For Sale button in its selection bar (loose singles, graded and binder watch sections).",
+    ],
+  },
+  {
     version: "3.8.28",
     releasedAt: "July 28, 2026",
     title: "Send selected cards straight to For Sale",

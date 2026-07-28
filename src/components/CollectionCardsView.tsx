@@ -170,7 +170,9 @@ interface SellQuoteDialogState {
 
 interface SaleListingDialogState {
   items: SoldDialogItem[];
+  mode: "stack" | "per-card";
   totalPaid: string;
+  prices: Record<string, string>;
   error: string | null;
 }
 
@@ -949,21 +951,63 @@ export default function CollectionCardsView({
     setSellQuoteDialog(null);
     setSaleListingDialog({
       items: selectedSaleListingItems,
+      mode: "stack",
       totalPaid: "",
+      prices: Object.fromEntries(selectedSaleListingItems.map(({ itemId }) => [itemId, ""])),
       error: null,
     });
+  }
+
+  function updateSaleListingMode(mode: SaleListingDialogState["mode"]) {
+    setSaleListingDialog((current) => (current ? { ...current, mode, error: null } : current));
+  }
+
+  function updateSaleListingPrice(itemId: string, value: string) {
+    setSaleListingDialog((current) =>
+      current
+        ? {
+            ...current,
+            error: null,
+            prices: { ...current.prices, [itemId]: value },
+          }
+        : current
+    );
   }
 
   async function sendItemsToSale() {
     if (!saleListingDialog || saleListingDialog.items.length === 0) return;
 
-    const rawTotalPaid = saleListingDialog.totalPaid.trim();
-    const totalPaid = rawTotalPaid ? parseCurrencyInput(rawTotalPaid) : null;
-    if (rawTotalPaid && totalPaid == null) {
-      setSaleListingDialog((current) =>
-        current ? { ...current, error: "Fill in a valid total paid amount, or leave it empty." } : current
-      );
-      return;
+    let totalPaid: number | null = null;
+    const purchasePrices: Record<string, number> = {};
+
+    if (saleListingDialog.mode === "per-card") {
+      // Per-card amounts stay optional: rows left empty keep whatever the
+      // card already had as its paid amount.
+      for (const { itemId } of saleListingDialog.items) {
+        const raw = (saleListingDialog.prices[itemId] ?? "").trim();
+        if (!raw) continue;
+        const price = parseCurrencyInput(raw);
+        if (price == null) {
+          setSaleListingDialog((current) =>
+            current
+              ? { ...current, error: "Fill in valid paid amounts, or leave rows empty." }
+              : current
+          );
+          return;
+        }
+        purchasePrices[itemId] = price;
+      }
+    } else {
+      const rawTotalPaid = saleListingDialog.totalPaid.trim();
+      totalPaid = rawTotalPaid ? parseCurrencyInput(rawTotalPaid) : null;
+      if (rawTotalPaid && totalPaid == null) {
+        setSaleListingDialog((current) =>
+          current
+            ? { ...current, error: "Fill in a valid total paid amount, or leave it empty." }
+            : current
+        );
+        return;
+      }
     }
 
     setSavingSaleListing(true);
@@ -977,6 +1021,7 @@ export default function CollectionCardsView({
           itemIds: saleListingDialog.items.map((item) => item.itemId),
           forSale: true,
           ...(totalPaid != null ? { totalPurchasePrice: totalPaid } : {}),
+          ...(Object.keys(purchasePrices).length > 0 ? { purchasePrices } : {}),
         }),
       });
       const data = (await response.json()) as { error?: string };
@@ -1874,6 +1919,17 @@ export default function CollectionCardsView({
                   className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
                 >
                   Bulk add
+                </button>
+              )}
+              {canSendToSale && (
+                <button
+                  type="button"
+                  onClick={handleBulkSendToSale}
+                  disabled={savingSaleListing || selectedSaleListingItems.length === 0}
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-amber-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  For sale
                 </button>
               )}
               {canMarkSold && (
@@ -2880,51 +2936,85 @@ export default function CollectionCardsView({
             </div>
 
             <div className={modalBodyClass}>
-              <div className="grid gap-2.5 sm:grid-cols-2">
-                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
-                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
-                    Market Total
-                  </p>
-                  <p className="mt-1 text-2xl font-black tabular-nums text-white max-[640px]:text-xl">
-                    {formatCollectionCurrency(saleListingTotal)}
-                  </p>
-                  <p className="mt-1 text-[11px] font-semibold text-white/42">
-                    {saleListingPricedCards} / {saleListingDialog.items.length} priced
-                  </p>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                  Market Total
+                </p>
+                <p className="mt-1 text-2xl font-black tabular-nums text-white max-[640px]:text-xl">
+                  {formatCollectionCurrency(saleListingTotal)}
+                </p>
+                <p className="mt-1 text-[11px] font-semibold text-white/42">
+                  {saleListingPricedCards} / {saleListingDialog.items.length} priced
+                </p>
+              </div>
+
+              {saleListingDialog.items.length > 1 && (
+                <div className="mt-3 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.045] p-1.5 max-[640px]:rounded-xl">
+                  {[
+                    { mode: "stack" as const, label: "Paid total" },
+                    { mode: "per-card" as const, label: "Paid per card" },
+                  ].map((option) => (
+                    <button
+                      key={option.mode}
+                      type="button"
+                      onClick={() => updateSaleListingMode(option.mode)}
+                      disabled={savingSaleListing}
+                      className={`rounded-xl px-3 py-2 text-sm font-semibold transition-colors max-[640px]:text-[12px] ${
+                        saleListingDialog.mode === option.mode
+                          ? "bg-amber-600 text-white"
+                          : "text-white/56 hover:bg-white/[0.06] hover:text-white"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+              )}
+
+              {saleListingDialog.mode === "stack" ? (
+                <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
                   <label
                     htmlFor="sale-listing-total-paid"
                     className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35"
                   >
                     Paid For These Cards (Optional)
                   </label>
-                  <input
-                    id="sale-listing-total-paid"
-                    type="text"
-                    inputMode="decimal"
-                    value={saleListingDialog.totalPaid}
-                    onChange={(event) =>
-                      setSaleListingDialog((current) =>
-                        current
-                          ? { ...current, totalPaid: event.target.value, error: null }
-                          : current
-                      )
-                    }
-                    placeholder="0.00"
-                    className={`${modalInputClass} mt-1.5`}
-                  />
+                  <div className="relative mt-1.5">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-white/36">
+                      EUR
+                    </span>
+                    <input
+                      id="sale-listing-total-paid"
+                      type="text"
+                      inputMode="decimal"
+                      value={saleListingDialog.totalPaid}
+                      onChange={(event) =>
+                        setSaleListingDialog((current) =>
+                          current
+                            ? { ...current, totalPaid: event.target.value, error: null }
+                            : current
+                        )
+                      }
+                      disabled={savingSaleListing}
+                      placeholder="0.00"
+                      className={`${modalInputClass} pl-12 tabular-nums`}
+                    />
+                  </div>
                   <p className="mt-1.5 text-[11px] font-semibold text-white/42">
                     Total for the whole stack; spread evenly per card for P&amp;L.
                   </p>
                 </div>
-              </div>
+              ) : null}
 
               <div className="mt-4 max-h-[32vh] space-y-2 overflow-y-auto pr-1 max-[640px]:max-h-[28vh]">
                 {saleListingDialog.items.map(({ itemId, item }) => (
                   <div
                     key={itemId}
-                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl"
+                    className={`gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl ${
+                      saleListingDialog.mode === "per-card"
+                        ? "grid sm:grid-cols-[minmax(0,1fr)_auto_9rem] sm:items-center"
+                        : "grid grid-cols-[minmax(0,1fr)_auto] items-center"
+                    }`}
                   >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-bold text-white">{item.name}</p>
@@ -2937,9 +3027,32 @@ export default function CollectionCardsView({
                         ? formatCollectionCurrency(item.current_value)
                         : "No price"}
                     </p>
+                    {saleListingDialog.mode === "per-card" ? (
+                      <span className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-white/36">
+                          EUR
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={saleListingDialog.prices[itemId] ?? ""}
+                          onChange={(event) => updateSaleListingPrice(itemId, event.target.value)}
+                          disabled={savingSaleListing}
+                          placeholder="0.00"
+                          aria-label={`Paid for ${item.name}`}
+                          className={`${modalInputClass} pl-11 text-right tabular-nums`}
+                        />
+                      </span>
+                    ) : null}
                   </div>
                 ))}
               </div>
+
+              {saleListingDialog.mode === "per-card" ? (
+                <p className="mt-2 text-[11px] font-semibold text-white/42">
+                  Optional per card; rows left empty keep their current paid amount.
+                </p>
+              ) : null}
 
               {saleListingDialog.error && (
                 <p className="mt-4 text-sm text-rose-300">{saleListingDialog.error}</p>
