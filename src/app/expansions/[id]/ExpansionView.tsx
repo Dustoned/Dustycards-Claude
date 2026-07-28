@@ -901,7 +901,7 @@ export default function ExpansionView({
           <div className="flex flex-wrap items-center gap-2">
             {selectionMode && (
               <>
-                <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-blue-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-blue-700 dark:text-blue-300">
+                <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-violet-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-violet-700 dark:text-violet-200">
                   {selectedCardIds.length} selected
                 </span>
                 <button
@@ -924,7 +924,7 @@ export default function ExpansionView({
                   type="button"
                   onClick={() => setBulkAddOpen(true)}
                   disabled={selectedCardIds.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-blue-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
                 >
                   Bulk add
                 </button>
@@ -1327,7 +1327,7 @@ export default function ExpansionView({
                   {...getCardLongPressHandlers(card.id)}
                       className={`border-b border-black/6 transition-colors last:border-b-0 dark:border-white/6 cursor-pointer ${
                         tableSelected
-                          ? "bg-blue-500/10"
+                          ? "bg-violet-500/10"
                           : "hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
                       }`}
                     >
@@ -1489,7 +1489,7 @@ export default function ExpansionView({
                     card.image_url,
                     `relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent transition-all duration-200 ${
                       gridSelected
-                        ? "drop-shadow-[0_12px_24px_rgba(56,189,248,0.24)] ring-2 ring-blue-400/80"
+                        ? "drop-shadow-[0_12px_24px_rgba(56,189,248,0.35)] ring-[3px] ring-blue-400"
                         : "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
                     }`
                   )}

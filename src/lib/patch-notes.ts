@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.31",
+    releasedAt: "July 28, 2026",
+    title: "Expansion selection matches the collection",
+    summary:
+      "DustyCards 3.8.31 aligns card selection on expansion pages with the collection views: same colors, same buttons, and a clearly visible selected state.",
+    tone: "improved",
+    highlights: [
+      "The selection bar on expansion pages now uses the same violet accents and button styles as binders and the collection instead of its own blue variant.",
+      "Selected cards in the expansion grid get a strong blue ring, so it is finally obvious which cards are picked.",
+      "Selected table rows use the same violet highlight as the collection table.",
+    ],
+  },
+  {
     version: "3.8.30",
     releasedAt: "July 28, 2026",
     title: "Cleaner For Sale button",
