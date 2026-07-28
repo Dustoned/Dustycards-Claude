@@ -4,7 +4,7 @@ import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState 
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { CheckCircle2, Minus, TrendingDown, TrendingUp, X } from "lucide-react";
+import { CheckCircle2, Minus, Tag, TrendingDown, TrendingUp, X } from "lucide-react";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -140,6 +140,7 @@ interface Props {
   collectionRemovalLabel?: string;
   collectionRemovalWarning?: string;
   allowSoldMarking?: boolean;
+  allowSaleListing?: boolean;
   readOnlyCollectionItems?: boolean;
 }
 
@@ -167,11 +168,19 @@ interface SellQuoteDialogState {
   items: SoldDialogItem[];
 }
 
+interface SaleListingDialogState {
+  items: SoldDialogItem[];
+  totalPaid: string;
+  error: string | null;
+}
+
 type CollectionView = Exclude<CardView, "binder">;
 
 const INITIAL_COLLECTION_RENDER_COUNT = 72;
 const COLLECTION_RENDER_BATCH_SIZE = 96;
 const INITIAL_COLLECTION_EAGER_IMAGE_COUNT = 4;
+const LONG_PRESS_SELECT_MS = 450;
+const LONG_PRESS_MOVE_TOLERANCE_PX = 12;
 
 function getTileTrendPercent(currentValue: number | null | undefined, costBasis: number | null): number | null {
   if (currentValue == null || costBasis == null || costBasis <= 0) return null;
@@ -237,6 +246,7 @@ export default function CollectionCardsView({
   collectionRemovalLabel = "My Collection",
   collectionRemovalWarning = "This removes the saved collection entry entirely. It will not be moved to loose singles.",
   allowSoldMarking = false,
+  allowSaleListing = false,
   readOnlyCollectionItems = false,
 }: Props) {
   const router = useRouter();
@@ -265,12 +275,22 @@ export default function CollectionCardsView({
   const [sellQuoteDialog, setSellQuoteDialog] = useState<SellQuoteDialogState | null>(null);
   const [soldDialog, setSoldDialog] = useState<SoldDialogState | null>(null);
   const [savingSold, setSavingSold] = useState(false);
+  const [saleListingDialog, setSaleListingDialog] = useState<SaleListingDialogState | null>(null);
+  const [savingSaleListing, setSavingSaleListing] = useState(false);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
   const selectionEnabled =
-    Boolean(bulkAddBinder) || allowCollectionRemoval || allowWantRemoval || allowSoldMarking;
+    Boolean(bulkAddBinder) ||
+    allowCollectionRemoval ||
+    allowWantRemoval ||
+    allowSoldMarking ||
+    allowSaleListing;
   const canBulkAddToBinder = Boolean(bulkAddBinder) && blurMissing;
   const canRemoveFromCollection = Boolean(bulkAddBinder) || allowCollectionRemoval;
   const canRemoveFromWants = allowWantRemoval;
   const canMarkSold = allowSoldMarking;
+  const canSendToSale = allowSaleListing;
   const availableRarities = useMemo(
     () =>
       buildFilterOptions(items.map((item) => item.rarity), KNOWN_RARITY_ORDER, normalizeRarityLabel),
@@ -642,6 +662,28 @@ export default function CollectionCardsView({
     },
     [preparedEntries, selectedKeySet]
   );
+  const selectedSaleListingItems = useMemo(() => {
+    const itemsById = new Map<string, CollectionCardViewItem>();
+
+    for (const entry of preparedEntries) {
+      if (!selectedKeySet.has(entry.selectionKey) || entry.item.for_sale || entry.item.sold_at) {
+        continue;
+      }
+
+      const itemIds =
+        entry.item.collection_item_ids ??
+        (entry.item.collection_item_id ? [entry.item.collection_item_id] : []);
+      for (const itemId of itemIds) {
+        itemsById.set(itemId, {
+          ...entry.item,
+          collection_item_id: itemId,
+          collection_item_ids: [itemId],
+        });
+      }
+    }
+
+    return [...itemsById.entries()].map(([itemId, item]) => ({ itemId, item }));
+  }, [preparedEntries, selectedKeySet]);
 
   function getOpeningItemKey(item: CollectionCardViewItem, selectionKey: string): string {
     return item.collection_item_id ?? item.want_item_id ?? selectionKey;
@@ -708,6 +750,13 @@ export default function CollectionCardsView({
     selectionKey: string,
     selectableInMode: boolean
   ) {
+    // A long-press that just started selection mode must not also open the
+    // card (or immediately toggle it back off) via the trailing click event.
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+
     if (activeSelectionMode) {
       if (!selectableInMode) return;
       toggleSelected(selectionKey);
@@ -715,6 +764,52 @@ export default function CollectionCardsView({
     }
 
     void openCard(item, selectionKey);
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressStartRef.current = null;
+  }
+
+  // Touch: holding a card turns selection mode on and selects it right away.
+  function getTileLongPressHandlers(selectionKey: string) {
+    if (!selectionEnabled) return {};
+
+    return {
+      onPointerDown: (event: React.PointerEvent) => {
+        if (event.pointerType !== "touch" || activeSelectionMode) return;
+        clearLongPressTimer();
+        longPressFiredRef.current = false;
+        longPressStartRef.current = { x: event.clientX, y: event.clientY };
+        longPressTimerRef.current = window.setTimeout(() => {
+          longPressTimerRef.current = null;
+          longPressFiredRef.current = true;
+          setSelectionMode(true);
+          setSelectedKeys([selectionKey]);
+        }, LONG_PRESS_SELECT_MS);
+      },
+      onPointerMove: (event: React.PointerEvent) => {
+        const start = longPressStartRef.current;
+        if (!start || longPressTimerRef.current == null) return;
+        const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+        if (distance > LONG_PRESS_MOVE_TOLERANCE_PX) {
+          clearLongPressTimer();
+        }
+      },
+      onPointerUp: () => clearLongPressTimer(),
+      onPointerCancel: () => {
+        clearLongPressTimer();
+        longPressFiredRef.current = false;
+      },
+      onContextMenu: (event: React.MouseEvent) => {
+        // Mobile long-press also triggers the context menu; swallow it when
+        // the hold just activated selection.
+        if (longPressFiredRef.current) event.preventDefault();
+      },
+    };
   }
 
   function toggleSelectionMode() {
@@ -838,9 +933,74 @@ export default function CollectionCardsView({
     setRemoveDialog(null);
     setRemoveError(null);
     setSoldDialog(null);
+    setSaleListingDialog(null);
     setSellQuoteDialog({
       items: selectedSoldItems,
     });
+  }
+
+  function handleBulkSendToSale() {
+    if (selectedSaleListingItems.length === 0) return;
+
+    setBulkAddOpen(false);
+    setRemoveDialog(null);
+    setRemoveError(null);
+    setSoldDialog(null);
+    setSellQuoteDialog(null);
+    setSaleListingDialog({
+      items: selectedSaleListingItems,
+      totalPaid: "",
+      error: null,
+    });
+  }
+
+  async function sendItemsToSale() {
+    if (!saleListingDialog || saleListingDialog.items.length === 0) return;
+
+    const rawTotalPaid = saleListingDialog.totalPaid.trim();
+    const totalPaid = rawTotalPaid ? parseCurrencyInput(rawTotalPaid) : null;
+    if (rawTotalPaid && totalPaid == null) {
+      setSaleListingDialog((current) =>
+        current ? { ...current, error: "Fill in a valid total paid amount, or leave it empty." } : current
+      );
+      return;
+    }
+
+    setSavingSaleListing(true);
+    setSaleListingDialog((current) => (current ? { ...current, error: null } : current));
+
+    try {
+      const response = await fetch("/api/collection/cards", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemIds: saleListingDialog.items.map((item) => item.itemId),
+          forSale: true,
+          ...(totalPaid != null ? { totalPurchasePrice: totalPaid } : {}),
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not move cards to For Sale");
+      }
+
+      setSaleListingDialog(null);
+      setSelectionMode(false);
+      setSelectedKeys([]);
+      router.refresh();
+    } catch (error) {
+      setSaleListingDialog((current) =>
+        current
+          ? {
+              ...current,
+              error:
+                error instanceof Error ? error.message : "Could not move cards to For Sale",
+            }
+          : current
+      );
+    } finally {
+      setSavingSaleListing(false);
+    }
   }
 
   function openSoldPriceDialog(items: SoldDialogItem[]) {
@@ -1015,6 +1175,11 @@ export default function CollectionCardsView({
       return total + (costBasis ?? 0);
     }, 0) ?? 0;
   const sellQuotePnl = Number((sellQuoteTotal - sellQuotePaidTotal).toFixed(2));
+  const saleListingTotal =
+    saleListingDialog?.items.reduce((total, { item }) => total + (item.current_value ?? 0), 0) ??
+    0;
+  const saleListingPricedCards =
+    saleListingDialog?.items.filter(({ item }) => item.current_value != null).length ?? 0;
   const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
     { value: "number", label: "#" },
     { value: "cm_en", label: "CM" },
@@ -1357,6 +1522,17 @@ export default function CollectionCardsView({
                           Bulk add
                         </button>
                       )}
+                      {canSendToSale && (
+                        <button
+                          type="button"
+                          onClick={handleBulkSendToSale}
+                          disabled={savingSaleListing || selectedSaleListingItems.length === 0}
+                          className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-amber-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-45"
+                        >
+                          <Tag className="h-3.5 w-3.5" />
+                          For sale
+                        </button>
+                      )}
                       {canMarkSold && (
                         <button
                           type="button"
@@ -1525,6 +1701,17 @@ export default function CollectionCardsView({
                         className="rounded-full bg-violet-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
                       >
                         Bulk add
+                      </button>
+                    )}
+                    {canSendToSale && (
+                      <button
+                        type="button"
+                        onClick={handleBulkSendToSale}
+                        disabled={savingSaleListing || selectedSaleListingItems.length === 0}
+                        className="inline-flex items-center gap-1.5 rounded-full bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-45"
+                      >
+                        <Tag className="h-3.5 w-3.5" />
+                        For sale
                       </button>
                     )}
                     {canMarkSold && (
@@ -1781,6 +1968,7 @@ export default function CollectionCardsView({
                       aria-pressed={activeSelectionMode ? isSelected : undefined}
                       aria-disabled={activeSelectionMode && !selectableInMode}
                       onClick={() => handleTileActivate(item, selectionKey, selectableInMode)}
+                      {...getTileLongPressHandlers(selectionKey)}
                       onKeyDown={(event) => {
                         if (event.target !== event.currentTarget) return;
                         if (event.key === "Enter" || event.key === " ") {
@@ -1986,6 +2174,7 @@ export default function CollectionCardsView({
                           aria-pressed={activeSelectionMode ? isSelected : undefined}
                           aria-disabled={activeSelectionMode && !selectableInMode}
                           onClick={() => handleTileActivate(item, selectionKey, selectableInMode)}
+                          {...getTileLongPressHandlers(selectionKey)}
                           onKeyDown={(event) => {
                             if (event.target !== event.currentTarget) return;
                             if (event.key === "Enter" || event.key === " ") {
@@ -2244,6 +2433,7 @@ export default function CollectionCardsView({
                       aria-pressed={activeSelectionMode ? isSelected : undefined}
                       aria-disabled={activeSelectionMode && !selectableInMode}
                       onClick={() => handleTileActivate(item, selectionKey, selectableInMode)}
+                      {...getTileLongPressHandlers(selectionKey)}
                       onKeyDown={(event) => {
                         if (event.target !== event.currentTarget) return;
                         if (event.key === "Enter" || event.key === " ") {
@@ -2648,6 +2838,133 @@ export default function CollectionCardsView({
                   className={modalSecondaryButtonClass}
                 >
                   Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {saleListingDialog && (
+        <div
+          className={`${modalCenteredMobileOverlayClass} z-[360]`}
+          onClick={() => (savingSaleListing ? null : setSaleListingDialog(null))}
+        >
+          <div
+            className={`${modalCenteredPanelClass} max-w-2xl`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={modalCompactHeaderClass}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+                  Move To For Sale
+                </p>
+                <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+                  {saleListingDialog.items.length === 1
+                    ? "Put 1 card up for sale?"
+                    : `Put ${saleListingDialog.items.length} cards up for sale?`}
+                </h2>
+                <p className="mt-2 text-sm text-white/55 max-[640px]:text-[12px]">
+                  They leave this view and appear in your Selling tab with sale tracking.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaleListingDialog(null)}
+                disabled={savingSaleListing}
+                className={modalCloseButtonClass}
+                aria-label="Close for sale dialog"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className={modalBodyClass}>
+              <div className="grid gap-2.5 sm:grid-cols-2">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+                  <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
+                    Market Total
+                  </p>
+                  <p className="mt-1 text-2xl font-black tabular-nums text-white max-[640px]:text-xl">
+                    {formatCollectionCurrency(saleListingTotal)}
+                  </p>
+                  <p className="mt-1 text-[11px] font-semibold text-white/42">
+                    {saleListingPricedCards} / {saleListingDialog.items.length} priced
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+                  <label
+                    htmlFor="sale-listing-total-paid"
+                    className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35"
+                  >
+                    Paid For These Cards (Optional)
+                  </label>
+                  <input
+                    id="sale-listing-total-paid"
+                    type="text"
+                    inputMode="decimal"
+                    value={saleListingDialog.totalPaid}
+                    onChange={(event) =>
+                      setSaleListingDialog((current) =>
+                        current
+                          ? { ...current, totalPaid: event.target.value, error: null }
+                          : current
+                      )
+                    }
+                    placeholder="0.00"
+                    className={`${modalInputClass} mt-1.5`}
+                  />
+                  <p className="mt-1.5 text-[11px] font-semibold text-white/42">
+                    Total for the whole stack; spread evenly per card for P&amp;L.
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 max-h-[32vh] space-y-2 overflow-y-auto pr-1 max-[640px]:max-h-[28vh]">
+                {saleListingDialog.items.map(({ itemId, item }) => (
+                  <div
+                    key={itemId}
+                    className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl"
+                  >
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-bold text-white">{item.name}</p>
+                      <p className="mt-0.5 truncate text-xs font-semibold text-white/42">
+                        {item.card_number ? `#${item.card_number}` : item.episode_name}
+                      </p>
+                    </div>
+                    <p className="shrink-0 text-sm font-black tabular-nums text-white">
+                      {item.current_value != null
+                        ? formatCollectionCurrency(item.current_value)
+                        : "No price"}
+                    </p>
+                  </div>
+                ))}
+              </div>
+
+              {saleListingDialog.error && (
+                <p className="mt-4 text-sm text-rose-300">{saleListingDialog.error}</p>
+              )}
+
+              <div className={modalActionRowClass}>
+                <button
+                  type="button"
+                  onClick={() => void sendItemsToSale()}
+                  disabled={savingSaleListing}
+                  className={modalPrimaryButtonClass}
+                >
+                  {savingSaleListing
+                    ? "Moving..."
+                    : saleListingDialog.items.length === 1
+                      ? "Move to For Sale"
+                      : `Move ${saleListingDialog.items.length} cards to For Sale`}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaleListingDialog(null)}
+                  disabled={savingSaleListing}
+                  className={modalSecondaryButtonClass}
+                >
+                  Cancel
                 </button>
               </div>
             </div>

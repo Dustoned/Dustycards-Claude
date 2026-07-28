@@ -890,6 +890,7 @@ async function HomePageContent({
         <CollectionCardsView
           items={rawLooseSingles}
           allowCollectionRemoval
+          allowSaleListing
           showGradedSlabPreview
           emptyTitle="No loose singles in your collection"
           emptyText="Cards saved without a binder appear here."
@@ -905,6 +906,7 @@ async function HomePageContent({
         <CollectionCardsView
           items={gradedCards}
           allowCollectionRemoval
+          allowSaleListing
           showGradedSlabPreview
           emptyTitle="No graded cards in your collection"
           emptyText="Cards with a grading company and grade will appear here."

@@ -15,6 +15,19 @@ import {
   CardListTilePrice,
 } from "@/components/CardListTile";
 import type { ModalCardData } from "@/components/card-modal/types";
+import { Tag, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import {
+  modalActionRowClass,
+  modalBodyClass,
+  modalCenteredMobileOverlayClass,
+  modalCenteredPanelClass,
+  modalCloseButtonClass,
+  modalCompactHeaderClass,
+  modalInputClass,
+  modalPrimaryButtonClass,
+  modalSecondaryButtonClass,
+} from "@/components/modal-glass-styles";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
@@ -77,6 +90,8 @@ const WARMED_CARD_IMAGE_CACHE_LIMIT = 600;
 const INITIAL_RENDERED_CARDS = 36;
 const RENDERED_CARD_BATCH_SIZE = 36;
 const EAGER_IMAGE_COUNT = 4;
+const LONG_PRESS_SELECT_MS = 450;
+const LONG_PRESS_MOVE_TOLERANCE_PX = 12;
 const warmedCardImageUrls = new Set<string>();
 const warmedCardImageQueue: string[] = [];
 
@@ -241,7 +256,15 @@ export default function ExpansionView({
   const [selected, setSelected] = useState<CardData | null>(() =>
     initialCardId ? cards.find((card) => card.id === initialCardId) ?? null : null
   );
+  const router = useRouter();
   const [selectionMode, setSelectionMode] = useState(false);
+  const [saleListingDialogOpen, setSaleListingDialogOpen] = useState(false);
+  const [saleListingTotalPaid, setSaleListingTotalPaid] = useState("");
+  const [saleListingError, setSaleListingError] = useState<string | null>(null);
+  const [savingSaleListing, setSavingSaleListing] = useState(false);
+  const longPressTimerRef = useRef<number | null>(null);
+  const longPressFiredRef = useRef(false);
+  const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
@@ -403,6 +426,13 @@ export default function ExpansionView({
   }
 
   function handleCardClick(card: CardData) {
+    // A long-press that just started selection mode must not also open the
+    // card (or immediately toggle it back off) via the trailing click event.
+    if (longPressFiredRef.current) {
+      longPressFiredRef.current = false;
+      return;
+    }
+
     if (selectionMode) {
       setSelectedCardIds((prev) =>
         prev.includes(card.id) ? prev.filter((id) => id !== card.id) : [...prev, card.id]
@@ -411,6 +441,50 @@ export default function ExpansionView({
     }
 
     openDetails(card);
+  }
+
+  function clearLongPressTimer() {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+    longPressStartRef.current = null;
+  }
+
+  // Touch: holding a card turns selection mode on and selects it right away.
+  function getCardLongPressHandlers(cardId: string) {
+    return {
+      onPointerDown: (event: React.PointerEvent) => {
+        if (event.pointerType !== "touch" || selectionMode) return;
+        clearLongPressTimer();
+        longPressFiredRef.current = false;
+        longPressStartRef.current = { x: event.clientX, y: event.clientY };
+        longPressTimerRef.current = window.setTimeout(() => {
+          longPressTimerRef.current = null;
+          longPressFiredRef.current = true;
+          setSelectionMode(true);
+          setSelectedCardIds([cardId]);
+        }, LONG_PRESS_SELECT_MS);
+      },
+      onPointerMove: (event: React.PointerEvent) => {
+        const start = longPressStartRef.current;
+        if (!start || longPressTimerRef.current == null) return;
+        const distance = Math.hypot(event.clientX - start.x, event.clientY - start.y);
+        if (distance > LONG_PRESS_MOVE_TOLERANCE_PX) {
+          clearLongPressTimer();
+        }
+      },
+      onPointerUp: () => clearLongPressTimer(),
+      onPointerCancel: () => {
+        clearLongPressTimer();
+        longPressFiredRef.current = false;
+      },
+      onContextMenu: (event: React.MouseEvent) => {
+        // Mobile long-press also triggers the context menu; swallow it when
+        // the hold just activated selection.
+        if (longPressFiredRef.current) event.preventDefault();
+      },
+    };
   }
 
   function closeDetails() {
@@ -431,12 +505,65 @@ export default function ExpansionView({
 
   function toggleSelectionMode() {
     setBulkAddOpen(false);
+    setSaleListingDialogOpen(false);
     setSelectionMode((prev) => {
       if (prev) {
         setSelectedCardIds([]);
       }
       return !prev;
     });
+  }
+
+  function openSaleListingDialog() {
+    if (selectedCardIds.length === 0) return;
+    setBulkAddOpen(false);
+    setSaleListingError(null);
+    setSaleListingDialogOpen(true);
+  }
+
+  async function sendSelectedCardsToSale() {
+    if (selectedCardIds.length === 0) return;
+
+    const rawTotalPaid = saleListingTotalPaid.trim();
+    let totalPaid: number | null = null;
+    if (rawTotalPaid) {
+      const parsed = Number(rawTotalPaid.replace(",", "."));
+      if (!Number.isFinite(parsed) || parsed < 0) {
+        setSaleListingError("Fill in a valid total paid amount, or leave it empty.");
+        return;
+      }
+      totalPaid = parsed;
+    }
+
+    setSavingSaleListing(true);
+    setSaleListingError(null);
+
+    try {
+      const response = await fetch("/api/collection/cards/for-sale", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cardIds: selectedCardIds,
+          ...(totalPaid != null ? { totalPurchasePrice: totalPaid } : {}),
+        }),
+      });
+      const data = (await response.json()) as { error?: string; count?: number };
+      if (!response.ok) {
+        throw new Error(data.error ?? "Could not move cards to For Sale");
+      }
+
+      setSaleListingDialogOpen(false);
+      setSaleListingTotalPaid("");
+      setSelectionMode(false);
+      setSelectedCardIds([]);
+      router.refresh();
+    } catch (error) {
+      setSaleListingError(
+        error instanceof Error ? error.message : "Could not move cards to For Sale"
+      );
+    } finally {
+      setSavingSaleListing(false);
+    }
   }
 
   function toggleSort(col: SortBy) {
@@ -801,6 +928,15 @@ export default function ExpansionView({
                 >
                   Bulk add
                 </button>
+                <button
+                  type="button"
+                  onClick={openSaleListingDialog}
+                  disabled={savingSaleListing || selectedCardIds.length === 0}
+                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-amber-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-amber-500 disabled:cursor-not-allowed disabled:opacity-45"
+                >
+                  <Tag className="h-3.5 w-3.5" />
+                  For sale
+                </button>
               </>
             )}
             <button
@@ -1049,6 +1185,7 @@ export default function ExpansionView({
                   role="button"
                   tabIndex={0}
                   onClick={() => handleCardClick(card)}
+                  {...getCardLongPressHandlers(card.id)}
                   onKeyDown={(event) => {
                     if (event.target !== event.currentTarget) return;
                     if (event.key === "Enter" || event.key === " ") {
@@ -1186,6 +1323,7 @@ export default function ExpansionView({
                     <tr
                       key={card.id}
                       onClick={() => handleCardClick(card)}
+                  {...getCardLongPressHandlers(card.id)}
                       className={`border-b border-black/6 transition-colors last:border-b-0 dark:border-white/6 cursor-pointer ${
                         tableSelected
                           ? "bg-blue-500/10"
@@ -1336,6 +1474,7 @@ export default function ExpansionView({
                   containIntrinsicSize: isMobileViewport ? "240px" : "300px",
                 }}
                 onClick={() => handleCardClick(card)}
+                  {...getCardLongPressHandlers(card.id)}
                 onKeyDown={(event) => {
                   if (event.target !== event.currentTarget) return;
                   if (event.key === "Enter" || event.key === " ") {
@@ -1468,6 +1607,93 @@ export default function ExpansionView({
         <p className="text-center text-xs font-medium text-gray-400 dark:text-white/35">
           Loading more cards...
         </p>
+      )}
+
+      {saleListingDialogOpen && (
+        <div
+          className={`${modalCenteredMobileOverlayClass} z-[360]`}
+          onClick={() => (savingSaleListing ? null : setSaleListingDialogOpen(false))}
+        >
+          <div
+            className={`${modalCenteredPanelClass} max-w-xl`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={modalCompactHeaderClass}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/38 max-[640px]:text-[9px]">
+                  Move To For Sale
+                </p>
+                <h2 className="mt-1.5 text-2xl font-bold leading-tight max-[640px]:text-[18px]">
+                  {selectedCardIds.length === 1
+                    ? "Put 1 card up for sale?"
+                    : `Put ${selectedCardIds.length} cards up for sale?`}
+                </h2>
+                <p className="mt-2 text-sm text-white/55 max-[640px]:text-[12px]">
+                  Every saved copy of the selected cards moves to your Selling tab. Cards you do
+                  not own are skipped automatically.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaleListingDialogOpen(false)}
+                disabled={savingSaleListing}
+                className={modalCloseButtonClass}
+                aria-label="Close for sale dialog"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className={modalBodyClass}>
+              <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+                <label
+                  htmlFor="expansion-sale-total-paid"
+                  className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35"
+                >
+                  Paid For These Cards (Optional)
+                </label>
+                <input
+                  id="expansion-sale-total-paid"
+                  type="text"
+                  inputMode="decimal"
+                  value={saleListingTotalPaid}
+                  onChange={(event) => {
+                    setSaleListingTotalPaid(event.target.value);
+                    setSaleListingError(null);
+                  }}
+                  placeholder="0.00"
+                  className={`${modalInputClass} mt-1.5`}
+                />
+                <p className="mt-1.5 text-[11px] font-semibold text-white/42">
+                  Total for the whole stack; spread evenly per card for P&amp;L.
+                </p>
+              </div>
+
+              {saleListingError && (
+                <p className="mt-4 text-sm text-rose-300">{saleListingError}</p>
+              )}
+
+              <div className={modalActionRowClass}>
+                <button
+                  type="button"
+                  onClick={() => void sendSelectedCardsToSale()}
+                  disabled={savingSaleListing}
+                  className={modalPrimaryButtonClass}
+                >
+                  {savingSaleListing ? "Moving..." : "Move to For Sale"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSaleListingDialogOpen(false)}
+                  disabled={savingSaleListing}
+                  className={modalSecondaryButtonClass}
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
 
       {bulkAddOpen && (

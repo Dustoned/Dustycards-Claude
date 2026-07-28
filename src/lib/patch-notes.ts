@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.28",
+    releasedAt: "July 28, 2026",
+    title: "Send selected cards straight to For Sale",
+    summary:
+      "DustyCards 3.8.28 adds a For Sale bulk action to card selection, with an optional total-paid amount, plus long-press to start selecting on mobile.",
+    tone: "new",
+    highlights: [
+      "Select cards in a binder, your loose singles or graded tab and hit the amber For Sale button: a clean confirmation shows the market total and the cards, they move to the Selling tab and leave the current view.",
+      "Optionally fill in what you paid for the whole stack — it is spread evenly per card so the Selling tab immediately shows Paid and P&L.",
+      "The same action lives on expansion pages: every saved copy of the selected cards moves to For Sale, cards you do not own are skipped automatically.",
+      "On mobile, press and hold a card to switch into selection mode with that card already selected — works in the collection and on expansion pages.",
+    ],
+  },
+  {
     version: "3.8.27",
     releasedAt: "July 28, 2026",
     title: "Sealed price history catches up",

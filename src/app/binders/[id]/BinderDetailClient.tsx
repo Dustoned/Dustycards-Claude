@@ -312,6 +312,7 @@ export default function BinderDetailClient({
             ? "This linked binder has no cards in the source set yet."
             : "Add cards and assign them to this binder to see them here."
         }
+        allowSaleListing
         bulkAddBinder={{
           id: data.binder.id,
           name: data.binder.name,

@@ -233,6 +233,7 @@ export async function PATCH(req: NextRequest) {
     itemIds?: unknown;
     binderId?: unknown;
     forSale?: unknown;
+    totalPurchasePrice?: unknown;
     }>(req);
 
   const itemIds = (() => {
@@ -263,6 +264,14 @@ export async function PATCH(req: NextRequest) {
         episode_id: string | null;
       }
     | null = null;
+
+  // Optional combined amount paid for the whole selection; spread evenly so
+  // the sale tab can show a paid total and P&L for the batch.
+  const totalPurchasePriceInput = toNullableNumber(body.totalPurchasePrice);
+  const perItemPurchasePrice =
+    forSale && totalPurchasePriceInput != null && totalPurchasePriceInput >= 0
+      ? Number((totalPurchasePriceInput / itemIds.length).toFixed(2))
+      : null;
 
   const collectionItems = await db.collectionCard.findMany({
     where: { id: { in: itemIds }, user_id: user.id },
@@ -306,7 +315,13 @@ export async function PATCH(req: NextRequest) {
   const updated = await db.$transaction(async (tx) => {
     const result = await tx.collectionCard.updateMany({
       where: { id: { in: itemIds }, user_id: user.id },
-      data: { binder_id: binderId, for_sale: forSale, sale_price: null, sold_at: null },
+      data: {
+        binder_id: binderId,
+        for_sale: forSale,
+        sale_price: null,
+        sold_at: null,
+        ...(perItemPurchasePrice != null ? { purchase_price: perItemPurchasePrice } : {}),
+      },
     });
 
     if (!forSale) {
