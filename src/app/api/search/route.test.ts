@@ -456,6 +456,132 @@ describe("GET /api/search", () => {
     ]);
   });
 
+  it("finds space- and letter-prefixed promo numbers for a plain number search", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "thundurus-svp-209",
+        name: "Thundurus",
+        card_number: "SVP 209",
+        printed_card_number: null,
+        rarity: "Promo",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "pr-sv",
+          name: "SV Black Star Promos",
+          code: "PR-SV",
+        },
+        prices: [{ cm_en_lowest_nm: 3, tcp_market: 4 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=209"));
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.singles).toHaveLength(1);
+    expect(body.singles[0].card_number).toBe("SVP 209");
+    expect(whereJson).toContain('"endsWith":" 209"');
+    expect(whereJson).toContain('"SWSH209"');
+    expect(whereJson).toContain('"XY209"');
+  });
+
+  it("matches spaced promo numbers when the promo prefix is typed in lowercase", async () => {
+    dbMock.card.findMany.mockResolvedValue([
+      {
+        id: "thundurus-svp-209",
+        name: "Thundurus",
+        card_number: "SVP 209",
+        printed_card_number: null,
+        rarity: "Promo",
+        supertype: "Pokemon",
+        image_url: null,
+        episode: {
+          id: "pr-sv",
+          name: "SV Black Star Promos",
+          code: "PR-SV",
+        },
+        prices: [{ cm_en_lowest_nm: 3, tcp_market: 4 }],
+      },
+    ]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=svp%20209"));
+    const body = await response.json();
+    const cardQuery = dbMock.card.findMany.mock.calls[0]?.[0];
+    const whereJson = JSON.stringify(cardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.parsed).toEqual({
+      name: null,
+      cardNumber: "209",
+      setCode: "svp",
+      rawCardRef: "svp209",
+    });
+    expect(body.singles).toHaveLength(1);
+    expect(whereJson).toContain('"contains":"svp 209"');
+  });
+
+  it("reaches candidates whose name only matches past a leading typo", async () => {
+    dbMock.card.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: "thundurus-svp-209",
+          name: "Thundurus",
+          card_number: "SVP 209",
+          printed_card_number: null,
+          rarity: "Promo",
+          supertype: "Pokemon",
+          image_url: null,
+          episode: {
+            id: "pr-sv",
+            name: "SV Black Star Promos",
+            code: "PR-SV",
+          },
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: "thundurus-svp-209",
+          name: "Thundurus",
+          card_number: "SVP 209",
+          printed_card_number: null,
+          rarity: "Promo",
+          supertype: "Pokemon",
+          image_url: null,
+          episode: {
+            id: "pr-sv",
+            name: "SV Black Star Promos",
+            code: "PR-SV",
+          },
+          prices: [{ cm_en_lowest_nm: 3, tcp_market: 4 }],
+        },
+      ]);
+    dbMock.sealedProduct.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+    dbMock.episode.findMany
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([]);
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/search?q=tundurus"));
+    const body = await response.json();
+    const fuzzyCardQuery = dbMock.card.findMany.mock.calls[1]?.[0];
+    const whereJson = JSON.stringify(fuzzyCardQuery.where);
+
+    expect(response.status).toBe(200);
+    expect(body.fuzzy).toBe(true);
+    expect(body.singles).toHaveLength(1);
+    expect(body.singles[0].name).toBe("Thundurus");
+    expect(whereJson).toContain('"contains":"undu"');
+  });
+
   it("does not fuzzy fallback for missing exact printed card number searches", async () => {
     dbMock.card.findMany.mockResolvedValue([]);
     dbMock.sealedProduct.findMany.mockResolvedValue([]);

@@ -92,6 +92,40 @@ const ONE_PIECE_DIRECT_CARD_REF_RE = /^#?\s*((?:(?:op|st|eb|prb)\d{1,2})|p)\s*[-
 const ONE_PIECE_COMPACT_CARD_REF_RE = /^#?\s*([a-z]{1,4}\d{0,2})(\d{3}[a-z]?)\s*$/i;
 const ONE_PIECE_SET_CODE_RE = /^#?\s*(op|st|eb|prb)\s*[-_\s]?\s*(\d{1,2})\s*$/i;
 const PLAIN_SET_CODE_RE = /^[a-z]{2,4}$/i;
+// Letter prefixes used inside stored Pokemon card numbers, either compact
+// ("SWSH209", "TG12", "SV105") or space-separated ("SVP 209", "MEP 001").
+const LETTER_PREFIXED_NUMBER_PREFIXES = [
+  "BW",
+  "DP",
+  "GG",
+  "H",
+  "HGSS",
+  "MEP",
+  "RC",
+  "RT",
+  "SH",
+  "SL",
+  "SM",
+  "SV",
+  "SWSH",
+  "TG",
+  "XY",
+];
+// These read as set codes even when typed in lowercase ("svp 209"); they are
+// number prefixes, never Pokemon name words.
+const PROMO_SET_CODE_TOKENS = new Set([
+  "bw",
+  "dp",
+  "gg",
+  "hgss",
+  "mep",
+  "sm",
+  "sv",
+  "svp",
+  "swsh",
+  "tg",
+  "xy",
+]);
 const NON_SET_CODE_TOKENS = new Set([
   "and",
   "card",
@@ -131,6 +165,7 @@ function isLikelySetCodeToken(value: string): boolean {
 
   const normalized = token.toLowerCase();
   if (NON_SET_CODE_TOKENS.has(normalized)) return false;
+  if (PROMO_SET_CODE_TOKENS.has(normalized)) return true;
 
   // Plain words such as Mew, Mega, Iron, Team and Dark are card-name tokens,
   // not set codes. An alphabetic code is only safe as a structured hint when
@@ -537,6 +572,19 @@ function buildCardNumberCondition(
       { printed_card_number: { startsWith: `${alias}/` } },
     ]);
 
+    // Promo and subset numbers such as "SVP 209", "SWSH209" or "TG12" must
+    // surface for a plain "209" search too.
+    conditions.push(
+      ...aliases.map((alias) => ({ card_number: { endsWith: ` ${alias}` } })),
+      {
+        card_number: {
+          in: LETTER_PREFIXED_NUMBER_PREFIXES.flatMap((prefix) =>
+            aliases.map((alias) => `${prefix}${alias}`)
+          ),
+        },
+      }
+    );
+
     if (options?.matchNumericPrefix) {
       // Name-plus-number searches keep matching while the number is still
       // being typed ("umbreon 16" already finds 161/131).
@@ -609,6 +657,14 @@ function buildSetScopedCardNumberCondition(
       ],
     });
   }
+
+  // Promo numbers are stored with a space ("SVP 209"), so "svp 209" and
+  // "svp209" must both reach them even though the episode code is "PR-SV".
+  referenceConditions.push({
+    OR: buildCardNumberSearchAliases(cardNumber).map((alias) => ({
+      card_number: { contains: `${setCode} ${alias}` },
+    })),
+  });
 
   return referenceConditions.length === 1 ? referenceConditions[0] : { OR: referenceConditions };
 }
@@ -965,6 +1021,10 @@ function buildFuzzyTokenFragments(token: string): string[] {
     normalized.slice(0, Math.min(4, normalized.length)),
     normalized.slice(0, Math.min(3, normalized.length)),
     normalized.length > 3 ? normalized.slice(0, 2) : null,
+    // A typo in the first letters ("tundurus") must still reach candidates
+    // whose name only matches further into the word ("Thundurus").
+    normalized.length > 4 ? normalized.slice(1, 5) : null,
+    normalized.length > 5 ? normalized.slice(2, 6) : null,
   ]).filter((fragment) => fragment.length >= 2);
 }
 
@@ -1065,6 +1125,8 @@ function cardNumberExactlyMatches(
     ...buildCardNumberSearchAliases(cardNumber),
     // A plain "161" query must count "161/131" as an exact hit too.
     ...buildCardNumberSearchAliases(cardNumber.split("/")[0]),
+    // And "209" must count "SVP 209" or "SWSH209" as an exact hit.
+    ...buildCardNumberSearchAliases(cardNumber.split("/")[0].replace(/^[a-z]+[\s-]*/i, "")),
   ]);
   return buildCardNumberSearchAliases(queriedCardNumber).some((alias) => aliases.has(alias));
 }

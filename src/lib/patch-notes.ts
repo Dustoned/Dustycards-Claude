@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.23",
+    releasedAt: "July 28, 2026",
+    title: "Promo numbers and typos found at last",
+    summary:
+      "DustyCards 3.8.23 makes number search reach promo cards such as SVP 209 and lets a typo at the start of a name still find the right card.",
+    tone: "fixed",
+    highlights: [
+      "Searching 209 now also returns promo and subset cards stored as SVP 209, SWSH209, SM209, XY209, TG12 or SV105 — previously only regular 209/xxx numbers matched.",
+      "svp 209 (or SVP209) now finds the promo directly, even though the set is stored under the code PR-SV.",
+      "A typo in the first letters, like tundurus, now still surfaces Thundurus: fuzzy search no longer relies only on the beginning of the word to collect candidates.",
+      "Name plus number searches such as thundurus 209 benefit from the same promo-number matching.",
+    ],
+  },
+  {
     version: "3.8.22",
     releasedAt: "July 28, 2026",
     title: "Search finds cards while you type",
