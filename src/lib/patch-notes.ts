@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.25",
+    releasedAt: "July 28, 2026",
+    title: "Grade score and PSA 10 on the card page",
+    summary:
+      "DustyCards 3.8.25 lifts the most-wanted market data onto the card detail hero: the grade score and the PSA 10 benchmark now sit next to the price, without making the page longer.",
+    tone: "improved",
+    highlights: [
+      "Two new tiles beside the price: Grade score (the graded-versus-raw premium from the Market tab) and PSA 10 with its price and raw multiple (falls back to the best available graded quote).",
+      "The score tiles are clickable — Market score, Grade score and PSA 10 all jump straight to the Market tab with the full breakdown.",
+      "The hero grid simply gained one row inside the existing space next to the card image, so the top of the page stays clean and scroll-free.",
+      "On mobile the overview is unchanged; the new tiles appear on the Market tab where they belong.",
+    ],
+  },
+  {
     version: "3.8.24",
     releasedAt: "July 28, 2026",
     title: "Card variants and sealed sudden drops",

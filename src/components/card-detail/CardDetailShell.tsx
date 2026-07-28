@@ -89,6 +89,8 @@ export interface CardDetailKpi {
   value: ReactNode;
   hint?: ReactNode;
   tone?: "neutral" | "violet" | "cyan" | "positive" | "warning";
+  // When set, the tile becomes a button that jumps to this detail tab.
+  targetTab?: CardDetailTabId;
 }
 
 interface CardDetailShellProps {
@@ -171,12 +173,38 @@ function BackControl({
   );
 }
 
-function KpiCard({ item }: { item: CardDetailKpi }) {
-  return (
-    <div className="card-detail-kpi" data-tone={item.tone ?? "neutral"}>
+function KpiCard({
+  item,
+  onNavigate,
+}: {
+  item: CardDetailKpi;
+  onNavigate?: (tab: CardDetailTabId) => void;
+}) {
+  const body = (
+    <>
       <p className="card-detail-kpi-label">{item.label}</p>
       <div className="card-detail-kpi-value">{item.value}</div>
       {item.hint ? <div className="card-detail-kpi-hint">{item.hint}</div> : null}
+    </>
+  );
+
+  if (item.targetTab && onNavigate) {
+    const targetTab = item.targetTab;
+    return (
+      <button
+        type="button"
+        onClick={() => onNavigate(targetTab)}
+        className="card-detail-kpi card-detail-kpi--link"
+        data-tone={item.tone ?? "neutral"}
+      >
+        {body}
+      </button>
+    );
+  }
+
+  return (
+    <div className="card-detail-kpi" data-tone={item.tone ?? "neutral"}>
+      {body}
     </div>
   );
 }
@@ -218,7 +246,15 @@ export default function CardDetailShell({
   const reactId = useId().replace(/:/g, "");
   const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
   const showMobileChart = mobileChartTabs.includes(active?.id ?? fallbackTab);
-  const visibleKpis = kpis.slice(0, 4);
+  const visibleKpis = kpis.slice(0, 6);
+
+  function navigateToKpiTab(tab: CardDetailTabId) {
+    if (!tabs.some((candidate) => candidate.id === tab)) return;
+    setActiveTab(tab);
+    window.requestAnimationFrame(() => {
+      tabsShellRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  }
   const actionContent = actions ? (
     <div className="card-detail-actions" aria-label="Card actions" data-card-detail-actions>
       {actions}
@@ -390,7 +426,11 @@ export default function CardDetailShell({
               data-card-detail-kpis="hero"
             >
               {visibleKpis.map((item, index) => (
-                <KpiCard key={`${item.label}-${index}`} item={item} />
+                <KpiCard
+                  key={`${item.label}-${index}`}
+                  item={item}
+                  onNavigate={navigateToKpiTab}
+                />
               ))}
             </div>
           </section>

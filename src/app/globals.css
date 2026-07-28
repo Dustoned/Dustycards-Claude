@@ -2227,6 +2227,21 @@ html.widescreen .settings-page {
   padding: 0.8rem;
 }
 
+.card-detail-kpi--link {
+  cursor: pointer;
+  text-align: left;
+  transition: border-color 160ms ease, background-color 160ms ease, transform 160ms ease;
+}
+
+.card-detail-kpi--link:hover {
+  border-color: rgba(167, 139, 250, 0.34);
+  background: rgba(139, 92, 246, 0.11);
+}
+
+.card-detail-kpi--link:active {
+  transform: scale(0.985);
+}
+
 .card-detail-kpi[data-tone="violet"] {
   border-color: rgba(167, 139, 250, 0.18);
   background: rgba(139, 92, 246, 0.065);

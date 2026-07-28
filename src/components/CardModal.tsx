@@ -272,6 +272,13 @@ export default function CardModal({
     : RAW_CARD_ASPECT_CLASS;
   const isBusy = refreshing || syncingHistory;
   const canManageCardPrices = currentUserRole === "admin";
+  const gradePremiumScore = modalCard.market_stats?.metrics.grade_premium ?? null;
+  const gradedComparisons = modalCard.market_stats?.graded_comparisons ?? [];
+  // Prefer the PSA 10 benchmark; otherwise show the best available graded quote.
+  const topGradedComparison =
+    gradedComparisons.find((entry) => /psa\s*10\b/i.test(entry.label)) ??
+    gradedComparisons[0] ??
+    null;
   const signalSummary =
     signalSummaryState.cardId === modalCard.id ? signalSummaryState.signal : null;
   const signalSummaryLoading =
@@ -967,6 +974,40 @@ export default function CardModal({
                   value: modalCard.market_stats ? `${modalCard.market_stats.score}/100` : "Building",
                   hint: modalCard.market_stats?.tier ?? "More evidence needed",
                   tone: "violet",
+                  targetTab: "market",
+                },
+                {
+                  label: "Grade score",
+                  value:
+                    gradePremiumScore != null ? `${Math.round(gradePremiumScore)}/100` : "Building",
+                  hint:
+                    gradePremiumScore != null
+                      ? "Graded vs raw premium"
+                      : "No graded evidence yet",
+                  tone: "cyan",
+                  targetTab: "market",
+                },
+                {
+                  label: topGradedComparison?.label ?? "PSA 10",
+                  value:
+                    topGradedComparison != null
+                      ? formatCurrency(topGradedComparison.price_eur, "EUR")
+                      : "--",
+                  hint:
+                    topGradedComparison != null
+                      ? [
+                          topGradedComparison.raw_multiple != null
+                            ? `${topGradedComparison.raw_multiple.toFixed(1)}x raw`
+                            : null,
+                          topGradedComparison.source === "ebay_sold"
+                            ? "eBay sold"
+                            : "CardMarket graded",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")
+                      : "No graded sales yet",
+                  tone: "neutral",
+                  targetTab: "market",
                 },
               ]}
               media={previewPanel}
