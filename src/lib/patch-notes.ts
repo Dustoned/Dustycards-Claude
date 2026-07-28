@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.26",
+    releasedAt: "July 28, 2026",
+    title: "Sealed prices refresh themselves again",
+    summary:
+      "DustyCards 3.8.26 fixes the root cause behind missing sealed sudden drops and sealed-less value drivers: sealed prices had not refreshed since April because the sync only ran manually.",
+    tone: "fixed",
+    highlights: [
+      "Sealed product prices now refresh automatically once a day via the scheduler — previously they only updated when the manual Sync Sealed Products button was pressed, which last happened at the end of April.",
+      "Every automatic pass also writes price snapshots, which is exactly what sealed sudden drops, the collection value drivers and set-lifecycle observations feed on.",
+      "Card price work keeps priority: the sealed pass waits when card refreshes are running, backs off after quota-cut attempts and never blocks the rest of the scheduler.",
+      "Expect sealed sudden drops and sealed entries in the value drivers to appear once two daily passes have landed (a drop needs a fresh snapshot and a baseline).",
+    ],
+  },
+  {
     version: "3.8.25",
     releasedAt: "July 28, 2026",
     title: "Grade score and PSA 10 on the card page",

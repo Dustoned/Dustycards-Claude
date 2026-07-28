@@ -22,6 +22,10 @@ import {
   type NewReleaseChasePriceJobSnapshot,
 } from "@/lib/sync/new-release-chase-price-job";
 import {
+  maybeStartSealedSyncJob,
+  type SealedSyncJobSnapshot,
+} from "@/lib/sync/sealed-sync-job";
+import {
   getSetLifecycleObservationBucket,
   maybeRunSetLifecycleJob,
   type SetLifecycleJobSnapshot,
@@ -67,6 +71,7 @@ export interface SyncSchedulerTickResult {
   chaseWatch: NewReleaseChasePriceJobSnapshot;
   priceAlerts: CardPriceAlertSweepResult;
   setLifecycle: SetLifecycleJobSnapshot;
+  sealedSync: SealedSyncJobSnapshot;
   quota: {
     requestsRemaining: number | null;
     requestsLimit: number | null;
@@ -85,7 +90,8 @@ async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<voi
     result.historyDrain.running ||
     result.externalRadar.running ||
     result.chaseWatch.running ||
-    result.setLifecycle.running;
+    result.setLifecycle.running ||
+    result.sealedSync.running;
   const status = result.scraperDisabled ? "paused" : hasRunningWork ? "running" : "success";
 
   await db.syncJob.upsert({
@@ -175,6 +181,12 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     skip: scraperDisabled,
     now: checkedAt,
   });
+  // Sealed prices refresh on their own daily cadence; card price work keeps
+  // priority so a sealed pass never delays due card refreshes.
+  const sealedSync = await maybeStartSealedSyncJob({
+    skip: scraperDisabled || shouldLetPriceJobFinishFirst || shouldLetChaseWatchFinishFirst,
+    now: checkedAt,
+  });
   // This pass only summarizes data already stored locally. It deliberately
   // keeps running when scrapers are paused and may never take the whole
   // scheduler down if a malformed historical row slips through.
@@ -212,6 +224,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     chaseWatch,
     priceAlerts,
     setLifecycle,
+    sealedSync,
     quota: {
       requestsRemaining: quota.requestsRemaining,
       requestsLimit: quota.requestsLimit,
