@@ -690,3 +690,191 @@ export async function getFastSuddenDropsData(
   const thresholds = resolveFastSuddenDropThresholds(options);
   return getFastSuddenDropsForRefresh(source, game, limit, refresh, thresholds);
 }
+
+export const FAST_SEALED_SUDDEN_DROP_FEED_LIMIT = 120;
+
+export interface FastSealedSuddenDropItem {
+  productId: string;
+  name: string;
+  imageUrl: string | null;
+  cardmarketUrl: string | null;
+  episodeId: string;
+  episodeName: string;
+  episodeCode: string | null;
+  currency: "EUR";
+  currentPrice: number;
+  previousPrice: number;
+  dropAmount: number;
+  dropPercent: number | null;
+  latestFetchedAt: string;
+}
+
+export interface FastSealedSuddenDropsData {
+  items: FastSealedSuddenDropItem[];
+  total: number;
+}
+
+interface FastSealedSuddenDropRow {
+  product_id: string;
+  name: string;
+  image_url: string | null;
+  cardmarket_url: string | null;
+  episode_id: string;
+  episode_name: string;
+  episode_code: string | null;
+  current_price: number;
+  old_price: number;
+  drop_amount: number;
+  drop_percent: number | null;
+  latest_fetched_at: string;
+  total_count: number;
+}
+
+async function getFastSealedSuddenDropRows(
+  game: TradingCardGame,
+  limit: number,
+  refresh: FastSuddenDropRefreshWindow,
+  thresholds: FastSuddenDropThresholds
+): Promise<FastSealedSuddenDropRow[]> {
+  const refreshStartedAt = refresh.startedAt.toISOString();
+  const refreshEndedAt = (refresh.finishedAt ?? new Date()).toISOString();
+
+  return db.$queryRawUnsafe<FastSealedSuddenDropRow[]>(
+    `
+    WITH latest AS (
+      SELECT s.id AS snapshot_id, s.product_id, s.fetched_at, s.cm_lowest
+      FROM "SealedPriceSnapshot" s
+      WHERE s.fetched_at >= ?
+        AND s.fetched_at <= ?
+        AND s.cm_lowest >= 5
+        AND NOT EXISTS (
+          SELECT 1
+          FROM "SealedPriceSnapshot" newer
+          WHERE newer.product_id = s.product_id
+            AND newer.cm_lowest >= 5
+            AND newer.fetched_at >= ?
+            AND newer.fetched_at <= ?
+            AND (
+              newer.fetched_at > s.fetched_at
+              OR (newer.fetched_at = s.fetched_at AND newer.id > s.id)
+            )
+          LIMIT 1
+        )
+    ),
+    raw AS (
+      SELECT
+        latest.product_id,
+        p.name,
+        p.image_url,
+        p.cardmarket_url,
+        p.episode_id,
+        e.name AS episode_name,
+        e.code AS episode_code,
+        latest.cm_lowest AS current_price,
+        latest.fetched_at AS latest_fetched_at,
+        anchor.cm_lowest AS old_price
+      FROM latest
+      INNER JOIN "SealedProduct" p ON p.id = latest.product_id
+      INNER JOIN "Episode" e ON e.id = p.episode_id
+      LEFT JOIN "SealedPriceSnapshot" anchor ON anchor.id = (
+        SELECT a.id
+        FROM "SealedPriceSnapshot" a
+        WHERE a.product_id = latest.product_id
+          AND a.cm_lowest >= 5
+          AND (
+            a.fetched_at < latest.fetched_at
+            OR (a.fetched_at = latest.fetched_at AND a.id < latest.snapshot_id)
+          )
+        ORDER BY a.fetched_at DESC, a.id DESC
+        LIMIT 1
+      )
+      WHERE p.game = ?
+    ),
+    scored AS (
+      SELECT
+        *,
+        CASE WHEN old_price > current_price THEN old_price - current_price ELSE 0 END AS drop_amount,
+        CASE
+          WHEN old_price > current_price
+            THEN ((current_price - old_price) / old_price) * 100
+          ELSE NULL
+        END AS drop_percent
+      FROM raw
+      WHERE old_price IS NOT NULL
+    ),
+    filtered AS (
+      SELECT *
+      FROM scored
+      WHERE drop_amount >= ?
+        AND (? IS NULL OR drop_amount >= ? OR ABS(COALESCE(drop_percent, 0)) >= ?)
+    )
+    SELECT *, COUNT(*) OVER() AS total_count
+    FROM filtered
+    ORDER BY drop_amount DESC, current_price ASC, name ASC
+    LIMIT ?
+  `,
+    refreshStartedAt,
+    refreshEndedAt,
+    refreshStartedAt,
+    refreshEndedAt,
+    game,
+    thresholds.minimumAmount,
+    thresholds.minimumPercent,
+    thresholds.percentBypassAmount,
+    thresholds.minimumPercent,
+    limit
+  );
+}
+
+function toSealedSuddenDropItem(row: FastSealedSuddenDropRow): FastSealedSuddenDropItem {
+  return {
+    productId: row.product_id,
+    name: row.name,
+    imageUrl: row.image_url,
+    cardmarketUrl: row.cardmarket_url,
+    episodeId: row.episode_id,
+    episodeName: row.episode_name,
+    episodeCode: row.episode_code,
+    currency: "EUR",
+    currentPrice: Number(row.current_price.toFixed(2)),
+    previousPrice: Number(row.old_price.toFixed(2)),
+    dropAmount: Number(row.drop_amount.toFixed(2)),
+    dropPercent: row.drop_percent != null ? Number(row.drop_percent.toFixed(1)) : null,
+    latestFetchedAt: new Date(row.latest_fetched_at).toISOString(),
+  };
+}
+
+function compareSealedSuddenDrops(
+  a: FastSealedSuddenDropItem,
+  b: FastSealedSuddenDropItem
+): number {
+  if (a.dropAmount !== b.dropAmount) return b.dropAmount - a.dropAmount;
+  if (a.currentPrice !== b.currentPrice) return a.currentPrice - b.currentPrice;
+  return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+}
+
+export async function getFastSealedSuddenDropsData(
+  game: TradingCardGameFilter,
+  limit = FAST_SEALED_SUDDEN_DROP_FEED_LIMIT,
+  options?: FastSuddenDropQueryOptions
+): Promise<FastSealedSuddenDropsData> {
+  const refresh = getFastSuddenDropRollingWindow();
+  const thresholds = resolveFastSuddenDropThresholds(options);
+
+  if (game === ALL_GAMES) {
+    const [pokemon, onePiece] = await Promise.all([
+      getFastSealedSuddenDropsData(POKEMON_GAME, limit, options),
+      getFastSealedSuddenDropsData(ONE_PIECE_GAME, limit, options),
+    ]);
+    const items = [...pokemon.items, ...onePiece.items]
+      .sort(compareSealedSuddenDrops)
+      .slice(0, limit);
+
+    return { items, total: pokemon.total + onePiece.total };
+  }
+
+  const rows = await getFastSealedSuddenDropRows(game, limit, refresh, thresholds);
+  const items = rows.map(toSealedSuddenDropItem);
+
+  return { items, total: Number(rows[0]?.total_count ?? items.length) };
+}

@@ -5,7 +5,10 @@ import {
   GAME_SEARCH_PARAM,
   parseVisibleGameFilter,
 } from "@/lib/games";
-import { getFastSuddenDropsData } from "@/lib/home-sudden-drops-server";
+import {
+  getFastSealedSuddenDropsData,
+  getFastSuddenDropsData,
+} from "@/lib/home-sudden-drops-server";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export const dynamic = "force-dynamic";
@@ -22,9 +25,26 @@ export async function GET(request: NextRequest) {
       searchParams.get("source"),
       settings.primaryPriceSource
     );
-    const data = await getFastSuddenDropsData(activePriceSource, activeGame);
+    const [data, sealed] = await Promise.all([
+      getFastSuddenDropsData(activePriceSource, activeGame),
+      getFastSealedSuddenDropsData(activeGame, 12),
+    ]);
 
-    return NextResponse.json(data.preview, {
+    return NextResponse.json({
+      ...data.preview,
+      sealedItems: sealed.items.slice(0, 4).map((item) => ({
+        productId: item.productId,
+        name: item.name,
+        episodeId: item.episodeId,
+        episodeName: item.episodeName,
+        episodeCode: item.episodeCode,
+        currentPrice: item.currentPrice,
+        currency: item.currency,
+        dropAmount: item.dropAmount,
+        dropPercent: item.dropPercent,
+      })),
+      sealedTotal: sealed.total,
+    }, {
       headers: {
         "Cache-Control": "private, no-store",
       },

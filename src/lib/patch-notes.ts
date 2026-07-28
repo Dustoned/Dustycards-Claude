@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.24",
+    releasedAt: "July 28, 2026",
+    title: "Card variants and sealed sudden drops",
+    summary:
+      "DustyCards 3.8.24 tells duplicate promo printings apart with a version label and brings sealed products into the sudden drops overview.",
+    tone: "new",
+    highlights: [
+      "Cards that exist twice under the same number (such as SVP 209 with and without the Pokémon Center stamp) now carry a version badge in search, the card modal and your collection — no more opening Cardmarket to tell them apart.",
+      "The version label is searchable: thundurus pokemon center goes straight to the stamped promo. Labels fill in automatically at the next catalog sync.",
+      "The home page Sudden Price Drops panel now also lists sealed products that dropped in the last 24 hours, marked with a Sealed badge.",
+      "The full sudden drops page has a dedicated sealed section below the single cards, so boxes and ETBs never mix with the card list; clicking a product opens the familiar sealed detail view.",
+    ],
+  },
+  {
     version: "3.8.23",
     releasedAt: "July 28, 2026",
     title: "Promo numbers and typos found at last",

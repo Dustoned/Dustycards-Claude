@@ -15,8 +15,22 @@ export interface HomeSuddenDropPreviewItem {
   coveredDays: number | null;
 }
 
+export interface HomeSuddenDropSealedPreviewItem {
+  productId: string;
+  name: string;
+  episodeId: string;
+  episodeName: string;
+  episodeCode: string | null;
+  currentPrice: number;
+  currency: CurrencyCode;
+  dropAmount: number;
+  dropPercent: number | null;
+}
+
 export interface HomeSuddenDropsResponse {
   items: HomeSuddenDropPreviewItem[];
+  sealedItems?: HomeSuddenDropSealedPreviewItem[];
+  sealedTotal?: number;
   total: number;
   threshold: number;
   windowDays: number;

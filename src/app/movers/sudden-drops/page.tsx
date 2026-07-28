@@ -33,8 +33,10 @@ import {
   FAST_SUDDEN_DROP_MIN_AMOUNT,
   FAST_SUDDEN_DROP_MIN_PERCENT,
   FAST_SUDDEN_DROP_STRONG_AMOUNT,
+  getFastSealedSuddenDropsData,
   getFastSuddenDropsData,
 } from "@/lib/home-sudden-drops-server";
+import SealedSuddenDropsSection from "@/app/movers/sudden-drops/SealedSuddenDropsSection";
 import {
   getMoverRecentDropAmount,
   SUDDEN_DROP_DEAL_MIN_AMOUNT,
@@ -84,16 +86,19 @@ export default async function SuddenDropsPage({
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
   const activePriceSource = normalizeMoversPriceSource(source, settings.primaryPriceSource);
-  const data = await getFastSuddenDropsData(
-    activePriceSource,
-    activeGame,
-    FAST_SUDDEN_DROP_FEED_LIMIT,
-    {
-      minimumAmount: activeDropMinimum,
-      minimumPercent: usesHomePreviewThreshold ? FAST_SUDDEN_DROP_MIN_PERCENT : null,
-      percentBypassAmount: FAST_SUDDEN_DROP_STRONG_AMOUNT,
-    }
-  );
+  const [data, sealedDrops] = await Promise.all([
+    getFastSuddenDropsData(
+      activePriceSource,
+      activeGame,
+      FAST_SUDDEN_DROP_FEED_LIMIT,
+      {
+        minimumAmount: activeDropMinimum,
+        minimumPercent: usesHomePreviewThreshold ? FAST_SUDDEN_DROP_MIN_PERCENT : null,
+        percentBypassAmount: FAST_SUDDEN_DROP_STRONG_AMOUNT,
+      }
+    ),
+    getFastSealedSuddenDropsData(activeGame),
+  ]);
   const movers = data.items;
   const cardQuickActions = await getCardQuickActionMap(
     user.id,
@@ -276,6 +281,8 @@ export default async function SuddenDropsPage({
           emptyTitle={`No verified ${formatCurrency(activeDropMinimum, activeCurrency)}+ drops in the last 24 hours`}
           emptyDescription="No raw cards currently meet the rolling 24-hour threshold. Suspicious listing outliers are excluded."
         />
+
+        <SealedSuddenDropsSection items={sealedDrops.items} total={sealedDrops.total} />
       </div>
     </div>
   );
