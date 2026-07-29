@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.33",
+    releasedAt: "July 29, 2026",
+    title: "Rescued work: sealed quota guard and post-launch re-rating",
+    summary:
+      "DustyCards 3.8.33 ships two finished-but-never-committed improvements recovered from earlier sessions: a quota reserve around the sealed sync and post-launch re-rating detection in Signal Radar.",
+    tone: "improved",
+    highlights: [
+      "The automatic sealed sync now keeps a reserve of 1,200 API requests untouched, so card price syncs always come first; a quota-paused sealed run retries once room frees up instead of counting as done.",
+      "The sealed history top-up sizes itself to the remaining quota (up to 100 products per pass) instead of a fixed batch.",
+      "Signal Radar recognizes post-launch re-ratings: chase cards that recover from their launch dip get a ranking boost and a Building / Confirmed re-rating label, backed by set-wide confirmation.",
+    ],
+  },
+  {
     version: "3.8.32",
     releasedAt: "July 29, 2026",
     title: "eBay sold graded prices via the dedicated endpoint",
