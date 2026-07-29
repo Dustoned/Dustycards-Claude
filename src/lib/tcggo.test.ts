@@ -18,6 +18,7 @@ import {
   extractEbaySoldGradedPrices,
   fetchAllEpisodes,
   fetchCardsForEpisode,
+  fetchSealedProductsForEpisode,
   isTcggoHttpStatusError,
   TCGGO_REQUEST_CONCURRENCY,
   TcggoHttpStatusError,
@@ -134,6 +135,64 @@ describe("TCGGO request limiter", () => {
     expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/pokemon/episodes/413/cards?page=1&per_page=150"),
       expect.any(Object)
+    );
+  });
+
+  it("treats a short sealed catalog total as an item count instead of page count", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            { id: 1, name: "Booster Box", prices: {} },
+            { id: 2, name: "Elite Trainer Box", prices: {} },
+          ],
+          paging: { current: 1, total: 2, per_page: 100 },
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const products = await fetchSealedProductsForEpisode("413");
+
+    expect(products).toHaveLength(2);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("converts a large sealed item total into pages and fetches them sequentially", async () => {
+    const firstPageProducts = Array.from({ length: 100 }, (_, index) => ({
+      id: index + 1,
+      name: `Product ${index + 1}`,
+      prices: {},
+    }));
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = String(input);
+      if (url.includes("products?page=1&")) {
+        return new Response(
+          JSON.stringify({
+            data: firstPageProducts,
+            paging: { current: 1, total: 101, per_page: 100 },
+          }),
+          { status: 200 }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: [{ id: 101, name: "Product 101", prices: {} }],
+          paging: { current: 2, total: 101, per_page: 100 },
+        }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const products = await fetchSealedProductsForEpisode("413");
+
+    expect(products).toHaveLength(101);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[1]?.[0]).toEqual(
+      expect.stringContaining("products?page=2&per_page=100")
     );
   });
 });

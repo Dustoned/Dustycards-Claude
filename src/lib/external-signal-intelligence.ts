@@ -19,6 +19,8 @@ import type {
 import { getPressureTierForScore } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
+import { formatPostLaunchReratingReason } from "@/lib/post-launch-rerating";
+import { loadPostLaunchReratingMetrics } from "@/lib/post-launch-rerating-server";
 import { createSwrCache } from "@/lib/server-swr-cache";
 
 const SQLITE_SAFE_CARD_CHUNK_SIZE = 50;
@@ -37,6 +39,45 @@ const MAX_PREMIUM_STRUCTURAL_SIGNALS_PER_GAME = 6;
 const MAX_TROPHY_STRUCTURAL_SIGNALS_PER_GAME = 2;
 const structuralSignalCache = createSwrCache<ExternalCardSignal[]>(6 * 60 * 60_000, 24 * 60 * 60_000);
 const onDemandSignalCache = createSwrCache<ExternalCardSignal>(5 * 60_000, 30 * 60_000);
+
+interface StructuralSignalEra {
+  key: string;
+  gte: string;
+  lte: string;
+}
+
+export function getStructuralSignalEras(now: Date): StructuralSignalEra[] {
+  const currentYear = now.getUTCFullYear();
+  const cutoffYear = currentYear - 3;
+  const currentDay = now.toISOString().slice(0, 10);
+  const launchEras: StructuralSignalEra[] = [];
+  for (let year = cutoffYear + 1; year <= currentYear; year += 1) {
+    const firstHalfEnd = `${year}-06-30`;
+    launchEras.push({
+      key: `launch-${year}-h1`,
+      gte: `${year}-01-01`,
+      lte: year === currentYear && currentDay < firstHalfEnd ? currentDay : firstHalfEnd,
+    });
+    if (year < currentYear || currentDay >= `${year}-07-01`) {
+      launchEras.push({
+        key: `launch-${year}-h2`,
+        gte: `${year}-07-01`,
+        lte: year === currentYear ? currentDay : `${year}-12-31`,
+      });
+    }
+  }
+  return [
+    { key: "vintage", gte: "1995-01-01", lte: "2002-12-31" },
+    { key: "ex", gte: "2003-01-01", lte: "2006-12-31" },
+    { key: "dp-hgss", gte: "2007-01-01", lte: "2010-12-31" },
+    { key: "bw", gte: "2011-01-01", lte: "2012-12-31" },
+    { key: "xy", gte: "2013-01-01", lte: "2014-12-31" },
+    { key: "sm", gte: "2015-01-01", lte: "2017-12-31" },
+    { key: "swsh", gte: "2018-01-01", lte: "2020-12-31" },
+    { key: "recent", gte: "2021-01-01", lte: `${cutoffYear}-12-31` },
+    ...launchEras,
+  ];
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -440,7 +481,7 @@ async function loadStructuralSignalSeeds(
   games: TradingCardGame[],
   now: Date
 ): Promise<ExternalCardSignal[]> {
-  const cacheKey = `structural-v8-expanded-coverage:${[...games].sort().join(",")}`;
+  const cacheKey = `structural-v9-post-launch:${[...games].sort().join(",")}`;
   return structuralSignalCache.get(cacheKey, () => loadStructuralSignalSeedsUncached(games, now));
 }
 
@@ -448,18 +489,7 @@ async function loadStructuralSignalSeedsUncached(
   games: TradingCardGame[],
   now: Date
 ): Promise<ExternalCardSignal[]> {
-  const cutoffYear = now.getUTCFullYear() - 3;
-  const eras = [
-    { key: "vintage", gte: "1995-01-01", lte: "2002-12-31" },
-    { key: "ex", gte: "2003-01-01", lte: "2006-12-31" },
-    { key: "dp-hgss", gte: "2007-01-01", lte: "2010-12-31" },
-    { key: "bw", gte: "2011-01-01", lte: "2012-12-31" },
-    { key: "xy", gte: "2013-01-01", lte: "2014-12-31" },
-    { key: "sm", gte: "2015-01-01", lte: "2017-12-31" },
-    { key: "swsh", gte: "2018-01-01", lte: "2020-12-31" },
-    { key: "recent", gte: "2021-01-01", lte: `${cutoffYear}-12-31` },
-    { key: "launch", gte: `${cutoffYear + 1}-01-01`, lte: `${now.getUTCFullYear()}-12-31` },
-  ] as const;
+  const eras = getStructuralSignalEras(now);
   const [candidateBatches, entityDemand] = await Promise.all([
     Promise.all(
       eras.flatMap((era) =>
@@ -519,6 +549,10 @@ async function loadStructuralSignalSeedsUncached(
       cardmarketUrl: card.cardmarket_url,
     }))
   );
+  const postLaunchByCard = await loadPostLaunchReratingMetrics(
+    candidates.filter((card) => card.game === "pokemon").map((card) => card.id),
+    now
+  );
   const scored = candidates.flatMap((card) => {
     const currentPrice = latestPrices.get(card.id)?.value ?? null;
     if (currentPrice == null || currentPrice < 3) return [];
@@ -554,15 +588,35 @@ async function loadStructuralSignalSeedsUncached(
         96
       )
     );
-    const releaseYear = Number.parseInt((card.episode.release_date ?? "").slice(0, 4), 10);
+    const postLaunch = postLaunchByCard.get(card.id) ?? null;
+    const selectionScore = Math.round(
+      clamp(score + (postLaunch?.rankingBoost ?? 0), 40, 100)
+    );
+    const releaseDate = card.episode.release_date ?? "";
     const eraKey =
-      eras.find((era) => releaseYear >= Number(era.gte.slice(0, 4)) && releaseYear <= Number(era.lte.slice(0, 4)))?.key ?? "recent";
-    return [{ card, currentPrice, currency: "EUR" as const, ageYears, gradeMultiple, score, eraKey, collectorDemand }];
+      eras.find((era) => releaseDate >= era.gte && releaseDate <= era.lte)?.key ?? "recent";
+    return [{
+      card,
+      currentPrice,
+      currency: "EUR" as const,
+      ageYears,
+      gradeMultiple,
+      score,
+      selectionScore,
+      eraKey,
+      collectorDemand,
+      postLaunch,
+    }];
   });
   const perEra = new Map<string, number>();
   const perEntity = new Map<string, number>();
   return scored
-    .sort((left, right) => right.score - left.score || left.currentPrice - right.currentPrice)
+    .sort(
+      (left, right) =>
+        right.selectionScore - left.selectionScore ||
+        right.score - left.score ||
+        left.currentPrice - right.currentPrice
+    )
     .filter((candidate) => {
       const entity = getExternalEntityKey(
         candidate.card.game === "one-piece" ? "one-piece" : "pokemon",
@@ -581,7 +635,16 @@ async function loadStructuralSignalSeedsUncached(
       return true;
     })
     .slice(0, MAX_STRUCTURAL_SIGNALS)
-    .map(({ card, currentPrice, currency, ageYears, gradeMultiple, score, collectorDemand }) => {
+    .map(({
+      card,
+      currentPrice,
+      currency,
+      ageYears,
+      gradeMultiple,
+      score,
+      collectorDemand,
+      postLaunch,
+    }) => {
       const game: TradingCardGame = card.game === "one-piece" ? "one-piece" : "pokemon";
       const externalScore = Math.min(82, score);
       const pressure = getPressureTierForScore(externalScore);
@@ -606,6 +669,7 @@ async function loadStructuralSignalSeedsUncached(
         pressureLabel: pressure.label,
         pressureExplanation: "Structural scarcity and relative value, independent from a current news event",
         reasons: [
+          postLaunch ? formatPostLaunchReratingReason(postLaunch) : null,
           `${card.rarity ?? "Higher rarity"} from a ${ageYears.toFixed(1)}-year-old set`,
           currentPrice <= 100
             ? `Raw market is still ${currency} ${currentPrice.toFixed(2)} despite older-set scarcity`
@@ -786,6 +850,34 @@ async function buildOnDemandExternalCardSignalUncached(
   return { ...enriched, forecast: forecasts.get(card.id) ?? null };
 }
 
+export function getPostLaunchRadarRankingBoost(signal: ExternalCardSignal): number {
+  const market = signal.marketIntelligence;
+  const postLaunch = market?.postLaunch;
+  const scenario = market?.rawScenario;
+  if (
+    !postLaunch ||
+    postLaunch.rankingBoost <= 0 ||
+    !scenario ||
+    scenario.confidence === "Low" ||
+    (signal.riskScore != null && signal.riskScore >= 0.35) ||
+    market.sealed.lifecycleStatus === "reprint_restock" ||
+    (market.ebayDemand?.scoreAdjustment ?? 0) <= -2
+  ) {
+    return 0;
+  }
+  const horizon = scenario.points.find((point) => point.days === 180) ?? scenario.points.at(-1);
+  if (!horizon || horizon.base < scenario.currentPrice * 0.98 || scenario.outlook === "down") {
+    return 0;
+  }
+  return postLaunch.rankingBoost;
+}
+
+export function getSignalRadarRankingScore(signal: ExternalCardSignal): number {
+  const base =
+    signal.marketIntelligence?.rawOpportunityScore ?? signal.externalScore;
+  return Math.min(100, base + getPostLaunchRadarRankingBoost(signal));
+}
+
 export async function enrichExternalSignalRadarData(
   data: ExternalSignalRadarData,
   now = new Date(),
@@ -885,10 +977,24 @@ export async function enrichExternalSignalRadarData(
   );
   const forecasts = await getExternalForecastSummaries(selected.map((signal) => signal.cardId));
   const rankedSignals = selected
-    .map((signal) => ({
-      ...signal,
-      forecast: forecasts.get(signal.cardId) ?? null,
-    }))
+    .map((signal) => {
+      const postLaunch = signal.marketIntelligence?.postLaunch;
+      const postLaunchReason = postLaunch
+        ? formatPostLaunchReratingReason(postLaunch)
+        : null;
+      const effectivePostLaunchReason =
+        getPostLaunchRadarRankingBoost(signal) > 0 ? postLaunchReason : null;
+      return {
+        ...signal,
+        reasons: effectivePostLaunchReason
+          ? [
+              effectivePostLaunchReason,
+              ...signal.reasons.filter((reason) => reason !== effectivePostLaunchReason),
+            ]
+          : signal.reasons,
+        forecast: forecasts.get(signal.cardId) ?? null,
+      };
+    })
     .filter(
       (signal) => {
         const eventLinked =
@@ -909,8 +1015,7 @@ export async function enrichExternalSignalRadarData(
     )
     .sort(
       (left, right) =>
-        (right.marketIntelligence?.rawOpportunityScore ?? right.externalScore) -
-          (left.marketIntelligence?.rawOpportunityScore ?? left.externalScore) ||
+        getSignalRadarRankingScore(right) - getSignalRadarRankingScore(left) ||
         right.externalScore - left.externalScore ||
         right.archetypeCount - left.archetypeCount ||
         left.rank - right.rank

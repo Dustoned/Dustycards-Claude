@@ -2,6 +2,8 @@ import "server-only";
 
 import { db } from "@/lib/db";
 import { runSealedHistoryTopUpSync, runSealedSync } from "@/lib/sync";
+import { decodeSyncLogDetailsJson } from "@/lib/sync-log-details";
+import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 
 // Sealed product prices (and their snapshots, which feed sealed sudden drops,
 // the value drivers and set-lifecycle observations) previously only refreshed
@@ -15,6 +17,8 @@ const SEALED_SYNC_STALE_RUNNING_MS = 3 * 60 * 60_000;
 // After a failed or quota-cut attempt, wait before retrying so an exhausted
 // API day cannot turn into a retry loop on every scheduler tick.
 const SEALED_SYNC_RETRY_BACKOFF_MS = 2 * 60 * 60_000;
+export const AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE = 1_200;
+const AUTOMATIC_SEALED_HISTORY_TOPUP_MAX_PRODUCTS = 100;
 
 export interface SealedSyncJobSnapshot {
   started: boolean;
@@ -26,6 +30,8 @@ export interface SealedSyncJobSnapshot {
 
 export async function maybeStartSealedSyncJob(options: {
   skip: boolean;
+  skipReason?: string;
+  requestsRemaining?: number | null;
   now?: Date;
 }): Promise<SealedSyncJobSnapshot> {
   const now = options.now ?? new Date();
@@ -38,7 +44,7 @@ export async function maybeStartSealedSyncJob(options: {
     db.syncLog.findFirst({
       where: { type: SEALED_SYNC_LOG_TYPE, status: "success" },
       orderBy: { finished_at: "desc" },
-      select: { finished_at: true },
+      select: { finished_at: true, details_json: true },
     }),
     db.syncLog.findFirst({
       where: { type: SEALED_SYNC_LOG_TYPE },
@@ -51,7 +57,11 @@ export async function maybeStartSealedSyncJob(options: {
     runningLog &&
       now.getTime() - new Date(runningLog.started_at).getTime() < SEALED_SYNC_STALE_RUNNING_MS
   );
-  const lastFinishedAt = lastSuccessLog?.finished_at
+  const lastSuccessDetails = decodeSyncLogDetailsJson(lastSuccessLog?.details_json);
+  const lastRunPausedForQuota =
+    lastSuccessDetails?.kind === "sealed-sync" &&
+    lastSuccessDetails.status === "quota-paused";
+  const lastFinishedAt = lastSuccessLog?.finished_at && !lastRunPausedForQuota
     ? new Date(lastSuccessLog.finished_at)
     : null;
   const due =
@@ -64,9 +74,17 @@ export async function maybeStartSealedSyncJob(options: {
     skippedReason: null,
   };
 
-  if (options.skip) return { ...base, skippedReason: "scraper-disabled" };
+  if (options.skip) {
+    return { ...base, skippedReason: options.skipReason ?? "scraper-disabled" };
+  }
   if (running) return { ...base, skippedReason: "already-running" };
   if (!due) return { ...base, skippedReason: "not-due" };
+  if (
+    options.requestsRemaining != null &&
+    options.requestsRemaining <= AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE
+  ) {
+    return { ...base, skippedReason: "quota-reserve" };
+  }
 
   const lastAttemptAt = lastAttemptLog?.started_at ? new Date(lastAttemptLog.started_at) : null;
   if (
@@ -77,10 +95,30 @@ export async function maybeStartSealedSyncJob(options: {
     return { ...base, skippedReason: "retry-backoff" };
   }
 
-  void runSealedSync()
+  void runSealedSync({
+    minimumRequestsRemaining: AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE,
+  })
     // After fresh current prices, extend stale product histories so gaps from
     // paused sync periods fill back in (bounded per pass, drains over days).
-    .then(() => runSealedHistoryTopUpSync())
+    .then(async (result) => {
+      if (result.quotaExceeded) return;
+
+      const quota = await getTcggoUsageSnapshot();
+      const availableRequests =
+        quota.requestsRemaining == null
+          ? 0
+          : Math.max(
+              quota.requestsRemaining - AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE,
+              0
+            );
+      const maxProducts = Math.min(
+        AUTOMATIC_SEALED_HISTORY_TOPUP_MAX_PRODUCTS,
+        availableRequests
+      );
+      if (maxProducts <= 0) return;
+
+      await runSealedHistoryTopUpSync({ maxProducts });
+    })
     .catch((error: unknown) => {
       console.error(
         "[sealed-sync-job] scheduled sealed sync failed:",

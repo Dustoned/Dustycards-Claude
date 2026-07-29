@@ -183,8 +183,17 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   });
   // Sealed prices refresh on their own daily cadence; card price work keeps
   // priority so a sealed pass never delays due card refreshes.
+  const sealedSkipReason = scraperDisabled
+    ? "scraper-disabled"
+    : shouldLetPriceJobFinishFirst
+      ? "waiting-for-price-refresh"
+      : shouldLetChaseWatchFinishFirst
+        ? "waiting-for-chase-watch"
+        : undefined;
   const sealedSync = await maybeStartSealedSyncJob({
-    skip: scraperDisabled || shouldLetPriceJobFinishFirst || shouldLetChaseWatchFinishFirst,
+    skip: sealedSkipReason != null,
+    skipReason: sealedSkipReason,
+    requestsRemaining: quota.requestsRemaining,
     now: checkedAt,
   });
   // This pass only summarizes data already stored locally. It deliberately
