@@ -1,5 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
-import { isCardHistoryQuotaDrainWindow } from "@/lib/sync/card-history-auto-drain";
+import {
+  isCardHistoryQuotaDrainWindow,
+  isCardHistoryQuotaWindDownWindow,
+} from "@/lib/sync/card-history-auto-drain";
 
 vi.mock("@/lib/scraper-guard", () => ({
   areScraperRequestsDisabled: vi.fn(() => false),
@@ -53,6 +56,27 @@ describe("card history quota drain window", () => {
           quotaResetsAt: new Date("2026-05-09T21:30:00.000Z"),
           requestsRemaining: 0,
         },
+        now
+      )
+    ).toBe(false);
+  });
+
+  it("marks the wind-down window only in the final two hours before reset", () => {
+    expect(
+      isCardHistoryQuotaWindDownWindow(
+        { hasLiveWindow: true, quotaResetsAt: new Date("2026-05-09T21:30:00.000Z") },
+        now
+      )
+    ).toBe(true);
+    expect(
+      isCardHistoryQuotaWindDownWindow(
+        { hasLiveWindow: true, quotaResetsAt: new Date("2026-05-10T06:00:00.000Z") },
+        now
+      )
+    ).toBe(false);
+    expect(
+      isCardHistoryQuotaWindDownWindow(
+        { hasLiveWindow: false, quotaResetsAt: null },
         now
       )
     ).toBe(false);

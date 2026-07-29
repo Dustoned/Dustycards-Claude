@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.34",
+    releasedAt: "July 29, 2026",
+    title: "The quota drain leaves room to work",
+    summary:
+      "DustyCards 3.8.34 stops the card-history drain from emptying the whole daily API budget during the day: it now keeps 500 requests free for manual syncs.",
+    tone: "improved",
+    highlights: [
+      "During the day the automatic history drain stops once 500 requests remain, so the eBay graded sync, card refreshes and sealed passes always have budget.",
+      "In the final two hours before the daily reset the leftover quota is use-it-or-lose-it, so the drain may still spend it all — nothing is wasted.",
+      "Manual card-history syncs from Settings are unchanged and can still use the full remaining budget on purpose.",
+    ],
+  },
+  {
     version: "3.8.33",
     releasedAt: "July 29, 2026",
     title: "Rescued work: sealed quota guard and post-launch re-rating",
