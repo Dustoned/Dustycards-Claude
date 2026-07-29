@@ -32,7 +32,11 @@ function getFeaturedCardMarketPrice(price: {
   return { value: null, currency: "EUR" };
 }
 
-async function getSealedDetailPayload(id: string, userId: string) {
+async function getSealedDetailPayload(
+  id: string,
+  userId: string,
+  preferredCollectionItemId?: string | null
+) {
   const product = await db.sealedProduct.findUnique({
     where: { id },
     select: {
@@ -167,7 +171,12 @@ async function getSealedDetailPayload(id: string, userId: string) {
   });
 
   const snapshots = await getSealedPriceSnapshotsByProduct(id);
-  const collectionItem = product.collectionItems[0] ?? null;
+  const collectionItem =
+    (preferredCollectionItemId
+      ? product.collectionItems.find((item) => item.id === preferredCollectionItemId)
+      : null) ??
+    product.collectionItems[0] ??
+    null;
   const collectionQuantity = product.collectionItems.reduce(
     (total, item) => total + item.quantity,
     0
@@ -190,6 +199,7 @@ async function getSealedDetailPayload(id: string, userId: string) {
 
   return {
     id: product.id,
+    collection_item_id: collectionItem?.id ?? null,
     name: product.name,
     image_url: product.image_url,
     tcggo_url: product.tcggo_url,
@@ -242,13 +252,15 @@ async function getSealedDetailPayload(id: string, userId: string) {
 }
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireUser();
     const { id } = await params;
-    const payload = await getSealedDetailPayload(id, user.id);
+    const preferredCollectionItemId =
+      new URL(req.url).searchParams.get("collectionItemId");
+    const payload = await getSealedDetailPayload(id, user.id, preferredCollectionItemId);
 
     if (!payload) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });
@@ -271,12 +283,18 @@ export async function POST(
     if (scraperDisabled) return scraperDisabled;
 
     let action: SealedAction = "refresh";
+    let preferredCollectionItemId: string | null = null;
 
     try {
-      const body = (await req.json()) as { action?: SealedAction };
+      const body = (await req.json()) as {
+        action?: SealedAction;
+        collectionItemId?: string | null;
+      };
       if (body.action === "sync-history") {
         action = "sync-history";
       }
+      preferredCollectionItemId =
+        typeof body.collectionItemId === "string" ? body.collectionItemId : null;
     } catch {
       // Treat empty or invalid JSON bodies as a regular refresh request.
     }
@@ -287,7 +305,7 @@ export async function POST(
       await runSealedProductRefresh(id);
     }
 
-    const payload = await getSealedDetailPayload(id, user.id);
+    const payload = await getSealedDetailPayload(id, user.id, preferredCollectionItemId);
 
     if (!payload) {
       return NextResponse.json({ error: "Not found" }, { status: 404 });

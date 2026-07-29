@@ -51,8 +51,10 @@ import type {
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
 import {
-  commitSignalRadarFeedResult,
+  cacheSignalRadarFeed,
   CHASE_WATCH_RETRY_DELAY_MS,
+  commitSignalRadarFeedResult,
+  getCachedSignalRadarFeed,
   getChaseWatchRevalidateDelayMs,
   MIN_CHASE_WATCH_REVALIDATE_DELAY_MS,
   scheduleSignalRadarFeedStart,
@@ -999,24 +1001,36 @@ export default function ExternalSignalBrowser({
   useEffect(() => {
     if (!progressiveHref) return;
     const href = progressiveHref;
+    const cached = getCachedSignalRadarFeed(href);
+    const hasCachedFeed = Boolean(cached);
+    let active = true;
+    if (cached) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setSignals(cached.signals);
+        setNewReleaseChases(cached.newReleaseChases);
+        setProgressiveState("ready");
+      });
+    }
 
     async function loadRemainingSignals(signal: AbortSignal) {
       try {
         const response = await fetch(href, {
-          cache: "no-store",
+          cache: "default",
           credentials: "same-origin",
           signal,
         });
         if (!response.ok) throw new Error(`Request failed (${response.status})`);
         const payload = (await response.json()) as SignalRadarProgressivePayload;
         commitSignalRadarFeedResult(signal, () => {
+          cacheSignalRadarFeed(href, payload);
           setSignals(payload.signals);
           setCardQuickActions((current) => ({ ...payload.cardQuickActions, ...current }));
           setNewReleaseChases(payload.newReleaseChases);
           setProgressiveState("ready");
         });
       } catch {
-        if (!signal.aborted) setProgressiveState("error");
+        if (!signal.aborted && !hasCachedFeed) setProgressiveState("error");
       }
     }
 
@@ -1025,7 +1039,11 @@ export default function ExternalSignalBrowser({
     // intentionally heavy; starting it in the same instant as a card tap made
     // that detail request wait for the feed to finish. If navigation happens
     // during this window, cleanup cancels the timer and the feed never starts.
-    return scheduleSignalRadarFeedStart(progressiveAttempt, loadRemainingSignals);
+    const cancelLoad = scheduleSignalRadarFeedStart(progressiveAttempt, loadRemainingSignals);
+    return () => {
+      active = false;
+      cancelLoad();
+    };
   }, [progressiveAttempt, progressiveHref]);
   useEffect(() => {
     const nextRefreshAt = newReleaseChases?.priceWatch.nextRefreshAt;

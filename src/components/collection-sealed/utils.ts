@@ -12,6 +12,7 @@ export function selectionToggleTextClass(active: boolean): string {
 export function buildModalProduct(item: CollectionSealedViewItem): SealedModalProductData {
   return {
     id: item.product_id,
+    collection_item_id: item.id,
     name: item.name,
     image_url: item.image_url,
     cardmarket_url: item.cardmarket_url,

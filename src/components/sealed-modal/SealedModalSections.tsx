@@ -833,6 +833,7 @@ export function SealedModalHistorySection({
   activeHistorySeries,
   activeHistorySeriesLabel,
   onSelectHistorySeries,
+  showPricingMetrics = true,
 }: {
   productId: string;
   product: SealedDetailResponse;
@@ -847,6 +848,7 @@ export function SealedModalHistorySection({
   activeHistorySeries: SealedMarketHistorySeriesKey;
   activeHistorySeriesLabel: string;
   onSelectHistorySeries: (series: SealedMarketHistorySeriesKey) => void;
+  showPricingMetrics?: boolean;
 }) {
   const derivedAverage7d = getRecentHistoryAverage(chartPoints, 7);
   const derivedAverage30d = getRecentHistoryAverage(chartPoints, 30);
@@ -929,7 +931,9 @@ export function SealedModalHistorySection({
         <SealedPriceStatusLine product={product} chartPoints={chartPoints} />
       </div>
 
-      <SealedModalCurrentPricingPanel metrics={primaryMetrics} accent="emerald" />
+      {showPricingMetrics ? (
+        <SealedModalCurrentPricingPanel metrics={primaryMetrics} accent="emerald" />
+      ) : null}
     </SectionShell>
   );
 }

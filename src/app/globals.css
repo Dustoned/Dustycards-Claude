@@ -3024,6 +3024,10 @@ html.widescreen .settings-page {
     overflow-x: visible;
   }
 
+  .sealed-detail-experience .card-detail-tabs {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
   .card-detail-tab {
     width: 100%;
     min-width: 0;

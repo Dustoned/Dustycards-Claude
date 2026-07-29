@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   INITIAL_SIGNAL_RADAR_FEED_DELAY_MS,
   MIN_CHASE_WATCH_REVALIDATE_DELAY_MS,
+  SIGNAL_RADAR_CLIENT_CACHE_TTL_MS,
+  cacheSignalRadarFeed,
+  clearSignalRadarClientCache,
   commitSignalRadarFeedResult,
+  getCachedSignalRadarFeed,
   getChaseWatchRevalidateDelayMs,
   getSignalRadarFeedStartDelay,
   scheduleSignalRadarFeedStart,
@@ -11,6 +15,31 @@ import {
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 
 describe("selectInitialSignalRadarCards", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+    clearSignalRadarClientCache();
+  });
+
+  it("reuses the last complete feed briefly when navigating back", () => {
+    const payload = {
+      signals: [{ cardId: "card-1" }] as ExternalCardSignal[],
+      cardQuickActions: {},
+      newReleaseChases: null,
+    };
+    cacheSignalRadarFeed("/feed?game=pokemon", payload, 1_000);
+
+    expect(getCachedSignalRadarFeed("/feed?game=pokemon", 2_000)).toEqual({
+      signals: payload.signals,
+      newReleaseChases: null,
+    });
+    expect(
+      getCachedSignalRadarFeed(
+        "/feed?game=pokemon",
+        1_000 + SIGNAL_RADAR_CLIENT_CACHE_TTL_MS + 1
+      )
+    ).toBeNull();
+  });
+
   it("revalidates Chase Watch just after its scheduled background check", () => {
     const now = new Date("2026-07-21T12:00:00Z").getTime();
     expect(
@@ -63,10 +92,6 @@ describe("selectInitialSignalRadarCards", () => {
     expect(requestSignal).not.toBeNull();
     expect(commitSignalRadarFeedResult(requestSignal as unknown as AbortSignal, commit)).toBe(false);
     expect(commit).not.toHaveBeenCalled();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
   });
 
   it("fills the initial radar grid without duplicating new-release chase cards", () => {
