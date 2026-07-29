@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.38",
+    releasedAt: "July 29, 2026",
+    title: "Drain stops exactly at the quota reset",
+    summary:
+      "DustyCards 3.8.38 closes the last drain gap: a wind-down drain that is still running when the daily reset passes now stops instead of rolling into the fresh budget.",
+    tone: "fixed",
+    highlights: [
+      "The automatic drain records the upcoming reset moment when it starts and stops between batches once that moment passes.",
+      "Combined with 3.8.37 this makes the drain behave exactly as intended: only just before the reset, spend everything that is left, and never touch the new day.",
+      "Manual history syncs from Settings are unaffected.",
+    ],
+  },
+  {
     version: "3.8.37",
     releasedAt: "July 29, 2026",
     title: "History drain runs at the end of the day again",

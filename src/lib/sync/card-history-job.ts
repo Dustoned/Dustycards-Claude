@@ -70,7 +70,7 @@ async function updateJobFromResult(jobId: string, result: CardHistorySyncResult)
   });
 }
 
-async function runPersistedCardHistorySyncJob(jobId: string) {
+async function runPersistedCardHistorySyncJob(jobId: string, stopAtQuotaReset?: Date | null) {
   await db.syncJob.update({
     where: { id: jobId },
     data: {
@@ -82,6 +82,21 @@ async function runPersistedCardHistorySyncJob(jobId: string) {
   });
 
   while (true) {
+    // The automatic drain runs in the wind-down before the daily quota reset
+    // and must never roll over into the fresh budget: once the reset moment
+    // passes, stop between batches. Manual runs pass no boundary.
+    if (stopAtQuotaReset && new Date() >= stopAtQuotaReset) {
+      await db.syncJob.update({
+        where: { id: jobId },
+        data: {
+          status: "success",
+          finished_at: new Date(),
+          heartbeat_at: new Date(),
+        },
+      });
+      return;
+    }
+
     const result = await runCardHistorySync();
     await updateJobFromResult(jobId, result);
 
@@ -93,12 +108,12 @@ async function runPersistedCardHistorySyncJob(jobId: string) {
   }
 }
 
-function launchJob(jobId: string) {
+function launchJob(jobId: string, stopAtQuotaReset?: Date | null) {
   if (activeJob || areScraperRequestsDisabled()) {
     return;
   }
 
-  activeJob = runPersistedCardHistorySyncJob(jobId)
+  activeJob = runPersistedCardHistorySyncJob(jobId, stopAtQuotaReset)
     .catch(async (error: unknown) => {
       if (error instanceof SyncConflictError && error.activeType === CARD_HISTORY_SYNC_TYPE) {
         return;
@@ -183,7 +198,11 @@ async function resumeRecoverableCardHistoryJob(): Promise<void> {
   launchJob(job.id);
 }
 
-export async function startCardHistorySyncJob(): Promise<{
+export async function startCardHistorySyncJob(options?: {
+  // Automatic drains pass the upcoming quota-reset moment; the job stops
+  // between batches once it passes so it never eats into the fresh budget.
+  stopAtQuotaReset?: Date | null;
+}): Promise<{
   started: boolean;
   running: boolean;
   pendingCards: number;
@@ -231,7 +250,7 @@ export async function startCardHistorySyncJob(): Promise<{
         },
       });
 
-  launchJob(job.id);
+  launchJob(job.id, options?.stopAtQuotaReset);
 
   return {
     started: true,

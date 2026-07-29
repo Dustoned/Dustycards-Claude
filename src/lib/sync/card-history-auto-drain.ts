@@ -64,6 +64,7 @@ export async function maybeStartCardHistoryQuotaDrainJob(options?: {
 
   // The drain exists precisely to spend the full daily budget on history:
   // no reserve here. The Settings "History import" panel shows what it is
-  // backfilling, so the usage is visible instead of mysterious.
-  return startCardHistorySyncJob();
+  // backfilling, so the usage is visible instead of mysterious. The job stops
+  // at the reset moment so it never rolls into the fresh budget.
+  return startCardHistorySyncJob({ stopAtQuotaReset: usage.quotaResetsAt });
 }
