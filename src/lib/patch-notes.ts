@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.37",
+    releasedAt: "July 29, 2026",
+    title: "History drain runs at the end of the day again",
+    summary:
+      "DustyCards 3.8.37 restores the drain to its intended role: spend the full daily budget, but only in the wind-down before the reset instead of right after the morning reset.",
+    tone: "fixed",
+    highlights: [
+      "Removed the ample-quota shortcut that let the drain start immediately after the daily reset and empty the budget in the morning.",
+      "The drain now only runs in the final two hours before the reset — the rate limit of 300 requests per minute means it still spends every leftover request, so the subscription is used fully.",
+      "The temporary 500-request reserve from 3.8.34 is gone again: during the day the budget is simply untouched by the drain, and the History import panel shows what it backfills at night.",
+    ],
+  },
+  {
     version: "3.8.36",
     releasedAt: "July 29, 2026",
     title: "Sealed history gap detection fixed",

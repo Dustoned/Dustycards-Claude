@@ -9,7 +9,6 @@ import {
 import { areScraperRequestsDisabled } from "@/lib/scraper-guard";
 import { encodeSyncLogDetailsJson, type CardHistoryLogDetails } from "@/lib/sync-log-details";
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
-import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 
 const CARD_HISTORY_SYNC_TYPE = "card-history";
 const CARD_HISTORY_JOB_CHAIN_DELAY_MS = 750;
@@ -71,10 +70,7 @@ async function updateJobFromResult(jobId: string, result: CardHistorySyncResult)
   });
 }
 
-async function runPersistedCardHistorySyncJob(
-  jobId: string,
-  stopAtRequestsRemaining?: number | null
-) {
+async function runPersistedCardHistorySyncJob(jobId: string) {
   await db.syncJob.update({
     where: { id: jobId },
     data: {
@@ -86,27 +82,6 @@ async function runPersistedCardHistorySyncJob(
   });
 
   while (true) {
-    // Quota-floor for automatic drains: stop between batches once the daily
-    // budget dips to the reserve, leaving room for manual syncs. Manual runs
-    // pass no floor and keep the original drain-to-zero behavior.
-    if (stopAtRequestsRemaining != null) {
-      const usage = await getTcggoUsageSnapshot();
-      if (
-        usage.requestsRemaining != null &&
-        usage.requestsRemaining <= stopAtRequestsRemaining
-      ) {
-        await db.syncJob.update({
-          where: { id: jobId },
-          data: {
-            status: "success",
-            finished_at: new Date(),
-            heartbeat_at: new Date(),
-          },
-        });
-        return;
-      }
-    }
-
     const result = await runCardHistorySync();
     await updateJobFromResult(jobId, result);
 
@@ -118,12 +93,12 @@ async function runPersistedCardHistorySyncJob(
   }
 }
 
-function launchJob(jobId: string, stopAtRequestsRemaining?: number | null) {
+function launchJob(jobId: string) {
   if (activeJob || areScraperRequestsDisabled()) {
     return;
   }
 
-  activeJob = runPersistedCardHistorySyncJob(jobId, stopAtRequestsRemaining)
+  activeJob = runPersistedCardHistorySyncJob(jobId)
     .catch(async (error: unknown) => {
       if (error instanceof SyncConflictError && error.activeType === CARD_HISTORY_SYNC_TYPE) {
         return;
@@ -208,9 +183,7 @@ async function resumeRecoverableCardHistoryJob(): Promise<void> {
   launchJob(job.id);
 }
 
-export async function startCardHistorySyncJob(options?: {
-  stopAtRequestsRemaining?: number | null;
-}): Promise<{
+export async function startCardHistorySyncJob(): Promise<{
   started: boolean;
   running: boolean;
   pendingCards: number;
@@ -258,7 +231,7 @@ export async function startCardHistorySyncJob(options?: {
         },
       });
 
-  launchJob(job.id, options?.stopAtRequestsRemaining);
+  launchJob(job.id);
 
   return {
     started: true,
