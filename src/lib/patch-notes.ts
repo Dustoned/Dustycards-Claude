@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.35",
+    releasedAt: "July 29, 2026",
+    title: "History import shows the whole backlog",
+    summary:
+      "DustyCards 3.8.35 turns the card-history panel in Settings into a general History import view that also counts the sealed history backlog.",
+    tone: "improved",
+    highlights: [
+      "The Settings panel is now called History import and shows cards (total, Pokemon, One Piece) plus sealed products whose price history is still stale.",
+      "No more invisible credit use: when the cards counter reads zero but the API budget still moves, the sealed counter shows exactly what is being backfilled (up to 100 products per day after the sealed pass).",
+    ],
+  },
+  {
     version: "3.8.34",
     releasedAt: "July 29, 2026",
     title: "The quota drain leaves room to work",

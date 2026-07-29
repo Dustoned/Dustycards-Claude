@@ -12,6 +12,7 @@ import {
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import {
   countManualCardHistoryCandidates,
+  countSealedHistoryTopUpCandidates,
   getAutoPriceRefreshSnapshot,
   getKnownUnavailablePriceSummary,
   reconcileStaleSyncLogs,
@@ -274,6 +275,7 @@ export default async function SettingsPage() {
     pendingCardHistoryCards,
     pendingPokemonCardHistoryCards,
     pendingOnePieceCardHistoryCards,
+    pendingSealedHistoryProducts,
     knownUnavailablePriceSummary,
     pricedCardsMissingCheckedAt,
     dataQualityCardsTotal,
@@ -358,6 +360,7 @@ export default async function SettingsPage() {
     countManualCardHistoryCandidates(),
     countManualCardHistoryCandidates({ game: POKEMON_GAME }),
     countManualCardHistoryCandidates({ game: ONE_PIECE_GAME }),
+    countSealedHistoryTopUpCandidates(),
     getKnownUnavailablePriceSummary(),
     db.card.count({
       where: {
@@ -927,6 +930,7 @@ export default async function SettingsPage() {
                     pokemon: pendingPokemonCardHistoryCards,
                     onePiece: pendingOnePieceCardHistoryCards,
                   }}
+                  pendingSealedHistoryProducts={pendingSealedHistoryProducts}
                   knownUnavailableCards={knownUnavailablePriceSummary.totalCards}
                   activeScraperLabel={activeScraperLabel}
                   scraperDisabled={scraperDisabled}

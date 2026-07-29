@@ -342,6 +342,7 @@ interface AutomationSectionProps {
     nextRetryLabel: string | null;
   };
   pendingCardHistoryCards: number;
+  pendingSealedHistoryProducts: number;
   pendingCardHistoryByGame: {
     pokemon: number;
     onePiece: number;
@@ -399,6 +400,7 @@ export default function AutomationSection({
   historyAutomation,
   knownUnavailableSummary,
   pendingCardHistoryCards,
+  pendingSealedHistoryProducts,
   pendingCardHistoryByGame,
   knownUnavailableCards,
   activeScraperLabel,
@@ -496,15 +498,18 @@ export default function AutomationSection({
       <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="min-w-0">
-            <p className="text-sm font-medium text-gray-900 dark:text-white">Card history import</p>
+            <p className="text-sm font-medium text-gray-900 dark:text-white">History import</p>
             <p className="mt-0.5 text-xs text-gray-400">
-              Import full TCGGO history for cards with a TCGGO source. Common and Uncommon stay base-price only.
+              Everything that still needs TCGGO history: cards (Common and Uncommon stay base-price
+              only) plus sealed products whose snapshots are stale. The sealed backlog drains
+              automatically after the daily sealed pass, up to 100 products per day.
             </p>
             <div className="mt-3 grid w-full grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2">
               <UsageStat label="Job" value={historyAutomation.running ? "Running" : "Idle"} />
-              <UsageStat label="Total" value={pendingCardHistoryCards} />
+              <UsageStat label="Cards total" value={pendingCardHistoryCards} />
               <UsageStat label="Pokemon" value={pendingCardHistoryByGame.pokemon} />
               <UsageStat label="One Piece" value={pendingCardHistoryByGame.onePiece} />
+              <UsageStat label="Sealed products" value={pendingSealedHistoryProducts} />
               <UsageStat label="Drain window" value={historyAutomation.drainWindowLabel ?? "--"} />
               <UsageStat label="Last finish" value={historyAutomation.finishedLabel ?? "--"} />
             </div>

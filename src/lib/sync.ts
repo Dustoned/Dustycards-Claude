@@ -3621,6 +3621,29 @@ export interface SealedHistoryTopUpResult {
   synced: number;
 }
 
+// Settings shows this next to the card-history queue so the whole history
+// backlog is visible, instead of the sealed top-up spending quota invisibly.
+export async function countSealedHistoryTopUpCandidates(options?: {
+  staleDays?: number;
+}): Promise<number> {
+  const staleDays = options?.staleDays ?? SEALED_HISTORY_TOPUP_STALE_DAYS;
+  const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString();
+  const rows = await db.$queryRawUnsafe<Array<{ total: number | bigint }>>(
+    `SELECT COUNT(*) AS total
+     FROM "SealedProduct" p
+     LEFT JOIN (
+       SELECT product_id, MAX(fetched_at) AS latest_fetched_at
+       FROM "SealedPriceSnapshot"
+       GROUP BY product_id
+     ) s ON s.product_id = p.id
+     WHERE (p.native_history_status IS NULL OR p.native_history_status <> 'unavailable')
+       AND (s.latest_fetched_at IS NULL OR s.latest_fetched_at < ?)`,
+    cutoff
+  );
+
+  return Number(rows[0]?.total ?? 0);
+}
+
 const SEALED_HISTORY_TOPUP_MAX_PRODUCTS = 400;
 const SEALED_HISTORY_TOPUP_STALE_DAYS = 2;
 
