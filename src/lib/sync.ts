@@ -1793,7 +1793,13 @@ async function backfillEbaySoldGradedPricesDetailed(
 async function backfillSealedNativeHistory(
   products: Array<{ id: string; episodeId: string }>,
   syncedAt: Date,
-  throwIfCancelled?: () => Promise<void>
+  throwIfCancelled?: () => Promise<void>,
+  options?: {
+    // History is requested from the newest snapshot BEFORE this moment. The
+    // daily catalog sync stamps a fresh snapshot on every product, which would
+    // otherwise make dateFrom "today" and permanently hide older gaps.
+    anchorBefore?: Date;
+  }
 ): Promise<number> {
   if (products.length === 0) return 0;
 
@@ -1808,14 +1814,25 @@ async function backfillSealedNativeHistory(
   });
 
   const existingByProduct = new Map<string, Set<string>>();
+  const anchorBefore = options?.anchorBefore ?? null;
+  const anchorSnapshotsByProduct = anchorBefore ? new Map<string, Set<string>>() : null;
 
   for (const snapshot of existingSnapshots) {
+    const iso = snapshot.fetched_at.toISOString();
     const existing = existingByProduct.get(snapshot.product_id) ?? new Set<string>();
-    existing.add(snapshot.fetched_at.toISOString());
+    existing.add(iso);
     existingByProduct.set(snapshot.product_id, existing);
+
+    if (anchorSnapshotsByProduct && anchorBefore && snapshot.fetched_at < anchorBefore) {
+      const anchors = anchorSnapshotsByProduct.get(snapshot.product_id) ?? new Set<string>();
+      anchors.add(iso);
+      anchorSnapshotsByProduct.set(snapshot.product_id, anchors);
+    }
   }
 
-  const latestSnapshotByProduct = buildLatestSnapshotByCard(existingByProduct);
+  const latestSnapshotByProduct = buildLatestSnapshotByCard(
+    anchorSnapshotsByProduct ?? existingByProduct
+  );
 
   const historyCreates: Array<{
     product_id: string;
@@ -3621,31 +3638,58 @@ export interface SealedHistoryTopUpResult {
   synced: number;
 }
 
+const SEALED_HISTORY_TOPUP_MAX_PRODUCTS = 400;
+const SEALED_HISTORY_TOPUP_STALE_DAYS = 2;
+// A product only counts as backlog when its newest snapshot from BEFORE the
+// fresh daily ones is at least this many days older than the stale cutoff.
+// The daily catalog sync stamps every product with a snapshot of today, so
+// looking at the plain latest snapshot would hide real history gaps.
+const SEALED_HISTORY_TOPUP_GAP_TOLERANCE_DAYS = 2;
+
+function getSealedHistoryTopUpCutoffs(staleDays: number): {
+  anchorCutoffIso: string;
+  gapCutoffIso: string;
+  anchorCutoff: Date;
+} {
+  const now = Date.now();
+  const anchorCutoff = new Date(now - staleDays * 24 * 60 * 60 * 1000);
+  const gapCutoff = new Date(
+    now - (staleDays + SEALED_HISTORY_TOPUP_GAP_TOLERANCE_DAYS) * 24 * 60 * 60 * 1000
+  );
+
+  return {
+    anchorCutoff,
+    anchorCutoffIso: anchorCutoff.toISOString(),
+    gapCutoffIso: gapCutoff.toISOString(),
+  };
+}
+
+const SEALED_HISTORY_TOPUP_CANDIDATE_WHERE = `
+     FROM "SealedProduct" p
+     LEFT JOIN (
+       SELECT product_id, MAX(fetched_at) AS anchor_fetched_at
+       FROM "SealedPriceSnapshot"
+       WHERE fetched_at < ?
+       GROUP BY product_id
+     ) s ON s.product_id = p.id
+     WHERE (p.native_history_status IS NULL OR p.native_history_status <> 'unavailable')
+       AND (s.anchor_fetched_at IS NULL OR s.anchor_fetched_at < ?)`;
+
 // Settings shows this next to the card-history queue so the whole history
 // backlog is visible, instead of the sealed top-up spending quota invisibly.
 export async function countSealedHistoryTopUpCandidates(options?: {
   staleDays?: number;
 }): Promise<number> {
   const staleDays = options?.staleDays ?? SEALED_HISTORY_TOPUP_STALE_DAYS;
-  const cutoff = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000).toISOString();
+  const { anchorCutoffIso, gapCutoffIso } = getSealedHistoryTopUpCutoffs(staleDays);
   const rows = await db.$queryRawUnsafe<Array<{ total: number | bigint }>>(
-    `SELECT COUNT(*) AS total
-     FROM "SealedProduct" p
-     LEFT JOIN (
-       SELECT product_id, MAX(fetched_at) AS latest_fetched_at
-       FROM "SealedPriceSnapshot"
-       GROUP BY product_id
-     ) s ON s.product_id = p.id
-     WHERE (p.native_history_status IS NULL OR p.native_history_status <> 'unavailable')
-       AND (s.latest_fetched_at IS NULL OR s.latest_fetched_at < ?)`,
-    cutoff
+    `SELECT COUNT(*) AS total${SEALED_HISTORY_TOPUP_CANDIDATE_WHERE}`,
+    anchorCutoffIso,
+    gapCutoffIso
   );
 
   return Number(rows[0]?.total ?? 0);
 }
-
-const SEALED_HISTORY_TOPUP_MAX_PRODUCTS = 400;
-const SEALED_HISTORY_TOPUP_STALE_DAYS = 2;
 
 // The automatic native-history backfill only ever selects products that have
 // never been synced (native_history_synced_at IS NULL). Once a product got its
@@ -3668,22 +3712,14 @@ export async function runSealedHistoryTopUpSync(options?: {
     async (progress) => {
       await progress.throwIfCancelled();
 
-      const cutoff = new Date(
-        Date.now() - staleDays * 24 * 60 * 60 * 1000
-      ).toISOString();
+      const { anchorCutoff, anchorCutoffIso, gapCutoffIso } =
+        getSealedHistoryTopUpCutoffs(staleDays);
       const rows = await db.$queryRawUnsafe<Array<{ id: string; episode_id: string }>>(
-        `SELECT p.id, p.episode_id
-         FROM "SealedProduct" p
-         LEFT JOIN (
-           SELECT product_id, MAX(fetched_at) AS latest_fetched_at
-           FROM "SealedPriceSnapshot"
-           GROUP BY product_id
-         ) s ON s.product_id = p.id
-         WHERE (p.native_history_status IS NULL OR p.native_history_status <> 'unavailable')
-           AND (s.latest_fetched_at IS NULL OR s.latest_fetched_at < ?)
-         ORDER BY s.latest_fetched_at ASC
+        `SELECT p.id, p.episode_id${SEALED_HISTORY_TOPUP_CANDIDATE_WHERE}
+         ORDER BY s.anchor_fetched_at ASC
          LIMIT ?`,
-        cutoff,
+        anchorCutoffIso,
+        gapCutoffIso,
         maxProducts
       );
 
@@ -3694,7 +3730,10 @@ export async function runSealedHistoryTopUpSync(options?: {
       const synced = await backfillSealedNativeHistory(
         rows.map((row) => ({ id: row.id, episodeId: row.episode_id })),
         new Date(),
-        progress.throwIfCancelled
+        progress.throwIfCancelled,
+        // Ask TCGGO for history since the newest snapshot before the fresh
+        // daily ones, so the gap between the old anchor and today fills in.
+        { anchorBefore: anchorCutoff }
       );
 
       return { candidates: rows.length, synced };

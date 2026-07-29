@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.36",
+    releasedAt: "July 29, 2026",
+    title: "Sealed history gap detection fixed",
+    summary:
+      "DustyCards 3.8.36 makes the sealed history top-up look past the fresh daily snapshots, so the May-July gap really gets backfilled and the Settings counter shows the true backlog.",
+    tone: "fixed",
+    highlights: [
+      "The daily sealed pass stamps every product with a snapshot of today, which made the backlog look like ~17 products and would have made the top-up skip the real gap forever.",
+      "The top-up now anchors on the newest snapshot from before the recent dailies: products whose older history ends too long ago count as backlog, and TCGGO is asked for history since that old anchor.",
+      "The History import panel in Settings now shows the real sealed backlog (~1,880 products), draining as the gap fills.",
+    ],
+  },
+  {
     version: "3.8.35",
     releasedAt: "July 29, 2026",
     title: "History import shows the whole backlog",
