@@ -5,6 +5,8 @@ vi.mock("server-only", () => ({}));
 import {
   calculateExternalEventScore,
   catalystAgeDecayFactor,
+  getSignalRadarRankingScore,
+  getStructuralSignalEras,
   selectActionableRadarCohort,
   selectDiverseEventSignals,
 } from "@/lib/external-signal-intelligence";
@@ -251,5 +253,91 @@ describe("actionable radar cohort", () => {
 
     expect(selected.filter((candidate) => candidate.cardId.startsWith("premium-"))).toHaveLength(6);
     expect(selected.filter((candidate) => candidate.cardId.startsWith("accessible-"))).toHaveLength(10);
+  });
+});
+
+describe("post-launch radar priority", () => {
+  it("splits recent candidates into half-year cohorts", () => {
+    const eras = getStructuralSignalEras(new Date("2026-07-26T12:00:00Z"));
+    expect(eras).toEqual(
+      expect.arrayContaining([
+        { key: "launch-2025-h1", gte: "2025-01-01", lte: "2025-06-30" },
+        { key: "launch-2025-h2", gte: "2025-07-01", lte: "2025-12-31" },
+        { key: "launch-2026-h2", gte: "2026-07-01", lte: "2026-07-26" },
+      ])
+    );
+  });
+
+  it("moves confirmed re-ratings up without changing the displayed opportunity score", () => {
+    const candidate = signal({ cardId: "audino", sourceMode: "structural" });
+    candidate.marketIntelligence = {
+      rawOpportunityScore: 72,
+      postLaunch: {
+        releaseAgeDays: 373,
+        rarity: "Illustration Rare",
+        historyDayCount: 31,
+        first30dFloorPrice: 6.5,
+        day30AnchorPrice: 8,
+        currentPrice: 27,
+        recoveryFromFloorPct: 315.4,
+        recoveryFromDay30Pct: 237.5,
+        setSampleSize: 82,
+        setRisingCount: 62,
+        setFallingCount: 14,
+        setBreadthPct: 75.6,
+        rankingBoost: 12,
+        label: "Confirmed re-rating",
+      },
+      ebayDemand: { scoreAdjustment: 1 },
+      sealed: { lifecycleStatus: "supply_tightening" },
+      rawScenario: {
+        marketMode: "raw",
+        currentPrice: 27,
+        currency: "EUR",
+        confidence: "Medium",
+        outlook: "modest_up",
+        points: [{ days: 180, low: 25, base: 32, high: 40 }],
+        drivers: [],
+      },
+    } as unknown as NonNullable<ExternalCardSignal["marketIntelligence"]>;
+
+    expect(getSignalRadarRankingScore(candidate)).toBe(84);
+    expect(candidate.marketIntelligence?.rawOpportunityScore).toBe(72);
+  });
+
+  it("suppresses the boost when reprint risk or demand contradicts it", () => {
+    const candidate = signal({ cardId: "reprint", sourceMode: "structural" });
+    candidate.marketIntelligence = {
+      rawOpportunityScore: 72,
+      postLaunch: {
+        releaseAgeDays: 373,
+        rarity: "Illustration Rare",
+        historyDayCount: 31,
+        first30dFloorPrice: 8,
+        day30AnchorPrice: 10,
+        currentPrice: 20,
+        recoveryFromFloorPct: 150,
+        recoveryFromDay30Pct: 100,
+        setSampleSize: 20,
+        setRisingCount: 15,
+        setFallingCount: 3,
+        setBreadthPct: 75,
+        rankingBoost: 12,
+        label: "Confirmed re-rating",
+      },
+      ebayDemand: { scoreAdjustment: -3 },
+      sealed: { lifecycleStatus: "reprint_restock" },
+      rawScenario: {
+        marketMode: "raw",
+        currentPrice: 20,
+        currency: "EUR",
+        confidence: "Medium",
+        outlook: "modest_up",
+        points: [{ days: 180, low: 18, base: 24, high: 30 }],
+        drivers: [],
+      },
+    } as unknown as NonNullable<ExternalCardSignal["marketIntelligence"]>;
+
+    expect(getSignalRadarRankingScore(candidate)).toBe(72);
   });
 });

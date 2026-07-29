@@ -4808,7 +4808,9 @@ async function persistEpisodeSealedProducts(
   }));
 }
 
-export async function runSealedSync(): Promise<SealedSyncResult> {
+export async function runSealedSync(options?: {
+  minimumRequestsRemaining?: number;
+}): Promise<SealedSyncResult> {
   return runLoggedSync(
     "sealed",
     "Syncing sealed products for all expansions",
@@ -4820,6 +4822,7 @@ export async function runSealedSync(): Promise<SealedSyncResult> {
         await db.episode.findMany({
           where: { game: POKEMON_GAME },
           select: { id: true, game: true, name: true, code: true },
+          orderBy: [{ release_date: "desc" }, { id: "desc" }],
         })
       ).filter((episode) => !isHiddenExpansion(episode));
       let synced = 0;
@@ -4848,7 +4851,10 @@ export async function runSealedSync(): Promise<SealedSyncResult> {
         try {
           const fetched = await fetchSealedProductsForEpisode(
             ep.id,
-            normalizeTradingCardGame(ep.game)
+            normalizeTradingCardGame(ep.game),
+            {
+              minimumRequestsRemaining: options?.minimumRequestsRemaining,
+            }
           );
           if (fetched.length === 0) return;
 

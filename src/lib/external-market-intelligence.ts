@@ -36,6 +36,7 @@ import type {
 } from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 import { normalizeRarityLabel } from "@/lib/rarity";
+import { loadPostLaunchReratingMetrics } from "@/lib/post-launch-rerating-server";
 import {
   buildDailyMarketHistory,
   calculateRobustPriceTrend,
@@ -47,7 +48,7 @@ import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 const DAY_MS = 86_400_000;
 const CARD_CHUNK_SIZE = 50;
 const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
-const FORECAST_MODEL_VERSION = "signed-market-v6-extended-history";
+const FORECAST_MODEL_VERSION = "signed-market-v7-post-launch";
 
 const LIFECYCLE_COPY: Record<
   SetLifecycleStatus,
@@ -494,6 +495,10 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     cards.push(...(await loadCards(cardIds.slice(index, index + CARD_CHUNK_SIZE), now)));
   }
   const cardById = new Map(cards.map((card) => [card.id, card]));
+  const postLaunchByCard = await loadPostLaunchReratingMetrics(
+    cards.filter((card) => card.game === "pokemon").map((card) => card.id),
+    now
+  );
   const episodeIds = [...new Set(cards.map((card) => card.episode.id))];
   const setCodes = [...new Set(cards.map((card) => card.episode.code).filter((code): code is string => Boolean(code)))];
   const artists = [...new Set(cards.map((card) => card.artist).filter((artist): artist is string => Boolean(artist)))];
@@ -1076,6 +1081,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     const intelligence: ExternalMarketIntelligence = {
       rawOpportunityScore: rawOpportunity,
       gradedOpportunityScore: gradedOpportunity,
+      postLaunch: postLaunchByCard.get(card.id) ?? null,
       ebayDemand,
       gradedEbayDemand,
       sealed,

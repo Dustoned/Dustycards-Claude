@@ -3,6 +3,7 @@ import { loadLatestSafeEnglishNmPrices } from "@/lib/card-market-history";
 import type { ExternalCardForecastSummary } from "@/lib/external-signal-forecast-store";
 import type { ExternalEbayDemandIntelligence } from "@/lib/ebay-demand-signal";
 import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
+import type { PostLaunchReratingMetrics } from "@/lib/post-launch-rerating";
 import { db } from "@/lib/db";
 import {
   ALL_GAMES,
@@ -115,6 +116,7 @@ export interface ExternalGoldMineConfluence {
 export interface ExternalMarketIntelligence {
   rawOpportunityScore: number;
   gradedOpportunityScore: number | null;
+  postLaunch?: PostLaunchReratingMetrics | null;
   ebayDemand?: ExternalEbayDemandIntelligence;
   gradedEbayDemand?: ExternalEbayDemandIntelligence;
   sealed: ExternalSealedIntelligence;

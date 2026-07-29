@@ -20,6 +20,8 @@ const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 500, 502, 503, 504]);
 const HISTORY_PAGE_FETCH_DELAY_MS = 250;
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
 const CARD_PAGE_FETCH_SIZE = 150;
+const SEALED_PRODUCT_PAGE_FETCH_SIZE = 100;
+const MAX_CATALOG_PAGES = 10;
 export const TCGGO_REQUEST_CONCURRENCY = 8;
 
 // RapidAPI plan caps requests at 300 per rolling minute. We track outgoing
@@ -236,6 +238,14 @@ interface RawSealedProduct {
       "7d_average"?: number;
     };
   } | null;
+}
+
+interface RawCatalogPaging {
+  current?: number;
+  total?: number;
+  per_page?: number;
+  total_pages?: number;
+  last_page?: number;
 }
 
 export interface NormalizedEpisode {
@@ -545,6 +555,7 @@ export const __tcggoTestUtils = {
   resetRequestRuntime: resetTcggoRequestRuntimeForTests,
   setRuntimeQuota: setTcggoRuntimeQuotaForTests,
   runQueuedRequest: runQueuedTcggoRequest,
+  resolveCatalogTotalPages,
 };
 
 async function apiFetch<T>(path: string): Promise<T> {
@@ -636,6 +647,56 @@ async function apiFetch<T>(path: string): Promise<T> {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function resolveCatalogTotalPages(
+  paging: RawCatalogPaging | undefined,
+  firstPageItemCount: number,
+  requestedPageSize: number
+): number {
+  const currentPage = Math.max(1, Math.trunc(paging?.current ?? 1));
+  const pageSize = Math.max(1, Math.trunc(paging?.per_page ?? requestedPageSize));
+
+  // A short page is the final page regardless of whether TCGGo reports
+  // `total` as an item count or a page count.
+  if (firstPageItemCount < pageSize) {
+    return currentPage;
+  }
+
+  const explicitTotalPages = paging?.total_pages ?? paging?.last_page;
+  if (explicitTotalPages != null && Number.isFinite(explicitTotalPages)) {
+    return Math.min(
+      MAX_CATALOG_PAGES,
+      Math.max(currentPage, Math.trunc(explicitTotalPages))
+    );
+  }
+
+  const reportedTotal = Math.max(1, Math.trunc(paging?.total ?? currentPage));
+  let totalPages: number;
+
+  if (reportedTotal === firstPageItemCount && firstPageItemCount <= pageSize) {
+    totalPages = currentPage;
+  } else if (reportedTotal > pageSize) {
+    // Live TCGGo catalog responses can use `total` for the number of items.
+    totalPages = Math.ceil(reportedTotal / pageSize);
+  } else {
+    // Smaller values are page counts (for example total=2, per_page=100).
+    totalPages = reportedTotal;
+  }
+
+  return Math.min(MAX_CATALOG_PAGES, Math.max(currentPage, totalPages));
+}
+
+function assertTcggoRequestReserve(path: string, minimumRequestsRemaining?: number): void {
+  if (minimumRequestsRemaining == null || minimumRequestsRemaining <= 0) return;
+
+  const snapshot = getTcggoRequestRuntimeSnapshot();
+  if (
+    snapshot.requestsRemaining != null &&
+    snapshot.requestsRemaining <= minimumRequestsRemaining
+  ) {
+    throw new TcggoQuotaExceededError(path, snapshot.quotaResetsAt);
+  }
 }
 
 function normalizeEpisode(
@@ -1142,11 +1203,12 @@ export async function fetchAllEpisodes(
   let page = 1;
   const gamePath = getTcggoGamePath(game);
   while (true) {
-    const data = await apiFetch<{ data: RawEpisode[]; paging?: { total?: number } }>(
+    const data = await apiFetch<{ data: RawEpisode[]; paging?: RawCatalogPaging }>(
       `/${gamePath}/episodes?page=${page}&per_page=100`
     );
-    all.push(...(data.data ?? []).map((episode) => normalizeEpisode(episode, game)));
-    const totalPages = data.paging?.total ?? 1;
+    const pageItems = data.data ?? [];
+    all.push(...pageItems.map((episode) => normalizeEpisode(episode, game)));
+    const totalPages = resolveCatalogTotalPages(data.paging, pageItems.length, 100);
     if (page >= totalPages) break;
     page++;
   }
@@ -1163,32 +1225,30 @@ export async function fetchCardsForEpisode(
 
   const firstPage = await apiFetch<{
     data: RawCard[];
-    paging?: { total?: number };
+    paging?: RawCatalogPaging;
   }>(`/${gamePath}/episodes/${remoteEpisodeId}/cards?page=1&per_page=${CARD_PAGE_FETCH_SIZE}`);
 
-  const all: NormalizedCard[] = filterRawCardsForGame(firstPage.data ?? [], game).map((card) =>
+  const firstPageItems = firstPage.data ?? [];
+  const all: NormalizedCard[] = filterRawCardsForGame(firstPageItems, game).map((card) =>
     normalizeCard(card, tcgdexImageLookup, game)
   );
-  const totalPages = firstPage.paging?.total ?? 1;
+  const totalPages = resolveCatalogTotalPages(
+    firstPage.paging,
+    firstPageItems.length,
+    CARD_PAGE_FETCH_SIZE
+  );
 
   if (totalPages <= 1) {
     return all;
   }
 
-  const remainingPages = await Promise.all(
-    Array.from({ length: totalPages - 1 }, (_, index) =>
-      apiFetch<{
-        data: RawCard[];
-        paging?: { total?: number };
-      }>(
-        `/${gamePath}/episodes/${remoteEpisodeId}/cards?page=${
-          index + 2
-        }&per_page=${CARD_PAGE_FETCH_SIZE}`
-      )
-    )
-  );
-
-  for (const page of remainingPages) {
+  for (let pageNumber = 2; pageNumber <= totalPages; pageNumber += 1) {
+    const page = await apiFetch<{
+      data: RawCard[];
+      paging?: RawCatalogPaging;
+    }>(
+      `/${gamePath}/episodes/${remoteEpisodeId}/cards?page=${pageNumber}&per_page=${CARD_PAGE_FETCH_SIZE}`
+    );
     all.push(
       ...filterRawCardsForGame(page.data ?? [], game).map((card) =>
         normalizeCard(card, tcgdexImageLookup, game)
@@ -1214,34 +1274,45 @@ export async function fetchSealedAvailabilityForEpisode(
 
 export async function fetchSealedProductsForEpisode(
   episodeId: string,
-  game: TradingCardGame = POKEMON_GAME
+  game: TradingCardGame = POKEMON_GAME,
+  options?: {
+    minimumRequestsRemaining?: number;
+  }
 ): Promise<NormalizedSealedProduct[]> {
   const gamePath = getTcggoGamePath(game);
   const remoteEpisodeId = getRemoteTcggoId(game, episodeId);
+  const firstPagePath =
+    `/${gamePath}/episodes/${remoteEpisodeId}/products?page=1` +
+    `&per_page=${SEALED_PRODUCT_PAGE_FETCH_SIZE}`;
+  assertTcggoRequestReserve(firstPagePath, options?.minimumRequestsRemaining);
   const firstPage = await apiFetch<{
     data: RawSealedProduct[];
-    paging?: { total?: number };
-  }>(`/${gamePath}/episodes/${remoteEpisodeId}/products?page=1&per_page=100`);
+    paging?: RawCatalogPaging;
+  }>(firstPagePath);
 
-  const all: NormalizedSealedProduct[] = (firstPage.data ?? []).map((product) =>
+  const firstPageItems = firstPage.data ?? [];
+  const all: NormalizedSealedProduct[] = firstPageItems.map((product) =>
     normalizeSealedProduct(product, game)
   );
-  const totalPages = firstPage.paging?.total ?? 1;
+  const totalPages = resolveCatalogTotalPages(
+    firstPage.paging,
+    firstPageItems.length,
+    SEALED_PRODUCT_PAGE_FETCH_SIZE
+  );
 
   if (totalPages <= 1) {
     return all;
   }
 
-  const remainingPages = await Promise.all(
-    Array.from({ length: totalPages - 1 }, (_, index) =>
-      apiFetch<{
-        data: RawSealedProduct[];
-        paging?: { total?: number };
-      }>(`/${gamePath}/episodes/${remoteEpisodeId}/products?page=${index + 2}&per_page=100`)
-    )
-  );
-
-  for (const page of remainingPages) {
+  for (let pageNumber = 2; pageNumber <= totalPages; pageNumber += 1) {
+    const pagePath =
+      `/${gamePath}/episodes/${remoteEpisodeId}/products?page=${pageNumber}` +
+      `&per_page=${SEALED_PRODUCT_PAGE_FETCH_SIZE}`;
+    assertTcggoRequestReserve(pagePath, options?.minimumRequestsRemaining);
+    const page = await apiFetch<{
+      data: RawSealedProduct[];
+      paging?: RawCatalogPaging;
+    }>(pagePath);
     all.push(...(page.data ?? []).map((product) => normalizeSealedProduct(product, game)));
   }
 
