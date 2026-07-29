@@ -1325,6 +1325,25 @@ export async function fetchCardDetail(
   return normalizeCard(card, tcgdexImageLookup, game);
 }
 
+// The dedicated eBay sold endpoint returns the same graded entries as
+// prices.ebay.graded on the card detail, without the rest of the card
+// payload. Same quota cost per request, purpose-built for the graded sync.
+export async function fetchEbaySoldGradedPricesForCard(
+  cardId: string,
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedEbaySoldGradedPrice[]> {
+  const gamePath = getTcggoGamePath(game);
+  const remoteCardId = getRemoteTcggoId(game, cardId);
+  const data = await apiFetch<{ data?: unknown }>(
+    `/${gamePath}/ebay-sold-prices?id=${encodeURIComponent(remoteCardId)}`
+  );
+  const graded = Array.isArray(data.data) ? data.data : [];
+
+  return extractEbaySoldGradedPrices({
+    ebay: { graded, currency: "USD" },
+  } as unknown as RawPrices);
+}
+
 export function extractPrices(prices: RawPrices | undefined) {
   const cm = prices?.cardmarket;
   const tcp = prices?.tcg_player;

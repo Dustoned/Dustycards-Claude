@@ -63,6 +63,7 @@ import {
   extractPrices,
   fetchAllEpisodes,
   fetchCardDetail,
+  fetchEbaySoldGradedPricesForCard,
   fetchCardsForEpisode,
   fetchHistoryPricesByItemId,
   fetchSealedProductsForEpisode,
@@ -1701,14 +1702,25 @@ async function backfillEbaySoldGradedPricesDetailed(
       let shouldCountCard = false;
 
       try {
-        const remoteCard = await fetchCardDetail(cardId, getGameFromScopedId(cardId));
+        const gradedPrices = await fetchEbaySoldGradedPricesForCard(
+          cardId,
+          getGameFromScopedId(cardId)
+        );
         await options?.throwIfCancelled?.();
 
-        const creates = remoteCard
-          ? dedupeEbaySoldGradedCreateRows(
-              buildEbaySoldGradedCreateRows(cardId, remoteCard.prices, fetchedAt)
-            )
-          : [];
+        const creates = dedupeEbaySoldGradedCreateRows(
+          gradedPrices.map((gradedPrice) => ({
+            card_id: cardId,
+            source: gradedPrice.source,
+            label: gradedPrice.label,
+            company: gradedPrice.company,
+            grade: gradedPrice.grade,
+            median_price: gradedPrice.median_price,
+            currency: gradedPrice.currency,
+            sample_size: gradedPrice.sample_size,
+            fetched_at: fetchedAt,
+          }))
+        );
 
         if (creates.length > 0) {
           await runExclusiveDbWrite(() =>

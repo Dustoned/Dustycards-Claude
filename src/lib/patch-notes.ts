@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.32",
+    releasedAt: "July 29, 2026",
+    title: "eBay sold graded prices via the dedicated endpoint",
+    summary:
+      "DustyCards 3.8.32 switches the eBay sold graded price sync to TCGGO's dedicated ebay-sold-prices endpoint that came with the new API plan.",
+    tone: "improved",
+    highlights: [
+      "The graded price sync now asks the purpose-built endpoint for PSA/BGS/CGC sold medians instead of downloading the full card payload per card — same quota cost, cleaner data path.",
+      "Verified against the live API: the endpoint returns sold medians with sample sizes (e.g. PSA 10 at 5 recent sales) and the daily quota is fresh again after the plan switch.",
+      "The sync stays manual-first: card catalog and price syncs keep their scheduler priority; start the eBay graded sync from Settings whenever you want to spend quota on it.",
+    ],
+  },
+  {
     version: "3.8.31",
     releasedAt: "July 28, 2026",
     title: "Expansion selection matches the collection",
