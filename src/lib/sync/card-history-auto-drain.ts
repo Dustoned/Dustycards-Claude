@@ -1,4 +1,9 @@
+import { db } from "@/lib/db";
 import { areScraperRequestsDisabled } from "@/lib/scraper-guard";
+import {
+  countSealedHistoryTopUpCandidates,
+  runSealedHistoryTopUpSync,
+} from "@/lib/sync";
 import {
   getTcggoUsageSnapshot,
   type TcggoUsageSnapshot,
@@ -7,6 +12,8 @@ import { startCardHistorySyncJob } from "@/lib/sync/card-history-job";
 
 const AUTO_CARD_HISTORY_QUOTA_DRAIN_WINDOW_MS = 1000 * 60 * 60 * 2;
 const AUTO_CARD_HISTORY_QUOTA_DRAIN_MIN_REMAINING_REQUESTS = 1;
+const AUTO_SEALED_HISTORY_DRAIN_MAX_PRODUCTS = 400;
+const SEALED_HISTORY_TOPUP_SYNC_TYPE = "sealed-history-topup";
 
 export function isCardHistoryQuotaDrainWindow(
   usage: Pick<
@@ -62,9 +69,61 @@ export async function maybeStartCardHistoryQuotaDrainJob(options?: {
     };
   }
 
-  // The drain exists precisely to spend the full daily budget on history:
-  // no reserve here. The Settings "History import" panel shows what it is
-  // backfilling, so the usage is visible instead of mysterious. The job stops
-  // at the reset moment so it never rolls into the fresh budget.
-  return startCardHistorySyncJob({ stopAtQuotaReset: usage.quotaResetsAt });
+  // Card history drains first. If there are no card candidates, the same
+  // end-of-window lane uses the leftover quota for sealed history instead.
+  const cardHistory = await startCardHistorySyncJob({
+    stopAtQuotaReset: usage.quotaResetsAt,
+  });
+  if (cardHistory.pendingCards > 0 || cardHistory.running || cardHistory.started) {
+    return cardHistory;
+  }
+
+  const [pendingSealedProducts, activeSealedHistory] = await Promise.all([
+    countSealedHistoryTopUpCandidates(),
+    db.syncLog.findFirst({
+      where: { type: SEALED_HISTORY_TOPUP_SYNC_TYPE, status: "running" },
+      orderBy: { started_at: "desc" },
+      select: { started_at: true },
+    }),
+  ]);
+
+  if (activeSealedHistory) {
+    return {
+      started: false,
+      running: true,
+      pendingCards: 0,
+      startedAt: activeSealedHistory.started_at.toISOString(),
+    };
+  }
+
+  if (pendingSealedProducts === 0) {
+    return cardHistory;
+  }
+
+  const maxProducts = Math.min(
+    AUTO_SEALED_HISTORY_DRAIN_MAX_PRODUCTS,
+    pendingSealedProducts,
+    usage.requestsRemaining ?? AUTO_SEALED_HISTORY_DRAIN_MAX_PRODUCTS
+  );
+  if (maxProducts <= 0) {
+    return cardHistory;
+  }
+
+  const startedAt = new Date();
+  void runSealedHistoryTopUpSync({
+    maxProducts,
+    stopAtQuotaReset: usage.quotaResetsAt,
+  }).catch((error: unknown) => {
+    console.error(
+      "[history-auto-drain] scheduled sealed history sync failed:",
+      error instanceof Error ? error.message : String(error)
+    );
+  });
+
+  return {
+    started: true,
+    running: true,
+    pendingCards: 0,
+    startedAt: startedAt.toISOString(),
+  };
 }

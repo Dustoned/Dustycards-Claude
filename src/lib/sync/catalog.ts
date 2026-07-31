@@ -246,7 +246,8 @@ export function shouldRunAutoCatalogSync(
   episodes: AutoCatalogLocalEpisode[],
   now: Date,
   minIntervalMs: number,
-  lastRemoteCatalogCheckedAt: Date | null
+  lastRemoteCatalogCheckedAt: Date | null,
+  sourceRecheckIntervalMs = minIntervalMs
 ): boolean {
   if (episodes.length === 0) {
     return (
@@ -258,8 +259,8 @@ export function shouldRunAutoCatalogSync(
   if (
     episodes.some(
       (episode) =>
-        shouldRecheckEpisodeSource(episode, now, minIntervalMs) ||
-        shouldRecheckEmptyEpisode(episode, now, minIntervalMs)
+        shouldRecheckEpisodeSource(episode, now, sourceRecheckIntervalMs) ||
+        shouldRecheckEmptyEpisode(episode, now, sourceRecheckIntervalMs)
     )
   ) {
     return true;
@@ -297,6 +298,7 @@ export function createEmptyAutoCatalogSyncSelection(): AutoCatalogSyncSelection 
 export async function previewAutoCatalogSync(input: {
   now: Date;
   minIntervalMs: number;
+  sourceRecheckIntervalMs?: number;
   game?: TradingCardGame;
 }): Promise<AutoCatalogSyncPreview> {
   const game = input.game ?? POKEMON_GAME;
@@ -310,7 +312,8 @@ export async function previewAutoCatalogSync(input: {
       localEpisodes,
       input.now,
       input.minIntervalMs,
-      lastRemoteCatalogCheckedAt
+      lastRemoteCatalogCheckedAt,
+      input.sourceRecheckIntervalMs
     ),
   };
 }
@@ -321,6 +324,7 @@ export function planAutoCatalogSyncFromEpisodes(input: {
   now: Date;
   maxEpisodes: number;
   minIntervalMs: number;
+  sourceRecheckIntervalMs?: number;
 }): AutoCatalogSyncPlan {
   const localEpisodeMap = new Map(input.localEpisodes.map((episode) => [episode.id, episode]));
   const candidates: AutoCatalogEpisodeCandidate[] = [];
@@ -335,16 +339,34 @@ export function planAutoCatalogSyncFromEpisodes(input: {
     const isNewEpisode = !existingEpisode;
     const localCardCount = existingEpisode?._count.cards ?? 0;
     const sourceNeedsRecheck = existingEpisode
-      ? shouldRecheckEpisodeSource(existingEpisode, input.now, input.minIntervalMs)
+      ? shouldRecheckEpisodeSource(
+          existingEpisode,
+          input.now,
+          input.sourceRecheckIntervalMs ?? input.minIntervalMs
+        )
       : false;
     const emptyNeedsRecheck = existingEpisode
-      ? shouldRecheckEmptyEpisode(existingEpisode, input.now, input.minIntervalMs)
+      ? shouldRecheckEmptyEpisode(
+          existingEpisode,
+          input.now,
+          input.sourceRecheckIntervalMs ?? input.minIntervalMs
+        )
       : false;
     const hasRemoteCards = episode.card_count == null || episode.card_count > 0;
     const missingCards =
       episode.card_count == null
         ? (localCardCount === 0 ? 1 : 0)
         : Math.max(episode.card_count - localCardCount, 0);
+    // Once a set is known to have a partial/empty English feed, the catalog
+    // total is not a reliable missing-card signal until its slower source
+    // recheck is due. Otherwise the same permanent count mismatch wins every
+    // hourly catalog pass and consumes the quota again.
+    const shouldFetchMissingCards =
+      missingCards > 0 &&
+      (!existingEpisode ||
+        !hasEpisodeSourceIssue(existingEpisode.source_status) ||
+        sourceNeedsRecheck ||
+        emptyNeedsRecheck);
 
     if (isNewEpisode) {
       newEpisodes += 1;
@@ -354,7 +376,7 @@ export function planAutoCatalogSyncFromEpisodes(input: {
       continue;
     }
 
-    if (isNewEpisode || emptyNeedsRecheck || missingCards > 0 || sourceNeedsRecheck) {
+    if (isNewEpisode || emptyNeedsRecheck || shouldFetchMissingCards || sourceNeedsRecheck) {
       candidates.push({
         ...episode,
         isNewEpisode,
@@ -404,6 +426,7 @@ export function planAutoCatalogSyncFromEpisodes(input: {
 export async function selectAutoCatalogSyncBatch(input: {
   now: Date;
   minIntervalMs: number;
+  sourceRecheckIntervalMs?: number;
   maxEpisodes: number;
   fetchRemoteEpisodes: () => Promise<NormalizedEpisode[]>;
   game?: TradingCardGame;
@@ -419,7 +442,8 @@ export async function selectAutoCatalogSyncBatch(input: {
       visibleLocalEpisodes,
       input.now,
       input.minIntervalMs,
-      lastRemoteCatalogCheckedAt
+      lastRemoteCatalogCheckedAt,
+      input.sourceRecheckIntervalMs
     )
   ) {
     return createEmptyAutoCatalogSyncSelection();
@@ -436,6 +460,7 @@ export async function selectAutoCatalogSyncBatch(input: {
       now: input.now,
       maxEpisodes: input.maxEpisodes,
       minIntervalMs: input.minIntervalMs,
+      sourceRecheckIntervalMs: input.sourceRecheckIntervalMs,
     }),
   };
 }

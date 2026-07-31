@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.40",
+    releasedAt: "July 31, 2026",
+    title: "Current prices always win the quota",
+    summary:
+      "DustyCards 3.8.40 makes the sync priority strict again: clear every current card and sealed queue first, then spend only the final-window leftovers on history.",
+    tone: "fixed",
+    highlights: [
+      "Due card prices and missing first prices now run before catalog maintenance, sealed prices, and every history import.",
+      "Permanent partial catalog feeds are rechecked weekly instead of hourly, stopping 100+ old sets from repeatedly burning the daily TCGGO budget.",
+      "Card and sealed history now share the final two-hour drain and stop at the quota reset; sealed history no longer starts right after the daily sealed pass.",
+      "Sealed backlog dates are compared as real SQLite datetimes, so Settings shows the full backlog instead of collapsing back to 17 products.",
+    ],
+  },
+  {
     version: "3.8.39",
     releasedAt: "July 31, 2026",
     title: "Collection actions update immediately",

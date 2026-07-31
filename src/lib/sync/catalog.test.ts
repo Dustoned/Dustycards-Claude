@@ -99,6 +99,68 @@ describe("catalog source guardrails", () => {
     ).toBe(true);
   });
 
+  it("does not let permanent partial feeds force hourly source refetches", () => {
+    const now = new Date("2026-05-22T12:00:00.000Z");
+    const partialEpisode = {
+      id: "sv10",
+      name: "Destined Rivals",
+      card_count: 300,
+      source_status: "partial",
+      source_checked_at: new Date("2026-05-22T10:00:00.000Z"),
+      synced_at: new Date("2026-05-01T10:00:00.000Z"),
+      _count: { cards: 180 },
+    };
+
+    expect(
+      shouldRunAutoCatalogSync(
+        [partialEpisode],
+        now,
+        60 * 60 * 1000,
+        new Date("2026-05-22T11:45:00.000Z"),
+        7 * 24 * 60 * 60 * 1000
+      )
+    ).toBe(false);
+
+    expect(
+      shouldRunAutoCatalogSync(
+        [
+          {
+            ...partialEpisode,
+            source_checked_at: new Date("2026-05-14T10:00:00.000Z"),
+          },
+        ],
+        now,
+        60 * 60 * 1000,
+        new Date("2026-05-22T11:45:00.000Z"),
+        7 * 24 * 60 * 60 * 1000
+      )
+    ).toBe(true);
+  });
+
+  it("does not select a known partial feed from its catalog count before the weekly retry", () => {
+    const now = new Date("2026-05-22T12:00:00.000Z");
+    const plan = planAutoCatalogSyncFromEpisodes({
+      remoteEpisodes: [remoteEpisode({ card_count: 300 })],
+      localEpisodes: [
+        {
+          id: "sv10",
+          name: "Destined Rivals",
+          card_count: 300,
+          source_status: "partial",
+          source_checked_at: new Date("2026-05-22T10:00:00.000Z"),
+          synced_at: new Date("2026-05-01T10:00:00.000Z"),
+          _count: { cards: 180 },
+        },
+      ],
+      now,
+      maxEpisodes: 6,
+      minIntervalMs: 60 * 60 * 1000,
+      sourceRecheckIntervalMs: 7 * 24 * 60 * 60 * 1000,
+    });
+
+    expect(plan.selectedEpisodes).toEqual([]);
+  });
+
   it("selects empty local expansions even when the catalog card count is still zero", () => {
     const now = new Date("2026-05-22T12:00:00.000Z");
 

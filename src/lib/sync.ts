@@ -117,6 +117,10 @@ const AUTO_SUBMITTED_CARD_REFRESH_INTERVAL_MS = 1000 * 60 * 60 * 24;
 const AUTO_SUBMITTED_CARD_REFRESH_MAX_SUBMISSIONS = 3;
 const AUTO_PRICE_PREEMPT_WAIT_TIMEOUT_MS = 1000 * 60 * 5;
 const AUTO_CATALOG_SYNC_MIN_INTERVAL_MS = 1000 * 60 * 60;
+// TCGGO's catalog total includes variants that are absent from the English
+// card feed for many older sets. Those sets stay marked partial, but retrying
+// all of them every hour only burns quota without discovering cards.
+const AUTO_CATALOG_SOURCE_RECHECK_INTERVAL_MS = 1000 * 60 * 60 * 24 * 7;
 const AUTO_CATALOG_SYNC_MAX_EPISODES = 6;
 // Episodes are synced in parallel; the per-request rate limiter in tcggo.ts
 // caps the actual API call rate at 300/min, so episode-level concurrency is
@@ -279,9 +283,11 @@ export interface AutoPriceRefreshResult {
   submittedCardsRefreshed?: number;
   submittedCardRefreshFailures?: number;
   remainingDueCards: number;
-  // Remaining due cards that are above Common/Uncommon. Card-history sync waits
-  // only on these (not on commons), so price history keeps priority over base.
+  // Kept in result details for queue diagnostics and backwards compatibility.
   remainingNonBaseDueCards?: number;
+  // A deferred catalog pass keeps the persisted job alive for one more batch,
+  // after the current price queue has reached zero.
+  catalogPending?: boolean;
   newCards: number;
   updatedCards: number;
   newPrices: number;
@@ -1237,16 +1243,6 @@ function toHistorySnapshotDate(dateKey: string): Date {
   return new Date(`${dateKey}T00:00:00.000Z`);
 }
 
-async function mapInBatches<T>(
-  items: T[],
-  batchSize: number,
-  worker: (item: T) => Promise<void>
-): Promise<void> {
-  for (let index = 0; index < items.length; index += batchSize) {
-    await Promise.all(items.slice(index, index + batchSize).map((item) => worker(item)));
-  }
-}
-
 async function writeInChunks<T>(
   items: T[],
   chunkSize: number,
@@ -1804,6 +1800,9 @@ async function backfillSealedNativeHistory(
     // daily catalog sync stamps a fresh snapshot on every product, which would
     // otherwise make dateFrom "today" and permanently hide older gaps.
     anchorBefore?: Date;
+    // Automatic quota drains stop starting new batches at the reset boundary,
+    // so a late history pass never rolls into the fresh daily allowance.
+    stopAt?: Date;
   }
 ): Promise<number> {
   if (products.length === 0) return 0;
@@ -1854,44 +1853,50 @@ async function backfillSealedNativeHistory(
   }> = [];
   const syncedProductIds: string[] = [];
 
-  await mapInBatches(products, HISTORY_BACKFILL_BATCH_SIZE, async (product) => {
-    await throwIfCancelled?.();
+  for (let index = 0; index < products.length; index += HISTORY_BACKFILL_BATCH_SIZE) {
+    if (options?.stopAt && new Date() >= options.stopAt) break;
 
-    try {
-      const latestExisting = latestSnapshotByProduct.get(product.id);
-      const history = await fetchHistoryPricesByItemId(product.id, {
-        dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
-      });
-      const existing = existingByProduct.get(product.id) ?? new Set<string>();
+    await Promise.all(
+      products.slice(index, index + HISTORY_BACKFILL_BATCH_SIZE).map(async (product) => {
+        await throwIfCancelled?.();
 
-      for (const point of history) {
-        const fetchedAt = toHistorySnapshotDate(point.date);
-        const iso = fetchedAt.toISOString();
-        if (existing.has(iso)) {
-          continue;
+        try {
+          const latestExisting = latestSnapshotByProduct.get(product.id);
+          const history = await fetchHistoryPricesByItemId(product.id, {
+            dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
+          });
+          const existing = existingByProduct.get(product.id) ?? new Set<string>();
+
+          for (const point of history) {
+            const fetchedAt = toHistorySnapshotDate(point.date);
+            const iso = fetchedAt.toISOString();
+            if (existing.has(iso)) {
+              continue;
+            }
+
+            historyCreates.push({
+              product_id: product.id,
+              episode_id: product.episodeId,
+              fetched_at: fetchedAt,
+              cm_lowest: point.cm_market,
+              cm_lowest_eu: null,
+              cm_lowest_de: point.cm_market_de,
+              cm_lowest_fr: point.cm_market_fr,
+              cm_lowest_es: point.cm_market_es,
+              cm_lowest_it: point.cm_market_it,
+              cm_avg_7d: null,
+              cm_avg_30d: null,
+            });
+            existing.add(iso);
+          }
+
+          syncedProductIds.push(product.id);
+        } catch {
+          // Leave this product eligible for a later history backfill retry.
         }
-
-        historyCreates.push({
-          product_id: product.id,
-          episode_id: product.episodeId,
-          fetched_at: fetchedAt,
-          cm_lowest: point.cm_market,
-          cm_lowest_eu: null,
-          cm_lowest_de: point.cm_market_de,
-          cm_lowest_fr: point.cm_market_fr,
-          cm_lowest_es: point.cm_market_es,
-          cm_lowest_it: point.cm_market_it,
-          cm_avg_7d: null,
-          cm_avg_30d: null,
-        });
-        existing.add(iso);
-      }
-
-      syncedProductIds.push(product.id);
-    } catch {
-      // Leave this product eligible for a later history backfill retry.
-    }
-  });
+      })
+    );
+  }
 
   await throwIfCancelled?.();
 
@@ -3662,11 +3667,11 @@ const SEALED_HISTORY_TOPUP_CANDIDATE_WHERE = `
      LEFT JOIN (
        SELECT product_id, MAX(fetched_at) AS anchor_fetched_at
        FROM "SealedPriceSnapshot"
-       WHERE fetched_at < ?
+       WHERE datetime(fetched_at) < datetime(?)
        GROUP BY product_id
      ) s ON s.product_id = p.id
      WHERE (p.native_history_status IS NULL OR p.native_history_status <> 'unavailable')
-       AND (s.anchor_fetched_at IS NULL OR s.anchor_fetched_at < ?)`;
+       AND (s.anchor_fetched_at IS NULL OR datetime(s.anchor_fetched_at) < datetime(?))`;
 
 // Settings shows this next to the card-history queue so the whole history
 // backlog is visible, instead of the sealed top-up spending quota invisibly.
@@ -3693,6 +3698,7 @@ export async function countSealedHistoryTopUpCandidates(options?: {
 export async function runSealedHistoryTopUpSync(options?: {
   maxProducts?: number;
   staleDays?: number;
+  stopAtQuotaReset?: Date | null;
 }): Promise<SealedHistoryTopUpResult> {
   const maxProducts = options?.maxProducts ?? SEALED_HISTORY_TOPUP_MAX_PRODUCTS;
   const staleDays = options?.staleDays ?? SEALED_HISTORY_TOPUP_STALE_DAYS;
@@ -3726,7 +3732,10 @@ export async function runSealedHistoryTopUpSync(options?: {
         progress.throwIfCancelled,
         // Ask TCGGO for history since the newest snapshot before the fresh
         // daily ones, so the gap between the old anchor and today fills in.
-        { anchorBefore: anchorCutoff }
+        {
+          anchorBefore: anchorCutoff,
+          stopAt: options?.stopAtQuotaReset ?? undefined,
+        }
       );
 
       return { candidates: rows.length, synced };
@@ -4132,6 +4141,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       preview: await previewAutoCatalogSync({
         now,
         minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
+        sourceRecheckIntervalMs: AUTO_CATALOG_SOURCE_RECHECK_INTERVAL_MS,
         game,
       }),
     }))
@@ -4186,7 +4196,14 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
     });
   }
 
-  const shouldRunCatalogWithAutoBatch = catalogGamesToSync.length > 0;
+  // Current prices and missing first prices are the primary queue. Catalog
+  // discovery waits for a later batch once that queue is empty, so source
+  // maintenance can never consume requests needed by due cards.
+  const shouldRunCatalogWithAutoBatch =
+    catalogGamesToSync.length > 0 &&
+    previewDueBatch.dueCards === 0 &&
+    previewBackfillBatch.missingPriceCards === 0 &&
+    previewSubmittedCardCandidates === 0;
 
   return runAutoLoggedSync(
     "Refreshing due cards and backfilling missing first prices in the background",
@@ -4288,6 +4305,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
                 selectAutoCatalogSyncBatch({
                   now: new Date(),
                   minIntervalMs: AUTO_CATALOG_SYNC_MIN_INTERVAL_MS,
+                  sourceRecheckIntervalMs: AUTO_CATALOG_SOURCE_RECHECK_INTERVAL_MS,
                   maxEpisodes: AUTO_CATALOG_SYNC_MAX_EPISODES,
                   game,
                   fetchRemoteEpisodes: () => fetchAllEpisodes(game),
@@ -4418,6 +4436,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
           selectedCards: 0,
           backfillCards: 0,
           nativeHistoryItems: 0,
+          catalogPending: catalogGamesToSync.length > 0 && !shouldRunCatalogWithAutoBatch,
           submittedCardCandidates,
           submittedCardsSelected: 0,
           submittedCardsRefreshed: 0,
@@ -4595,6 +4614,7 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         selectedCards,
         backfillCards: backfillBatch.selectedCards,
         nativeHistoryItems: nativeHistoryCount,
+        catalogPending: catalogGamesToSync.length > 0 && !shouldRunCatalogWithAutoBatch,
         submittedCardCandidates,
         submittedCardsSelected,
         submittedCardsRefreshed,

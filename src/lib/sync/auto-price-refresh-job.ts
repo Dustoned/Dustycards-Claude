@@ -7,7 +7,6 @@ import {
   SyncConflictError,
   type AutoPriceRefreshResult,
 } from "@/lib/sync";
-import { maybeStartCardHistoryQuotaDrainJob } from "@/lib/sync/card-history-auto-drain";
 import { resolveAutoPriceRefreshStartedAt } from "@/lib/sync/auto-price-refresh-window";
 import { createAutoPriceRefreshResultDetails } from "@/lib/sync/progress-details";
 import {
@@ -41,24 +40,10 @@ function getRemainingMissingPriceCards(result: AutoPriceRefreshResult): number {
 }
 
 function hasRemainingAutoPriceWork(result: AutoPriceRefreshResult): boolean {
-  return result.remainingDueCards > 0 || getRemainingMissingPriceCards(result) > 0;
-}
-
-function shouldSkipCardHistoryQuotaDrain(result: AutoPriceRefreshResult): boolean {
-  const pausedAfterManualStop =
-    result.skipped && result.message.toLowerCase().includes("paused");
-
-  // Card history takes priority over Common/Uncommon refreshes: only remaining
-  // non-base (high-value) price work blocks it. If the result predates this
-  // field, fall back to the old "any remaining due" behaviour.
-  const remainingHighValueDue =
-    result.remainingNonBaseDueCards ?? result.remainingDueCards;
-
   return (
-    result.quotaExceeded ||
-    pausedAfterManualStop ||
-    remainingHighValueDue > 0 ||
-    getRemainingMissingPriceCards(result) > 0
+    result.remainingDueCards > 0 ||
+    getRemainingMissingPriceCards(result) > 0 ||
+    result.catalogPending === true
   );
 }
 
@@ -67,7 +52,7 @@ function getResultStatus(
   hasMore: boolean
 ): AutoPriceRefreshLogDetails["status"] {
   if (result.quotaExceeded) return "quota-paused";
-  if (result.skipped) return "skipped";
+  if (result.skipped && !hasMore) return "skipped";
   if (hasMore) return "running";
   return "success";
 }
@@ -128,16 +113,18 @@ async function runPersistedAutoPriceRefreshJob(jobId: string) {
 
   const deadline = Date.now() + AUTO_PRICE_REFRESH_JOB_MAX_RUNTIME_MS;
   let batchCount = 0;
-  let lastResult: AutoPriceRefreshResult | null = null;
 
   try {
     while (batchCount < AUTO_PRICE_REFRESH_JOB_MAX_BATCHES) {
       const result = await runAutoPriceRefresh();
       batchCount += 1;
-      lastResult = result;
       await updateJobFromResult(jobId, result, batchCount);
 
-      if (result.quotaExceeded || result.skipped || !hasRemainingAutoPriceWork(result)) {
+      if (
+        result.quotaExceeded ||
+        (result.skipped && !result.catalogPending) ||
+        !hasRemainingAutoPriceWork(result)
+      ) {
         break;
       }
 
@@ -159,12 +146,6 @@ async function runPersistedAutoPriceRefreshJob(jobId: string) {
     }
   } finally {
     clearInterval(heartbeatTimer);
-  }
-
-  if (lastResult) {
-    await maybeStartCardHistoryQuotaDrainJob({
-      skip: shouldSkipCardHistoryQuotaDrain(lastResult),
-    });
   }
 }
 

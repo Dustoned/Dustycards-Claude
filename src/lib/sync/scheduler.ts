@@ -161,22 +161,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
           startedAt: existingPriceJob.startedAt,
           finishedAt: existingPriceJob.finishedAt,
         };
-  const shouldLetPriceJobFinishFirst = priceRefresh.running && pricePendingCards > 0;
-  const historyDrain =
-    !scraperDisabled && !shouldLetPriceJobFinishFirst
-      ? {
-          ...(await maybeStartCardHistoryQuotaDrainJob()),
-          skippedReason: null,
-        }
-      : {
-          started: false,
-          running: false,
-          pendingCards: 0,
-          startedAt: null,
-          skippedReason: scraperDisabled
-            ? "scraper-disabled"
-            : "waiting-for-price-refresh",
-        };
+  const currentCardPriceWorkPending = pricePendingCards > 0 || priceRefresh.running;
   const externalRadar = await maybeStartExternalSignalRadarJob({
     skip: scraperDisabled,
     now: checkedAt,
@@ -185,7 +170,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   // priority so a sealed pass never delays due card refreshes.
   const sealedSkipReason = scraperDisabled
     ? "scraper-disabled"
-    : shouldLetPriceJobFinishFirst
+    : currentCardPriceWorkPending
       ? "waiting-for-price-refresh"
       : shouldLetChaseWatchFinishFirst
         ? "waiting-for-chase-watch"
@@ -196,6 +181,32 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     requestsRemaining: quota.requestsRemaining,
     now: checkedAt,
   });
+  const currentSealedWorkPending = sealedSync.due || sealedSync.running;
+  // History is strictly last: it only gets the final quota-window leftovers
+  // after card prices, first prices, chase prices and sealed prices are all
+  // current. The drain itself enforces the final two-hour window.
+  const historyBlockedReason = scraperDisabled
+    ? "scraper-disabled"
+    : currentCardPriceWorkPending
+      ? "waiting-for-price-refresh"
+      : shouldLetChaseWatchFinishFirst
+        ? "waiting-for-chase-watch"
+        : currentSealedWorkPending
+          ? "waiting-for-sealed-sync"
+          : null;
+  const historyDrain =
+    historyBlockedReason == null
+      ? {
+          ...(await maybeStartCardHistoryQuotaDrainJob()),
+          skippedReason: null,
+        }
+      : {
+          started: false,
+          running: false,
+          pendingCards: 0,
+          startedAt: null,
+          skippedReason: historyBlockedReason,
+        };
   // This pass only summarizes data already stored locally. It deliberately
   // keeps running when scrapers are paused and may never take the whole
   // scheduler down if a malformed historical row slips through.
