@@ -4,7 +4,7 @@ import { NextRequest } from "next/server";
 const { authMock, feedMock, quickActionsMock, settingsMock } =
   vi.hoisted(() => ({
     authMock: { requireUser: vi.fn(), authErrorResponse: vi.fn() },
-    feedMock: { getSharedSignalRadarFeedData: vi.fn() },
+    feedMock: { getSharedSignalRadarSignals: vi.fn() },
     quickActionsMock: { getCardQuickActionMap: vi.fn() },
     settingsMock: { getServerUserSettings: vi.fn() },
   }));
@@ -22,16 +22,13 @@ describe("progressive Signal Radar feed", () => {
     authMock.requireUser.mockResolvedValue({ id: "user-1" });
     authMock.authErrorResponse.mockReturnValue(null);
     settingsMock.getServerUserSettings.mockResolvedValue({ onePieceLibraryEnabled: true });
-    feedMock.getSharedSignalRadarFeedData.mockResolvedValue({
-      signals: [{ cardId: "signal-card" }],
-      newReleaseChases: {
-        cards: [{ cardId: "chase-card" }],
-      },
-    });
+    feedMock.getSharedSignalRadarSignals.mockResolvedValue([
+      { cardId: "signal-card" },
+    ]);
     quickActionsMock.getCardQuickActionMap.mockResolvedValue({});
   });
 
-  it("uses persisted radar data and honors game and set for the deferred chase read", async () => {
+  it("loads only the game-scoped general feed without waiting for Chase Watch", async () => {
     const response = await GET(
       new NextRequest(
         "http://localhost/api/movers/signal-radar/feed?game=one-piece&set=episode-415"
@@ -45,15 +42,11 @@ describe("progressive Signal Radar feed", () => {
     );
     expect(response.headers.get("Vary")).toContain("Cookie");
     expect(response.headers.get("Vary")).toContain("Accept-Encoding");
-    expect(feedMock.getSharedSignalRadarFeedData).toHaveBeenCalledWith({
-      gameFilter: "one-piece",
-      episodeId: "episode-415",
-    });
+    expect(feedMock.getSharedSignalRadarSignals).toHaveBeenCalledWith("one-piece");
     expect(quickActionsMock.getCardQuickActionMap).toHaveBeenCalledWith("user-1", [
       "signal-card",
-      "chase-card",
     ]);
-    expect(body.newReleaseChases.cards[0].cardId).toBe("chase-card");
+    expect(body.newReleaseChases).toBeNull();
   });
 
   it("returns the authentication response before loading the feed", async () => {
@@ -67,6 +60,6 @@ describe("progressive Signal Radar feed", () => {
     );
 
     expect(response.status).toBe(401);
-    expect(feedMock.getSharedSignalRadarFeedData).not.toHaveBeenCalled();
+    expect(feedMock.getSharedSignalRadarSignals).not.toHaveBeenCalled();
   });
 });

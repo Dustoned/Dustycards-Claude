@@ -29,6 +29,7 @@ import {
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CachedImage from "@/components/CachedImage";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
+import type { CollectionCardSavedDetail } from "@/lib/collection-client-events";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import { CardDetailMobileActionPortal } from "@/components/card-detail/CardDetailShell";
 import CardDetailMobileMarketAction from "@/components/card-detail/CardDetailMobileMarketAction";
@@ -1509,6 +1510,7 @@ export function CardModalDesktopActionGroup({
   onSyncHistory,
   onRemoveCollectionItem,
   onAddedToCollection,
+  onCollectionItemSaved,
   onClose,
   onResearchSignal,
   researchingSignal = false,
@@ -1527,6 +1529,7 @@ export function CardModalDesktopActionGroup({
   onSyncHistory: () => void;
   onRemoveCollectionItem: () => void;
   onAddedToCollection?: () => void | Promise<void>;
+  onCollectionItemSaved?: (detail: CollectionCardSavedDetail) => void | Promise<void>;
   onClose: () => void;
   onResearchSignal?: () => void;
   researchingSignal?: boolean;
@@ -1625,7 +1628,10 @@ export function CardModalDesktopActionGroup({
               theme="dark"
               label="Edit saved copy"
               className="!min-h-11 !w-full !justify-start !rounded-xl !border-0 !bg-transparent !px-3 !text-sm !font-semibold !text-white/68 hover:!bg-white/[0.065] hover:!text-white"
-              onSaved={onClose}
+              onSaved={async (detail) => {
+                await onCollectionItemSaved?.(detail);
+                onClose();
+              }}
             />
           ) : null}
           {canManageCollectionItem && collectionItem ? (

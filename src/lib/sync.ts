@@ -47,6 +47,11 @@ import {
 } from "@/lib/sync/card-helpers";
 import { preserveRecentDirectEnglishNmPrice } from "@/lib/sync/direct-cardmarket-protection";
 import {
+  getLatestPriceSourceObservationAt,
+  resolvePriceSourceCheckUpdate,
+  type PriceSnapshotWriteMode,
+} from "@/lib/sync/price-source-check";
+import {
   assessEpisodeSourceCheck,
   buildEpisodeSourceCheckUpdate,
   createEmptyAutoCatalogSyncSelection,
@@ -1193,7 +1198,7 @@ function queuePriceSnapshotWrite(
   options: { refreshAllPrices: boolean },
   priceCreates: PriceCreateRow[],
   priceRefreshes: string[]
-): "new" | "refreshed" | "none" | "protected" {
+): PriceSnapshotWriteMode {
   const protectedPrice = preserveRecentDirectEnglishNmPrice(
     latestPrice,
     nextPrice,
@@ -2346,32 +2351,23 @@ async function syncEpisodeCards(
         priceCreates,
         priceRefreshes
       );
+      const priceSourceCheckUpdate = resolvePriceSourceCheckUpdate({
+        mode: writeMode,
+        checkedAt: fetchedAt,
+        refreshAllPrices: options.refreshAllPrices,
+        hasExistingPrice: Boolean(latestPrice),
+      });
 
       if (writeMode === "new") {
-        await tx.card.update({
-          where: { id: card.id },
-          data: {
-            price_source_status: null,
-            price_source_checked_at: fetchedAt,
-          },
-        });
         newPrices += 1;
       } else if (writeMode === "refreshed") {
-        await tx.card.update({
-          where: { id: card.id },
-          data: {
-            price_source_status: null,
-            price_source_checked_at: fetchedAt,
-          },
-        });
         refreshedPrices += 1;
-      } else if (writeMode !== "protected" && (options.refreshAllPrices || !latestPrice)) {
+      }
+
+      if (priceSourceCheckUpdate) {
         await tx.card.update({
           where: { id: card.id },
-          data: {
-            price_source_status: "unavailable",
-            price_source_checked_at: fetchedAt,
-          },
+          data: priceSourceCheckUpdate,
         });
       }
     }
@@ -2597,7 +2593,12 @@ async function selectAutoRefreshBatch(
       continue;
     }
 
-    const latestFetchedAt = normalizeTimestamp(candidate.latest_fetched_at);
+    const latestFetchedAt = normalizeTimestamp(
+      getLatestPriceSourceObservationAt(
+        candidate.latest_fetched_at,
+        candidate.price_source_checked_at
+      )
+    );
     if (!latestFetchedAt) continue;
 
     const refreshInfo = getPriceRefreshInfo(candidate.rarity, latestFetchedAt, now.getTime());
@@ -3259,22 +3260,23 @@ async function refreshEpisodeDueCards(
         priceCreates,
         priceRefreshes
       );
+      const priceSourceCheckUpdate = resolvePriceSourceCheckUpdate({
+        mode: writeMode,
+        checkedAt: fetchedAt,
+        refreshAllPrices: true,
+        hasExistingPrice: Boolean(latestPrice),
+      });
 
       if (writeMode === "new") {
-        cardUpdateData.price_source_status = null;
-        cardUpdateData.price_source_checked_at = fetchedAt;
-        shouldUpdateCard = true;
         newPrices += 1;
         refreshedCards += 1;
       } else if (writeMode === "refreshed") {
-        cardUpdateData.price_source_status = null;
-        cardUpdateData.price_source_checked_at = fetchedAt;
-        shouldUpdateCard = true;
         refreshedPrices += 1;
         refreshedCards += 1;
-      } else if (writeMode !== "protected") {
-        cardUpdateData.price_source_status = "unavailable";
-        cardUpdateData.price_source_checked_at = fetchedAt;
+      }
+
+      if (priceSourceCheckUpdate) {
+        Object.assign(cardUpdateData, priceSourceCheckUpdate);
         shouldUpdateCard = true;
       }
 
@@ -3413,32 +3415,23 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           priceCreates,
           priceRefreshes
         );
+        const priceSourceCheckUpdate = resolvePriceSourceCheckUpdate({
+          mode: writeMode,
+          checkedAt: fetchedAt,
+          refreshAllPrices: true,
+          hasExistingPrice: Boolean(latestPrice),
+        });
 
         if (writeMode === "new") {
-          await tx.card.update({
-            where: { id: cardId },
-            data: {
-              price_source_status: null,
-              price_source_checked_at: fetchedAt,
-            },
-          });
           newPrices += 1;
         } else if (writeMode === "refreshed") {
-          await tx.card.update({
-            where: { id: cardId },
-            data: {
-              price_source_status: null,
-              price_source_checked_at: fetchedAt,
-            },
-          });
           refreshedPrices += 1;
-        } else if (writeMode !== "protected") {
+        }
+
+        if (priceSourceCheckUpdate) {
           await tx.card.update({
             where: { id: cardId },
-            data: {
-              price_source_status: "unavailable",
-              price_source_checked_at: fetchedAt,
-            },
+            data: priceSourceCheckUpdate,
           });
         }
 

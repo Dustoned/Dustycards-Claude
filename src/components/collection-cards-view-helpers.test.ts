@@ -21,6 +21,7 @@ import {
   isGradedCollectionCard,
   neutralFilterChip,
   normalizeConditionLabel,
+  omitOptimisticallyMovedCollectionItems,
   rarityFilterChip,
   selectionToggleTextClass,
 } from "./collection-cards-view-helpers";
@@ -87,6 +88,38 @@ describe("buildFilterOptions", () => {
       (v) => v?.toLowerCase().trim() ?? null
     );
     expect(opts).toEqual([{ value: "pikachu", count: 3 }]);
+  });
+});
+
+describe("omitOptimisticallyMovedCollectionItems", () => {
+  it("removes a single moved copy immediately", () => {
+    const item = makeItem({
+      collection_item_id: "ci-1",
+      collection_item_ids: ["ci-1"],
+      owned_count: 1,
+    });
+
+    expect(
+      omitOptimisticallyMovedCollectionItems([item], new Set(["ci-1"]))
+    ).toEqual([]);
+  });
+
+  it("keeps the remaining copies in a stack", () => {
+    const item = makeItem({
+      collection_item_id: "ci-1",
+      collection_item_ids: ["ci-1", "ci-2"],
+      owned_count: 2,
+    });
+
+    expect(
+      omitOptimisticallyMovedCollectionItems([item], new Set(["ci-1"]))
+    ).toEqual([
+      expect.objectContaining({
+        collection_item_id: "ci-2",
+        collection_item_ids: ["ci-2"],
+        owned_count: 1,
+      }),
+    ]);
   });
 });
 

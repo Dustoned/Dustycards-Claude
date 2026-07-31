@@ -53,11 +53,14 @@ if (Test-Path -LiteralPath $remoteScriptFile) {
 
 tar -czf $archive `
   --exclude=".git" `
+  --exclude=".claude" `
   --exclude=".codex-screenshots" `
+  --exclude=".codex-temp" `
   --exclude=".firecrawl" `
   --exclude="node_modules" `
   --exclude=".next" `
   --exclude="data/image-cache" `
+  --exclude="data/signal-radar-snapshots" `
   --exclude="test-results" `
   --exclude="playwright-report" `
   --exclude="screenshots-ui" `
@@ -183,7 +186,9 @@ cleanup_remote_junk() {
   # ("rm: Directory not empty"), which previously aborted the deploy before the
   # restart. The rm's are made non-fatal as a belt-and-suspenders.
   for path in \
+    .claude \
     .codex-screenshots \
+    .codex-temp \
     .firecrawl \
     screenshots-ui \
     test-results \
@@ -377,6 +382,18 @@ if [ "$health_ok" -ne 1 ]; then
   echo "DustyCards failed its localhost health check after restart." >&2
   journalctl -u dustycards -n 80 --no-pager >&2 || true
   exit 1
+fi
+
+# Build the durable, user-independent Radar snapshot before real traffic lands.
+# A warm-up failure must not roll back an otherwise healthy release.
+radar_warm_secret="$(node -e 'require("dotenv").config({ quiet: true }); process.stdout.write(process.env.DUSTYCARDS_SYNC_SCHEDULER_SECRET || "")')"
+if [ -n "$radar_warm_secret" ]; then
+  /usr/bin/curl -fsS --max-time 240 -X POST \
+    -H "x-dustycards-scheduler-secret: $radar_warm_secret" \
+    http://127.0.0.1:3000/api/internal/warm-signal-radar >/dev/null ||
+    echo "Signal Radar warm-up failed; the first feed request will rebuild it." >&2
+else
+  echo "Signal Radar warm-up skipped because the scheduler secret is unavailable." >&2
 fi
 
 cat > /etc/systemd/system/dustycards-sync-scheduler.service <<EOF

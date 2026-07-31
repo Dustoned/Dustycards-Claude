@@ -3,7 +3,7 @@ import { authErrorResponse, requireUser } from "@/lib/auth";
 import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 import { compressedJsonResponse } from "@/lib/compressed-json-response";
 import { parseVisibleGameFilter } from "@/lib/games";
-import { getSharedSignalRadarFeedData } from "@/lib/signal-radar-feed-server";
+import { getSharedSignalRadarSignals } from "@/lib/signal-radar-feed-server";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export async function GET(request: NextRequest) {
@@ -13,24 +13,18 @@ export async function GET(request: NextRequest) {
     const game = parseVisibleGameFilter(request.nextUrl.searchParams.get("game"), {
       onePieceEnabled: settings.onePieceLibraryEnabled,
     });
-    const data = await getSharedSignalRadarFeedData({
-      gameFilter: game,
-      episodeId: request.nextUrl.searchParams.get("set")?.trim() || null,
-    });
+    const signals = await getSharedSignalRadarSignals(game);
     const cardQuickActions = await getCardQuickActionMap(
       user.id,
-      [
-        ...data.signals.map((signal) => signal.cardId),
-        ...(data.newReleaseChases?.cards.map((card) => card.cardId) ?? []),
-      ]
+      signals.map((signal) => signal.cardId)
     );
 
     return compressedJsonResponse(
       request,
       {
-        signals: data.signals,
+        signals,
         cardQuickActions,
-        newReleaseChases: data.newReleaseChases,
+        newReleaseChases: null,
       },
       {
         headers: {

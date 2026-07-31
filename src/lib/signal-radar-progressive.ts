@@ -11,7 +11,7 @@ export const CHASE_WATCH_RETRY_DELAY_MS = 5 * 60_000;
 
 interface CachedSignalRadarFeed {
   cachedAt: number;
-  payload: Pick<SignalRadarProgressivePayload, "signals" | "newReleaseChases">;
+  payload: Pick<SignalRadarProgressivePayload, "signals">;
 }
 
 const clientFeedCache = new Map<string, CachedSignalRadarFeed>();
@@ -45,7 +45,6 @@ export function cacheSignalRadarFeed(
     cachedAt: nowMs,
     payload: {
       signals: payload.signals,
-      newReleaseChases: payload.newReleaseChases,
     },
   });
   while (clientFeedCache.size > SIGNAL_RADAR_CLIENT_CACHE_MAX_ENTRIES) {
@@ -76,6 +75,7 @@ export function getChaseWatchRevalidateDelayMs(
 
 export interface SignalRadarChaseWatchPayload {
   newReleaseChases: ExpansionChaseRadarData | null;
+  cardQuickActions?: CardQuickActionMap;
 }
 
 export function getSignalRadarFeedStartDelay(attempt: number): number {

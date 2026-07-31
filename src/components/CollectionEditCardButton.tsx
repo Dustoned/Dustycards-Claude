@@ -18,6 +18,7 @@ import {
 import CollectionInlineBinderCreator, {
   type InlineBinderOption,
 } from "@/components/CollectionInlineBinderCreator";
+import type { CollectionCardSavedDetail } from "@/lib/collection-client-events";
 import {
   modalActionRowClass,
   modalBodyClass,
@@ -72,7 +73,7 @@ interface Props {
   label?: string;
   className?: string;
   stopPropagation?: boolean;
-  onSaved?: () => void | Promise<void>;
+  onSaved?: (detail: CollectionCardSavedDetail) => void | Promise<void>;
 }
 
 function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", className?: string) {
@@ -211,7 +212,11 @@ export default function CollectionEditCardButton({
       }
 
       setOpen(false);
-      await onSaved?.();
+      await onSaved?.({
+        cardId: card.id,
+        itemId: item.id,
+        forSale,
+      });
       router.refresh();
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : "Save failed");

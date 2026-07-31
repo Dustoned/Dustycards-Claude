@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.39",
+    releasedAt: "July 31, 2026",
+    title: "Collection actions update immediately",
+    summary:
+      "DustyCards 3.8.39 fixes the collection actions that could leave stale cards on screen or break a nested sealed modal, and makes the shared Signal Radar and quota-driven price refreshes more reliable.",
+    tone: "fixed",
+    highlights: [
+      "Moving a saved card from Collection to For Sale removes that exact copy immediately, without waiting for a page refresh.",
+      "Add new copy on a sealed item now opens in a stable top-level dialog with the background correctly locked.",
+      "Protected direct CardMarket checks are remembered, preventing the automatic TCGGo lane from selecting the same cards again every scheduler tick.",
+      "Signal Radar now serves durable shared snapshots and loads Chase Watch independently, keeping the page responsive after restarts and cold deploys.",
+    ],
+  },
+  {
     version: "3.8.38",
     releasedAt: "July 29, 2026",
     title: "Drain stops exactly at the quota reset",

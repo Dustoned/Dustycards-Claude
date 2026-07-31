@@ -30,7 +30,6 @@ describe("selectInitialSignalRadarCards", () => {
 
     expect(getCachedSignalRadarFeed("/feed?game=pokemon", 2_000)).toEqual({
       signals: payload.signals,
-      newReleaseChases: null,
     });
     expect(
       getCachedSignalRadarFeed(

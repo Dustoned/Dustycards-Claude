@@ -1,8 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin, requireUser } from "@/lib/auth";
+import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 import { compressedJsonResponse } from "@/lib/compressed-json-response";
-import { getExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import { parseVisibleGameFilter } from "@/lib/games";
+import {
+  getSharedSignalRadarChases,
+  refreshSharedSignalRadarChases,
+} from "@/lib/signal-radar-feed-server";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { refreshNewReleaseChasePriceNow } from "@/lib/sync/new-release-chase-price-job";
 
@@ -11,7 +15,7 @@ async function loadChaseRadar(request: NextRequest, userId: string) {
   const game = parseVisibleGameFilter(request.nextUrl.searchParams.get("game"), {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  return getExpansionChaseRadarData({
+  return getSharedSignalRadarChases({
     gameFilter: game,
     episodeId: request.nextUrl.searchParams.get("set")?.trim() || null,
   });
@@ -21,11 +25,20 @@ export async function GET(request: NextRequest) {
   try {
     const user = await requireUser();
     const newReleaseChases = await loadChaseRadar(request, user.id);
+    const cardQuickActions = await getCardQuickActionMap(
+      user.id,
+      newReleaseChases?.cards.map((card) => card.cardId) ?? []
+    );
 
     return compressedJsonResponse(
       request,
-      { newReleaseChases },
-      { headers: { "Cache-Control": "private, no-store" } }
+      { newReleaseChases, cardQuickActions },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+          Vary: "Cookie",
+        },
+      }
     );
   } catch (error) {
     return (
@@ -45,7 +58,14 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await refreshNewReleaseChasePriceNow(cardId);
-    const newReleaseChases = await loadChaseRadar(request, user.id);
+    const settings = await getServerUserSettings(user.id);
+    const game = parseVisibleGameFilter(request.nextUrl.searchParams.get("game"), {
+      onePieceEnabled: settings.onePieceLibraryEnabled,
+    });
+    const newReleaseChases = await refreshSharedSignalRadarChases({
+      gameFilter: game,
+      episodeId: request.nextUrl.searchParams.get("set")?.trim() || null,
+    });
     const ok = result.status === "updated" || result.status === "confirming";
     return NextResponse.json(
       { ok, result, newReleaseChases },

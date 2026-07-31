@@ -42,6 +42,7 @@ import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import { formatCurrency } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 import { MOBILE_EDGE_BACK_EVENT } from "@/lib/mobile-edge-back";
+import type { CollectionCardSavedDetail } from "@/lib/collection-client-events";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import {
   CardModalActiveListingsPanel,
@@ -75,6 +76,7 @@ interface Props {
   showGradedSlabPreview?: boolean;
   backLabel?: string;
   onClose: () => void;
+  onCollectionItemSaved?: (detail: CollectionCardSavedDetail) => void | Promise<void>;
 }
 
 interface SignalResearchResult {
@@ -163,6 +165,7 @@ export default function CardModal({
   showGradedSlabPreview = false,
   backLabel = "Back",
   onClose,
+  onCollectionItemSaved,
 }: Props) {
   useBodyScrollLock();
   const router = useRouter();
@@ -1045,6 +1048,7 @@ export default function CardModal({
                   onSyncHistory={() => void runCardAction("sync-history")}
                   onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
                   onAddedToCollection={refreshModalCardFromServer}
+                  onCollectionItemSaved={onCollectionItemSaved}
                   onClose={onClose}
                   cardMarketHref={storedCardMarketUrl}
                   onOpenCardMarket={() => void openCardMarket()}
