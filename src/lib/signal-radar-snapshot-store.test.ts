@@ -12,7 +12,7 @@ import {
   writeSignalRadarSnapshots,
 } from "@/lib/signal-radar-snapshot-store";
 
-let snapshotDirectory = "";
+let snapshotRoot = "";
 
 function radarData(): ExternalSignalRadarData {
   return {
@@ -33,13 +33,13 @@ function radarData(): ExternalSignalRadarData {
 
 describe("Signal Radar durable snapshot store", () => {
   beforeEach(async () => {
-    snapshotDirectory = await mkdtemp(path.join(tmpdir(), "dustycards-radar-"));
-    vi.stubEnv("DUSTYCARDS_SIGNAL_RADAR_SNAPSHOT_DIR", snapshotDirectory);
+    snapshotRoot = await mkdtemp(path.join(tmpdir(), "dustycards-radar-"));
+    vi.spyOn(process, "cwd").mockReturnValue(snapshotRoot);
   });
 
   afterEach(async () => {
-    vi.unstubAllEnvs();
-    await rm(snapshotDirectory, { recursive: true, force: true });
+    vi.restoreAllMocks();
+    await rm(snapshotRoot, { recursive: true, force: true });
   });
 
   it("writes and reloads all and game-scoped snapshots", async () => {

@@ -42,10 +42,7 @@ export interface SignalRadarChaseSnapshotKey {
 }
 
 function snapshotDirectory(): string {
-  return (
-    process.env.DUSTYCARDS_SIGNAL_RADAR_SNAPSHOT_DIR?.trim() ||
-    path.join(process.cwd(), "data", SNAPSHOT_DIRECTORY_NAME)
-  );
+  return path.join(process.cwd(), "data", SNAPSHOT_DIRECTORY_NAME);
 }
 
 function snapshotPath(gameFilter: TradingCardGameFilter): string {
