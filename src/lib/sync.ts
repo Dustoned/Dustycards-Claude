@@ -1803,6 +1803,10 @@ async function backfillSealedNativeHistory(
     // Automatic quota drains stop starting new batches at the reset boundary,
     // so a late history pass never rolls into the fresh daily allowance.
     stopAt?: Date;
+    // Products that never completed an initial native-history import must not
+    // inherit a recent daily snapshot as dateFrom; they need the full source
+    // history on their first successful pass.
+    fullHistoryProductIds?: ReadonlySet<string>;
   }
 ): Promise<number> {
   if (products.length === 0) return 0;
@@ -1837,6 +1841,9 @@ async function backfillSealedNativeHistory(
   const latestSnapshotByProduct = buildLatestSnapshotByCard(
     anchorSnapshotsByProduct ?? existingByProduct
   );
+  for (const productId of options?.fullHistoryProductIds ?? []) {
+    latestSnapshotByProduct.delete(productId);
+  }
 
   const historyCreates: Array<{
     product_id: string;
@@ -3671,7 +3678,13 @@ const SEALED_HISTORY_TOPUP_CANDIDATE_WHERE = `
        GROUP BY product_id
      ) s ON s.product_id = p.id
      WHERE (p.native_history_status IS NULL OR p.native_history_status <> 'unavailable')
-       AND (s.anchor_fetched_at IS NULL OR datetime(s.anchor_fetched_at) < datetime(?))`;
+       AND (
+         p.native_history_synced_at IS NULL
+         OR (
+           (p.native_history_checked_at IS NULL OR datetime(p.native_history_checked_at) < datetime(?))
+           AND (s.anchor_fetched_at IS NULL OR datetime(s.anchor_fetched_at) < datetime(?))
+         )
+       )`;
 
 // Settings shows this next to the card-history queue so the whole history
 // backlog is visible, instead of the sealed top-up spending quota invisibly.
@@ -3682,6 +3695,7 @@ export async function countSealedHistoryTopUpCandidates(options?: {
   const { anchorCutoffIso, gapCutoffIso } = getSealedHistoryTopUpCutoffs(staleDays);
   const rows = await db.$queryRawUnsafe<Array<{ total: number | bigint }>>(
     `SELECT COUNT(*) AS total${SEALED_HISTORY_TOPUP_CANDIDATE_WHERE}`,
+    anchorCutoffIso,
     anchorCutoffIso,
     gapCutoffIso
   );
@@ -3713,10 +3727,13 @@ export async function runSealedHistoryTopUpSync(options?: {
 
       const { anchorCutoff, anchorCutoffIso, gapCutoffIso } =
         getSealedHistoryTopUpCutoffs(staleDays);
-      const rows = await db.$queryRawUnsafe<Array<{ id: string; episode_id: string }>>(
-        `SELECT p.id, p.episode_id${SEALED_HISTORY_TOPUP_CANDIDATE_WHERE}
+      const rows = await db.$queryRawUnsafe<
+        Array<{ id: string; episode_id: string; native_history_synced_at: Date | string | null }>
+      >(
+        `SELECT p.id, p.episode_id, p.native_history_synced_at${SEALED_HISTORY_TOPUP_CANDIDATE_WHERE}
          ORDER BY s.anchor_fetched_at ASC
          LIMIT ?`,
+        anchorCutoffIso,
         anchorCutoffIso,
         gapCutoffIso,
         maxProducts
@@ -3735,6 +3752,11 @@ export async function runSealedHistoryTopUpSync(options?: {
         {
           anchorBefore: anchorCutoff,
           stopAt: options?.stopAtQuotaReset ?? undefined,
+          fullHistoryProductIds: new Set(
+            rows
+              .filter((row) => row.native_history_synced_at == null)
+              .map((row) => row.id)
+          ),
         }
       );
 
