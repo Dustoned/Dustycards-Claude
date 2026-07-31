@@ -1,7 +1,7 @@
 import "server-only";
 
 import { createHash, randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
+import { mkdir, open, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import type { ExternalSignalRadarData } from "@/lib/external-signal-radar";
@@ -73,6 +73,17 @@ function isRadarData(value: unknown): value is ExternalSignalRadarData {
   );
 }
 
+async function readRuntimeFile(filePath: string): Promise<string> {
+  // Reading through a file handle keeps Turbopack from treating the
+  // environment-configurable runtime directory as a build-time asset glob.
+  const file = await open(filePath, "r");
+  try {
+    return await file.readFile("utf8");
+  } finally {
+    await file.close();
+  }
+}
+
 export function scopeSignalRadarData(
   data: ExternalSignalRadarData,
   gameFilter: TradingCardGameFilter
@@ -94,7 +105,7 @@ export async function readSignalRadarSnapshot(
   gameFilter: TradingCardGameFilter
 ): Promise<SignalRadarSnapshot | null> {
   try {
-    const raw = await readFile(snapshotPath(gameFilter), "utf8");
+    const raw = await readRuntimeFile(snapshotPath(gameFilter));
     const parsed = JSON.parse(raw) as Partial<StoredSignalRadarSnapshot>;
     if (
       parsed.version !== SNAPSHOT_VERSION ||
@@ -149,7 +160,7 @@ export async function readSignalRadarChaseSnapshot(
   key: SignalRadarChaseSnapshotKey
 ): Promise<SignalRadarChaseSnapshot | null> {
   try {
-    const raw = await readFile(chaseSnapshotPath(key), "utf8");
+    const raw = await readRuntimeFile(chaseSnapshotPath(key));
     const parsed = JSON.parse(raw) as Partial<StoredSignalRadarChaseSnapshot>;
     const validData =
       parsed.data === null ||
