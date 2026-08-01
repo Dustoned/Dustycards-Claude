@@ -14,6 +14,7 @@ import {
 } from "@/lib/games";
 import { startPerformanceTimer, timeAsync } from "@/lib/performance-timing";
 import { getPriceRefreshInfo, type PriceRefreshTier } from "@/lib/price-refresh";
+import { buildCompletedSyncLogCleanupWhere } from "@/lib/sync/sync-log-retention";
 import {
   countDueSubmittedCardSubmissions,
   reconcileSubmittedCardsForOfficialEpisode,
@@ -632,11 +633,23 @@ async function acquireSyncLogWithOptions(
         };
       }
 
-      await tx.syncLog.deleteMany({
+      // The sealed scheduler uses its latest completed run as the durable
+      // 24-hour cadence marker. Preserve that one row while pruning the UI
+      // log; otherwise any unrelated sync makes sealed immediately due again.
+      const latestSealedCompletion = await tx.syncLog.findFirst({
         where: {
-          status: { in: ["success", "failed", "cancelled"] },
+          type: "sealed",
+          status: "success",
           finished_at: { not: null },
         },
+        orderBy: { finished_at: "desc" },
+        select: { id: true },
+      });
+
+      await tx.syncLog.deleteMany({
+        where: buildCompletedSyncLogCleanupWhere(
+          latestSealedCompletion ? [latestSealedCompletion.id] : []
+        ),
       });
 
       const log = await tx.syncLog.create({

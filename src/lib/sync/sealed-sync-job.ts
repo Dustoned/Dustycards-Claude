@@ -30,6 +30,8 @@ export async function maybeStartSealedSyncJob(options: {
   skip: boolean;
   skipReason?: string;
   requestsRemaining?: number | null;
+  hasLiveWindow?: boolean;
+  allowReservedRequests?: boolean;
   now?: Date;
 }): Promise<SealedSyncJobSnapshot> {
   const now = options.now ?? new Date();
@@ -77,9 +79,12 @@ export async function maybeStartSealedSyncJob(options: {
   }
   if (running) return { ...base, skippedReason: "already-running" };
   if (!due) return { ...base, skippedReason: "not-due" };
+  const minimumRequestsRemaining = options.allowReservedRequests
+    ? 0
+    : AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE;
   if (
     options.requestsRemaining != null &&
-    options.requestsRemaining <= AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE
+    options.requestsRemaining <= minimumRequestsRemaining
   ) {
     return { ...base, skippedReason: "quota-reserve" };
   }
@@ -87,6 +92,7 @@ export async function maybeStartSealedSyncJob(options: {
   const lastAttemptAt = lastAttemptLog?.started_at ? new Date(lastAttemptLog.started_at) : null;
   if (
     lastAttemptAt &&
+    options.hasLiveWindow !== false &&
     now.getTime() - lastAttemptAt.getTime() < SEALED_SYNC_RETRY_BACKOFF_MS &&
     (!lastFinishedAt || lastAttemptAt.getTime() > lastFinishedAt.getTime())
   ) {
@@ -94,7 +100,7 @@ export async function maybeStartSealedSyncJob(options: {
   }
 
   void runSealedSync({
-    minimumRequestsRemaining: AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE,
+    minimumRequestsRemaining,
   })
     .catch((error: unknown) => {
       console.error(

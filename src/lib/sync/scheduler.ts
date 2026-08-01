@@ -15,7 +15,10 @@ import {
   getAutoPriceRefreshJobSnapshot,
   startAutoPriceRefreshJob,
 } from "@/lib/sync/auto-price-refresh-job";
-import { maybeStartCardHistoryQuotaDrainJob } from "@/lib/sync/card-history-auto-drain";
+import {
+  isCardHistoryQuotaDrainWindow,
+  maybeStartCardHistoryQuotaDrainJob,
+} from "@/lib/sync/card-history-auto-drain";
 import { maybeStartExternalSignalRadarJob } from "@/lib/sync/external-signal-radar-job";
 import {
   maybeStartNewReleaseChasePriceJob,
@@ -179,6 +182,11 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     skip: sealedSkipReason != null,
     skipReason: sealedSkipReason,
     requestsRemaining: quota.requestsRemaining,
+    hasLiveWindow: quota.hasLiveWindow,
+    // Once the final history window is open, current sealed prices may use
+    // the daytime reserve. History remains blocked until that current work is
+    // actually complete, then receives whatever quota is still left.
+    allowReservedRequests: isCardHistoryQuotaDrainWindow(quota, checkedAt),
     now: checkedAt,
   });
   const currentSealedWorkPending = sealedSync.due || sealedSync.running;

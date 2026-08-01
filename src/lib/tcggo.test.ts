@@ -67,6 +67,17 @@ describe("TCGGO request limiter", () => {
     ).rejects.toBeInstanceOf(TcggoQuotaExceededError);
   });
 
+  it("forgets a leftover reserve after its quota window has reset", async () => {
+    __tcggoTestUtils.setRuntimeQuota({
+      requestsRemaining: 1_197,
+      quotaResetsAt: new Date(Date.now() - 1_000),
+    });
+
+    await expect(
+      __tcggoTestUtils.runQueuedRequest("/new-window", async () => "ok")
+    ).resolves.toBe("ok");
+  });
+
   it("turns scraper 429 responses into quota errors", async () => {
     vi.stubGlobal(
       "fetch",

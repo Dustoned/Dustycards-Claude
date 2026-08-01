@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.41",
+    releasedAt: "August 1, 2026",
+    title: "Sealed keeps one daily quota lane",
+    summary:
+      "DustyCards 3.8.41 stops completed sync cleanup from erasing the sealed cadence marker and makes the reset handoff safe when a daytime reserve remains.",
+    tone: "fixed",
+    highlights: [
+      "The latest successful sealed run now survives sync-log cleanup, preventing card jobs from making sealed products immediately due again.",
+      "An expired TCGGO window drops its old runtime reserve so the normal scheduler can discover the fresh quota headers after reset.",
+      "During the final two-hour window, unfinished current sealed prices may use the daytime reserve before card and sealed history receive the true leftovers.",
+    ],
+  },
+  {
     version: "3.8.40",
     releasedAt: "July 31, 2026",
     title: "Current prices always win the quota",
