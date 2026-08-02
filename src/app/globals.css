@@ -699,6 +699,23 @@ body {
   color: var(--dc-text-primary);
 }
 
+/* Card thumbnails are interactive controls throughout the app. Prevent iOS
+   from replacing their long-press behavior with the native Save/Copy menu.
+   The full card-detail experience is the intentional download exception. */
+body img {
+  -webkit-touch-callout: none;
+  -webkit-user-drag: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+[data-card-detail-shell] img {
+  -webkit-touch-callout: default;
+  -webkit-user-drag: auto;
+  -webkit-user-select: auto;
+  user-select: auto;
+}
+
 /* `viewport-fit=cover` lets the app paint behind iPhone chrome. Keep the
    actual navigation and page content inside the top safe area as one unit. */
 [data-app-header] {

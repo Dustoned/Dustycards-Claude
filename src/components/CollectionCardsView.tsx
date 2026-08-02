@@ -856,9 +856,9 @@ export default function CollectionCardsView({
         longPressFiredRef.current = false;
       },
       onContextMenu: (event: React.MouseEvent) => {
-        // Mobile long-press also triggers the context menu; swallow it when
-        // the hold just activated selection.
-        if (longPressFiredRef.current) event.preventDefault();
+        // Card tiles use long-press for selection. Native image actions remain
+        // available only inside the card-detail experience.
+        event.preventDefault();
       },
     };
   }
