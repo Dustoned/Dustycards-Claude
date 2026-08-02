@@ -86,8 +86,8 @@ function buildSealedProductData(item: CollectionValueDriverItem): SealedModalPro
     image_url: item.imageUrl,
     cardmarket_url: null,
     price: {
-      cm_lowest: Number.isFinite(perItemPrice) ? perItemPrice : null,
-      cm_lowest_eu: null,
+      cm_lowest: null,
+      cm_lowest_eu: Number.isFinite(perItemPrice) ? perItemPrice : null,
       cm_lowest_de: null,
       cm_lowest_fr: null,
       cm_lowest_es: null,

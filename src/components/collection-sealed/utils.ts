@@ -22,8 +22,8 @@ export function buildModalProduct(item: CollectionSealedViewItem): SealedModalPr
       code: item.episode_code,
     },
     price: {
-      cm_lowest: item.current_value_per_item,
-      cm_lowest_eu: null,
+      cm_lowest: null,
+      cm_lowest_eu: item.current_value_per_item,
       cm_lowest_de: null,
       cm_lowest_fr: null,
       cm_lowest_es: null,

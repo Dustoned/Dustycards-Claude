@@ -70,6 +70,7 @@ interface SearchSealedRecord {
   image_url: string | null;
   cardmarket_url: string | null;
   cm_lowest: number | null;
+  cm_lowest_eu: number | null;
   cm_avg_7d: number | null;
   cm_avg_30d: number | null;
   episode: {
@@ -1219,6 +1220,7 @@ function formatSealedResults(
       image_url: product.image_url,
       cardmarket_url: product.cardmarket_url,
       cm_lowest: product.cm_lowest,
+      cm_lowest_eu: product.cm_lowest_eu,
       cm_avg_7d: product.cm_avg_7d,
       cm_avg_30d: product.cm_avg_30d,
       episode: product.episode,
@@ -1235,7 +1237,10 @@ function formatSealedResults(
       const scoreDiff = compareRelevance(aScore, bScore);
       if (scoreDiff !== 0) return scoreDiff;
 
-      const priceDiff = comparePriceDesc(a.cm_lowest, b.cm_lowest);
+      const priceDiff = comparePriceDesc(
+        a.cm_lowest_eu ?? a.cm_lowest,
+        b.cm_lowest_eu ?? b.cm_lowest
+      );
       if (priceDiff !== 0) return priceDiff;
 
       return a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
@@ -1315,6 +1320,7 @@ async function runFuzzyFallback(
         image_url: true,
         cardmarket_url: true,
         cm_lowest: true,
+        cm_lowest_eu: true,
         cm_avg_7d: true,
         cm_avg_30d: true,
         episode: { select: { id: true, name: true, code: true, release_date: true } },
@@ -1588,6 +1594,7 @@ async function runDirectSearch(
             image_url: true,
             cardmarket_url: true,
             cm_lowest: true,
+            cm_lowest_eu: true,
             cm_avg_7d: true,
             cm_avg_30d: true,
             episode: { select: { id: true, name: true, code: true, release_date: true } },

@@ -3758,8 +3758,8 @@ export function CardModalActiveListingsPanel({
         <div className="mt-3 grid grid-cols-2 gap-2">
           {sealedProducts.map((product) => {
             const price =
-              product.price.cm_lowest ??
               product.price.cm_lowest_eu ??
+              product.price.cm_lowest ??
               product.price.cm_lowest_de ??
               product.price.cm_lowest_fr ??
               product.price.cm_lowest_es ??

@@ -188,25 +188,31 @@ export function selectCardDetailSealedProducts<T extends { name: string }>(
     .slice(0, Math.max(0, limit));
 }
 
-export function getSealedProductPrice(product: {
-  price: {
-    cm_lowest: number | null;
-    cm_lowest_eu: number | null;
-    cm_lowest_de: number | null;
-    cm_lowest_fr: number | null;
-    cm_lowest_es: number | null;
-    cm_lowest_it: number | null;
-  };
-}): number | null {
+export interface SealedProductPriceFields {
+  cm_lowest: number | null;
+  cm_lowest_eu: number | null;
+  cm_lowest_de: number | null;
+  cm_lowest_fr: number | null;
+  cm_lowest_es: number | null;
+  cm_lowest_it: number | null;
+}
+
+export function getSealedEuMarketPrice(price: SealedProductPriceFields): number | null {
   return (
-    product.price.cm_lowest ??
-    product.price.cm_lowest_eu ??
-    product.price.cm_lowest_de ??
-    product.price.cm_lowest_fr ??
-    product.price.cm_lowest_es ??
-    product.price.cm_lowest_it ??
+    price.cm_lowest_eu ??
+    price.cm_lowest ??
+    price.cm_lowest_de ??
+    price.cm_lowest_fr ??
+    price.cm_lowest_es ??
+    price.cm_lowest_it ??
     null
   );
+}
+
+export function getSealedProductPrice(product: {
+  price: SealedProductPriceFields;
+}): number | null {
+  return getSealedEuMarketPrice(product.price);
 }
 
 export function classifySealedProduct(name: string): SealedCategory {

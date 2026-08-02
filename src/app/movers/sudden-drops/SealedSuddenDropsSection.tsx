@@ -20,8 +20,8 @@ function buildSealedProductData(item: FastSealedSuddenDropItem): SealedModalProd
     image_url: item.imageUrl,
     cardmarket_url: item.cardmarketUrl,
     price: {
-      cm_lowest: item.currentPrice,
-      cm_lowest_eu: null,
+      cm_lowest: null,
+      cm_lowest_eu: item.currentPrice,
       cm_lowest_de: null,
       cm_lowest_fr: null,
       cm_lowest_es: null,
@@ -59,7 +59,7 @@ export default function SealedSuddenDropsSection({
             Sealed products that became cheaper in the last 24 hours
           </h2>
           <p className="mt-1 text-sm font-medium text-gray-500 dark:text-white/48">
-            Kept separate from the single cards above so the two never mix. CardMarket lowest
+            Kept separate from the single cards above so the two never mix. CardMarket EU
             price versus the immediately previous snapshot.
           </p>
         </div>

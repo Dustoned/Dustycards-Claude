@@ -13,6 +13,7 @@ import {
 import {
   classifySealedProduct,
   getSealedCategoryLabel,
+  getSealedEuMarketPrice,
   type SealedCategory,
 } from "@/lib/sealed-products";
 import type { MoversItemScope } from "@/lib/movers";
@@ -181,14 +182,7 @@ function toIsoOrNull(value: Date | string | null | undefined): string | null {
 }
 
 function getSealedPrice(value: SealedPriceFields): number | null {
-  const price =
-    value.cm_lowest ??
-    value.cm_lowest_eu ??
-    value.cm_lowest_de ??
-    value.cm_lowest_fr ??
-    value.cm_lowest_es ??
-    value.cm_lowest_it ??
-    null;
+  const price = getSealedEuMarketPrice(value);
 
   return price != null && price > 0 ? price : null;
 }

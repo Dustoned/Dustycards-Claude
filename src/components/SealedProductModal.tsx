@@ -243,7 +243,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
   const [openingFeaturedCardId, setOpeningFeaturedCardId] = useState<string | null>(null);
   const [selectedFeaturedCard, setSelectedFeaturedCard] = useState<ModalCardData | null>(null);
   const [sealedHistorySeries, setSealedHistorySeries] =
-    useState<SealedMarketHistorySeriesKey>("cm_market");
+    useState<SealedMarketHistorySeriesKey>("cm_market_eu");
 
   const layout = getSealedModalLayoutClasses(
     displaySettings.modalSize,

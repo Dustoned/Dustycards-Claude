@@ -5,7 +5,23 @@ import {
   getCollectionCardMarketValue,
   getCollectionCardValueInfo,
   getCollectionMatchedGradedPrice,
+  getCollectionSealedMarketValue,
 } from "@/lib/collection";
+
+describe("sealed collection values", () => {
+  it("values sealed products from EU Market before the general Market price", () => {
+    expect(
+      getCollectionSealedMarketValue({
+        cm_lowest: 150,
+        cm_lowest_eu: 120,
+        cm_lowest_de: 110,
+        cm_lowest_fr: null,
+        cm_lowest_es: null,
+        cm_lowest_it: null,
+      })
+    ).toBe(120);
+  });
+});
 
 describe("combineValueHistories", () => {
   it("carries sealed value forward when card history has a newer point", () => {

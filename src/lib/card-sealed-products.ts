@@ -30,12 +30,6 @@ export interface CardSealedProductItem {
 }
 
 export function getCardSealedProductPrice(item: CardSealedProductItem): number | null {
-  return (
-    item.price.cm_lowest ??
-    item.price.cm_lowest_eu ??
-    item.price.cm_lowest_de ??
-    item.price.cm_lowest_fr ??
-    item.price.cm_lowest_es ??
-    item.price.cm_lowest_it
-  );
+  return getSealedEuMarketPrice(item.price);
 }
+import { getSealedEuMarketPrice } from "@/lib/sealed-products";

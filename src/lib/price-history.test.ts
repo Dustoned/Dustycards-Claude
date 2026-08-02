@@ -6,6 +6,7 @@ import {
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
   buildSealedPriceHistory,
+  getSealedCardMarketValue,
   getSealedMarketHistorySeriesCurrentValue,
   getSealedMarketHistorySeriesValue,
   getSaneCardMarketHistorySeriesCurrentValue,
@@ -264,6 +265,21 @@ describe("graded card price history", () => {
 });
 
 describe("sealed price history series", () => {
+  it("keeps Market selectable while EU Market is the default sealed value", () => {
+    const snapshot = {
+      cm_lowest: 150,
+      cm_lowest_eu: 120,
+      cm_lowest_de: 110,
+      cm_lowest_fr: null,
+      cm_lowest_es: null,
+      cm_lowest_it: null,
+    };
+
+    expect(getSealedCardMarketValue(snapshot)).toBe(120);
+    expect(getSealedMarketHistorySeriesCurrentValue(snapshot, "cm_market")).toBe(150);
+    expect(getSealedMarketHistorySeriesCurrentValue(snapshot, "cm_market_eu")).toBe(120);
+  });
+
   it("keeps CardMarket language prices available for chart series", () => {
     const history = buildSealedPriceHistory([
       {
