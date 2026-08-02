@@ -10,9 +10,10 @@ import type {
 // 24 rich collection records into every Home response.
 export const HOME_FEATURED_CARD_LIMIT = 16;
 
-// HomeValueDriversPanel displays four rows per lane. Keep its totals and source
-// breakdown intact, but do not ship the hidden rows through the RSC boundary.
-export const HOME_VALUE_DRIVER_LANE_LIMIT = 4;
+// HomeValueDriversPanel displays six rows per lane so its widescreen density
+// matches Sudden Price Drops (four card rows plus two sealed rows). Keep totals
+// and source breakdown intact without shipping hidden rows through RSC.
+export const HOME_VALUE_DRIVER_LANE_LIMIT = 6;
 
 export function getHomeFeaturedCards(cards: CollectionOverviewData["cards"]) {
   return getFeaturedCollectionCards(cards, HOME_FEATURED_CARD_LIMIT);

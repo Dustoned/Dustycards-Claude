@@ -72,6 +72,10 @@ function driver(index: number, change: number): CollectionValueDriverItem {
 }
 
 describe("home page payload", () => {
+  it("keeps six driver rows per lane to match the sudden-drops panel", () => {
+    expect(HOME_VALUE_DRIVER_LANE_LIMIT).toBe(6);
+  });
+
   it("keeps only the cards that can appear in the home rail", () => {
     const cards = Array.from({ length: 30 }, (_, index) => card(index + 1));
     const result = getHomeFeaturedCards(cards);
