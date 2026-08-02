@@ -7,6 +7,7 @@ import { serializeBgsSubgrades } from "@/lib/graded-slabs";
 import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import { distributeTotalPurchasePrice } from "@/lib/bulk-purchase-prices";
 
 const COLLECTION_BATCH_LIMIT = 500;
 
@@ -60,6 +61,8 @@ export async function POST(req: NextRequest) {
     binderId?: unknown;
     forSale?: unknown;
     purchasePrice?: unknown;
+    totalPurchasePrice?: unknown;
+    purchasePrices?: unknown;
     condition?: unknown;
     language?: unknown;
     notes?: unknown;
@@ -92,6 +95,61 @@ export async function POST(req: NextRequest) {
   if (purchasePrice != null && purchasePrice < 0) {
     return NextResponse.json({ error: "Purchase price cannot be negative" }, { status: 400 });
   }
+
+  const totalPurchasePrice = toNullableNumber(body.totalPurchasePrice);
+  if (body.totalPurchasePrice != null && (totalPurchasePrice == null || totalPurchasePrice < 0)) {
+    return NextResponse.json(
+      { error: "Total purchase price must be zero or a positive number" },
+      { status: 400 }
+    );
+  }
+
+  const cardIdSet = new Set(cardIds);
+  const purchasePricesByCardId = new Map<string, number>();
+  if (body.purchasePrices != null) {
+    if (typeof body.purchasePrices !== "object" || Array.isArray(body.purchasePrices)) {
+      return NextResponse.json(
+        { error: "Purchase prices must be supplied per selected card" },
+        { status: 400 }
+      );
+    }
+
+    for (const [cardId, rawPrice] of Object.entries(
+      body.purchasePrices as Record<string, unknown>
+    )) {
+      if (!cardIdSet.has(cardId)) {
+        return NextResponse.json(
+          { error: "Purchase prices must match the selected cards" },
+          { status: 400 }
+        );
+      }
+      const price = toNullableNumber(rawPrice);
+      if (price == null || price < 0) {
+        return NextResponse.json(
+          { error: "Purchase prices must be zero or positive numbers" },
+          { status: 400 }
+        );
+      }
+      purchasePricesByCardId.set(cardId, Number(price.toFixed(2)));
+    }
+  }
+
+  const suppliedPriceModes = [
+    purchasePrice != null,
+    totalPurchasePrice != null,
+    purchasePricesByCardId.size > 0,
+  ].filter(Boolean).length;
+  if (suppliedPriceModes > 1) {
+    return NextResponse.json(
+      { error: "Choose one purchase price method" },
+      { status: 400 }
+    );
+  }
+
+  const distributedPurchasePrices =
+    totalPurchasePrice != null
+      ? distributeTotalPurchasePrice(totalPurchasePrice, cardIds.length)
+      : null;
 
   const cards = await db.card.findMany({
     where: { id: { in: cardIds } },
@@ -164,14 +222,18 @@ export async function POST(req: NextRequest) {
 
   const created = await db.$transaction(async (tx) => {
     const items = await Promise.all(
-      orderedCards.map((card) =>
+      orderedCards.map((card, index) =>
         tx.collectionCard.create({
           data: {
             card_id: card.id,
             user_id: user.id,
             binder_id: binderId,
             for_sale: forSale,
-            purchase_price: purchasePrice,
+            purchase_price: purchasePricesByCardId.has(card.id)
+              ? purchasePricesByCardId.get(card.id) ?? null
+              : distributedPurchasePrices
+                ? distributedPurchasePrices[index]
+                : purchasePrice,
             condition,
             language,
             notes,

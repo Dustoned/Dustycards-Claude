@@ -451,11 +451,23 @@ export default function ExpansionView({
     longPressStartRef.current = null;
   }
 
-  // Touch: holding a card turns selection mode on and selects it right away.
+  // Touch or primary mouse hold: turn selection mode on and select immediately.
   function getCardLongPressHandlers(cardId: string) {
     return {
       onPointerDown: (event: React.PointerEvent) => {
-        if (event.pointerType !== "touch" || selectionMode) return;
+        const isSupportedPointer = event.pointerType === "touch" || event.pointerType === "mouse";
+        const interactiveTarget = (event.target as Element).closest(
+          "button, a, input, select, textarea"
+        );
+        if (
+          !event.isPrimary ||
+          event.button !== 0 ||
+          !isSupportedPointer ||
+          selectionMode ||
+          (interactiveTarget && interactiveTarget !== event.currentTarget)
+        ) {
+          return;
+        }
         clearLongPressTimer();
         longPressFiredRef.current = false;
         longPressStartRef.current = { x: event.clientX, y: event.clientY };
@@ -474,7 +486,18 @@ export default function ExpansionView({
           clearLongPressTimer();
         }
       },
-      onPointerUp: () => clearLongPressTimer(),
+      onPointerUp: () => {
+        clearLongPressTimer();
+        // A stationary hold produces a click immediately after pointerup, which
+        // consumes this flag. A drag may not, so clear it on the next task to
+        // avoid swallowing the user's next deliberate click.
+        if (longPressFiredRef.current) {
+          window.setTimeout(() => {
+            longPressFiredRef.current = false;
+          }, 0);
+        }
+      },
+      onPointerLeave: () => clearLongPressTimer(),
       onPointerCancel: () => {
         clearLongPressTimer();
         longPressFiredRef.current = false;
@@ -1721,6 +1744,7 @@ export default function ExpansionView({
           cards={selectedCards.map((card) => ({
             id: card.id,
             name: card.name,
+            number: card.card_number,
             image_url: card.image_url,
             episode: getCollectionEpisodeForCard(card),
           }))}

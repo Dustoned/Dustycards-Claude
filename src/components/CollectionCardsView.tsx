@@ -647,6 +647,7 @@ export default function CollectionCardsView({
               {
                 id: entry.item.card_id,
                 name: entry.item.name,
+                number: entry.item.card_number,
                 image_url: entry.item.image_url,
                 episode: {
                   id: entry.item.episode_id,
@@ -825,13 +826,25 @@ export default function CollectionCardsView({
     longPressStartRef.current = null;
   }
 
-  // Touch: holding a card turns selection mode on and selects it right away.
+  // Touch or primary mouse hold: turn selection mode on and select immediately.
   function getTileLongPressHandlers(selectionKey: string) {
     if (!selectionEnabled) return {};
 
     return {
       onPointerDown: (event: React.PointerEvent) => {
-        if (event.pointerType !== "touch" || activeSelectionMode) return;
+        const isSupportedPointer = event.pointerType === "touch" || event.pointerType === "mouse";
+        const interactiveTarget = (event.target as Element).closest(
+          "button, a, input, select, textarea"
+        );
+        if (
+          !event.isPrimary ||
+          event.button !== 0 ||
+          !isSupportedPointer ||
+          activeSelectionMode ||
+          (interactiveTarget && interactiveTarget !== event.currentTarget)
+        ) {
+          return;
+        }
         clearLongPressTimer();
         longPressFiredRef.current = false;
         longPressStartRef.current = { x: event.clientX, y: event.clientY };
@@ -850,7 +863,18 @@ export default function CollectionCardsView({
           clearLongPressTimer();
         }
       },
-      onPointerUp: () => clearLongPressTimer(),
+      onPointerUp: () => {
+        clearLongPressTimer();
+        // A stationary hold produces a click immediately after pointerup, which
+        // consumes this flag. A drag may not, so clear it on the next task to
+        // avoid swallowing the user's next deliberate click.
+        if (longPressFiredRef.current) {
+          window.setTimeout(() => {
+            longPressFiredRef.current = false;
+          }, 0);
+        }
+      },
+      onPointerLeave: () => clearLongPressTimer(),
       onPointerCancel: () => {
         clearLongPressTimer();
         longPressFiredRef.current = false;
