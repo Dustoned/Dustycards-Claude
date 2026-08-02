@@ -55,6 +55,10 @@ export function getCollectionSealedCurrentTotal(item: CollectionSealedViewItem):
   return Number((item.current_value_per_item * item.quantity).toFixed(2));
 }
 
+export function getCollectionSealedUnitValue(item: CollectionSealedViewItem): number | null {
+  return item.current_value_per_item;
+}
+
 export function getCollectionSealedPaidTotal(item: CollectionSealedViewItem): number | null {
   if (item.purchase_price_per_item == null) {
     return null;

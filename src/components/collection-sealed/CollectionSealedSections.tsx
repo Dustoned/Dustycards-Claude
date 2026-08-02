@@ -41,6 +41,7 @@ import {
   getCollectionSealedCurrentTotal,
   getCollectionSealedPaidTotal,
   getCollectionSealedPnl,
+  getCollectionSealedUnitValue,
   selectionToggleTextClass,
 } from "./utils";
 
@@ -224,6 +225,7 @@ function CollectionSealedTile({
   onActivate: (item: CollectionSealedViewItem) => void;
   onRemove: (event: MouseEvent<HTMLButtonElement>, item: CollectionSealedViewItem) => void;
 }) {
+  const unitValue = getCollectionSealedUnitValue(item);
   const currentTotal = getCollectionSealedCurrentTotal(item);
   const paidTotal = getCollectionSealedPaidTotal(item);
   const pnl = getCollectionSealedPnl(item);
@@ -285,9 +287,9 @@ function CollectionSealedTile({
           </div>
 
           <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1.5 gap-y-1 sm:shrink sm:justify-end">
-            {currentTotal != null ? (
+            {unitValue != null ? (
               <span className={sealedTilePriceClass(cardSize)}>
-                {formatCollectionCurrency(currentTotal)}
+                {formatCollectionCurrency(unitValue)}
               </span>
             ) : (
               <span className={sealedTileNoPriceClass(cardSize)}>No price</span>
@@ -319,7 +321,7 @@ function CollectionSealedTile({
           <div className={sealedTileBubbleWrapClass(cardSize)}>
             {currentTotal != null && (
               <span className={sealedTileBubbleClass("market")}>
-                <span className={sealedTileBubbleLabelClass()}>CardMarket</span>
+                <span className={sealedTileBubbleLabelClass()}>Total value</span>
                 <span className="tabular-nums">{formatCollectionCurrency(currentTotal)}</span>
               </span>
             )}
