@@ -6,6 +6,7 @@ import Link from "next/link";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
+import { selectionToggleTextClass } from "@/components/collection-cards-view-helpers";
 import CachedImage from "@/components/CachedImage";
 import {
   CardListTile,
@@ -925,7 +926,7 @@ export default function ExpansionView({
             <button
               type="button"
               onClick={toggleSelectionMode}
-              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
+              className={selectionToggleTextClass(false)}
             >
               Select
             </button>
@@ -936,17 +937,16 @@ export default function ExpansionView({
       {selectionMode && (
         <div
           data-expansion-selection-bar
-          className="-mx-1 mb-4 rounded-2xl border border-white/10 bg-[#08080c]/94 p-1.5 shadow-lg shadow-black/30 backdrop-blur-xl md:mx-0 md:rounded-none md:border-0 md:bg-transparent md:p-0 md:shadow-none md:backdrop-blur-none"
+          className="mb-4 grid grid-cols-3 items-center gap-2 sm:flex sm:flex-wrap sm:justify-end"
         >
-          <div className="flex flex-nowrap items-center justify-start gap-1.5 overflow-x-auto md:flex-wrap md:justify-end md:gap-2 md:overflow-visible">
-            <span className="inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center rounded-full border border-black/8 bg-black/[0.03] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 max-[479px]:min-h-9 max-[479px]:px-2.5 max-[479px]:text-[11px] dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
+            <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full border border-black/8 bg-black/[0.03] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
               {selectedCardIds.length} selected
             </span>
             <button
               type="button"
               onClick={() => setSelectedCardIds(filtered.map((card) => card.id))}
               disabled={filtered.length === 0 || selectedCardIds.length === filtered.length}
-              className="inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors max-[479px]:min-h-9 max-[479px]:px-2.5 max-[479px]:text-[11px] hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
+              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
             >
               Select all
             </button>
@@ -954,7 +954,7 @@ export default function ExpansionView({
               type="button"
               onClick={() => setSelectedCardIds([])}
               disabled={selectedCardIds.length === 0}
-              className="inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors max-[479px]:min-h-9 max-[479px]:px-2.5 max-[479px]:text-[11px] hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
+              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
             >
               Clear
             </button>
@@ -963,9 +963,9 @@ export default function ExpansionView({
               onClick={() => setBulkAddOpen(true)}
               disabled={selectedCardIds.length === 0}
               aria-label="Bulk add"
-              className="inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors max-[479px]:min-h-9 max-[479px]:px-2.5 max-[479px]:text-[11px] hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
+              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
             >
-              <span className="max-[479px]:hidden">Bulk&nbsp;</span>Add
+              Bulk add
             </button>
             <button
               type="button"
@@ -973,18 +973,17 @@ export default function ExpansionView({
               disabled={savingSaleListing || selectedCardIds.length === 0}
               title="Move to For Sale"
               aria-label="Move to For Sale"
-              className="inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center rounded-full border border-amber-400/28 bg-amber-400/[0.09] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] leading-none text-amber-300 transition-colors max-[479px]:h-9 max-[479px]:min-h-9 max-[479px]:w-9 max-[479px]:justify-center max-[479px]:px-0 hover:border-amber-300/45 hover:bg-amber-400/[0.16] hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full border border-amber-400/28 bg-amber-400/[0.09] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] leading-none text-amber-300 transition-colors hover:border-amber-300/45 hover:bg-amber-400/[0.16] hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <BadgeEuro className="h-4 w-4" />
             </button>
             <button
               type="button"
               onClick={toggleSelectionMode}
-              className="shrink-0 text-xs font-semibold text-violet-200 transition-colors max-[479px]:text-[11px] hover:text-violet-100"
+              className={`${selectionToggleTextClass(true)} text-center`}
             >
               Done
             </button>
-          </div>
         </div>
       )}
 
@@ -1531,8 +1530,10 @@ export default function ExpansionView({
                     card.image_url,
                     `relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent transition-all duration-200 ${
                       gridSelected
-                        ? "drop-shadow-[0_12px_24px_rgba(56,189,248,0.35)] ring-[3px] ring-blue-400"
-                        : "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
+                        ? "drop-shadow-[0_12px_24px_rgba(56,189,248,0.24)] ring-2 ring-blue-400/80"
+                        : selectionMode
+                          ? "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]"
+                          : "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
                     }`
                   )}
                 >
@@ -1563,7 +1564,7 @@ export default function ExpansionView({
                     </div>
                   )}
 
-                  {gridSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
+                  {gridSelected && <div className="pointer-events-none absolute inset-0 bg-violet-500/10" />}
                 </div>
                 <div className="mt-1.5 px-0.5 sm:mt-2">
                   <div className="grid gap-1 sm:flex sm:items-end sm:justify-between sm:gap-3">
