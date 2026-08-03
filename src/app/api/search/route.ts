@@ -47,6 +47,10 @@ interface SearchCardRecord {
   rarity: string | null;
   supertype: string | null;
   image_url: string | null;
+  tcggo_score: number | null;
+  tcggo_score_demand: number | null;
+  tcggo_score_liquidity: number | null;
+  tcggo_score_momentum: number | null;
   episode: {
     id: string;
     name: string;
@@ -1194,6 +1198,24 @@ function cardNumberExactlyMatches(
   return buildCardNumberSearchAliases(queriedCardNumber).some((alias) => aliases.has(alias));
 }
 
+// Market interest for best-match ordering: the average of the demand,
+// liquidity and momentum scores when available, otherwise the overall TCGGo
+// score. Cards people actively trade rank above sleepy ones with the same
+// text relevance.
+function getCardMarketInterestScore(card: SearchCardRecord): number | null {
+  const parts = [
+    card.tcggo_score_demand,
+    card.tcggo_score_liquidity,
+    card.tcggo_score_momentum,
+  ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
+  if (parts.length > 0) {
+    return parts.reduce((total, value) => total + value, 0) / parts.length;
+  }
+  return typeof card.tcggo_score === "number" && Number.isFinite(card.tcggo_score)
+    ? card.tcggo_score
+    : null;
+}
+
 function formatSingleResults(
   cards: SearchCardRecord[],
   relevanceQuery: string,
@@ -1205,6 +1227,7 @@ function formatSingleResults(
       const wantItem = card.wants?.[0] ?? null;
 
       return {
+        market_interest: getCardMarketInterestScore(card),
         id: card.id,
         name: card.name,
         card_number: getDisplayCardNumber(card),
@@ -1243,6 +1266,11 @@ function formatSingleResults(
           Number(cardNumberExactlyMatches(a.card_number, queriedCardNumber));
         if (exactDiff !== 0) return exactDiff;
       }
+
+      // Equal-relevance ties: actively traded cards (demand, liquidity,
+      // momentum) rank above quiet ones before falling back to price.
+      const interestDiff = (b.market_interest ?? -1) - (a.market_interest ?? -1);
+      if (Math.abs(interestDiff) > 0.5) return interestDiff;
 
       const priceDiff = compareSingleSearchPriceDesc(a, b);
       if (priceDiff !== 0) return priceDiff;
@@ -1444,6 +1472,10 @@ async function runFuzzyFallback(
             rarity: true,
             supertype: true,
             image_url: true,
+            tcggo_score: true,
+            tcggo_score_demand: true,
+            tcggo_score_liquidity: true,
+            tcggo_score_momentum: true,
             episode: {
               select: {
                 id: true,
@@ -1609,6 +1641,10 @@ async function runDirectSearch(
         rarity: true,
         supertype: true,
         image_url: true,
+        tcggo_score: true,
+        tcggo_score_demand: true,
+        tcggo_score_liquidity: true,
+        tcggo_score_momentum: true,
         episode: {
           select: {
             id: true,

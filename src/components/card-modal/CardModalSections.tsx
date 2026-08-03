@@ -744,9 +744,9 @@ export function CardModalMarketSignalPanel({
   const updatedLabel = formatShortStatusDate(stats?.updated_at);
   const scoreSummary = stats
     ? stats.score == null
-      ? "The score is waiting for enough verified price and demand evidence."
-      : "A single composite view of saved price direction, stability, liquidity, demand and graded-market depth."
-    : "Market drivers appear as verified price and demand evidence becomes available.";
+      ? "The score appears once there is enough price and demand data for this card."
+      : "One overall number that combines price trend, stability, liquidity, demand and graded-market activity."
+    : "Market insights appear here once enough price and demand data is collected.";
   const analysisLinkLabel = signal ? "Open full analysis" : "Open Signal Radar";
 
   return (
@@ -3077,32 +3077,38 @@ const MARKET_STATS_METRICS = [
   {
     key: "momentum",
     label: "Momentum",
-    description: "Price direction from saved 7, 30 and 90-day English NM returns. A score of 50 is neutral.",
+    description:
+      "Is the price going up or down? Based on the last 7, 30 and 90 days. 50 is neutral — higher means the price is rising.",
   },
   {
     key: "stability",
     label: "Stability",
-    description: "Consistency of saved English NM price moves. Fewer abrupt day-to-day swings produce a higher score.",
+    description:
+      "How steady the price is. A high score means smooth movement without wild day-to-day jumps.",
   },
   {
     key: "liquidity",
     label: "Liquidity",
-    description: "Depth of verified active fixed-price eBay supply for this exact raw English NM card.",
+    description:
+      "How easy it is to buy or sell this card right now, based on how many copies are actually listed on eBay.",
   },
   {
     key: "grade_premium",
     label: "Grade Premium",
-    description: "Representative gem-mint value versus raw. PSA 10, BGS 9.5 and CGC 10 are peers; BGS 10 remains a separate pristine tier.",
+    description:
+      "How much more a top-graded copy (PSA 10, BGS 9.5 or CGC 10) is worth compared to an ungraded one.",
   },
   {
     key: "demand",
     label: "Demand",
-    description: "Supply-pressure proxy from verified listings disappearing versus new listings. A disappearance is not automatically a confirmed sale.",
+    description:
+      "How fast listings disappear compared to how many new ones show up. Listings vanishing quickly usually means more buyers.",
   },
   {
     key: "market_depth",
     label: "Market Depth",
-    description: "Breadth across CardMarket languages, verified eBay stock and usable graded observations.",
+    description:
+      "How widely this card is traded overall: CardMarket languages, eBay stock and graded sales combined.",
   },
 ] as const;
 
@@ -3156,17 +3162,17 @@ function MarketStatsMetricRow({
   } else if (marketSource === "ebay_sales_proxy") {
     sourceLabel = "sold proxy";
     sourceDescription = metric.key === "liquidity"
-      ? " No exact raw inventory snapshot is available, so this bounded proxy combines existing eBay graded sold volume with CardMarket coverage. It stays neutral in the total score."
-      : " No mature raw listing lifecycle is available, so this bounded proxy combines existing eBay graded sold volume with saved price direction. It stays neutral in the total score.";
+      ? " We do not have a live count of ungraded listings for this card, so this is an estimate based on graded eBay sales and CardMarket data. It does not affect the total score."
+      : " We do not have enough listing history for this card yet, so this is an estimate based on graded eBay sales and the recent price trend. It does not affect the total score.";
   } else if (marketSource === "market_proxy") {
     sourceLabel = "proxy";
-    sourceDescription = " No verified eBay inventory snapshot is available, so this bounded proxy uses CardMarket language breadth, price-guide coverage and saved price continuity. It stays neutral in the total score.";
+    sourceDescription = " No live eBay stock data for this card yet, so this is an estimate based on CardMarket data. It does not affect the total score.";
   } else if (marketSource === "price_proxy") {
     sourceLabel = "proxy";
-    sourceDescription = " No mature eBay lifecycle history is available, so this bounded proxy uses saved price momentum and the CardMarket 7-day versus 30-day trend. It stays neutral in the total score.";
+    sourceDescription = " Not enough listing history for this card yet, so this is an estimate based on the recent price trend. It does not affect the total score.";
   } else if (marketSource === "neutral_prior") {
     sourceLabel = "neutral";
-    sourceDescription = " There is not enough direct or proxy evidence yet, so the bar shows a neutral prior that does not affect the total score.";
+    sourceDescription = " Not enough data yet — this bar is a neutral placeholder and does not affect the total score.";
   }
   const description = `${metric.description}${sourceDescription}`;
 
@@ -3238,8 +3244,8 @@ function CardModalMarketStatsContent({
   stats: NonNullable<ModalCardData["market_stats"]>;
 }) {
   const rsiDetail = stats.rsi == null
-    ? "RSI needs at least 15 saved English NM price points. Below 30 is oversold; above 70 is overbought."
-    : "14-point RSI from saved English NM price movements. Below 30 is oversold; above 70 is overbought.";
+    ? "Shows whether a card looks overheated (above 70) or like a dip (below 30). It needs at least 15 saved price points before it can be calculated."
+    : "Shows whether the card looks overheated or cheap right now. Above 70 means the price may have risen too fast; below 30 may be a buying dip.";
 
   return (
     <>
@@ -3274,7 +3280,7 @@ function CardModalMarketStatsContent({
             Volatility
             <MarketStatsInfo
               label="Volatility"
-              description="Annualized dispersion of saved English NM price returns. A higher percentage means wider historical price swings."
+              description="How wildly the price swings. A higher percentage means bigger ups and downs over time."
             />
           </span>
           <div className="mt-1 flex items-baseline justify-between gap-2">
@@ -3299,19 +3305,19 @@ function CardModalMarketStatsContent({
           <div className="grid grid-cols-1 gap-2 lg:grid-cols-3">
             <MarketStatsFact
               label="ATH"
-              description="Highest saved English NM CardMarket price in DustyCards history for this card."
+              description="All-time high: the highest price we have ever recorded for this card."
               value={formatCurrency(stats.ath, "EUR")}
               comparison={stats.tcggo?.ath == null ? null : formatCurrency(stats.tcggo.ath, "EUR")}
             />
             <MarketStatsFact
               label="ATL"
-              description="Lowest saved English NM CardMarket price in DustyCards history for this card."
+              description="All-time low: the lowest price we have ever recorded for this card."
               value={formatCurrency(stats.atl, "EUR")}
               comparison={stats.tcggo?.atl == null ? null : formatCurrency(stats.tcggo.atl, "EUR")}
             />
             <MarketStatsFact
               label="Lang spread"
-              description="Difference between the highest and lowest current usable CardMarket language price. It needs at least two languages."
+              description="The price gap between the cheapest and most expensive language version of this card on CardMarket right now."
               value={formatCurrency(stats.language_spread, "EUR")}
               comparison={stats.language_spread_percent == null ? null : `${formatMarketStatsNumber(stats.language_spread_percent, "%")} range`}
             />
@@ -3323,7 +3329,7 @@ function CardModalMarketStatsContent({
                 Graded vs raw
                 <MarketStatsInfo
                   label="Graded versus raw"
-                  description="Exact graded market value divided by the current English NM raw price. eBay sold medians are preferred over CardMarket graded quotes."
+                  description="What graded copies of this exact card actually sell for, compared to the ungraded price. Real eBay sales count more than asking prices."
                 />
               </span>
               <span className="text-[11px] font-semibold uppercase tracking-[0.07em] text-white/30">EUR</span>
@@ -3359,7 +3365,7 @@ function CardModalMarketStatsContent({
           </div>
 
           <p className="mt-3 text-[11px] font-medium leading-relaxed text-white/32">
-            Missing inputs stay neutral and lower confidence. Market evidence is not a guarantee of future returns.
+            When data is missing, that part stays neutral. These stats are helpful signals, not a guarantee.
           </p>
         </div>
       </details>

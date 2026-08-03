@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.49",
+    releasedAt: "August 3, 2026",
+    title: "Smarter best-match search and friendlier stat explanations",
+    summary:
+      "DustyCards 3.8.49 ranks equally matching search results by real market interest (demand, liquidity and momentum) and rewrites every market-stat tooltip in plain language.",
+    tone: "improved",
+    highlights: [
+      "When several cards match your search equally well, the ones people actively trade — high demand, liquidity and momentum — now rank above quiet ones, before falling back to price.",
+      "All info tooltips on the market stats (Momentum, Liquidity, Demand, RSI, Grade Premium and more) now explain in one plain sentence what the number means for you.",
+    ],
+  },
+  {
     version: "3.8.48",
     releasedAt: "August 3, 2026",
     title: "Scrape.do fallback actually reaches CardMarket",
