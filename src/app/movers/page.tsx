@@ -553,11 +553,13 @@ export default async function MoversPage({
         },
         {
           label: isGradingScope ? "Targets" : isGradedScope ? "Labels Shown" : "Moving",
-          value: cardData?.eligibleCards.toLocaleString("en-US") ?? "0",
+          value: isGradedScope
+            ? (cardData?.movers.length ?? 0).toLocaleString("en-US")
+            : cardData?.eligibleCards.toLocaleString("en-US") ?? "0",
           hint: isGradingScope
             ? "Positive expected gain after grading risk."
             : isGradedScope
-              ? "Current slab labels in the market list."
+              ? "Top slab labels in the market list."
               : "Cards with meaningful movement.",
           Icon: TrendingUp,
           tone: "emerald",
