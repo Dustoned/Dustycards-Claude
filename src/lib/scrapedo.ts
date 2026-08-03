@@ -27,6 +27,8 @@ export interface ScrapeDoPageScrapeOptions {
   output?: "html" | "markdown";
   /** Explicit opt-in: Scrape.do charges more when Chromium rendering is enabled. */
   render?: boolean;
+  /** Explicit opt-in to Scrape.do's residential/mobile proxy pool. */
+  superProxy?: boolean;
   /** Optional two-letter proxy country used for locale-sensitive marketplaces. */
   geoCode?: string;
   /** Timeout enforced by Scrape.do for the upstream target request. */
@@ -48,11 +50,18 @@ export class ScrapeDoRequestError extends Error {
   status: number;
   creditsUsed: number;
   remainingCredits: number | null;
+  providerErrorCode: number | null;
+  providerErrorType: string | null;
 
   constructor(
     message: string,
     status: number,
-    options: { creditsUsed?: number | null; remainingCredits?: number | null } = {}
+    options: {
+      creditsUsed?: number | null;
+      remainingCredits?: number | null;
+      providerErrorCode?: number | null;
+      providerErrorType?: string | null;
+    } = {}
   ) {
     super(message);
     this.name = "ScrapeDoRequestError";
@@ -62,7 +71,19 @@ export class ScrapeDoRequestError extends Error {
       options.remainingCredits != null && Number.isFinite(options.remainingCredits)
         ? Math.max(0, Math.floor(options.remainingCredits))
         : null;
+    this.providerErrorCode =
+      options.providerErrorCode != null && Number.isFinite(options.providerErrorCode)
+        ? Math.floor(options.providerErrorCode)
+        : null;
+    this.providerErrorType = options.providerErrorType?.trim() || null;
   }
+}
+
+export function isScrapeDoRotationFailure(error: unknown): boolean {
+  return (
+    error instanceof ScrapeDoRequestError &&
+    (error.providerErrorCode === 90 || error.providerErrorType === "ROTATION_FAILED")
+  );
 }
 
 function normalizeEnvValue(value: string | undefined): string | null {
@@ -367,6 +388,7 @@ function responseMetadata(
   input: {
     sourceUrl: string;
     render: boolean;
+    superProxy: boolean;
     output: "html" | "markdown";
     geoCode: string | null;
     providerTimeoutMs: number | null;
@@ -382,10 +404,29 @@ function responseMetadata(
     initialStatusCode: parseHeaderStatus(response.headers, "Scrape.do-Initial-Status-Code"),
     contentType: response.headers.get("content-type"),
     rendered: input.render,
+    residentialProxy: input.superProxy,
     geoCode: input.geoCode,
     providerTimeoutMs: input.providerTimeoutMs,
     output: input.output,
   };
+}
+
+function parseScrapeDoProviderError(body: string): {
+  code: number | null;
+  type: string | null;
+} {
+  try {
+    const parsed = JSON.parse(body) as unknown;
+    if (!isRecord(parsed)) return { code: null, type: null };
+    const rawCode = Number(parsed.ErrorCode ?? parsed.errorCode);
+    const rawType = parsed.ErrorType ?? parsed.errorType;
+    return {
+      code: Number.isFinite(rawCode) ? Math.floor(rawCode) : null,
+      type: typeof rawType === "string" && rawType.trim() ? rawType.trim() : null,
+    };
+  } catch {
+    return { code: null, type: null };
+  }
 }
 
 export async function scrapeScrapeDoPage(
@@ -399,6 +440,7 @@ export async function scrapeScrapeDoPage(
 
   const output = options.output ?? "html";
   const render = options.render === true;
+  const superProxy = options.superProxy === true;
   const geoCode = options.geoCode?.trim().toLowerCase();
   const normalizedGeoCode = geoCode && /^[a-z]{2}$/.test(geoCode) ? geoCode : null;
   const providerTimeoutMs =
@@ -409,6 +451,7 @@ export async function scrapeScrapeDoPage(
   endpoint.searchParams.set("token", requireApiKey());
   endpoint.searchParams.set("url", targetUrl);
   if (render) endpoint.searchParams.set("render", "true");
+  if (superProxy) endpoint.searchParams.set("super", "true");
   if (normalizedGeoCode) endpoint.searchParams.set("geoCode", normalizedGeoCode);
   if (providerTimeoutMs != null) endpoint.searchParams.set("timeout", String(providerTimeoutMs));
   if (output === "markdown") endpoint.searchParams.set("output", "markdown");
@@ -420,6 +463,7 @@ export async function scrapeScrapeDoPage(
   );
   const body = await response.text().catch(() => "");
   if (!response.ok) {
+    const providerError = parseScrapeDoProviderError(body);
     throw new ScrapeDoRequestError(
       `Scrape.do scrape failed with status ${response.status}.`,
       response.status,
@@ -429,6 +473,8 @@ export async function scrapeScrapeDoPage(
           response.headers,
           "Scrape.do-Remaining-Credits"
         ),
+        providerErrorCode: providerError.code,
+        providerErrorType: providerError.type,
       }
     );
   }
@@ -446,6 +492,7 @@ export async function scrapeScrapeDoPage(
   const providerMetadata = responseMetadata(response, {
     sourceUrl: resolvedUrl,
     render,
+    superProxy,
     output,
     geoCode: normalizedGeoCode,
     providerTimeoutMs,

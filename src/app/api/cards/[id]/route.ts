@@ -12,18 +12,28 @@ import { isTcggoQuotaExceededError } from "@/lib/tcggo";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 import {
   CardSubmissionError,
-  refreshAdminCardSubmission,
 } from "@/lib/card-submissions";
+import {
+  getSubmittedCardRefreshJobSnapshot,
+  startSubmittedCardRefreshJob,
+  type SubmittedCardRefreshJobSnapshot,
+} from "@/lib/sync/submitted-card-refresh-job";
 
 type CardAction = "refresh" | "sync-history";
 
 export async function GET(
-  _req: NextRequest,
+  req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const user = await requireUser();
     const { id } = await params;
+
+    if (req.nextUrl.searchParams.get("refreshStatus") === "1") {
+      const refreshJob = await getSubmittedCardRefreshJobSnapshot(id);
+      return NextResponse.json({ refreshJob });
+    }
+
     const payload = await getCardDetailPayload(id, user.id);
 
     if (!payload) {
@@ -36,7 +46,9 @@ export async function GET(
   }
 }
 
-async function refreshCardPrices(cardId: string) {
+async function refreshCardPrices(
+  cardId: string
+): Promise<SubmittedCardRefreshJobSnapshot | null> {
   const refreshTarget = await db.card.findUnique({
     where: { id: cardId },
     select: {
@@ -52,7 +64,7 @@ async function refreshCardPrices(cardId: string) {
 
   if (!refreshTarget?.is_user_submitted) {
     await runCardPriceRefresh(cardId);
-    return;
+    return null;
   }
 
   const submissionId = refreshTarget.cardSubmissions[0]?.id;
@@ -63,7 +75,7 @@ async function refreshCardPrices(cardId: string) {
     );
   }
 
-  await refreshAdminCardSubmission(submissionId);
+  return startSubmittedCardRefreshJob(cardId, submissionId);
 }
 
 export async function POST(
@@ -90,7 +102,13 @@ export async function POST(
     if (action === "sync-history") {
       await runSingleCardHistoryImport(id);
     } else {
-      await refreshCardPrices(id);
+      const refreshJob = await refreshCardPrices(id);
+      if (refreshJob) {
+        return NextResponse.json(
+          { refreshPending: true, refreshJob },
+          { status: 202 }
+        );
+      }
     }
 
     const payload = await getCardDetailPayload(id, user.id);

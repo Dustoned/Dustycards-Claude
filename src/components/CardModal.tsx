@@ -92,6 +92,62 @@ interface SignalResearchSnapshot {
   results: SignalResearchResult[];
 }
 
+interface SubmittedCardRefreshJobSnapshot {
+  status: "idle" | "queued" | "running" | "success" | "failed";
+  running: boolean;
+  startedAt: string | null;
+  finishedAt: string | null;
+  error: string | null;
+}
+
+interface SubmittedCardRefreshStartResponse {
+  refreshPending: true;
+  refreshJob: SubmittedCardRefreshJobSnapshot;
+}
+
+interface SubmittedCardRefreshStatusResponse {
+  refreshJob: SubmittedCardRefreshJobSnapshot;
+}
+
+function isModalCardData(value: unknown): value is ModalCardData {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "id" in value &&
+      typeof (value as { id?: unknown }).id === "string"
+  );
+}
+
+function isSubmittedCardRefreshStartResponse(
+  value: unknown
+): value is SubmittedCardRefreshStartResponse {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "refreshPending" in value &&
+      (value as { refreshPending?: unknown }).refreshPending === true
+  );
+}
+
+function waitForCardRefreshPoll(ms: number, signal: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException("Aborted", "AbortError"));
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      signal.removeEventListener("abort", handleAbort);
+      resolve();
+    }, ms);
+    const handleAbort = () => {
+      window.clearTimeout(timeout);
+      reject(new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", handleAbort, { once: true });
+  });
+}
+
 function normalizeGradeSelection(value: string | null | undefined): string {
   return value?.toUpperCase().replace(/[^A-Z0-9.]+/g, " ").replace(/\s+/g, " ").trim() ?? "";
 }
@@ -231,6 +287,14 @@ export default function CardModal({
     useState<CardMarketHistorySeriesKey>("cm_market_en");
   const modalFrameRef = useRef<HTMLDivElement | null>(null);
   const threeDClosingGuardUntilRef = useRef(0);
+  const cardActionAbortRef = useRef<AbortController | null>(null);
+
+  useEffect(
+    () => () => {
+      cardActionAbortRef.current?.abort();
+    },
+    []
+  );
 
   useEffect(() => {
     const handleMobileEdgeBack = (event: Event) => {
@@ -374,6 +438,66 @@ export default function CardModal({
     setThreeDOpen(false);
   }
 
+  function applyRefreshedCard(nextCard: ModalCardData) {
+    setModalCard({
+      ...nextCard,
+      collection_item: nextCard.collection_item ?? null,
+    });
+    setGradedHeroState({
+      cardId: nextCard.id,
+      price: getPreferredCardModalGradedDisplayPrice(nextCard, nextCard.collection_item),
+    });
+    setResolvedUrl(null);
+  }
+
+  async function waitForSubmittedCardRefresh(signal: AbortSignal): Promise<ModalCardData> {
+    const deadline = Date.now() + 180_000;
+
+    while (Date.now() < deadline) {
+      await waitForCardRefreshPoll(1_500, signal);
+      const statusResponse = await fetch(
+        `/api/cards/${encodeURIComponent(modalCard.id)}?refreshStatus=1`,
+        { cache: "no-store", signal }
+      );
+      const statusPayload = (await statusResponse.json().catch(() => null)) as
+        | SubmittedCardRefreshStatusResponse
+        | null;
+
+      if (!statusResponse.ok || !statusPayload?.refreshJob) {
+        throw new Error(
+          statusResponse.ok
+            ? "The server returned an empty refresh status. Try again."
+            : `Could not check the submitted-card refresh (server returned ${statusResponse.status}).`
+        );
+      }
+
+      if (statusPayload.refreshJob.status === "failed") {
+        throw new Error(statusPayload.refreshJob.error ?? "Could not refresh this submitted card.");
+      }
+
+      if (statusPayload.refreshJob.status !== "success") continue;
+
+      const cardResponse = await fetch(`/api/cards/${encodeURIComponent(modalCard.id)}`, {
+        cache: "no-store",
+        signal,
+      });
+      const cardPayload = (await cardResponse.json().catch(() => null)) as unknown;
+      if (!cardResponse.ok || !isModalCardData(cardPayload)) {
+        throw new Error(
+          cardResponse.ok
+            ? "The refreshed card response was empty. Reopen the card to see the new price."
+            : `The card refreshed, but reloading it failed (server returned ${cardResponse.status}).`
+        );
+      }
+
+      return cardPayload;
+    }
+
+    throw new Error(
+      "This submitted-card refresh is still running in the background. Reopen the card in a moment."
+    );
+  }
+
   async function runCardAction(action: "refresh" | "sync-history") {
     if (action === "refresh") {
       setRefreshing(true);
@@ -381,6 +505,9 @@ export default function CardModal({
       setSyncingHistory(true);
     }
     setRefreshError(null);
+    cardActionAbortRef.current?.abort();
+    const controller = new AbortController();
+    cardActionAbortRef.current = controller;
 
     try {
       const response = await fetch(`/api/cards/${encodeURIComponent(modalCard.id)}`, {
@@ -390,34 +517,47 @@ export default function CardModal({
         },
         body: JSON.stringify({ action }),
         cache: "no-store",
+        signal: controller.signal,
       });
-      const data = (await response.json()) as ModalCardData & {
-        error?: string;
-        activeType?: string;
-      };
+      const data = (await response.json().catch(() => null)) as
+        | (ModalCardData & { error?: string; activeType?: string })
+        | SubmittedCardRefreshStartResponse
+        | { error?: string; activeType?: string }
+        | null;
 
       if (!response.ok) {
         throw new Error(
-          data.error ??
+          (data && "error" in data ? data.error : null) ??
             (action === "refresh"
-              ? "Could not refresh this card"
-              : "Could not import price history for this card")
+              ? `Could not refresh this card (server returned ${response.status})`
+              : `Could not import price history for this card (server returned ${response.status})`)
+        );
+      }
+
+      if (!data) {
+        throw new Error(
+          action === "refresh"
+            ? "The server connection was interrupted during the refresh. Try again."
+            : "The server connection was interrupted during the history import. Try again."
+        );
+      }
+
+      const refreshedCard = isSubmittedCardRefreshStartResponse(data)
+        ? await waitForSubmittedCardRefresh(controller.signal)
+        : data;
+      if (!isModalCardData(refreshedCard)) {
+        throw new Error(
+          action === "refresh"
+            ? "The server returned an invalid card refresh response. Try again."
+            : "The server returned an invalid history response. Try again."
         );
       }
 
       // The server response is authoritative. In particular, a null value must
       // clear a stale local owned-copy state after a refresh.
-      const nextCard = {
-        ...data,
-        collection_item: data.collection_item ?? null,
-      };
-      setModalCard(nextCard);
-      setGradedHeroState({
-        cardId: nextCard.id,
-        price: getPreferredCardModalGradedDisplayPrice(nextCard, nextCard.collection_item),
-      });
-      setResolvedUrl(null);
+      applyRefreshedCard(refreshedCard);
     } catch (error) {
+      if (error instanceof DOMException && error.name === "AbortError") return;
       setRefreshError(
         error instanceof Error
           ? error.message
@@ -426,6 +566,8 @@ export default function CardModal({
             : "Could not import price history for this card"
       );
     } finally {
+      if (cardActionAbortRef.current !== controller) return;
+      cardActionAbortRef.current = null;
       if (action === "refresh") {
         setRefreshing(false);
       } else {

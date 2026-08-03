@@ -1,6 +1,6 @@
 # DustyCards roadmap
 
-Last cleaned: 2026-07-29 (pre-friends-launch audit).
+Last updated: 2026-08-03.
 
 This file contains only work that is still useful and not already live. Completed
 work belongs in patch notes and git history. Audit evidence and temporary execution
@@ -15,6 +15,10 @@ waves are not part of the active roadmap.
 
 ### Planned
 
+- **Sealed origin for owned cards** — keep single-card and bulk-add forms compact
+  while allowing an optional sealed-product source per copy. When selected, the
+  source can be used as a price basis and is shown with that copy in the Card
+  Detail owned-copies section.
 - **Price alerts beyond single cards** — card alerts with e-mail sweeps are live;
   extend targets to sealed products, wants and whole binders.
 - **Binder next-buy guidance** — rank missing cards by price, rarity, completion
@@ -25,6 +29,9 @@ waves are not part of the active roadmap.
 - **Shareable binder links** — create revocable read-only links for selected
   binders without granting collection access. (Friend-to-friend sharing with an
   account exists via Social; this is for people without an account.)
+- **Consistent blurred fullscreen backdrops** — replace solid-black fullscreen
+  popup overlays with a clean translucent blur while preserving contrast,
+  responsive behavior and accessible focus handling.
 
 ## Engineering queue
 

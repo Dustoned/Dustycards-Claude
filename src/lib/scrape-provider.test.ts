@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   scrapeFirecrawl: vi.fn(),
   searchFirecrawl: vi.fn(),
   scrapeDoConfig: vi.fn(),
+  isScrapeDoRotationFailure: vi.fn(),
   scrapeScrapeDo: vi.fn(),
   searchScrapeDo: vi.fn(),
   tavilyConfig: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock("@/lib/firecrawl", () => ({
 }));
 vi.mock("@/lib/scrapedo", () => ({
   getScrapeDoConfigSnapshot: mocks.scrapeDoConfig,
+  isScrapeDoRotationFailure: mocks.isScrapeDoRotationFailure,
   scrapeScrapeDoPage: mocks.scrapeScrapeDo,
   searchScrapeDoWeb: mocks.searchScrapeDo,
 }));
@@ -56,6 +58,13 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.firecrawlConfig.mockReturnValue({ configured: true });
   mocks.scrapeDoConfig.mockReturnValue({ configured: true });
+  mocks.isScrapeDoRotationFailure.mockImplementation(
+    (error: unknown) =>
+      typeof error === "object" &&
+      error !== null &&
+      "rotationFailure" in error &&
+      (error as { rotationFailure: unknown }).rotationFailure === true
+  );
   mocks.tavilyConfig.mockReturnValue({ configured: true });
   mocks.scrapeFirecrawl.mockResolvedValue(page("https://example.com/"));
   mocks.scrapeScrapeDo.mockResolvedValue(page("https://example.com/"));
@@ -82,6 +91,58 @@ describe("scrape provider fallback", () => {
     const result = await scrapePageWithFallback("https://example.com/page", { skipFirecrawl: true });
     expect(result.provider).toBe("scrapedo");
     expect(mocks.scrapeFirecrawl).not.toHaveBeenCalled();
+  });
+
+  it("uses the residential non-rendered profile for CardMarket when Firecrawl is skipped", async () => {
+    const url = "https://www.cardmarket.com/en/OnePiece/Products/Singles/Test/Card";
+
+    const result = await scrapePageWithFallback(url, { skipFirecrawl: true });
+
+    expect(result.provider).toBe("scrapedo");
+    expect(mocks.scrapeFirecrawl).not.toHaveBeenCalled();
+    expect(mocks.scrapeScrapeDo).toHaveBeenCalledWith(
+      url,
+      expect.objectContaining({
+        output: "html",
+        render: false,
+        superProxy: true,
+        geoCode: "de",
+        providerTimeoutMs: 65_000,
+        timeoutMs: 75_000,
+      })
+    );
+  });
+
+  it("retries CardMarket through residential proxies after rotation failure", async () => {
+    const url = "https://www.cardmarket.com/en/OnePiece/Products/Singles/Test/Card";
+    const rotationFailure = Object.assign(new Error("rotation failed"), {
+      rotationFailure: true,
+    });
+    mocks.scrapeFirecrawl.mockRejectedValue(
+      Object.assign(new Error("quota reached"), { status: 429 })
+    );
+    mocks.scrapeScrapeDo
+      .mockRejectedValueOnce(rotationFailure)
+      .mockResolvedValueOnce(page(url));
+
+    const result = await scrapePageWithFallback(url);
+
+    expect(result.provider).toBe("scrapedo");
+    expect(mocks.scrapeScrapeDo).toHaveBeenCalledTimes(2);
+    expect(mocks.scrapeScrapeDo).toHaveBeenNthCalledWith(
+      1,
+      url,
+      expect.objectContaining({ render: true, geoCode: "de" })
+    );
+    expect(mocks.scrapeScrapeDo).toHaveBeenNthCalledWith(
+      2,
+      url,
+      expect.objectContaining({
+        render: false,
+        superProxy: true,
+        geoCode: "de",
+      })
+    );
   });
 
   it("does not hide caller errors behind a fallback request", async () => {

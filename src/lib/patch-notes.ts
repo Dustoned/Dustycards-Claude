@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.53",
+    releasedAt: "August 3, 2026",
+    title: "Submitted-card refreshes survive slow CardMarket requests",
+    summary:
+      "DustyCards 3.8.53 keeps manually submitted card refreshes running outside the web request and uses a reliable residential Scrape.do route when CardMarket blocks the standard proxy.",
+    tone: "fixed",
+    highlights: [
+      "Submitted-card price refreshes now run as durable background jobs, so the proxy can no longer turn a slow provider request into an empty JSON response.",
+      "The card detail follows the job, reloads fresh card data after success and shows a clear provider error when a refresh genuinely fails.",
+      "CardMarket's Scrape.do fallback uses a German residential proxy without browser rendering, returning the complete offer table at lower cost than a rendered residential request.",
+    ],
+  },
+  {
     version: "3.8.52",
     releasedAt: "August 3, 2026",
     title: "Search ranks on the real DustyCards market score",

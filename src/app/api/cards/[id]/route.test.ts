@@ -6,8 +6,8 @@ const {
   dbMock,
   exchangeMock,
   historyMock,
+  jobMock,
   pullRatesMock,
-  submissionMock,
   syncMock,
 } = vi.hoisted(() => ({
   CardSubmissionErrorMock: class CardSubmissionError extends Error {
@@ -42,11 +42,12 @@ const {
   historyMock: {
     loadSafeCardMarketHistoryRows: vi.fn(),
   },
+  jobMock: {
+    getSubmittedCardRefreshJobSnapshot: vi.fn(),
+    startSubmittedCardRefreshJob: vi.fn(),
+  },
   pullRatesMock: {
     getPullRateInfoForSetRarity: vi.fn().mockResolvedValue(null),
-  },
-  submissionMock: {
-    refreshAdminCardSubmission: vi.fn(),
   },
   syncMock: {
     runCardPriceRefresh: vi.fn(),
@@ -99,7 +100,11 @@ vi.mock("@/lib/sync", () => ({
 
 vi.mock("@/lib/card-submissions", () => ({
   CardSubmissionError: CardSubmissionErrorMock,
-  refreshAdminCardSubmission: submissionMock.refreshAdminCardSubmission,
+}));
+
+vi.mock("@/lib/sync/submitted-card-refresh-job", () => ({
+  getSubmittedCardRefreshJobSnapshot: jobMock.getSubmittedCardRefreshJobSnapshot,
+  startSubmittedCardRefreshJob: jobMock.startSubmittedCardRefreshJob,
 }));
 
 vi.mock("@/lib/tcggo", () => ({
@@ -239,7 +244,8 @@ describe("GET /api/cards/[id]", () => {
     exchangeMock.getUsdToEurRate.mockClear();
     pullRatesMock.getPullRateInfoForSetRarity.mockClear();
     historyMock.loadSafeCardMarketHistoryRows.mockReset();
-    submissionMock.refreshAdminCardSubmission.mockReset();
+    jobMock.getSubmittedCardRefreshJobSnapshot.mockReset();
+    jobMock.startSubmittedCardRefreshJob.mockReset();
     syncMock.runCardPriceRefresh.mockReset();
     syncMock.runSingleCardHistoryImport.mockReset();
   });
@@ -400,6 +406,27 @@ describe("GET /api/cards/[id]", () => {
     expect(dbMock.collectionCard.findMany).not.toHaveBeenCalled();
     expect(dbMock.$queryRaw).toHaveBeenCalledTimes(2);
   });
+
+  it("returns only the durable submitted-card refresh status when requested", async () => {
+    jobMock.getSubmittedCardRefreshJobSnapshot.mockResolvedValue({
+      status: "running",
+      running: true,
+      startedAt: "2026-08-03T18:55:00.000Z",
+      finishedAt: null,
+      error: null,
+    });
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/cards/card-1?refreshStatus=1"),
+      { params: Promise.resolve({ id: "card-1" }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.refreshJob).toEqual(expect.objectContaining({ status: "running" }));
+    expect(jobMock.getSubmittedCardRefreshJobSnapshot).toHaveBeenCalledWith("card-1");
+    expect(dbMock.card.findUnique).not.toHaveBeenCalled();
+  });
 });
 
 describe("POST /api/cards/[id]", () => {
@@ -411,22 +438,22 @@ describe("POST /api/cards/[id]", () => {
     dbMock.cardEbayDemandSnapshot.findFirst.mockReset().mockResolvedValue(null);
     dbMock.cardEbayDemandSnapshot.findMany.mockReset().mockResolvedValue([]);
     historyMock.loadSafeCardMarketHistoryRows.mockReset();
-    submissionMock.refreshAdminCardSubmission.mockReset().mockResolvedValue({});
+    jobMock.startSubmittedCardRefreshJob.mockReset().mockResolvedValue({
+      status: "queued",
+      running: true,
+      startedAt: "2026-08-03T18:55:00.000Z",
+      finishedAt: null,
+      error: null,
+    });
     syncMock.runCardPriceRefresh.mockReset().mockResolvedValue({});
     syncMock.runSingleCardHistoryImport.mockReset();
   });
 
   it("refreshes user-submitted cards through their CardMarket submission", async () => {
-    const card = makeCardRecord();
-    dbMock.card.findUnique
-      .mockResolvedValueOnce({
-        is_user_submitted: true,
-        cardSubmissions: [{ id: "submission-1" }],
-      })
-      .mockResolvedValueOnce(card);
-    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
-      new Map([[card.id, card.prices]])
-    );
+    dbMock.card.findUnique.mockResolvedValueOnce({
+      is_user_submitted: true,
+      cardSubmissions: [{ id: "submission-1" }],
+    });
 
     const response = await POST(
       new NextRequest("http://localhost:3000/api/cards/card-1", {
@@ -436,8 +463,14 @@ describe("POST /api/cards/[id]", () => {
       { params: Promise.resolve({ id: "card-1" }) }
     );
 
-    expect(response.status).toBe(200);
-    expect(submissionMock.refreshAdminCardSubmission).toHaveBeenCalledWith("submission-1");
+    const body = await response.json();
+
+    expect(response.status).toBe(202);
+    expect(body.refreshPending).toBe(true);
+    expect(jobMock.startSubmittedCardRefreshJob).toHaveBeenCalledWith(
+      "card-1",
+      "submission-1"
+    );
     expect(syncMock.runCardPriceRefresh).not.toHaveBeenCalled();
   });
 
@@ -463,7 +496,7 @@ describe("POST /api/cards/[id]", () => {
 
     expect(response.status).toBe(200);
     expect(syncMock.runCardPriceRefresh).toHaveBeenCalledWith("card-1");
-    expect(submissionMock.refreshAdminCardSubmission).not.toHaveBeenCalled();
+    expect(jobMock.startSubmittedCardRefreshJob).not.toHaveBeenCalled();
   });
 
   it("returns a useful conflict when a submitted card lost its refresh source", async () => {

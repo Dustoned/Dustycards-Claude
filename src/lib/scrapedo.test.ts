@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   getScrapeDoConfigSnapshot,
+  isScrapeDoRotationFailure,
   scrapeScrapeDoPage,
   ScrapeDoRequestError,
   searchScrapeDoWeb,
@@ -102,6 +103,7 @@ describe("Scrape.do provider adapter", () => {
     expect(request[0].searchParams.get("token")).toBe("sdo-test-secret");
     expect(request[0].searchParams.get("url")).toBe("https://example.com/start");
     expect(request[0].searchParams.has("render")).toBe(false);
+    expect(request[0].searchParams.has("super")).toBe(false);
     expect(request[0].searchParams.has("geoCode")).toBe(false);
     expect(request[0].searchParams.has("timeout")).toBe(false);
     expect(request[0].searchParams.has("output")).toBe(false);
@@ -123,6 +125,7 @@ describe("Scrape.do provider adapter", () => {
     const result = await scrapeScrapeDoPage("https://example.com/card", {
       output: "markdown",
       render: true,
+      superProxy: true,
       geoCode: "DE",
       providerTimeoutMs: 90_000,
       timeoutMs: 100_000,
@@ -134,10 +137,16 @@ describe("Scrape.do provider adapter", () => {
       markdown: "# Rendered card\n\n[Source](https://example.com/source)",
       links: ["https://example.com/source"],
       creditsUsed: 5,
-      metadata: { provider: "scrapedo", rendered: true, output: "markdown" },
+      metadata: {
+        provider: "scrapedo",
+        rendered: true,
+        residentialProxy: true,
+        output: "markdown",
+      },
     });
     const requestUrl = (fetchMock.mock.calls[0] as unknown as [URL])[0];
     expect(requestUrl.searchParams.get("render")).toBe("true");
+    expect(requestUrl.searchParams.get("super")).toBe("true");
     expect(requestUrl.searchParams.get("geoCode")).toBe("de");
     expect(requestUrl.searchParams.get("timeout")).toBe("90000");
     expect(requestUrl.searchParams.get("output")).toBe("markdown");
@@ -176,13 +185,20 @@ describe("Scrape.do provider adapter", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async () =>
-        new Response("upstream failed", {
-          status: 502,
-          headers: {
-            "Scrape.do-Request-Cost": "0",
-            "Scrape.do-Remaining-Credits": "925",
-          },
-        })
+        new Response(
+          JSON.stringify({
+            ErrorCode: 90,
+            ErrorType: "ROTATION_FAILED",
+            Message: ["Try super=true."],
+          }),
+          {
+            status: 502,
+            headers: {
+              "Scrape.do-Request-Cost": "0",
+              "Scrape.do-Remaining-Credits": "925",
+            },
+          }
+        )
       )
     );
 
@@ -193,7 +209,10 @@ describe("Scrape.do provider adapter", () => {
       status: 502,
       creditsUsed: 0,
       remainingCredits: 925,
+      providerErrorCode: 90,
+      providerErrorType: "ROTATION_FAILED",
     });
+    expect(isScrapeDoRotationFailure(error)).toBe(true);
   });
 
   it("maps Google organic search, enforces domains, recency, limits and the 10-credit fallback", async () => {

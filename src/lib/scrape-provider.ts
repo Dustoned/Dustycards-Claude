@@ -9,8 +9,10 @@ import {
 } from "@/lib/firecrawl";
 import {
   getScrapeDoConfigSnapshot,
+  isScrapeDoRotationFailure,
   scrapeScrapeDoPage,
   searchScrapeDoWeb,
+  type ScrapeDoPageScrapeOptions,
 } from "@/lib/scrapedo";
 import { getTavilyConfigSnapshot, searchTavilyWeb } from "@/lib/tavily";
 
@@ -51,25 +53,40 @@ function normalizedHttpUrl(rawUrl: string): string | null {
   }
 }
 
-// CardMarket consistently times out on Scrape.do's plain datacenter route;
-// the DE browser profile returns the complete offer table (five credits per
-// successful request). Same profile the chase-price job uses.
-function scrapeDoOptionsForUrl(url: string): Record<string, unknown> {
+// CardMarket needs a DE proxy profile. Rendering remains the cheaper first
+// attempt while Firecrawl is available; when its budget guard already skipped
+// Firecrawl, the residential profile avoids a known datacenter rotation failure.
+function isCardMarketUrl(url: string): boolean {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
-    if (hostname === "cardmarket.com" || hostname.endsWith(".cardmarket.com")) {
-      return {
-        output: "html",
-        render: true,
-        geoCode: "de",
-        providerTimeoutMs: 65_000,
-        timeoutMs: 75_000,
-      };
-    }
+    return hostname === "cardmarket.com" || hostname.endsWith(".cardmarket.com");
   } catch {
-    // Fall through to the plain profile.
+    return false;
+  }
+}
+
+function scrapeDoOptionsForUrl(url: string): ScrapeDoPageScrapeOptions {
+  if (isCardMarketUrl(url)) {
+    return {
+      output: "html",
+      render: true,
+      geoCode: "de",
+      providerTimeoutMs: 65_000,
+      timeoutMs: 75_000,
+    };
   }
   return {};
+}
+
+function scrapeDoResidentialOptionsForUrl(url: string): ScrapeDoPageScrapeOptions {
+  return {
+    ...scrapeDoOptionsForUrl(url),
+    // CardMarket's complete product and offer HTML is server-rendered. The
+    // residential route bypasses its datacenter block without paying the
+    // extra headless-browser cost (10 credits instead of 25).
+    render: false,
+    superProxy: true,
+  };
 }
 
 function isRecoverableFirecrawlFailure(error: unknown): boolean {
@@ -120,18 +137,46 @@ export async function scrapePageWithFallback(
   }
 
   if (getScrapeDoConfigSnapshot().configured) {
+    const cardMarketRequest = isCardMarketUrl(url);
+    const useResidentialFirst = cardMarketRequest && skipFirecrawl;
     try {
       return withPageProvider(
-        await scrapeScrapeDoPage(url, { ...scrapeOptions, ...scrapeDoOptionsForUrl(url) }),
+        await scrapeScrapeDoPage(url, {
+          ...scrapeOptions,
+          ...(useResidentialFirst
+            ? scrapeDoResidentialOptionsForUrl(url)
+            : scrapeDoOptionsForUrl(url)),
+        }),
         "scrapedo"
       );
     } catch (scrapeDoError) {
+      let finalScrapeDoError = scrapeDoError;
+      if (
+        cardMarketRequest &&
+        !useResidentialFirst &&
+        isScrapeDoRotationFailure(scrapeDoError)
+      ) {
+        try {
+          return withPageProvider(
+            await scrapeScrapeDoPage(url, {
+              ...scrapeOptions,
+              ...scrapeDoResidentialOptionsForUrl(url),
+            }),
+            "scrapedo"
+          );
+        } catch (residentialError) {
+          finalScrapeDoError = residentialError;
+        }
+      }
+
       // Without Firecrawl context the Scrape.do error keeps its own type so
       // direct callers can still inspect it.
-      if (!firecrawlError) throw scrapeDoError;
+      if (!firecrawlError) throw finalScrapeDoError;
       const firecrawlMessage = toFirecrawlApiError(firecrawlError).message;
       const scrapeDoMessage =
-        scrapeDoError instanceof Error ? scrapeDoError.message : String(scrapeDoError);
+        finalScrapeDoError instanceof Error
+          ? finalScrapeDoError.message
+          : String(finalScrapeDoError);
       throw new Error(
         `All scrape providers failed. Firecrawl: ${firecrawlMessage} / Scrape.do: ${scrapeDoMessage}`
       );
