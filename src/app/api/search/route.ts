@@ -1036,6 +1036,16 @@ function comparePriceDesc(aPrice: number | null | undefined, bPrice: number | nu
   return bValue - aValue;
 }
 
+function compareSingleSearchPriceDesc(
+  a: { cm_en_lowest_nm: number | null; tcp_market: number | null },
+  b: { cm_en_lowest_nm: number | null; tcp_market: number | null }
+) {
+  const cardMarketDiff = comparePriceDesc(a.cm_en_lowest_nm, b.cm_en_lowest_nm);
+  if (cardMarketDiff !== 0) return cardMarketDiff;
+
+  return comparePriceDesc(a.tcp_market, b.tcp_market);
+}
+
 function getTextRelevanceScore(
   value: string,
   query: string,
@@ -1258,10 +1268,16 @@ function formatSingleResults(
       }
 
       // Equal-relevance ties: actively traded cards (demand, liquidity,
-      // momentum) rank above quiet ones. Price stays out of best match — the
-      // price sort filter handles that ordering.
-      const interestDiff = (b.market_interest ?? -1) - (a.market_interest ?? -1);
-      if (Math.abs(interestDiff) > 0.5) return interestDiff;
+      // momentum) rank above quiet ones when both sides have score data.
+      // TCGGo score coverage is still sparse, so price stays as the fallback
+      // signal for popularity — without it the list turns alphabetical.
+      if (a.market_interest != null && b.market_interest != null) {
+        const interestDiff = b.market_interest - a.market_interest;
+        if (Math.abs(interestDiff) > 0.5) return interestDiff;
+      }
+
+      const priceDiff = compareSingleSearchPriceDesc(a, b);
+      if (priceDiff !== 0) return priceDiff;
 
       const nameCmp = a.name.localeCompare(b.name, "nl", { sensitivity: "base" });
       if (nameCmp !== 0) return nameCmp;

@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.51",
+    releasedAt: "August 3, 2026",
+    title: "Best match ordering restored",
+    summary:
+      "DustyCards 3.8.51 fixes the search order regression from 3.8.50: with market-interest scores still missing for most cards, dropping the price fallback made results alphabetical.",
+    tone: "fixed",
+    highlights: [
+      "Market interest (demand, liquidity, momentum) only decides between cards that both have score data; otherwise the familiar price-based popularity order applies again.",
+      "As TCGGo score coverage grows, actively traded cards automatically take priority.",
+    ],
+  },
+  {
     version: "3.8.50",
     releasedAt: "August 3, 2026",
     title: "Best match no longer peeks at price",
