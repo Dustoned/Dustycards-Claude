@@ -177,6 +177,55 @@ function isLikelySetCodeToken(value: string): boolean {
 
 type SearchRankingMode = "direct" | "fuzzy";
 
+interface LatestUsablePriceRow {
+  card_id: string;
+  cm_en_lowest_nm: number | null;
+  cm_jp_lowest_nm: number | null;
+  tcp_market: number | null;
+}
+
+// Prisma's nested `prices take: 1` fetches every matching price row for all
+// candidate cards before trimming in memory — hundreds of snapshots per card.
+// This resolves the same "latest usable EN/NM quote" with one indexed lookup
+// per card instead.
+async function fetchLatestUsablePriceByCardId(
+  cardIds: string[]
+): Promise<Map<string, SearchCardRecord["prices"]>> {
+  const priceByCardId = new Map<string, SearchCardRecord["prices"]>();
+  if (cardIds.length === 0) return priceByCardId;
+
+  const placeholders = cardIds.map(() => "?").join(", ");
+  const rows = await db.$queryRawUnsafe<LatestUsablePriceRow[]>(
+    `
+    SELECT p.card_id, p.cm_en_lowest_nm, p.cm_jp_lowest_nm, p.tcp_market
+    FROM "Price" p
+    WHERE p.card_id IN (${placeholders})
+      AND p.id = (
+        SELECT p2.id
+        FROM "Price" p2
+        WHERE p2.card_id = p.card_id
+          AND p2.cm_en_lowest_nm > 0
+          AND p2.cm_en_lowest_nm <> 9001
+        ORDER BY p2.fetched_at DESC, p2.id DESC
+        LIMIT 1
+      )
+    `,
+    ...cardIds
+  );
+
+  for (const row of rows) {
+    priceByCardId.set(row.card_id, [
+      {
+        cm_en_lowest_nm: row.cm_en_lowest_nm,
+        cm_jp_lowest_nm: row.cm_jp_lowest_nm,
+        tcp_market: row.tcp_market,
+      },
+    ]);
+  }
+
+  return priceByCardId;
+}
+
 function isUnambiguousSetCodeToken(value: string): boolean {
   return SET_CODE_RE.test(value.trim());
 }
@@ -1380,45 +1429,46 @@ async function runFuzzyFallback(
     .slice(0, FUZZY_CARD_RESULT_LIMIT)
     .map((entry) => entry.id);
 
-  const detailedCards = topCardIds.length
-    ? await db.card.findMany({
-        where: {
-          id: { in: topCardIds },
-        },
-        select: {
-          id: true,
-          name: true,
-          card_number: true,
-          printed_card_number: true,
-          version: true,
-          rarity: true,
-          supertype: true,
-          image_url: true,
-          episode: {
-            select: {
-              id: true,
-              name: true,
-              code: true,
-              release_date: true,
+  const [bareDetailedCards, fuzzyPriceByCardId] = topCardIds.length
+    ? await Promise.all([
+        db.card.findMany({
+          where: {
+            id: { in: topCardIds },
+          },
+          select: {
+            id: true,
+            name: true,
+            card_number: true,
+            printed_card_number: true,
+            version: true,
+            rarity: true,
+            supertype: true,
+            image_url: true,
+            episode: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                release_date: true,
+              },
+            },
+            wants: {
+              where: { user_id: userId },
+              take: 1,
+              select: { id: true, created_at: true },
             },
           },
-          prices: {
-            // Search tiles must use the same latest usable English Near Mint
-            // quote as card detail and Signal Radar. The newest snapshot can
-            // legitimately contain only TCGPlayer or another language.
-            where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-            orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-            take: 1,
-            select: { cm_en_lowest_nm: true, cm_jp_lowest_nm: true, tcp_market: true },
-          },
-          wants: {
-            where: { user_id: userId },
-            take: 1,
-            select: { id: true, created_at: true },
-          },
-        },
-      })
-    : [];
+        }),
+        // Search tiles must use the same latest usable English Near Mint
+        // quote as card detail and Signal Radar. The newest snapshot can
+        // legitimately contain only TCGPlayer or another language.
+        fetchLatestUsablePriceByCardId(topCardIds),
+      ])
+    : [[], new Map<string, SearchCardRecord["prices"]>()];
+  const detailedCards: SearchCardRecord[] = bareDetailedCards.map((card) => ({
+    ...card,
+    prices: fuzzyPriceByCardId.get(card.id) ?? [],
+  }));
   const detailedCardById = new Map(detailedCards.map((card) => [card.id, card]));
   const singles = topCardIds
     .map((id) => detailedCardById.get(id))
@@ -1546,7 +1596,7 @@ async function runDirectSearch(
       ])
     : undefined;
 
-  const [cards, sealed, expansions] = await Promise.all([
+  const [bareCards, sealed, expansions] = await Promise.all([
     db.card.findMany({
       where: visibleCardWhere,
       take: DIRECT_CARD_CANDIDATE_LIMIT,
@@ -1566,14 +1616,6 @@ async function runDirectSearch(
             code: true,
             release_date: true,
           },
-        },
-        prices: {
-          // Never turn an older valid EN/NM price into "No price" merely
-          // because the latest multi-source snapshot has no English listing.
-          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-          take: 1,
-          select: { cm_en_lowest_nm: true, cm_jp_lowest_nm: true, tcp_market: true },
         },
         wants: {
           where: { user_id: userId },
@@ -1612,6 +1654,14 @@ async function runDirectSearch(
         })
       : Promise.resolve([]),
   ]);
+
+  // The latest usable EN/NM price is resolved with one indexed lookup per
+  // card; the results are identical to the previous nested `prices take: 1`.
+  const priceByCardId = await fetchLatestUsablePriceByCardId(bareCards.map((card) => card.id));
+  const cards: SearchCardRecord[] = bareCards.map((card) => ({
+    ...card,
+    prices: priceByCardId.get(card.id) ?? [],
+  }));
 
   const relevanceQuery = name ?? q;
   const singles = formatSingleResults(cards, relevanceQuery, "direct", cardNumber).slice(

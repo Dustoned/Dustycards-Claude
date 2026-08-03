@@ -1,23 +1,29 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { getCollectionOverviewData } from "@/lib/collection-data";
+import { getCachedCollectionOverviewData } from "@/lib/collection-overview-cache";
 import { loadMoversPageData } from "@/app/movers/page-data";
 import { POKEMON_GAME } from "@/lib/games";
 
-// After a deploy/restart every in-memory cache and the SQLite page cache start
-// cold, so the first visitor paid the full home/market build (tens of
-// seconds). The scheduler tick calls this once per boot: it rebuilds the
-// heaviest page data for the most recently active users in the background so
-// the first real visit lands on warm caches.
+// After a deploy/restart every in-memory cache and the SQLite page cache
+// start cold, so the first visitor paid the full home/market build (tens of
+// seconds). The scheduler tick calls maybeRunCacheWarmer() every ~30s; it
+// rebuilds the heaviest page data for the most recently active users right
+// after boot and then re-warms every few minutes, which keeps the movers
+// stale-while-revalidate caches permanently populated. Nobody ever waits for
+// a cold Targets/Graded build again.
 const WARMUP_USER_LIMIT = 3;
+const REWARM_INTERVAL_MS = 4 * 60_000;
+// Market scopes to keep warm; undefined = the default raw view.
+const MARKET_SCOPES: Array<string | undefined> = [undefined, "graded", "grading", "sealed"];
 
-let warmupStarted = false;
-let warmupFinishedAt: string | null = null;
-let warmupError: string | null = null;
+let running = false;
+let lastStartedAt = 0;
+let lastFinishedAt: string | null = null;
+let lastError: string | null = null;
 
 export function getStartupWarmupSnapshot() {
-  return { started: warmupStarted, finishedAt: warmupFinishedAt, error: warmupError };
+  return { running, lastFinishedAt, lastError };
 }
 
 async function findRecentlyActiveUserIds(): Promise<string[]> {
@@ -37,29 +43,40 @@ async function findRecentlyActiveUserIds(): Promise<string[]> {
   return userIds;
 }
 
-async function runStartupWarmup(): Promise<void> {
+async function runCacheWarmup(): Promise<void> {
   const userIds = await findRecentlyActiveUserIds();
 
   for (const userId of userIds) {
     // Sequential on purpose: the goal is warm caches, not extra load spikes.
-    await getCollectionOverviewData({
+    await getCachedCollectionOverviewData({
       userId,
       activeTab: "overview",
       game: POKEMON_GAME,
     });
-    await loadMoversPageData(undefined, undefined, undefined, userId, POKEMON_GAME);
+    for (const scope of MARKET_SCOPES) {
+      await loadMoversPageData(undefined, scope, undefined, userId, POKEMON_GAME);
+    }
   }
 }
 
-export function maybeStartStartupWarmup(): void {
-  if (warmupStarted) return;
-  warmupStarted = true;
+export function maybeRunCacheWarmer(): void {
+  const now = Date.now();
+  if (running || now - lastStartedAt < REWARM_INTERVAL_MS) return;
+  running = true;
+  lastStartedAt = now;
 
-  void runStartupWarmup()
+  void runCacheWarmup()
     .then(() => {
-      warmupFinishedAt = new Date().toISOString();
+      lastError = null;
     })
     .catch((error: unknown) => {
-      warmupError = error instanceof Error ? error.message : String(error);
+      lastError = error instanceof Error ? error.message : String(error);
+    })
+    .finally(() => {
+      running = false;
+      lastFinishedAt = new Date().toISOString();
     });
 }
+
+// Backwards-compatible alias for the boot-time call site.
+export const maybeStartStartupWarmup = maybeRunCacheWarmer;

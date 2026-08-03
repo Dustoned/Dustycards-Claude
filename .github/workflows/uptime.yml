@@ -1,0 +1,29 @@
+name: Uptime check
+
+# Pings the live health endpoint every 15 minutes. When the check fails,
+# GitHub e-mails the repository owner (default notification behaviour for
+# failed scheduled workflows) — a free uptime monitor.
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    steps:
+      - name: Ping /api/health
+        run: |
+          check() {
+            curl -s -o /dev/null -w "%{http_code}" -m 20 https://dustycards.myftp.org/api/health || echo 000
+          }
+          status=$(check)
+          echo "health status: $status"
+          if [ "$status" != "200" ]; then
+            echo "first check failed, retrying in 30s..."
+            sleep 30
+            status=$(check)
+            echo "retry status: $status"
+          fi
+          [ "$status" = "200" ]

@@ -19,11 +19,11 @@ import GameFilterSwitch from "@/components/GameFilterSwitch";
 import HomeSuddenDropsPanel from "@/components/HomeSuddenDropsPanel";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
 import { formatCollectionCurrency } from "@/lib/collection";
-import {
-  getCollectionOverviewData,
-  type CollectionOverviewData,
-  type CollectionPageTab,
+import type {
+  CollectionOverviewData,
+  CollectionPageTab,
 } from "@/lib/collection-data";
+import { getCachedCollectionOverviewData } from "@/lib/collection-overview-cache";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import {
   GAME_FILTER_OPTIONS,
@@ -489,7 +489,7 @@ async function HomePageContent({
       : graded === "1"
         ? "graded"
         : "overview";
-  const data = await getCollectionOverviewData({
+  const data = await getCachedCollectionOverviewData({
     userId: user.id,
     activeTab,
     game: activeGame,

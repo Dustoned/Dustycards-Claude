@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.46",
+    releasedAt: "August 3, 2026",
+    title: "Faster search, always-warm market, nightly backups",
+    summary:
+      "DustyCards 3.8.46 speeds up search, keeps the home and market caches permanently warm, and adds an automatic nightly database backup with rotation plus a free uptime monitor.",
+    tone: "improved",
+    highlights: [
+      "Search resolves card prices with one indexed lookup instead of scanning every price snapshot per candidate — identical results, a fraction of the work.",
+      "The cache warmer now re-warms home and all market scopes (Raw, Graded, Targets, Sealed) every few minutes for active accounts, so the 8-second cold Targets build is gone for everyone.",
+      "The home overview is served from cache whenever a fingerprint proves nothing changed — your own edits and fresh prices still show up instantly.",
+      "A nightly automatic backup (7 kept) now complements the pre-deploy backups, which are rotated too (4 kept) instead of piling up 3 GB per deploy.",
+      "A GitHub Actions uptime check pings the health endpoint every 15 minutes and e-mails when the site is down.",
+    ],
+  },
+  {
     version: "3.8.45",
     releasedAt: "August 3, 2026",
     title: "No more slow first visit after a deploy",

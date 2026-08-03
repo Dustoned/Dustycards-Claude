@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { dbMock } = vi.hoisted(() => ({
-  dbMock: {
+const { dbMock } = vi.hoisted(() => {
+  const mock = {
     card: {
       findMany: vi.fn(),
     },
@@ -15,8 +15,40 @@ const { dbMock } = vi.hoisted(() => ({
     user: {
       findUnique: vi.fn(),
     },
-  },
-}));
+    // The route resolves latest usable prices with a raw lookup; derive the
+    // rows from the same card fixtures the tests already attach `prices` to.
+    $queryRawUnsafe: vi.fn(async (_sql: string, ...cardIds: unknown[]) => {
+      const wanted = new Set(cardIds.map(String));
+      const rows: Array<Record<string, unknown>> = [];
+      const seen = new Set<string>();
+      for (const call of mock.card.findMany.mock.results) {
+        const cards = (await call.value) as Array<{
+          id: string;
+          prices?: Array<{
+            cm_en_lowest_nm?: number | null;
+            cm_jp_lowest_nm?: number | null;
+            tcp_market?: number | null;
+          }>;
+        }>;
+        if (!Array.isArray(cards)) continue;
+        for (const card of cards) {
+          if (!wanted.has(card.id) || seen.has(card.id)) continue;
+          const price = card.prices?.[0];
+          if (!price) continue;
+          seen.add(card.id);
+          rows.push({
+            card_id: card.id,
+            cm_en_lowest_nm: price.cm_en_lowest_nm ?? null,
+            cm_jp_lowest_nm: price.cm_jp_lowest_nm ?? null,
+            tcp_market: price.tcp_market ?? null,
+          });
+        }
+      }
+      return rows;
+    }),
+  };
+  return { dbMock: mock };
+});
 
 vi.mock("@/lib/db", () => ({
   db: dbMock,
@@ -76,11 +108,11 @@ describe("GET /api/search", () => {
       rawCardRef: "swsh001",
     });
     expect(body.singles).toHaveLength(1);
-    expect(dbMock.card.findMany.mock.calls[0]?.[0]?.select?.prices).toEqual(
-      expect.objectContaining({
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-        take: 1,
-      })
+    // Prices come from the dedicated latest-usable-price lookup, filtered on
+    // the same usable EN/NM criteria as before.
+    expect(dbMock.$queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining("cm_en_lowest_nm > 0"),
+      "card-1"
     );
     expect(dbMock.card.findMany).toHaveBeenCalledWith(
       expect.objectContaining({

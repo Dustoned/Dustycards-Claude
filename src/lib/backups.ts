@@ -12,6 +12,13 @@ export interface BackupFileInfo {
 
 const MANUAL_BACKUP_PREFIX = "dustycards-manual-";
 const MANUAL_BACKUPS_TO_KEEP = 5;
+const DAILY_BACKUP_PREFIX = "dustycards-daily-";
+const DAILY_BACKUPS_TO_KEEP = 7;
+// Pre-deploy backups are written by the deploy pipeline (~3 GB each) and were
+// never pruned; keep the newest few. Named milestone backups (migrations,
+// repairs) are left alone.
+const PREDEPLOY_BACKUP_PREFIX = "dustycards-predeploy-";
+const PREDEPLOY_BACKUPS_TO_KEEP = 4;
 
 function joinRuntimeFile(dir: string, fileName: string): string {
   const normalizedDir = dir.replace(/[\\/]+$/, "");
@@ -85,19 +92,23 @@ export async function listBackups(): Promise<{ dir: string | null; backups: Back
   return { dir, backups };
 }
 
-function buildManualBackupName(now: Date): string {
+function buildTimestampedBackupName(prefix: string, now: Date): string {
   const stamp = now
     .toISOString()
     .slice(0, 19)
     .replace("T", "-")
     .replaceAll(":", "");
-  return `${MANUAL_BACKUP_PREFIX}${stamp}.db`;
+  return `${prefix}${stamp}.db`;
 }
 
-async function pruneManualBackups(dir: string): Promise<number> {
+function buildManualBackupName(now: Date): string {
+  return buildTimestampedBackupName(MANUAL_BACKUP_PREFIX, now);
+}
+
+async function prunePrefixedBackups(dir: string, prefix: string, keep: number): Promise<number> {
   const { backups } = await listBackups();
-  const manualBackups = backups.filter((backup) => backup.manual);
-  const stale = manualBackups.slice(MANUAL_BACKUPS_TO_KEEP);
+  const matching = backups.filter((backup) => backup.name.startsWith(prefix));
+  const stale = matching.slice(keep);
 
   await Promise.all(
     stale.map((backup) =>
@@ -105,6 +116,10 @@ async function pruneManualBackups(dir: string): Promise<number> {
     )
   );
   return stale.length;
+}
+
+async function pruneManualBackups(dir: string): Promise<number> {
+  return prunePrefixedBackups(dir, MANUAL_BACKUP_PREFIX, MANUAL_BACKUPS_TO_KEEP);
 }
 
 /**
@@ -134,5 +149,40 @@ export async function createManualBackup(): Promise<BackupFileInfo> {
     sizeBytes: stat.size,
     updatedAt: stat.mtime.toISOString(),
     manual: true,
+  };
+}
+
+/** ISO timestamp of the newest automatic daily backup, or null. */
+export async function getLatestDailyBackupAt(): Promise<string | null> {
+  const { backups } = await listBackups();
+  return backups.find((backup) => backup.name.startsWith(DAILY_BACKUP_PREFIX))?.updatedAt ?? null;
+}
+
+/**
+ * Creates the nightly automatic backup via `VACUUM INTO` and prunes the
+ * rotating sets: 7 dailies and 4 pre-deploy backups are kept.
+ */
+export async function createDailyBackup(): Promise<BackupFileInfo> {
+  const dir = await resolveBackupDir({ create: true });
+  if (!dir) {
+    throw new Error("No backup directory available");
+  }
+
+  const name = buildTimestampedBackupName(DAILY_BACKUP_PREFIX, new Date());
+  const target = joinRuntimeFile(dir, name);
+  await fs.rm(/*turbopackIgnore: true*/ target, { force: true });
+
+  const escapedTarget = target.replaceAll("'", "''");
+  await db.$executeRawUnsafe(`VACUUM INTO '${escapedTarget}'`);
+
+  const stat = await fs.stat(/*turbopackIgnore: true*/ target);
+  await prunePrefixedBackups(dir, DAILY_BACKUP_PREFIX, DAILY_BACKUPS_TO_KEEP);
+  await prunePrefixedBackups(dir, PREDEPLOY_BACKUP_PREFIX, PREDEPLOY_BACKUPS_TO_KEEP);
+
+  return {
+    name,
+    sizeBytes: stat.size,
+    updatedAt: stat.mtime.toISOString(),
+    manual: false,
   };
 }
