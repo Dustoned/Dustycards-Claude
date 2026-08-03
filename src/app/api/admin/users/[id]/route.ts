@@ -19,6 +19,7 @@ export async function PATCH(
       newPassword?: unknown;
       newPasswordConfirm?: unknown;
       role?: unknown;
+      verifyEmail?: unknown;
     };
 
     const existing = await db.user.findUnique({
@@ -33,7 +34,17 @@ export async function PATCH(
       disabled?: boolean;
       password_hash?: string;
       role?: "admin" | "user";
+      email_verified_at?: Date;
     } = {};
+
+    // Manual fallback for when the verification email never arrives: an admin
+    // can mark the address verified so the user can sign in.
+    if (body.verifyEmail !== undefined) {
+      if (body.verifyEmail !== true) {
+        return NextResponse.json({ error: "Invalid verify request" }, { status: 400 });
+      }
+      data.email_verified_at = new Date();
+    }
 
     if (body.role !== undefined) {
       const role = normalizeRole(body.role);

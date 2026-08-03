@@ -544,7 +544,10 @@ export default async function ExpansionDetailPage({
                 tone="slate"
               />
             ) : null}
-            {(!pullRateProfile || !hasSealed || activeTab === "sealed") && releaseLabel ? (
+            {/* Filler slot: only when the release date is not already shown
+                above (the pull-rate table took that slot) and the grid has
+                room because the sealed tile is hidden. */}
+            {pullRateProfile && (!hasSealed || activeTab === "sealed") && releaseLabel ? (
               <HeaderStatCard
                 label={releaseMetricLabel}
                 value={releaseLabel}

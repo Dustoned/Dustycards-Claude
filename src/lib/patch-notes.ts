@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.39",
+    releasedAt: "July 29, 2026",
+    title: "Pre-launch audit fixes",
+    summary:
+      "DustyCards 3.8.39 ships the fixes from the full pre-friends-launch audit: manual e-mail verification for admins, two visual glitches, and a cleaned roadmap.",
+    tone: "fixed",
+    highlights: [
+      "Admins can mark an account's e-mail as verified from User Management — the fallback for when a verification e-mail never arrives, so new users are never locked out.",
+      "The expansion header no longer shows the Released tile twice.",
+      "Value charts hide the percentage when the comparison baseline is near zero, instead of printing absurd numbers like +372504750.0%.",
+      "The roadmap is re-verified against the app: card price alerts are marked live, remaining items are sharpened.",
+    ],
+  },
+  {
     version: "3.8.38",
     releasedAt: "July 29, 2026",
     title: "Drain stops exactly at the quota reset",

@@ -975,10 +975,12 @@ export default function PriceHistoryPanel({
           }`}
         >
           {formatDelta(delta, currency)}
-          {delta != null && delta !== 0 && deltaEndValue != null ? (
+          {/* A percentage against a near-zero baseline (history that only just
+              started) is meaningless noise like +372504750.0%; hide it. */}
+          {delta != null && delta !== 0 && deltaEndValue != null && deltaEndValue - delta >= 1 ? (
             <span className="ml-1.5 inline">
               ({delta >= 0 ? "+" : ""}
-              {((delta / Math.max(0.01, deltaEndValue - delta)) * 100).toFixed(1)}%)
+              {((delta / (deltaEndValue - delta)) * 100).toFixed(1)}%)
             </span>
           ) : null}
         </p>

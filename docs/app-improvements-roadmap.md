@@ -1,6 +1,6 @@
 # DustyCards roadmap
 
-Last cleaned: 2026-07-12.
+Last cleaned: 2026-07-29 (pre-friends-launch audit).
 
 This file contains only work that is still useful and not already live. Completed
 work belongs in patch notes and git history. Audit evidence and temporary execution
@@ -15,23 +15,28 @@ waves are not part of the active roadmap.
 
 ### Planned
 
-- **Target price alerts** — set a target for cards, sealed products, wants or a
-  binder and surface meaningful price movement without noisy notifications.
+- **Price alerts beyond single cards** — card alerts with e-mail sweeps are live;
+  extend targets to sealed products, wants and whole binders.
 - **Binder next-buy guidance** — rank missing cards by price, rarity, completion
-  impact and affordability.
+  impact and affordability. (The Wants planner already syncs missing binder cards;
+  this adds the ranking layer.)
 - **eBay watch countdowns** — show time remaining, ended state and the final known
   result for watched listings.
 - **Shareable binder links** — create revocable read-only links for selected
-  binders without granting collection access.
+  binders without granting collection access. (Friend-to-friend sharing with an
+  account exists via Social; this is for people without an account.)
 
 ## Engineering queue
 
 These are reliability tasks, not user-facing promises:
 
 - Build releases out of place before swapping the live application directory.
-- Keep an automated off-server database backup in addition to server backups.
-- Finish graceful shutdown for sync work and SQLite WAL checkpointing.
-- Track native price-history watermarks separately so gaps can be repaired.
+- Keep an automated off-server database backup in addition to the local backup
+  directory rotation that already exists.
+- Finish graceful shutdown for in-flight sync work and SQLite WAL checkpointing
+  (database disconnect and boot reconciliation are live).
+- Apply the sealed anchor-based history gap repair (3.8.36) to card history too,
+  so card gaps can be repaired instead of only extended forward.
 - Make quota-pause progress messages count only work actually completed.
 - Split very large modules only while a related feature or fix already touches them.
 

@@ -32,7 +32,7 @@ export type AdminUserSummary = {
 };
 
 type PendingAction = {
-  action: "disabled" | "password" | "role";
+  action: "disabled" | "password" | "role" | "verify";
   userId: string;
 } | null;
 
@@ -320,6 +320,27 @@ export default function AdminUsersPanel({
                     Save role
                   </button>
                 </div>
+
+                {!user.emailVerifiedAt && (
+                  <button
+                    type="button"
+                    disabled={busy}
+                    onClick={() => setConfirmAction({
+                      action: "verify",
+                      body: { verifyEmail: true },
+                      confirmLabel: "Mark verified",
+                      description:
+                        "Manually mark this email address as verified. Use this when the verification email did not arrive; the user can sign in immediately afterwards.",
+                      email: user.email,
+                      title: "Confirm manual verification",
+                      userId: user.id,
+                    })}
+                    className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.08] px-4 py-2.5 text-sm font-semibold text-amber-700 transition hover:border-amber-400/45 hover:bg-amber-400/[0.14] disabled:cursor-not-allowed disabled:opacity-50 dark:text-amber-200"
+                  >
+                    {busy && pending?.action === "verify" && <LoaderCircle className="h-4 w-4 animate-spin" />}
+                    Mark email verified
+                  </button>
+                )}
 
                 <button
                   type="button"
