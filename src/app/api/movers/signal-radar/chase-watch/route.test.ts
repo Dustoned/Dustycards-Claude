@@ -1,15 +1,20 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { authMock, chaseMock, settingsMock, refreshMock } = vi.hoisted(() => ({
+const { authMock, chaseMock, quickActionsMock, settingsMock, refreshMock } = vi.hoisted(() => ({
   authMock: { requireUser: vi.fn(), requireAdmin: vi.fn(), authErrorResponse: vi.fn() },
-  chaseMock: { getExpansionChaseRadarData: vi.fn() },
+  chaseMock: {
+    getSharedSignalRadarChases: vi.fn(),
+    refreshSharedSignalRadarChases: vi.fn(),
+  },
+  quickActionsMock: { getCardQuickActionMap: vi.fn() },
   settingsMock: { getServerUserSettings: vi.fn() },
   refreshMock: { refreshNewReleaseChasePriceNow: vi.fn() },
 }));
 
 vi.mock("@/lib/auth", () => authMock);
-vi.mock("@/lib/expansion-chase-radar", () => chaseMock);
+vi.mock("@/lib/card-quick-actions-server", () => quickActionsMock);
+vi.mock("@/lib/signal-radar-feed-server", () => chaseMock);
 vi.mock("@/lib/user-settings-server", () => settingsMock);
 vi.mock("@/lib/sync/new-release-chase-price-job", () => refreshMock);
 
@@ -22,10 +27,17 @@ describe("Signal Radar Chase Watch refresh", () => {
     authMock.requireAdmin.mockResolvedValue({ id: "admin-1", role: "admin" });
     authMock.authErrorResponse.mockReturnValue(null);
     settingsMock.getServerUserSettings.mockResolvedValue({ onePieceLibraryEnabled: true });
-    chaseMock.getExpansionChaseRadarData.mockResolvedValue({
+    chaseMock.getSharedSignalRadarChases.mockResolvedValue({
       episode: { id: "episode-415" },
       priceWatch: { state: "current" },
+      cards: [{ cardId: "chase-card" }],
     });
+    chaseMock.refreshSharedSignalRadarChases.mockResolvedValue({
+      episode: { id: "episode-415" },
+      priceWatch: { state: "current" },
+      cards: [{ cardId: "chase-card" }],
+    });
+    quickActionsMock.getCardQuickActionMap.mockResolvedValue({});
     refreshMock.refreshNewReleaseChasePriceNow.mockResolvedValue({
       cardId: "card-1",
       status: "updated",
@@ -43,16 +55,23 @@ describe("Signal Radar Chase Watch refresh", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
-    expect(chaseMock.getExpansionChaseRadarData).toHaveBeenCalledWith({
+    expect(response.headers.get("Cache-Control")).toBe(
+      "private, max-age=60, stale-while-revalidate=300"
+    );
+    expect(chaseMock.getSharedSignalRadarChases).toHaveBeenCalledWith({
       gameFilter: "one-piece",
       episodeId: "episode-415",
     });
+    expect(quickActionsMock.getCardQuickActionMap).toHaveBeenCalledWith("user-1", [
+      "chase-card",
+    ]);
     expect(body).toEqual({
       newReleaseChases: {
         episode: { id: "episode-415" },
         priceWatch: { state: "current" },
+        cards: [{ cardId: "chase-card" }],
       },
+      cardQuickActions: {},
     });
   });
 
@@ -67,7 +86,7 @@ describe("Signal Radar Chase Watch refresh", () => {
     );
 
     expect(response.status).toBe(401);
-    expect(chaseMock.getExpansionChaseRadarData).not.toHaveBeenCalled();
+    expect(chaseMock.getSharedSignalRadarChases).not.toHaveBeenCalled();
   });
 
   it("lets an admin manually refresh one card and returns the updated panel", async () => {
@@ -86,7 +105,7 @@ describe("Signal Radar Chase Watch refresh", () => {
     expect(response.status).toBe(200);
     expect(authMock.requireAdmin).toHaveBeenCalledOnce();
     expect(refreshMock.refreshNewReleaseChasePriceNow).toHaveBeenCalledWith("card-1");
-    expect(chaseMock.getExpansionChaseRadarData).toHaveBeenCalledWith({
+    expect(chaseMock.refreshSharedSignalRadarChases).toHaveBeenCalledWith({
       gameFilter: "pokemon",
       episodeId: "episode-415",
     });

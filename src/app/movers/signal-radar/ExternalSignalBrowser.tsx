@@ -51,8 +51,10 @@ import type {
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
 import {
-  commitSignalRadarFeedResult,
+  cacheSignalRadarFeed,
   CHASE_WATCH_RETRY_DELAY_MS,
+  commitSignalRadarFeedResult,
+  getCachedSignalRadarFeed,
   getChaseWatchRevalidateDelayMs,
   MIN_CHASE_WATCH_REVALIDATE_DELAY_MS,
   scheduleSignalRadarFeedStart,
@@ -980,6 +982,10 @@ export default function ExternalSignalBrowser({
   const [signals, setSignals] = useState(initialSignals);
   const [cardQuickActions, setCardQuickActions] = useState(initialCardQuickActions);
   const [newReleaseChases, setNewReleaseChases] = useState(initialNewReleaseChases);
+  const [chaseState, setChaseState] = useState<"loading" | "ready" | "error">(
+    initialNewReleaseChases || !chaseWatchHref ? "ready" : "loading"
+  );
+  const [chaseAttempt, setChaseAttempt] = useState(0);
   const [progressiveState, setProgressiveState] = useState<"loading" | "ready" | "error">(
     progressiveHref ? "loading" : "ready"
   );
@@ -995,28 +1001,43 @@ export default function ExternalSignalBrowser({
     setProgressiveState("loading");
     setProgressiveAttempt((current) => current + 1);
   }, []);
+  const retryChaseLoad = useCallback(() => {
+    setChaseState("loading");
+    setChaseAttempt((current) => current + 1);
+  }, []);
 
   useEffect(() => {
     if (!progressiveHref) return;
     const href = progressiveHref;
+    const cached = getCachedSignalRadarFeed(href);
+    const hasCachedFeed = Boolean(cached);
+    let active = true;
+    if (cached) {
+      queueMicrotask(() => {
+        if (!active) return;
+        setSignals(cached.signals);
+        setProgressiveState("ready");
+      });
+    }
 
     async function loadRemainingSignals(signal: AbortSignal) {
       try {
         const response = await fetch(href, {
-          cache: "no-store",
+          cache: "default",
           credentials: "same-origin",
           signal,
         });
         if (!response.ok) throw new Error(`Request failed (${response.status})`);
         const payload = (await response.json()) as SignalRadarProgressivePayload;
         commitSignalRadarFeedResult(signal, () => {
+          cacheSignalRadarFeed(href, payload);
           setSignals(payload.signals);
           setCardQuickActions((current) => ({ ...payload.cardQuickActions, ...current }));
-          setNewReleaseChases(payload.newReleaseChases);
+          if (payload.newReleaseChases) setNewReleaseChases(payload.newReleaseChases);
           setProgressiveState("ready");
         });
       } catch {
-        if (!signal.aborted) setProgressiveState("error");
+        if (!signal.aborted && !hasCachedFeed) setProgressiveState("error");
       }
     }
 
@@ -1025,8 +1046,41 @@ export default function ExternalSignalBrowser({
     // intentionally heavy; starting it in the same instant as a card tap made
     // that detail request wait for the feed to finish. If navigation happens
     // during this window, cleanup cancels the timer and the feed never starts.
-    return scheduleSignalRadarFeedStart(progressiveAttempt, loadRemainingSignals);
+    const cancelLoad = scheduleSignalRadarFeedStart(progressiveAttempt, loadRemainingSignals);
+    return () => {
+      active = false;
+      cancelLoad();
+    };
   }, [progressiveAttempt, progressiveHref]);
+  useEffect(() => {
+    if (!chaseWatchHref || newReleaseChases) return;
+    const href = chaseWatchHref;
+    const controller = new AbortController();
+
+    async function loadInitialChaseWatch() {
+      try {
+        const response = await fetch(href, {
+          cache: "default",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Request failed (${response.status})`);
+        const payload = (await response.json()) as SignalRadarChaseWatchPayload;
+        if (controller.signal.aborted) return;
+        setNewReleaseChases(payload.newReleaseChases);
+        setCardQuickActions((current) => ({
+          ...(payload.cardQuickActions ?? {}),
+          ...current,
+        }));
+        setChaseState("ready");
+      } catch {
+        if (!controller.signal.aborted) setChaseState("error");
+      }
+    }
+
+    void loadInitialChaseWatch();
+    return () => controller.abort();
+  }, [chaseAttempt, chaseWatchHref, newReleaseChases]);
   useEffect(() => {
     const nextRefreshAt = newReleaseChases?.priceWatch.nextRefreshAt;
     if (!chaseWatchHref || !newReleaseChases?.priceWatch.enabled || !nextRefreshAt) return;
@@ -1052,6 +1106,10 @@ export default function ExternalSignalBrowser({
         const payload = (await response.json()) as SignalRadarChaseWatchPayload;
         if (controller.signal.aborted) return;
         setNewReleaseChases(payload.newReleaseChases);
+        setCardQuickActions((current) => ({
+          ...(payload.cardQuickActions ?? {}),
+          ...current,
+        }));
         const nextDelay = getChaseWatchRevalidateDelayMs(
           payload.newReleaseChases?.priceWatch.nextRefreshAt
         );
@@ -1184,7 +1242,7 @@ export default function ExternalSignalBrowser({
           manualRefreshHref={manualChaseRefreshHref}
           onDataChange={setNewReleaseChases}
         />
-      ) : progressiveState === "loading" ? (
+      ) : chaseState === "loading" ? (
         <section
           className="binder-panel overflow-hidden rounded-[1.25rem] p-3 sm:p-4"
           aria-label="Loading new release chase analysis"
@@ -1206,6 +1264,26 @@ export default function ExternalSignalBrowser({
             ))}
           </div>
           <span className="sr-only">Building the latest set chase read</span>
+        </section>
+      ) : chaseState === "error" ? (
+        <section className="binder-panel rounded-[1.25rem] p-3 sm:p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-xs font-semibold text-white/72">
+                Chase Watch could not be loaded
+              </p>
+              <p className="mt-1 text-[10px] text-white/38">
+                The general Radar is still available.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={retryChaseLoad}
+              className="min-h-11 rounded-xl border border-amber-300/15 px-3 text-xs font-semibold text-amber-100/72 transition hover:bg-amber-300/[0.07]"
+            >
+              Retry Chase Watch
+            </button>
+          </div>
         </section>
       ) : null}
 

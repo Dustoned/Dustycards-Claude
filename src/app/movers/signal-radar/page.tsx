@@ -19,6 +19,7 @@ import {
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { selectInitialSignalRadarCards } from "@/lib/signal-radar-progressive";
+import { readSignalRadarSnapshot } from "@/lib/signal-radar-snapshot-store";
 
 export const dynamic = "force-dynamic";
 
@@ -39,7 +40,8 @@ export default async function SignalRadarPage({
   const activeGame = parseVisibleGameFilter(game, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const radarData = await getExternalSignalRadarPageData(activeGame);
+  const storedRadar = await readSignalRadarSnapshot(activeGame);
+  const radarData = storedRadar?.data ?? await getExternalSignalRadarPageData(activeGame);
   // Keep the first render on persisted data only. Full structural/market
   // enrichment is the expensive cold path and already belongs to the
   // progressive feed below; doing it here delayed the shell by ~1.7s just to
@@ -67,12 +69,13 @@ export default async function SignalRadarPage({
     : "/movers";
   const progressiveQuery = new URLSearchParams();
   if (activeGameValue) progressiveQuery.set(GAME_SEARCH_PARAM, activeGameValue);
-  if (set) progressiveQuery.set("set", set);
   const progressiveHref = `/api/movers/signal-radar/feed${
     progressiveQuery.size ? `?${progressiveQuery.toString()}` : ""
   }`;
+  const chaseQuery = new URLSearchParams(progressiveQuery);
+  if (set) chaseQuery.set("set", set);
   const chaseWatchHref = `/api/movers/signal-radar/chase-watch${
-    progressiveQuery.size ? `?${progressiveQuery.toString()}` : ""
+    chaseQuery.size ? `?${chaseQuery.toString()}` : ""
   }`;
 
   return (

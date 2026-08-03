@@ -6,6 +6,7 @@ import Link from "next/link";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
+import { selectionToggleTextClass } from "@/components/collection-cards-view-helpers";
 import CachedImage from "@/components/CachedImage";
 import {
   CardListTile,
@@ -451,11 +452,23 @@ export default function ExpansionView({
     longPressStartRef.current = null;
   }
 
-  // Touch: holding a card turns selection mode on and selects it right away.
+  // Touch or primary mouse hold: turn selection mode on and select immediately.
   function getCardLongPressHandlers(cardId: string) {
     return {
       onPointerDown: (event: React.PointerEvent) => {
-        if (event.pointerType !== "touch" || selectionMode) return;
+        const isSupportedPointer = event.pointerType === "touch" || event.pointerType === "mouse";
+        const interactiveTarget = (event.target as Element).closest(
+          "button, a, input, select, textarea"
+        );
+        if (
+          !event.isPrimary ||
+          event.button !== 0 ||
+          !isSupportedPointer ||
+          selectionMode ||
+          (interactiveTarget && interactiveTarget !== event.currentTarget)
+        ) {
+          return;
+        }
         clearLongPressTimer();
         longPressFiredRef.current = false;
         longPressStartRef.current = { x: event.clientX, y: event.clientY };
@@ -474,15 +487,26 @@ export default function ExpansionView({
           clearLongPressTimer();
         }
       },
-      onPointerUp: () => clearLongPressTimer(),
+      onPointerUp: () => {
+        clearLongPressTimer();
+        // A stationary hold produces a click immediately after pointerup, which
+        // consumes this flag. A drag may not, so clear it on the next task to
+        // avoid swallowing the user's next deliberate click.
+        if (longPressFiredRef.current) {
+          window.setTimeout(() => {
+            longPressFiredRef.current = false;
+          }, 0);
+        }
+      },
+      onPointerLeave: () => clearLongPressTimer(),
       onPointerCancel: () => {
         clearLongPressTimer();
         longPressFiredRef.current = false;
       },
       onContextMenu: (event: React.MouseEvent) => {
-        // Mobile long-press also triggers the context menu; swallow it when
-        // the hold just activated selection.
-        if (longPressFiredRef.current) event.preventDefault();
+        // Card tiles use long-press for selection. Native image actions remain
+        // available only inside the card-detail experience.
+        event.preventDefault();
       },
     };
   }
@@ -898,62 +922,70 @@ export default function ExpansionView({
         filterSections={toolbarFilterSections}
         warnings={toolbarWarnings}
         selectionSlot={
-          <div className="flex flex-wrap items-center gap-2">
-            {selectionMode && (
-              <>
-                <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-blue-500/25 bg-violet-500/10 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-violet-700 dark:text-violet-200">
-                  {selectedCardIds.length} selected
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCardIds(filtered.map((card) => card.id))}
-                  disabled={filtered.length === 0 || selectedCardIds.length === filtered.length}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
-                >
-                  Select all
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedCardIds([])}
-                  disabled={selectedCardIds.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
-                >
-                  Clear
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setBulkAddOpen(true)}
-                  disabled={selectedCardIds.length === 0}
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
-                >
-                  Bulk add
-                </button>
-                <button
-                  type="button"
-                  onClick={openSaleListingDialog}
-                  disabled={savingSaleListing || selectedCardIds.length === 0}
-                  title="Move to For Sale"
-                  aria-label="Move to For Sale"
-                  className="inline-flex min-h-[var(--ui-chip-min-height)] items-center rounded-full border border-amber-400/28 bg-amber-400/[0.09] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] leading-none text-amber-300 transition-colors hover:border-amber-300/45 hover:bg-amber-400/[0.16] hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-45"
-                >
-                  <BadgeEuro className="h-4 w-4" />
-                </button>
-              </>
-            )}
+          !selectionMode ? (
             <button
               type="button"
               onClick={toggleSelectionMode}
-              className={`inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none transition-colors ${
-                selectionMode
-                  ? "border-violet-400/40 bg-violet-600 text-white"
-                  : "border-white/8 bg-white/[0.045] text-white/62 hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
-              }`}
+              className={selectionToggleTextClass(false)}
             >
-              {selectionMode ? "Done" : "Select"}
+              Select
             </button>
-          </div>
+          ) : null
         }
       />
+
+      {selectionMode && (
+        <div
+          data-expansion-selection-bar
+          className="mb-4 grid grid-cols-3 items-center gap-2 sm:flex sm:flex-wrap sm:justify-end"
+        >
+            <span className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full border border-black/8 bg-black/[0.03] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-medium leading-none text-gray-500 dark:border-white/8 dark:bg-white/[0.05] dark:text-white/45">
+              {selectedCardIds.length} selected
+            </span>
+            <button
+              type="button"
+              onClick={() => setSelectedCardIds(filtered.map((card) => card.id))}
+              disabled={filtered.length === 0 || selectedCardIds.length === filtered.length}
+              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
+            >
+              Select all
+            </button>
+            <button
+              type="button"
+              onClick={() => setSelectedCardIds([])}
+              disabled={selectedCardIds.length === 0}
+              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white/62 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white disabled:cursor-not-allowed disabled:bg-white/[0.025] disabled:text-white/32"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={() => setBulkAddOpen(true)}
+              disabled={selectedCardIds.length === 0}
+              aria-label="Bulk add"
+              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full bg-violet-600 px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] font-semibold leading-none text-white transition-colors hover:bg-violet-500 disabled:cursor-not-allowed disabled:bg-white/[0.045] disabled:text-white/28 disabled:shadow-none"
+            >
+              Bulk add
+            </button>
+            <button
+              type="button"
+              onClick={openSaleListingDialog}
+              disabled={savingSaleListing || selectedCardIds.length === 0}
+              title="Move to For Sale"
+              aria-label="Move to For Sale"
+              className="inline-flex min-h-[var(--ui-chip-min-height)] items-center justify-center rounded-full border border-amber-400/28 bg-amber-400/[0.09] px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] leading-none text-amber-300 transition-colors hover:border-amber-300/45 hover:bg-amber-400/[0.16] hover:text-amber-200 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <BadgeEuro className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={toggleSelectionMode}
+              className={`${selectionToggleTextClass(true)} text-center`}
+            >
+              Done
+            </button>
+        </div>
+      )}
 
       {false && (
         <div className="glass rounded-2xl px-4 py-3 mb-4 shadow-sm shadow-black/5 space-y-2.5">
@@ -1468,7 +1500,16 @@ export default function ExpansionView({
                 key={card.id}
                 role="button"
                 tabIndex={0}
-                className="group flex cursor-pointer flex-col gap-1.5 text-left outline-none"
+                aria-pressed={selectionMode ? gridSelected : undefined}
+                className={`group flex cursor-pointer flex-col text-left outline-none ${
+                  selectionMode
+                    ? `relative h-full rounded-[14px] border bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 shadow-[0_12px_28px_rgba(0,0,0,0.24)] transition-colors max-[640px]:rounded-[13px] max-[640px]:p-1 ${
+                        gridSelected
+                          ? "border-blue-400/70 ring-2 ring-blue-400/60"
+                          : "border-white/8 hover:border-white/14"
+                      }`
+                    : "gap-1.5"
+                }`}
                 style={{
                   contain: "layout paint style",
                   contentVisibility: "auto",
@@ -1489,8 +1530,10 @@ export default function ExpansionView({
                     card.image_url,
                     `relative aspect-[63/88] w-full overflow-hidden rounded-[4.75%] bg-transparent transition-all duration-200 ${
                       gridSelected
-                        ? "drop-shadow-[0_12px_24px_rgba(56,189,248,0.35)] ring-[3px] ring-blue-400"
-                        : "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
+                        ? "drop-shadow-[0_12px_24px_rgba(56,189,248,0.24)] ring-2 ring-blue-400/80"
+                        : selectionMode
+                          ? "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)]"
+                          : "drop-shadow-[0_10px_18px_rgba(0,0,0,0.22)] group-hover:scale-[1.02] group-hover:drop-shadow-[0_14px_26px_rgba(0,0,0,0.32)]"
                     }`
                   )}
                 >
@@ -1521,7 +1564,7 @@ export default function ExpansionView({
                     </div>
                   )}
 
-                  {gridSelected && <div className="pointer-events-none absolute inset-0 bg-blue-500/10" />}
+                  {gridSelected && <div className="pointer-events-none absolute inset-0 bg-violet-500/10" />}
                 </div>
                 <div className="mt-1.5 px-0.5 sm:mt-2">
                   <div className="grid gap-1 sm:flex sm:items-end sm:justify-between sm:gap-3">
@@ -1702,6 +1745,7 @@ export default function ExpansionView({
           cards={selectedCards.map((card) => ({
             id: card.id,
             name: card.name,
+            number: card.card_number,
             image_url: card.image_url,
             episode: getCollectionEpisodeForCard(card),
           }))}

@@ -10,9 +10,10 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth",
   "/api/internal/sync-scheduler",
   "/api/internal/sync-pricedex-pull-rates",
+  "/api/internal/warm-signal-radar",
 ];
 
-function isPublicPath(pathname: string): boolean {
+export function isPublicPath(pathname: string): boolean {
   return (
     PUBLIC_PATHS.some((path) => pathname === path || pathname.startsWith(`${path}/`)) ||
     PUBLIC_API_PREFIXES.some((path) => pathname === path || pathname.startsWith(`${path}/`))

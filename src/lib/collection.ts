@@ -12,6 +12,7 @@ import {
   type EpisodeSealedPriceHistorySnapshot,
   type EpisodeSetPriceHistoryPoint,
 } from "@/lib/price-history";
+import { getSealedEuMarketPrice } from "@/lib/sealed-products";
 
 export const COLLECTION_CONDITIONS = [
   "Mint",
@@ -306,15 +307,7 @@ export function getCollectionSealedMarketValue(
 ): number | null {
   if (!product) return null;
 
-  return (
-    product.cm_lowest ??
-    product.cm_lowest_eu ??
-    product.cm_lowest_de ??
-    product.cm_lowest_fr ??
-    product.cm_lowest_es ??
-    product.cm_lowest_it ??
-    null
-  );
+  return getSealedEuMarketPrice(product);
 }
 
 export function sumCollectionPurchasePrices(

@@ -86,8 +86,8 @@ function buildSealedProductData(item: CollectionValueDriverItem): SealedModalPro
     image_url: item.imageUrl,
     cardmarket_url: null,
     price: {
-      cm_lowest: Number.isFinite(perItemPrice) ? perItemPrice : null,
-      cm_lowest_eu: null,
+      cm_lowest: null,
+      cm_lowest_eu: Number.isFinite(perItemPrice) ? perItemPrice : null,
       cm_lowest_de: null,
       cm_lowest_fr: null,
       cm_lowest_es: null,
@@ -253,8 +253,8 @@ export default function HomeValueDriversPanel({
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
-  const gains = data.gains.slice(0, 4);
-  const drops = data.drops.slice(0, 4);
+  const gains = data.gains.slice(0, 6);
+  const drops = data.drops.slice(0, 6);
   const hasDrivers = gains.length > 0 || drops.length > 0;
   const netChange = data.totalChange ?? 0;
   const netToneClass = netChange >= 0 ? "text-emerald-300" : "text-rose-300";

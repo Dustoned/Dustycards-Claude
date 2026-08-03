@@ -18,6 +18,7 @@
 /polish-screenshots-*/
 /.codex-screenshots/
 /.codex-temp/
+/.claude/
 /playwright-report/
 /screenshots-ui/
 /test-results/
@@ -36,6 +37,7 @@ dustycards.db-wal
 dustycards.db-shm
 /data/image-cache/
 /data/official-product-releases.json
+/data/signal-radar-snapshots/
 
 # misc
 .DS_Store

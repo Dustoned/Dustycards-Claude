@@ -82,6 +82,7 @@ interface SealedResult {
   image_url: string | null;
   cardmarket_url: string | null;
   cm_lowest: number | null;
+  cm_lowest_eu: number | null;
   cm_avg_7d: number | null;
   cm_avg_30d: number | null;
   episode: { id: string; name: string; code: string | null; release_date?: string | null };
@@ -187,6 +188,10 @@ function compareNewestRelease(a: string | null | undefined, b: string | null | u
 
 function formatEur(value: number | null | undefined): string {
   return value == null ? "-" : formatCurrency(value, "EUR");
+}
+
+function getSealedResultMainPrice(product: SealedResult): number | null {
+  return product.cm_lowest_eu ?? product.cm_lowest;
 }
 
 function setWithLruEviction<K, V>(map: Map<K, V>, key: K, value: V, max: number): void {
@@ -410,7 +415,7 @@ function SearchPageContent({
       cardmarket_url: product.cardmarket_url,
       price: {
         cm_lowest: product.cm_lowest,
-        cm_lowest_eu: null,
+        cm_lowest_eu: product.cm_lowest_eu,
         cm_lowest_de: null,
         cm_lowest_fr: null,
         cm_lowest_es: null,
@@ -458,7 +463,13 @@ function SearchPageContent({
       );
     } else {
       const direction = sortMode === "price_asc" ? 1 : -1;
-      copy.sort((a, b) => compareNullablePrice(a.cm_lowest, b.cm_lowest, direction));
+      copy.sort((a, b) =>
+        compareNullablePrice(
+          getSealedResultMainPrice(a),
+          getSealedResultMainPrice(b),
+          direction
+        )
+      );
     }
     return copy;
   }, [results, sortMode]);
@@ -947,9 +958,9 @@ function SearchPageContent({
                         </div>
 
                         <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-1.5 gap-y-1">
-                          {product.cm_lowest != null ? (
+                          {getSealedResultMainPrice(product) != null ? (
                             <span className="whitespace-nowrap text-[12px] font-bold tabular-nums leading-tight text-white sm:text-[14px]">
-                              {formatEur(product.cm_lowest)}
+                              {formatEur(getSealedResultMainPrice(product))}
                             </span>
                           ) : (
                             <span className="text-xs text-white/35">No price</span>

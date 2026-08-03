@@ -42,6 +42,7 @@ function CachedImageInner({
   className = "",
   style,
   unoptimized = false,
+  onContextMenu,
   ...props
 }: Omit<CachedImageProps, "sourceUrl"> & { sourceUrl: string; preferredUrl: string }) {
   const [fallbackToSource, setFallbackToSource] = useState(false);
@@ -66,10 +67,16 @@ function CachedImageInner({
           {...props}
           src={useResponsiveDelivery ? sourceUrl : activeUrl}
           alt={alt}
-          className={`${className} transition-opacity duration-200`}
+          className={`dc-protected-image ${className} transition-opacity duration-200`}
           style={{ ...style, opacity: loaded ? style?.opacity : 0 }}
           loader={useResponsiveDelivery ? responsiveImageLoader : undefined}
           unoptimized={!useResponsiveDelivery}
+          onContextMenu={(event) => {
+            if (!event.currentTarget.closest("[data-card-detail-shell]")) {
+              event.preventDefault();
+            }
+            onContextMenu?.(event);
+          }}
           onLoad={() => setLoaded(true)}
           onError={() => {
             if (!fallbackToSource && (useResponsiveDelivery || activeUrl !== sourceUrl)) {

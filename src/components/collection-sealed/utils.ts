@@ -12,6 +12,7 @@ export function selectionToggleTextClass(active: boolean): string {
 export function buildModalProduct(item: CollectionSealedViewItem): SealedModalProductData {
   return {
     id: item.product_id,
+    collection_item_id: item.id,
     name: item.name,
     image_url: item.image_url,
     cardmarket_url: item.cardmarket_url,
@@ -21,8 +22,8 @@ export function buildModalProduct(item: CollectionSealedViewItem): SealedModalPr
       code: item.episode_code,
     },
     price: {
-      cm_lowest: item.current_value_per_item,
-      cm_lowest_eu: null,
+      cm_lowest: null,
+      cm_lowest_eu: item.current_value_per_item,
       cm_lowest_de: null,
       cm_lowest_fr: null,
       cm_lowest_es: null,
@@ -52,6 +53,10 @@ export function getCollectionSealedCurrentTotal(item: CollectionSealedViewItem):
   }
 
   return Number((item.current_value_per_item * item.quantity).toFixed(2));
+}
+
+export function getCollectionSealedUnitValue(item: CollectionSealedViewItem): number | null {
+  return item.current_value_per_item;
 }
 
 export function getCollectionSealedPaidTotal(item: CollectionSealedViewItem): number | null {

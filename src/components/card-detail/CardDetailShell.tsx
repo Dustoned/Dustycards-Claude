@@ -111,7 +111,9 @@ interface CardDetailShellProps {
   mediaActions?: ReactNode;
   chart: ReactNode;
   actions?: ReactNode;
+  actionsAriaLabel?: string;
   tabs: CardDetailTab[];
+  sectionsAriaLabel?: string;
   initialTab?: CardDetailTabId;
   mobileChartTabs?: CardDetailTabId[];
   mobileChartAlwaysVisible?: boolean;
@@ -227,7 +229,9 @@ export default function CardDetailShell({
   mediaActions,
   chart,
   actions,
+  actionsAriaLabel = "Card actions",
   tabs,
+  sectionsAriaLabel = "Card detail sections",
   initialTab = "overview",
   mobileChartTabs = ["market", "forecast"],
   mobileChartAlwaysVisible = false,
@@ -256,7 +260,11 @@ export default function CardDetailShell({
     });
   }
   const actionContent = actions ? (
-    <div className="card-detail-actions" aria-label="Card actions" data-card-detail-actions>
+    <div
+      className="card-detail-actions"
+      aria-label={actionsAriaLabel}
+      data-card-detail-actions
+    >
       {actions}
     </div>
   ) : null;
@@ -448,7 +456,7 @@ export default function CardDetailShell({
         <nav
           ref={tabsShellRef}
           className="card-detail-tabs-shell"
-          aria-label="Card detail sections"
+          aria-label={sectionsAriaLabel}
         >
           <div ref={tabListRef} className="card-detail-tabs" role="tablist">
             {tabs.map((tab, index) => {

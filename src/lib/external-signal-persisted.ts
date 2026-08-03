@@ -15,8 +15,14 @@ import type {
   ExternalSignalRadarData,
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
+import { createSwrCache } from "@/lib/server-swr-cache";
 
 const SQLITE_SAFE_CARD_CHUNK_SIZE = 50;
+const persistedRadarCache = createSwrCache<ExternalSignalRadarData | null>(
+  60_000,
+  15 * 60_000,
+  { maxEntries: 3 }
+);
 
 function requestedGames(filter: TradingCardGameFilter): TradingCardGame[] {
   return filter === ALL_GAMES ? [POKEMON_GAME, ONE_PIECE_GAME] : [filter];
@@ -158,6 +164,14 @@ export async function getExternalSignalRadarPageData(
 }
 
 export async function getPersistedExternalSignalRadarData(
+  gameFilter: TradingCardGameFilter
+): Promise<ExternalSignalRadarData | null> {
+  return persistedRadarCache.get(gameFilter, () =>
+    loadPersistedExternalSignalRadarData(gameFilter)
+  );
+}
+
+async function loadPersistedExternalSignalRadarData(
   gameFilter: TradingCardGameFilter
 ): Promise<ExternalSignalRadarData | null> {
   const games = requestedGames(gameFilter);

@@ -25,6 +25,43 @@ export interface PreparedCollectionEntry {
   isGraded: boolean;
 }
 
+function getCollectionItemIds(item: CollectionCardViewItem): string[] {
+  if (item.collection_item_ids?.length) {
+    return item.collection_item_ids;
+  }
+
+  return item.collection_item_id ? [item.collection_item_id] : [];
+}
+
+export function omitOptimisticallyMovedCollectionItems(
+  items: CollectionCardViewItem[],
+  movedItemIds: ReadonlySet<string>
+): CollectionCardViewItem[] {
+  if (movedItemIds.size === 0) return items;
+
+  return items.flatMap((item) => {
+    const itemIds = getCollectionItemIds(item);
+    if (itemIds.length === 0) return [item];
+
+    const visibleItemIds = itemIds.filter((id) => !movedItemIds.has(id));
+    if (visibleItemIds.length === itemIds.length) return [item];
+    if (visibleItemIds.length === 0) return [];
+
+    return [{
+      ...item,
+      collection_item_id:
+        item.collection_item_id && visibleItemIds.includes(item.collection_item_id)
+          ? item.collection_item_id
+          : visibleItemIds[0],
+      collection_item_ids: visibleItemIds,
+      owned_count:
+        item.owned_count == null
+          ? item.owned_count
+          : Math.max(visibleItemIds.length, item.owned_count - (itemIds.length - visibleItemIds.length)),
+    }];
+  });
+}
+
 export function buildFilterOptions(
   values: Array<string | null | undefined>,
   preferredOrder: readonly string[],

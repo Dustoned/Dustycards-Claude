@@ -1,5 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { selectCardDetailSealedProducts } from "@/lib/sealed-products";
+import {
+  getSealedProductPrice,
+  selectCardDetailSealedProducts,
+} from "@/lib/sealed-products";
+
+describe("getSealedProductPrice", () => {
+  it("uses EU Market as the main sealed price and falls back to Market", () => {
+    const price = {
+      cm_lowest: 150,
+      cm_lowest_eu: 120,
+      cm_lowest_de: 110,
+      cm_lowest_fr: null,
+      cm_lowest_es: null,
+      cm_lowest_it: null,
+    };
+
+    expect(getSealedProductPrice({ price })).toBe(120);
+    expect(getSealedProductPrice({ price: { ...price, cm_lowest_eu: null } })).toBe(150);
+  });
+});
 
 describe("selectCardDetailSealedProducts", () => {
   it("prioritizes consumer boxes and excludes cases and displays", () => {

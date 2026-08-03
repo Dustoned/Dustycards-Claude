@@ -2,10 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 import { compressedJsonResponse } from "@/lib/compressed-json-response";
-import { enrichExternalSignalRadarData } from "@/lib/external-signal-intelligence";
-import { getExternalSignalRadarPageData } from "@/lib/external-signal-persisted";
-import { getExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import { parseVisibleGameFilter } from "@/lib/games";
+import { getSharedSignalRadarSignals } from "@/lib/signal-radar-feed-server";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export async function GET(request: NextRequest) {
@@ -15,28 +13,25 @@ export async function GET(request: NextRequest) {
     const game = parseVisibleGameFilter(request.nextUrl.searchParams.get("game"), {
       onePieceEnabled: settings.onePieceLibraryEnabled,
     });
-    // Request rendering and this progressive endpoint both use persisted data;
-    // external websites remain exclusively owned by the background scheduler.
-    const [persisted, newReleaseChases] = await Promise.all([
-      getExternalSignalRadarPageData(game),
-      getExpansionChaseRadarData({
-        gameFilter: game,
-        episodeId: request.nextUrl.searchParams.get("set")?.trim() || null,
-      }),
-    ]);
-    const data = await enrichExternalSignalRadarData(persisted);
+    const signals = await getSharedSignalRadarSignals(game);
     const cardQuickActions = await getCardQuickActionMap(
       user.id,
-      [
-        ...data.signals.map((signal) => signal.cardId),
-        ...(newReleaseChases?.cards.map((card) => card.cardId) ?? []),
-      ]
+      signals.map((signal) => signal.cardId)
     );
 
     return compressedJsonResponse(
       request,
-      { signals: data.signals, cardQuickActions, newReleaseChases },
-      { headers: { "Cache-Control": "private, no-store" } }
+      {
+        signals,
+        cardQuickActions,
+        newReleaseChases: null,
+      },
+      {
+        headers: {
+          "Cache-Control": "private, max-age=60, stale-while-revalidate=300",
+          Vary: "Cookie",
+        },
+      }
     );
   } catch (error) {
     return (

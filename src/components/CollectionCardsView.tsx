@@ -85,10 +85,12 @@ import {
   hasAnyVisiblePrice,
   isGradedCollectionCard,
   neutralFilterChip,
+  omitOptimisticallyMovedCollectionItems,
   rarityFilterChip,
   selectionToggleTextClass,
   type PreparedCollectionEntry,
 } from "@/components/collection-cards-view-helpers";
+import type { CollectionCardSavedDetail } from "@/lib/collection-client-events";
 
 const CardModal = dynamic(() => import("@/components/CardModal"), {
   ssr: false,
@@ -279,6 +281,7 @@ export default function CollectionCardsView({
   const [savingSold, setSavingSold] = useState(false);
   const [saleListingDialog, setSaleListingDialog] = useState<SaleListingDialogState | null>(null);
   const [savingSaleListing, setSavingSaleListing] = useState(false);
+  const [optimisticallyMovedItemIds, setOptimisticallyMovedItemIds] = useState<string[]>([]);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressFiredRef = useRef(false);
   const longPressStartRef = useRef<{ x: number; y: number } | null>(null);
@@ -293,14 +296,60 @@ export default function CollectionCardsView({
   const canRemoveFromWants = allowWantRemoval;
   const canMarkSold = allowSoldMarking;
   const canSendToSale = allowSaleListing;
+  const optimisticallyMovedItemIdSet = useMemo(
+    () => new Set(optimisticallyMovedItemIds),
+    [optimisticallyMovedItemIds]
+  );
+  const visibleSourceItems = useMemo(
+    () => omitOptimisticallyMovedCollectionItems(items, optimisticallyMovedItemIdSet),
+    [items, optimisticallyMovedItemIdSet]
+  );
+
+  useEffect(() => {
+    const currentItemIds = new Set(
+      items.flatMap((item) =>
+        item.collection_item_ids?.length
+          ? item.collection_item_ids
+          : item.collection_item_id
+            ? [item.collection_item_id]
+            : []
+      )
+    );
+    setOptimisticallyMovedItemIds((current) => {
+      const next = current.filter((id) => currentItemIds.has(id));
+      return next.length === current.length ? current : next;
+    });
+  }, [items]);
+
+  function handleCollectionItemSaved(detail: CollectionCardSavedDetail) {
+    const sourceItem = items.find((item) => {
+      const itemIds = item.collection_item_ids?.length
+        ? item.collection_item_ids
+        : item.collection_item_id
+          ? [item.collection_item_id]
+          : [];
+      return itemIds.includes(detail.itemId);
+    });
+
+    if (!sourceItem || Boolean(sourceItem.for_sale) === detail.forSale) return;
+
+    setOptimisticallyMovedItemIds((current) =>
+      current.includes(detail.itemId) ? current : [...current, detail.itemId]
+    );
+  }
+
   const availableRarities = useMemo(
     () =>
-      buildFilterOptions(items.map((item) => item.rarity), KNOWN_RARITY_ORDER, normalizeRarityLabel),
-    [items]
+      buildFilterOptions(
+        visibleSourceItems.map((item) => item.rarity),
+        KNOWN_RARITY_ORDER,
+        normalizeRarityLabel
+      ),
+    [visibleSourceItems]
   );
   const availableSupertypes = useMemo(
-    () => buildFilterOptions(items.map((item) => item.supertype), KNOWN_SUPERTYPE_ORDER),
-    [items]
+    () => buildFilterOptions(visibleSourceItems.map((item) => item.supertype), KNOWN_SUPERTYPE_ORDER),
+    [visibleSourceItems]
   );
   const availableRarityValues = useMemo(
     () => new Set(availableRarities.map((option) => option.value)),
@@ -329,14 +378,14 @@ export default function CollectionCardsView({
   const normalizedSearch = search.trim().toLowerCase();
   const preparedEntries = useMemo<PreparedCollectionEntry[]>(
     () =>
-      items.map((item, index) => ({
+      visibleSourceItems.map((item, index) => ({
         item,
         selectionKey: `${item.card_id}-${index}`,
         normalizedRarity: normalizeRarityLabel(item.rarity),
         isPriced: hasAnyVisiblePrice(item),
         isGraded: isGradedCollectionCard(item),
       })),
-    [items]
+    [visibleSourceItems]
   );
   const hasAnyPricedCards = useMemo(
     () => preparedEntries.some((entry) => entry.isPriced),
@@ -447,7 +496,7 @@ export default function CollectionCardsView({
     showFilters &&
     !deferredNormalizedSearch &&
     !deferredEffectiveShowOnlyGraded &&
-    items.length > 0 &&
+    visibleSourceItems.length > 0 &&
     orderedFilteredEntries.length === 0 &&
     (
       deferredAppliedRarities.length > 0 ||
@@ -598,6 +647,7 @@ export default function CollectionCardsView({
               {
                 id: entry.item.card_id,
                 name: entry.item.name,
+                number: entry.item.card_number,
                 image_url: entry.item.image_url,
                 episode: {
                   id: entry.item.episode_id,
@@ -776,13 +826,25 @@ export default function CollectionCardsView({
     longPressStartRef.current = null;
   }
 
-  // Touch: holding a card turns selection mode on and selects it right away.
+  // Touch or primary mouse hold: turn selection mode on and select immediately.
   function getTileLongPressHandlers(selectionKey: string) {
     if (!selectionEnabled) return {};
 
     return {
       onPointerDown: (event: React.PointerEvent) => {
-        if (event.pointerType !== "touch" || activeSelectionMode) return;
+        const isSupportedPointer = event.pointerType === "touch" || event.pointerType === "mouse";
+        const interactiveTarget = (event.target as Element).closest(
+          "button, a, input, select, textarea"
+        );
+        if (
+          !event.isPrimary ||
+          event.button !== 0 ||
+          !isSupportedPointer ||
+          activeSelectionMode ||
+          (interactiveTarget && interactiveTarget !== event.currentTarget)
+        ) {
+          return;
+        }
         clearLongPressTimer();
         longPressFiredRef.current = false;
         longPressStartRef.current = { x: event.clientX, y: event.clientY };
@@ -801,15 +863,26 @@ export default function CollectionCardsView({
           clearLongPressTimer();
         }
       },
-      onPointerUp: () => clearLongPressTimer(),
+      onPointerUp: () => {
+        clearLongPressTimer();
+        // A stationary hold produces a click immediately after pointerup, which
+        // consumes this flag. A drag may not, so clear it on the next task to
+        // avoid swallowing the user's next deliberate click.
+        if (longPressFiredRef.current) {
+          window.setTimeout(() => {
+            longPressFiredRef.current = false;
+          }, 0);
+        }
+      },
+      onPointerLeave: () => clearLongPressTimer(),
       onPointerCancel: () => {
         clearLongPressTimer();
         longPressFiredRef.current = false;
       },
       onContextMenu: (event: React.MouseEvent) => {
-        // Mobile long-press also triggers the context menu; swallow it when
-        // the hold just activated selection.
-        if (longPressFiredRef.current) event.preventDefault();
+        // Card tiles use long-press for selection. Native image actions remain
+        // available only inside the card-detail experience.
+        event.preventDefault();
       },
     };
   }
@@ -1274,7 +1347,7 @@ export default function CollectionCardsView({
     set("showOnlyPriced", false);
   }
 
-  if (items.length === 0) {
+  if (visibleSourceItems.length === 0) {
     return (
       <EmptyState
         title={emptyTitle}
@@ -1487,7 +1560,7 @@ export default function CollectionCardsView({
       {sectionTitle && (
         <SectionHeader
           title={sectionTitle}
-          count={sectionCount ?? items.length}
+          count={sectionCount ?? visibleSourceItems.length}
           compact
           className="mb-2.5"
           actions={
@@ -1514,7 +1587,7 @@ export default function CollectionCardsView({
             onSearchChange={setSearch}
             searchPlaceholder="Search name, number, set..."
             hideSearch={hideToolbarSearch}
-            resultLabel={`${visibleItems.length} / ${items.length}${isFilteringPending ? " ..." : ""}`}
+            resultLabel={`${visibleItems.length} / ${visibleSourceItems.length}${isFilteringPending ? " ..." : ""}`}
             sortSummary={sortSummary}
             priceSourceLabel={
               hideSortControls ? null : primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"
@@ -1717,7 +1790,7 @@ export default function CollectionCardsView({
             />
 
             <span className="shrink-0 text-xs tabular-nums text-gray-400">
-              {visibleItems.length} / {items.length}
+              {visibleItems.length} / {visibleSourceItems.length}
             </span>
             <span className="shrink-0 rounded-full border border-black/8 px-2 py-1 text-[11px] font-medium text-gray-500 dark:border-white/8 dark:text-gray-400">
               {sortSummary}
@@ -3257,6 +3330,7 @@ export default function CollectionCardsView({
           backLabel="Back to Collection"
           showGradedSlabPreview={showGradedSlabPreview}
           onClose={() => setSelectedCard(null)}
+          onCollectionItemSaved={handleCollectionItemSaved}
         />
       )}
     </>

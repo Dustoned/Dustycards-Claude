@@ -6,10 +6,10 @@ import {
   BarChart3,
   Box,
   CheckCircle2,
-  Gauge,
   Layers3,
   PackageCheck,
   Sparkles,
+  TrendingDown,
   TrendingUp,
   WalletCards,
 } from "lucide-react";
@@ -495,13 +495,7 @@ async function HomePageContent({
     game: activeGame,
     deferDetailedRows: activeTab === "complete",
   });
-  const pricedCardCount = data.cards.filter((item) => item.current_value != null).length;
-  const pricedSealedUnits = data.sealed.reduce(
-    (total, item) => total + (item.current_value_per_item != null ? item.quantity : 0),
-    0
-  );
   const totalTrackedItems = data.overview.totalCards + data.overview.totalSealedUnits;
-  const pricedCoverage = ratioPercent(pricedCardCount + pricedSealedUnits, totalTrackedItems);
   const collectionRoi =
     data.overview.investment > 0 ? (data.overview.pnl / data.overview.investment) * 100 : null;
   const costBasisCoveredValue =
@@ -542,7 +536,7 @@ async function HomePageContent({
         collectionRoi == null
           ? "--"
           : `${collectionRoi > 0 ? "+" : ""}${collectionRoi.toFixed(1)}%`,
-      hint: formatSignedCurrency(data.overview.pnl),
+      hint: "Return on overall spend",
       Icon: TrendingUp,
       tone: data.overview.pnl >= 0 ? "emerald" : "rose",
     },
@@ -557,13 +551,11 @@ async function HomePageContent({
       tone: "amber",
     },
     {
-      label: "Priced Items",
-      value: formatPlainPercent(pricedCoverage),
-      hint: `${(pricedCardCount + pricedSealedUnits).toLocaleString(
-        "en-US"
-      )} / ${totalTrackedItems.toLocaleString("en-US")}`,
-      Icon: Gauge,
-      tone: "sky",
+      label: "Total Profit",
+      value: formatSignedCurrency(data.overview.pnl),
+      hint: "Current value minus overall spend",
+      Icon: data.overview.pnl >= 0 ? TrendingUp : TrendingDown,
+      tone: data.overview.pnl >= 0 ? "emerald" : "rose",
     },
     {
       label: "Avg Item Value",

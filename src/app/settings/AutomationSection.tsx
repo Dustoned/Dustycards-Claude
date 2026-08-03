@@ -502,7 +502,7 @@ export default function AutomationSection({
             <p className="mt-0.5 text-xs text-gray-400">
               Everything that still needs TCGGO history: cards (Common and Uncommon stay base-price
               only) plus sealed products whose snapshots are stale. The sealed backlog drains
-              automatically after the daily sealed pass, up to 100 products per day.
+              only in the final quota window, after every current price queue is complete.
             </p>
             <div className="mt-3 grid w-full grid-cols-[repeat(auto-fit,minmax(7.5rem,1fr))] gap-2">
               <UsageStat label="Job" value={historyAutomation.running ? "Running" : "Idle"} />

@@ -17,17 +17,58 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
-    version: "3.8.39",
-    releasedAt: "July 29, 2026",
+    version: "3.8.42",
+    releasedAt: "August 3, 2026",
     title: "Pre-launch audit fixes",
     summary:
-      "DustyCards 3.8.39 ships the fixes from the full pre-friends-launch audit: manual e-mail verification for admins, two visual glitches, and a cleaned roadmap.",
+      "DustyCards 3.8.42 ships the fixes from the full pre-friends-launch audit: manual e-mail verification for admins, two visual glitches, and a cleaned roadmap.",
     tone: "fixed",
     highlights: [
       "Admins can mark an account's e-mail as verified from User Management — the fallback for when a verification e-mail never arrives, so new users are never locked out.",
       "The expansion header no longer shows the Released tile twice.",
       "Value charts hide the percentage when the comparison baseline is near zero, instead of printing absurd numbers like +372504750.0%.",
       "The roadmap is re-verified against the app: card price alerts are marked live, remaining items are sharpened.",
+    ],
+  },
+  {
+    version: "3.8.41",
+    releasedAt: "August 1, 2026",
+    title: "Sealed keeps one daily quota lane",
+    summary:
+      "DustyCards 3.8.41 stops completed sync cleanup from erasing the sealed cadence marker and makes the reset handoff safe when a daytime reserve remains.",
+    tone: "fixed",
+    highlights: [
+      "The latest successful sealed run now survives sync-log cleanup, preventing card jobs from making sealed products immediately due again.",
+      "An expired TCGGO window drops its old runtime reserve so the normal scheduler can discover the fresh quota headers after reset.",
+      "During the final two-hour window, unfinished current sealed prices may use the daytime reserve before card and sealed history receive the true leftovers.",
+    ],
+  },
+  {
+    version: "3.8.40",
+    releasedAt: "July 31, 2026",
+    title: "Current prices always win the quota",
+    summary:
+      "DustyCards 3.8.40 makes the sync priority strict again: clear every current card and sealed queue first, then spend only the final-window leftovers on history.",
+    tone: "fixed",
+    highlights: [
+      "Due card prices and missing first prices now run before catalog maintenance, sealed prices, and every history import.",
+      "Permanent partial catalog feeds are rechecked weekly instead of hourly, stopping 100+ old sets from repeatedly burning the daily TCGGO budget.",
+      "Card and sealed history now share the final two-hour drain and stop at the quota reset; sealed history no longer starts right after the daily sealed pass.",
+      "Unsynced sealed products stay in the backlog even after a fresh daily snapshot, so Settings shows the full initial-history queue instead of collapsing back to 17 products.",
+    ],
+  },
+  {
+    version: "3.8.39",
+    releasedAt: "July 31, 2026",
+    title: "Collection actions update immediately",
+    summary:
+      "DustyCards 3.8.39 fixes the collection actions that could leave stale cards on screen or break a nested sealed modal, and makes the shared Signal Radar and quota-driven price refreshes more reliable.",
+    tone: "fixed",
+    highlights: [
+      "Moving a saved card from Collection to For Sale removes that exact copy immediately, without waiting for a page refresh.",
+      "Add new copy on a sealed item now opens in a stable top-level dialog with the background correctly locked.",
+      "Protected direct CardMarket checks are remembered, preventing the automatic TCGGo lane from selecting the same cards again every scheduler tick.",
+      "Signal Radar now serves durable shared snapshots and loads Chase Watch independently, keeping the page responsive after restarts and cold deploys.",
     ],
   },
   {

@@ -72,4 +72,35 @@ describe("automatic sealed sync quota policy", () => {
       minimumRequestsRemaining: AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE,
     });
   });
+
+  it("uses the daytime reserve for current sealed work in the final window", async () => {
+    const result = await maybeStartSealedSyncJob({
+      skip: false,
+      requestsRemaining: AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE,
+      allowReservedRequests: true,
+      now: new Date("2026-07-29T22:30:00.000Z"),
+    });
+
+    expect(result.started).toBe(true);
+    expect(mocks.runSealedSync).toHaveBeenCalledWith({
+      minimumRequestsRemaining: 0,
+    });
+  });
+
+  it("retries immediately when the stored quota window has rolled over", async () => {
+    mocks.findFirst
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce({ started_at: new Date("2026-07-29T00:59:00.000Z") });
+
+    const result = await maybeStartSealedSyncJob({
+      skip: false,
+      requestsRemaining: AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE + 1,
+      hasLiveWindow: false,
+      now: new Date("2026-07-29T01:00:00.000Z"),
+    });
+
+    expect(result.started).toBe(true);
+    expect(mocks.runSealedSync).toHaveBeenCalledTimes(1);
+  });
 });

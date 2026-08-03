@@ -125,7 +125,7 @@ function SealedProductCard({
 
         <div className={sealedTileBubbleWrapClass(cardSize)}>
           <span className={sealedTileBubbleClass("market")}>
-            <span className={sealedTileBubbleLabelClass()}>CardMarket</span>
+            <span className={sealedTileBubbleLabelClass()}>EU Market</span>
             <span className="tabular-nums">{formatCurrency(productPrice)}</span>
           </span>
           {product.price.cm_avg_7d != null && (

@@ -36,6 +36,7 @@ export interface SealedFeaturedCard {
 
 export interface SealedModalProductData {
   id: string;
+  collection_item_id?: string | null;
   name: string;
   image_url: string | null;
   tcggo_url?: string | null;
@@ -50,6 +51,7 @@ export interface SealedModalProductData {
 }
 
 export interface SealedDetailResponse extends SealedModalProductData {
+  collection_item_id?: string | null;
   cardmarket_id: string | null;
   price_fetched_at: string | null;
   history_synced_at: string | null;

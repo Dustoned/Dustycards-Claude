@@ -184,8 +184,8 @@ function buildSealedProductData(item: SealedMoverItem): SealedModalProductData {
     image_url: item.imageUrl,
     cardmarket_url: null,
     price: {
-      cm_lowest: item.currentPrice,
-      cm_lowest_eu: null,
+      cm_lowest: null,
+      cm_lowest_eu: item.currentPrice,
       cm_lowest_de: null,
       cm_lowest_fr: null,
       cm_lowest_es: null,

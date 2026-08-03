@@ -11,6 +11,7 @@ import {
 import CollectionInlineBinderCreator, {
   type InlineBinderOption,
 } from "@/components/CollectionInlineBinderCreator";
+import CachedImage from "@/components/CachedImage";
 import {
   modalActionRowClass,
   modalBodyClass,
@@ -30,12 +31,22 @@ type BinderOption = InlineBinderOption;
 interface CollectionCardRef {
   id: string;
   name: string;
+  number?: string | null;
   image_url: string | null;
   episode: {
     id: string;
     name: string;
     code: string | null;
   };
+}
+
+type PurchasePriceMode = "total" | "per-card";
+
+function parseCurrencyInput(value: string): number | null {
+  const normalized = value.trim().replace(",", ".");
+  if (!normalized) return null;
+  const parsed = Number(normalized);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 interface Props {
@@ -60,7 +71,9 @@ export default function CollectionBulkAddCardsModal({
   const [saveError, setSaveError] = useState<string | null>(null);
   const [forSale, setForSale] = useState(false);
   const [binderId, setBinderId] = useState(initialBinderId ?? "");
-  const [purchasePrice, setPurchasePrice] = useState("");
+  const [purchasePriceMode, setPurchasePriceMode] = useState<PurchasePriceMode>("total");
+  const [totalPurchasePrice, setTotalPurchasePrice] = useState("");
+  const [purchasePrices, setPurchasePrices] = useState<Record<string, string>>({});
   const [condition, setCondition] = useState("Near Mint");
   const [language, setLanguage] = useState("English");
   const [notes, setNotes] = useState("");
@@ -114,14 +127,10 @@ export default function CollectionBulkAddCardsModal({
       ),
     [binders, sharedEpisode]
   );
-  const selectedBinder = useMemo(
-    () => binders.find((binder) => binder.id === binderId) ?? null,
-    [binders, binderId]
+  const parsedTotalPurchasePrice = useMemo(
+    () => parseCurrencyInput(totalPurchasePrice),
+    [totalPurchasePrice]
   );
-  const purchasePriceLabel =
-    selectedBinder?.type === "linked_set" || binderLocked
-      ? "Card paid (adds to overall spend)"
-      : "Purchase price per card";
 
   const previewNames = useMemo(() => {
     const names = cards.slice(0, 3).map((card) => card.name);
@@ -133,8 +142,32 @@ export default function CollectionBulkAddCardsModal({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setSaving(true);
     setSaveError(null);
+
+    let totalPurchasePricePayload: number | null = null;
+    const purchasePricesPayload: Record<string, number> = {};
+
+    if (purchasePriceMode === "total") {
+      const rawTotal = totalPurchasePrice.trim();
+      totalPurchasePricePayload = rawTotal ? parseCurrencyInput(rawTotal) : null;
+      if (rawTotal && totalPurchasePricePayload == null) {
+        setSaveError("Enter a valid total purchase price, or leave it empty.");
+        return;
+      }
+    } else {
+      for (const card of cards) {
+        const rawPrice = (purchasePrices[card.id] ?? "").trim();
+        if (!rawPrice) continue;
+        const price = parseCurrencyInput(rawPrice);
+        if (price == null) {
+          setSaveError("Enter valid purchase prices, or leave individual cards empty.");
+          return;
+        }
+        purchasePricesPayload[card.id] = price;
+      }
+    }
+
+    setSaving(true);
 
     try {
       const response = await fetch("/api/collection/cards", {
@@ -144,7 +177,12 @@ export default function CollectionBulkAddCardsModal({
           cardIds: cards.map((card) => card.id),
           binderId: forSale ? null : binderId || null,
           forSale,
-          purchasePrice: purchasePrice || null,
+          ...(totalPurchasePricePayload != null
+            ? { totalPurchasePrice: totalPurchasePricePayload }
+            : {}),
+          ...(Object.keys(purchasePricesPayload).length > 0
+            ? { purchasePrices: purchasePricesPayload }
+            : {}),
           condition,
           language,
           notes,
@@ -190,7 +228,7 @@ export default function CollectionBulkAddCardsModal({
       onClick={onClose}
     >
       <div
-        className={`${modalCenteredPanelClass} max-w-xl`}
+        className={`${modalCenteredPanelClass} max-w-2xl`}
         onClick={(event) => event.stopPropagation()}
       >
         <div className={modalCompactHeaderClass}>
@@ -263,19 +301,39 @@ export default function CollectionBulkAddCardsModal({
               </label>
             )}
 
-            <label className="space-y-1.5 text-sm">
-              <span className="text-white/60">{purchasePriceLabel}</span>
-              <input
-                type="number"
-                min="0"
-                step="0.01"
-                inputMode="decimal"
-                value={purchasePrice}
-                onChange={(event) => setPurchasePrice(event.target.value)}
-                className={modalInputClass}
-                placeholder="0.00"
-              />
-            </label>
+            <div className="space-y-1.5 text-sm">
+              <span className="text-white/60">Purchase price</span>
+              {cards.length > 1 ? (
+                <div className="grid grid-cols-2 gap-1.5 rounded-2xl border border-white/10 bg-white/[0.045] p-1.5">
+                  {[
+                    { mode: "total" as const, label: "Total for selection" },
+                    { mode: "per-card" as const, label: "Per card" },
+                  ].map((option) => (
+                    <button
+                      key={option.mode}
+                      type="button"
+                      onClick={() => {
+                        setPurchasePriceMode(option.mode);
+                        setSaveError(null);
+                      }}
+                      disabled={saving}
+                      aria-pressed={purchasePriceMode === option.mode}
+                      className={`rounded-xl px-2.5 py-2 text-xs font-semibold transition-colors ${
+                        purchasePriceMode === option.mode
+                          ? "bg-violet-600 text-white"
+                          : "text-white/54 hover:bg-white/[0.06] hover:text-white"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.045] px-3 py-2.5 text-sm font-medium text-white/62">
+                  Single card
+                </div>
+              )}
+            </div>
 
             <label className="space-y-1.5 text-sm">
               <span className="text-white/60">Condition</span>
@@ -334,6 +392,104 @@ export default function CollectionBulkAddCardsModal({
               />
             </label>
           </div>
+
+          {purchasePriceMode === "total" ? (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
+              <label
+                htmlFor="bulk-add-total-purchase-price"
+                className="text-[10px] font-black uppercase tracking-[0.14em] text-white/38"
+              >
+                {cards.length === 1
+                  ? "Purchase Price (Optional)"
+                  : "Total Paid For All Selected Cards (Optional)"}
+              </label>
+              <div className="relative mt-1.5">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-white/36">
+                  EUR
+                </span>
+                <input
+                  id="bulk-add-total-purchase-price"
+                  type="text"
+                  inputMode="decimal"
+                  value={totalPurchasePrice}
+                  onChange={(event) => {
+                    setTotalPurchasePrice(event.target.value);
+                    setSaveError(null);
+                  }}
+                  disabled={saving}
+                  placeholder="0.00"
+                  className={`${modalInputClass} pl-12 tabular-nums`}
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] font-semibold text-white/42">
+                {cards.length === 1
+                  ? "Saved as this card's cost basis."
+                  : parsedTotalPurchasePrice != null
+                    ? `About EUR ${(parsedTotalPurchasePrice / cards.length).toFixed(2)} per card; cents are distributed exactly.`
+                    : "The combined amount is divided across the selected cards."}
+              </p>
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.035] p-3 max-[640px]:rounded-xl">
+              <div className="mb-2.5">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/38">
+                  Purchase Price Per Card
+                </p>
+                <p className="mt-1 text-[11px] font-semibold text-white/42">
+                  Optional; leave a card empty when no purchase price is known.
+                </p>
+              </div>
+              <div className="max-h-[36vh] space-y-2 overflow-y-auto pr-1 max-[640px]:max-h-[30vh]">
+                {cards.map((card) => (
+                  <div
+                    key={card.id}
+                    className="grid grid-cols-[minmax(0,1fr)_8.5rem] items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-2.5 max-[640px]:grid-cols-[minmax(0,1fr)_7.5rem] max-[640px]:rounded-xl"
+                  >
+                    <div className="flex min-w-0 items-center gap-3">
+                      <div className="relative h-14 w-10 shrink-0 overflow-hidden rounded-[4.75%] bg-black/20">
+                        {card.image_url ? (
+                          <CachedImage
+                            sourceUrl={card.image_url}
+                            alt=""
+                            fill
+                            sizes="40px"
+                            className="object-contain"
+                          />
+                        ) : null}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-white">{card.name}</p>
+                        <p className="mt-0.5 truncate text-xs font-semibold text-white/42">
+                          {[card.number ? `#${card.number}` : null, card.episode.code]
+                            .filter(Boolean)
+                            .join(" / ") || card.episode.name}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-white/36">
+                        EUR
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="decimal"
+                        value={purchasePrices[card.id] ?? ""}
+                        onChange={(event) => {
+                          const value = event.target.value;
+                          setPurchasePrices((current) => ({ ...current, [card.id]: value }));
+                          setSaveError(null);
+                        }}
+                        disabled={saving}
+                        placeholder="0.00"
+                        aria-label={`Purchase price for ${card.name}`}
+                        className={`${modalInputClass} pl-11 text-right tabular-nums`}
+                      />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {!binderLocked && !forSale && (
             <CollectionInlineBinderCreator

@@ -7,6 +7,12 @@ export interface CollectionCardAddedDetail {
   destination: CollectionCardAddDestination;
 }
 
+export interface CollectionCardSavedDetail {
+  cardId: string;
+  itemId: string;
+  forSale: boolean;
+}
+
 export interface CollectionCardAddedEffects {
   markOwned: boolean;
   removeWant: boolean;

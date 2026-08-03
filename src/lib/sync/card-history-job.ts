@@ -161,43 +161,6 @@ function isFreshRunningJob(job: CardHistorySyncJobRecord | null, now = new Date(
   return job.heartbeat_at > new Date(now.getTime() - CARD_HISTORY_JOB_STALE_MS);
 }
 
-function isRecoverableJob(job: CardHistorySyncJobRecord | null, now = new Date()): boolean {
-  if (!job) return false;
-  if (job.status === "queued") return true;
-  if (job.status !== "running" || !job.heartbeat_at) return false;
-
-  return job.heartbeat_at <= new Date(now.getTime() - CARD_HISTORY_JOB_STALE_MS);
-}
-
-async function resumeRecoverableCardHistoryJob(): Promise<void> {
-  if (activeJob || areScraperRequestsDisabled()) {
-    return;
-  }
-
-  const [pendingCards, activeLog, job] = await Promise.all([
-    countManualCardHistoryCandidates(),
-    findActiveCardHistorySyncLog(),
-    db.syncJob.findUnique({
-      where: { type: CARD_HISTORY_SYNC_TYPE },
-    }),
-  ]);
-
-  if (pendingCards === 0 || activeLog || !job || !isRecoverableJob(job)) {
-    return;
-  }
-
-  await db.syncJob.update({
-    where: { id: job.id },
-    data: {
-      status: "queued",
-      finished_at: null,
-      heartbeat_at: new Date(),
-    },
-  });
-
-  launchJob(job.id);
-}
-
 export async function startCardHistorySyncJob(options?: {
   // Automatic drains pass the upcoming quota-reset moment; the job stops
   // between batches once it passes so it never eats into the fresh budget.
@@ -267,8 +230,6 @@ export async function getCardHistorySyncJobSnapshot(): Promise<{
   finishedAt: string | null;
   error: string | null;
 }> {
-  await resumeRecoverableCardHistoryJob();
-
   const [pendingCards, activeLog, job] = await Promise.all([
     countManualCardHistoryCandidates(),
     findActiveCardHistorySyncLog(),

@@ -1,5 +1,6 @@
 "use client";
 
+import { createPortal } from "react-dom";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
@@ -14,6 +15,7 @@ import {
   modalPrimaryButtonClass,
   modalSecondaryButtonClass,
 } from "@/components/modal-glass-styles";
+import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
 interface CollectionSealedRef {
   id: string;
@@ -69,6 +71,8 @@ export default function CollectionAddSealedButton({
   const [notes, setNotes] = useState("");
   const [tags, setTags] = useState("");
 
+  useBodyScrollLock(open);
+
   useEffect(() => {
     if (!flashAdded) return;
     const timer = window.setTimeout(() => setFlashAdded(false), 1800);
@@ -116,25 +120,9 @@ export default function CollectionAddSealedButton({
     setOpen(true);
   }
 
-  return (
-    <>
-      <button
-        type="button"
-        onClick={openModal}
-        className={buttonClasses(mode, theme, className)}
-        aria-label={`Add ${product.name} to collection`}
-      >
-        <Plus
-          className={
-            mode === "icon"
-              ? "h-4 w-4 stroke-[2.25] max-[640px]:h-3.5 max-[640px]:w-3.5"
-              : "h-4 w-4"
-          }
-        />
-        {mode === "button" && <span>{flashAdded ? "Added" : label}</span>}
-      </button>
-
-      {open && (
+  const addSealedModal =
+    open && typeof document !== "undefined"
+      ? createPortal(
         <div
           className={`${modalCenteredMobileOverlayClass} z-[360]`}
           onClick={(event) => {
@@ -143,6 +131,10 @@ export default function CollectionAddSealedButton({
           }}
         >
           <div
+            role="dialog"
+            aria-modal="true"
+            aria-label={`Add ${product.name} to collection`}
+            data-collection-add-sealed-modal="true"
             className={`${modalCenteredPanelClass} max-w-lg`}
             onClick={(event) => event.stopPropagation()}
           >
@@ -243,8 +235,30 @@ export default function CollectionAddSealedButton({
               </div>
             </form>
           </div>
-        </div>
-      )}
+        </div>,
+        document.body
+      )
+      : null;
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={openModal}
+        className={buttonClasses(mode, theme, className)}
+        aria-label={`Add ${product.name} to collection`}
+      >
+        <Plus
+          className={
+            mode === "icon"
+              ? "h-4 w-4 stroke-[2.25] max-[640px]:h-3.5 max-[640px]:w-3.5"
+              : "h-4 w-4"
+          }
+        />
+        {mode === "button" && <span>{flashAdded ? "Added" : label}</span>}
+      </button>
+
+      {addSealedModal}
     </>
   );
 }

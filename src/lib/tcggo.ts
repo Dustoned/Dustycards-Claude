@@ -420,10 +420,13 @@ function parseQuotaResetAt(headers: Headers): Date | null {
 
 function normalizeRuntimeQuotaSnapshot() {
   if (
-    runtimeQuotaSnapshot.requestsRemaining === 0 &&
     runtimeQuotaSnapshot.quotaResetsAt != null &&
     runtimeQuotaSnapshot.quotaResetsAt.getTime() <= Date.now()
   ) {
+    // A reserve can leave a non-zero balance in the expired window. Clear the
+    // whole runtime snapshot once that window has rolled over so the first
+    // scheduled request can discover the new headers instead of treating the
+    // old reserve as if it still belonged to the new quota day.
     runtimeQuotaSnapshot = {
       ...runtimeQuotaSnapshot,
       requestsRemaining: null,

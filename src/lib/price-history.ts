@@ -129,7 +129,7 @@ export interface SealedPriceHistoryPoint {
 
 export const SEALED_MARKET_HISTORY_SERIES = [
   { key: "cm_market", label: "Market" },
-  { key: "cm_market_eu", label: "EU" },
+  { key: "cm_market_eu", label: "EU Market" },
   { key: "cm_market_de", label: "DE" },
   { key: "cm_market_fr", label: "FR" },
   { key: "cm_market_es", label: "ES" },
@@ -565,6 +565,22 @@ export function getSealedCardMarketValue(
   if (!snapshot) return null;
 
   return (
+    snapshot.cm_lowest_eu ??
+    snapshot.cm_lowest ??
+    snapshot.cm_lowest_de ??
+    snapshot.cm_lowest_fr ??
+    snapshot.cm_lowest_es ??
+    snapshot.cm_lowest_it ??
+    null
+  );
+}
+
+function getSealedGeneralMarketValue(
+  snapshot: SealedMarketPriceSnapshot | null | undefined
+): number | null {
+  if (!snapshot) return null;
+
+  return (
     snapshot.cm_lowest ??
     snapshot.cm_lowest_eu ??
     snapshot.cm_lowest_de ??
@@ -588,7 +604,7 @@ export function buildSealedPriceHistory(
   return [...byDay.entries()].map(([date, price]) => ({
     date,
     label: toDateLabel(date),
-    cm_market: getSealedCardMarketValue(price),
+    cm_market: getSealedGeneralMarketValue(price),
     cm_market_eu: price.cm_lowest_eu ?? null,
     cm_market_de: price.cm_lowest_de ?? null,
     cm_market_fr: price.cm_lowest_fr ?? null,
@@ -627,7 +643,7 @@ export function getSealedMarketHistorySeriesCurrentValue(
 
   switch (key) {
     case "cm_market":
-      return getSealedCardMarketValue(snapshot);
+      return getSealedGeneralMarketValue(snapshot);
     case "cm_market_eu":
       return snapshot.cm_lowest_eu ?? null;
     case "cm_market_de":

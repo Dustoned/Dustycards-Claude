@@ -29,6 +29,7 @@ import {
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CachedImage from "@/components/CachedImage";
 import CollectionEditCardButton from "@/components/CollectionEditCardButton";
+import type { CollectionCardSavedDetail } from "@/lib/collection-client-events";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import { CardDetailMobileActionPortal } from "@/components/card-detail/CardDetailShell";
 import CardDetailMobileMarketAction from "@/components/card-detail/CardDetailMobileMarketAction";
@@ -1325,6 +1326,7 @@ function GradedPricingPanel({
   graphFirst = false,
   rangeScopePoints,
   rangeStorageKey,
+  rangeStorageLegacyKey,
 }: {
   card: ModalCardData;
   collectionItem: ModalCardData["collection_item"] | null;
@@ -1334,6 +1336,7 @@ function GradedPricingPanel({
   graphFirst?: boolean;
   rangeScopePoints?: HistoryPointView[];
   rangeStorageKey?: string;
+  rangeStorageLegacyKey?: string;
 }) {
   const rows = getGradedPriceRows(card, collectionItem);
   const cardMarketRows = rows.filter((row) => row.sourceType === "cardmarket");
@@ -1490,6 +1493,7 @@ function GradedPricingPanel({
           layout="hero"
           rangeScopePoints={rangeScopePoints}
           rangeStorageKey={rangeStorageKey ?? `card-graded-${card.id}-${effectiveSource}-${chartRow?.label ?? "none"}`}
+          rangeStorageLegacyKey={rangeStorageLegacyKey}
           emptyText="No graded history yet"
         />
       </div>
@@ -1509,6 +1513,7 @@ export function CardModalDesktopActionGroup({
   onSyncHistory,
   onRemoveCollectionItem,
   onAddedToCollection,
+  onCollectionItemSaved,
   onClose,
   onResearchSignal,
   researchingSignal = false,
@@ -1527,6 +1532,7 @@ export function CardModalDesktopActionGroup({
   onSyncHistory: () => void;
   onRemoveCollectionItem: () => void;
   onAddedToCollection?: () => void | Promise<void>;
+  onCollectionItemSaved?: (detail: CollectionCardSavedDetail) => void | Promise<void>;
   onClose: () => void;
   onResearchSignal?: () => void;
   researchingSignal?: boolean;
@@ -1625,7 +1631,10 @@ export function CardModalDesktopActionGroup({
               theme="dark"
               label="Edit saved copy"
               className="!min-h-11 !w-full !justify-start !rounded-xl !border-0 !bg-transparent !px-3 !text-sm !font-semibold !text-white/68 hover:!bg-white/[0.065] hover:!text-white"
-              onSaved={onClose}
+              onSaved={async (detail) => {
+                await onCollectionItemSaved?.(detail);
+                onClose();
+              }}
             />
           ) : null}
           {canManageCollectionItem && collectionItem ? (
@@ -2386,7 +2395,8 @@ export function CardModalMobileShowcase({
               compact
               graphFirst
               rangeScopePoints={mobileHistoryRangeScopePoints}
-              rangeStorageKey={`card-mobile-${card.id}`}
+              rangeStorageKey={`card-history-${card.id}`}
+              rangeStorageLegacyKey={`card-mobile-${card.id}`}
             />
           </div>
         )}
@@ -2401,7 +2411,8 @@ export function CardModalMobileShowcase({
               tone="dark"
               layout="hero"
               rangeScopePoints={mobileHistoryRangeScopePoints}
-              rangeStorageKey={`card-mobile-${card.id}`}
+              rangeStorageKey={`card-history-${card.id}`}
+              rangeStorageLegacyKey={`card-mobile-${card.id}`}
               headerAccessory={
                 <span className="inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76">
                   {activeCardMarketSeriesLabel}
@@ -3752,8 +3763,8 @@ export function CardModalActiveListingsPanel({
         <div className="mt-3 grid grid-cols-2 gap-2">
           {sealedProducts.map((product) => {
             const price =
-              product.price.cm_lowest ??
               product.price.cm_lowest_eu ??
+              product.price.cm_lowest ??
               product.price.cm_lowest_de ??
               product.price.cm_lowest_fr ??
               product.price.cm_lowest_es ??

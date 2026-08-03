@@ -26,6 +26,7 @@ import {
   refreshSignalRadarEbayDemand,
   type SignalRadarEbayDemandRefreshResult,
 } from "@/lib/sync/signal-radar-ebay-demand";
+import { writeSignalRadarSnapshots } from "@/lib/signal-radar-snapshot-store";
 
 const EXTERNAL_SIGNAL_JOB_TYPE = "external-signal-radar";
 const EXTERNAL_SIGNAL_CATALYST_RUN_KIND = "catalyst";
@@ -217,6 +218,12 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
       },
     });
     const competitive = await persistExternalCompetitiveScan(radarData, requestedAt);
+    const snapshot = await writeSignalRadarSnapshots(radarData, requestedAt)
+      .then(() => ({ written: true, error: null }))
+      .catch((error: unknown) => ({
+        written: false,
+        error: error instanceof Error ? error.message : String(error),
+      }));
     const outcomes = await evaluatePendingExternalSignalOutcomes(new Date());
     const emailAlerts = await sendHighPotentialSignalAlerts(radarData, requestedAt).catch(
       (error: unknown) => ({
@@ -245,6 +252,7 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
           version: 2,
           kind: EXTERNAL_SIGNAL_JOB_TYPE,
           competitive,
+          snapshot,
           outcomes,
           emailAlerts,
           ebayDemand: ebayDemand ?? {
