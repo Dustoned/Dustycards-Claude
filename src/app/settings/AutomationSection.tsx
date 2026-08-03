@@ -122,6 +122,93 @@ function SyncSealedButton({
   );
 }
 
+function WarmImageCacheButton() {
+  const [loading, setLoading] = useState(false);
+  const [status, setStatus] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!loading) return;
+
+    let cancelled = false;
+
+    async function pollStatus() {
+      try {
+        const res = await fetch("/api/admin/warm-images", { cache: "no-store" });
+        const data = await res.json();
+        if (cancelled || !data.ok) return;
+
+        if (!data.running) {
+          setLoading(false);
+          if (data.lastError) {
+            setStatus(`Warm pass stopped: ${data.lastError}`);
+          } else if (data.lastResult) {
+            const { cards, sealed } = data.lastResult;
+            setStatus(
+              `Done - cards ${cards.downloaded} new / ${cards.hits} cached / ${cards.failed} failed; sealed ${sealed.downloaded} new / ${sealed.hits} cached / ${sealed.failed} failed.`
+            );
+          } else {
+            setStatus("Warm pass finished.");
+          }
+        } else if (data.lastResult === null) {
+          setStatus("Warming images in the background...");
+        }
+      } catch {
+        // Keep polling; the next attempt can recover.
+      }
+    }
+
+    const interval = window.setInterval(() => {
+      void pollStatus();
+    }, 4000);
+    void pollStatus();
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(interval);
+    };
+  }, [loading]);
+
+  async function handleWarm() {
+    setLoading(true);
+    setStatus("Starting image cache warm-up...");
+    try {
+      const res = await fetch("/api/admin/warm-images", { method: "POST" });
+      const data = await res.json();
+      if (!data.ok) {
+        setStatus(`Error: ${data.error ?? "Could not start warm-up"}`);
+        setLoading(false);
+        return;
+      }
+      setStatus(
+        data.started
+          ? "Warming all card and sealed images in the background."
+          : "A warm pass is already running."
+      );
+    } catch {
+      setStatus("Network error");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="flex w-full flex-col gap-2 sm:w-auto">
+      <button
+        onClick={handleWarm}
+        disabled={loading}
+        className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-black/8 bg-black/[0.03] px-4 py-2.5 text-sm font-semibold text-gray-800 shadow-sm shadow-black/5 transition-all hover:scale-[1.01] hover:bg-black/[0.045] disabled:cursor-not-allowed disabled:opacity-50 disabled:scale-100 dark:border-white/8 dark:bg-white/[0.05] dark:text-gray-100 dark:hover:bg-white/[0.08] sm:w-auto"
+      >
+        <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+        {loading ? "Warming images..." : "Warm Image Cache"}
+      </button>
+      <p className="max-w-sm text-xs text-gray-400">
+        Downloads every card and sealed image into the server cache so first
+        visits are instant. Uses no TCGGO quota; safe to re-run any time.
+      </p>
+      {status && <p className="max-w-sm break-words text-xs text-gray-400">{status}</p>}
+    </div>
+  );
+}
+
 function SyncCardHistoryButton({
   pendingCards,
   scraperDisabled,
@@ -588,6 +675,21 @@ export default function AutomationSection({
             scraperDisabled={scraperDisabled}
             disabledReason={scraperDisabledReason}
           />
+        </div>
+      </div>
+
+      <div className="mt-5 border-t border-black/6 pt-5 dark:border-white/6">
+        <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-gray-900 dark:text-white">
+              Image cache warm-up
+            </p>
+            <p className="mt-0.5 text-xs text-gray-400">
+              New syncs warm their own images automatically; run this once to
+              pre-cache older sets so nobody ever hits a cold image.
+            </p>
+          </div>
+          <WarmImageCacheButton />
         </div>
       </div>
 

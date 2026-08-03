@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.43",
+    releasedAt: "August 3, 2026",
+    title: "Warm the image cache from Settings",
+    summary:
+      "DustyCards 3.8.43 adds a one-click image cache warm-up so the pre-launch backlog can be cached on the live server without shell access.",
+    tone: "new",
+    highlights: [
+      "Settings gained a Warm Image Cache button: it downloads every card and sealed image into the server cache in the background and reports new / cached / failed counts.",
+      "Uses no TCGGO quota and is safe to re-run; day-to-day warming keeps happening automatically after every set sync.",
+    ],
+  },
+  {
     version: "3.8.42",
     releasedAt: "August 3, 2026",
     title: "Pre-launch audit fixes",
