@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.52",
+    releasedAt: "August 3, 2026",
+    title: "Search ranks on the real DustyCards market score",
+    summary:
+      "DustyCards 3.8.52 persists the DustyCards market score (the model behind the card detail Market tab) on every priced card, and best-match search now ranks equally matching cards by that real demand, liquidity and momentum data.",
+    tone: "new",
+    highlights: [
+      "A background job computes and stores the market score for every priced card and keeps it fresh (a small batch every scheduler tick, full refresh every three days).",
+      "Best match uses the stored demand/liquidity/momentum average — the same numbers you see on the card's Market tab — with price only as fallback while scores are still filling in.",
+      "The first full scoring pass covers all ~20k cards within about an hour and a half after this deploy.",
+    ],
+  },
+  {
     version: "3.8.51",
     releasedAt: "August 3, 2026",
     title: "Best match ordering restored",

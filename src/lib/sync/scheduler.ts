@@ -36,6 +36,7 @@ import {
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { maybeRunCacheWarmer } from "@/lib/startup-warmup";
 import { maybeRunDailyBackupJob } from "@/lib/sync/backup-job";
+import { maybeRunMarketScoreJob } from "@/lib/sync/market-score-job";
 
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
 
@@ -128,6 +129,9 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   maybeRunCacheWarmer();
   // Fire-and-forget: nightly automatic database backup with rotation.
   maybeRunDailyBackupJob(checkedAt);
+  // Fire-and-forget: persist DustyCards market scores in small batches so
+  // search can rank on real market interest.
+  maybeRunMarketScoreJob(checkedAt);
   // Launch-market chase prices get first access to the scheduler. Their
   // direct CardMarket quote is more current than TCGGo's daily snapshot and
   // must land before a normal batch can select the same cards.

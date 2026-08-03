@@ -51,6 +51,10 @@ interface SearchCardRecord {
   tcggo_score_demand: number | null;
   tcggo_score_liquidity: number | null;
   tcggo_score_momentum: number | null;
+  market_score: number | null;
+  market_score_demand: number | null;
+  market_score_liquidity: number | null;
+  market_score_momentum: number | null;
   episode: {
     id: string;
     name: string;
@@ -1198,22 +1202,37 @@ function cardNumberExactlyMatches(
   return buildCardNumberSearchAliases(queriedCardNumber).some((alias) => aliases.has(alias));
 }
 
-// Market interest for best-match ordering: the average of the demand,
-// liquidity and momentum scores when available, otherwise the overall TCGGo
-// score. Cards people actively trade rank above sleepy ones with the same
-// text relevance.
+// Market interest for best-match ordering: the average of the persisted
+// DustyCards demand, liquidity and momentum scores (the same model the card
+// detail page shows), with the TCGGo comparison values as fallback. Cards
+// people actively trade rank above sleepy ones with the same text relevance.
+function averageFiniteScores(values: Array<number | null>): number | null {
+  const parts = values.filter(
+    (value): value is number => typeof value === "number" && Number.isFinite(value)
+  );
+  if (parts.length === 0) return null;
+  return parts.reduce((total, value) => total + value, 0) / parts.length;
+}
+
 function getCardMarketInterestScore(card: SearchCardRecord): number | null {
-  const parts = [
-    card.tcggo_score_demand,
-    card.tcggo_score_liquidity,
-    card.tcggo_score_momentum,
-  ].filter((value): value is number => typeof value === "number" && Number.isFinite(value));
-  if (parts.length > 0) {
-    return parts.reduce((total, value) => total + value, 0) / parts.length;
-  }
-  return typeof card.tcggo_score === "number" && Number.isFinite(card.tcggo_score)
-    ? card.tcggo_score
-    : null;
+  return (
+    averageFiniteScores([
+      card.market_score_demand,
+      card.market_score_liquidity,
+      card.market_score_momentum,
+    ]) ??
+    (typeof card.market_score === "number" && Number.isFinite(card.market_score)
+      ? card.market_score
+      : null) ??
+    averageFiniteScores([
+      card.tcggo_score_demand,
+      card.tcggo_score_liquidity,
+      card.tcggo_score_momentum,
+    ]) ??
+    (typeof card.tcggo_score === "number" && Number.isFinite(card.tcggo_score)
+      ? card.tcggo_score
+      : null)
+  );
 }
 
 function formatSingleResults(
@@ -1480,6 +1499,10 @@ async function runFuzzyFallback(
             tcggo_score_demand: true,
             tcggo_score_liquidity: true,
             tcggo_score_momentum: true,
+            market_score: true,
+            market_score_demand: true,
+            market_score_liquidity: true,
+            market_score_momentum: true,
             episode: {
               select: {
                 id: true,
@@ -1649,6 +1672,10 @@ async function runDirectSearch(
         tcggo_score_demand: true,
         tcggo_score_liquidity: true,
         tcggo_score_momentum: true,
+        market_score: true,
+        market_score_demand: true,
+        market_score_liquidity: true,
+        market_score_momentum: true,
         episode: {
           select: {
             id: true,

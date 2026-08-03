@@ -76,6 +76,8 @@ const REQUIRED_RUNTIME_FIELDS = {
     "submitted_by_user_id",
     "tcggo_score",
     "tcggo_score_tier",
+    "market_score",
+    "market_score_updated_at",
   ],
   SealedProduct: [
     "game",

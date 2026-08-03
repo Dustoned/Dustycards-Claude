@@ -391,6 +391,13 @@ model Card {
   tcggo_score_atl             Float?
   tcggo_score_synced_at       DateTime?
   tcggo_score_updated_at      DateTime?
+  // Persisted DustyCards market score (buildCardMarketStats), refreshed by a
+  // background job so search can rank on real market interest.
+  market_score                Float?
+  market_score_momentum       Float?
+  market_score_liquidity      Float?
+  market_score_demand         Float?
+  market_score_updated_at     DateTime?
   price_source_status         String?
   price_source_checked_at     DateTime?
   native_history_synced_at    DateTime?
@@ -434,6 +441,7 @@ model Card {
   @@index([ebay_sold_graded_synced_at])
   @@index([ebay_sold_graded_status, ebay_sold_graded_checked_at])
   @@index([tcggo_url, price_source_status, price_source_checked_at])
+  @@index([market_score_updated_at])
   @@index([is_user_submitted])
   @@index([submitted_by_user_id])
 }
