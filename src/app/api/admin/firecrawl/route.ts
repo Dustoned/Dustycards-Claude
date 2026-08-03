@@ -6,6 +6,8 @@ import {
   searchFirecrawlDocs,
   toFirecrawlApiError,
 } from "@/lib/firecrawl";
+import { getScrapeDoConfigSnapshot } from "@/lib/scrapedo";
+import { getTavilyConfigSnapshot } from "@/lib/tavily";
 
 type FirecrawlAction = "docs-search" | "scrape";
 
@@ -16,7 +18,16 @@ function normalizeAction(value: unknown): FirecrawlAction | null {
 export async function GET() {
   try {
     await requireAdmin();
-    return NextResponse.json({ ok: true, config: getFirecrawlConfigSnapshot() });
+    return NextResponse.json({
+      ok: true,
+      config: getFirecrawlConfigSnapshot(),
+      // Fallback-provider visibility: whether the scrape/search chain can
+      // actually fall through when Firecrawl is exhausted.
+      fallbackProviders: {
+        scrapedo: getScrapeDoConfigSnapshot().configured,
+        tavily: getTavilyConfigSnapshot().configured,
+      },
+    });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ ok: false, error: "Could not load Firecrawl status." }, { status: 500 });
   }

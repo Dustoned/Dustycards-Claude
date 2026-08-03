@@ -99,10 +99,27 @@ export async function scrapePageWithFallback(
   }
 
   if (getScrapeDoConfigSnapshot().configured) {
-    return withPageProvider(await scrapeScrapeDoPage(url, scrapeOptions), "scrapedo");
+    try {
+      return withPageProvider(await scrapeScrapeDoPage(url, scrapeOptions), "scrapedo");
+    } catch (scrapeDoError) {
+      // Without Firecrawl context the Scrape.do error keeps its own type so
+      // direct callers can still inspect it.
+      if (!firecrawlError) throw scrapeDoError;
+      const firecrawlMessage = toFirecrawlApiError(firecrawlError).message;
+      const scrapeDoMessage =
+        scrapeDoError instanceof Error ? scrapeDoError.message : String(scrapeDoError);
+      throw new Error(
+        `All scrape providers failed. Firecrawl: ${firecrawlMessage} / Scrape.do: ${scrapeDoMessage}`
+      );
+    }
   }
 
-  if (firecrawlError) throw firecrawlError;
+  if (firecrawlError) {
+    const firecrawlMessage = toFirecrawlApiError(firecrawlError).message;
+    throw new Error(
+      `Firecrawl failed and no fallback scraper is configured (set SCRAPEDO_API_KEY). Firecrawl: ${firecrawlMessage}`
+    );
+  }
   throw new Error("No page scraping provider is configured.");
 }
 

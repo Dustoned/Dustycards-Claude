@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.47",
+    releasedAt: "August 3, 2026",
+    title: "Submitted-card price refresh survives an exhausted Firecrawl",
+    summary:
+      "DustyCards 3.8.47 hardens the scraper fallback chain for manually submitted cards: when Firecrawl fails or runs out of credits the refresh reports exactly what happened and falls through to Scrape.do.",
+    tone: "fixed",
+    highlights: [
+      "Manual and automatic price refreshes now surface the real provider error instead of a generic failure, including when every provider fails.",
+      "Firecrawl requests get a hard local timeout so a hanging call can no longer stall a refresh until the proxy cuts it off.",
+      "The Firecrawl admin status now reports whether the Scrape.do and Tavily fallbacks are configured.",
+    ],
+  },
+  {
     version: "3.8.46",
     releasedAt: "August 3, 2026",
     title: "Faster search, always-warm market, nightly backups",

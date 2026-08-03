@@ -20,6 +20,8 @@ import {
   firecrawlCreditsUsed,
   scrapePageWithFallback,
   searchWebWithFallback,
+  type ProviderPageScrapeResult,
+  type ProviderWebSearchResponse,
 } from "@/lib/scrape-provider";
 import { getScrapeDoConfigSnapshot } from "@/lib/scrapedo";
 import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
@@ -3216,12 +3218,18 @@ export async function refreshAdminCardSubmission(submissionId: string): Promise<
   let creditsUsed = 0;
 
   if (!selectedUrl) {
-    const providerSearch = await searchWebWithFallback({
-      query: buildSearchQuery(input),
-      limit: 3,
-      includeDomains: [CARDMARKET_DOMAIN],
-      skipFirecrawl: !guard.firecrawlAllowed,
-    });
+    let providerSearch: ProviderWebSearchResponse;
+    try {
+      providerSearch = await searchWebWithFallback({
+        query: buildSearchQuery(input),
+        limit: 3,
+        includeDomains: [CARDMARKET_DOMAIN],
+        skipFirecrawl: !guard.firecrawlAllowed,
+      });
+    } catch (error) {
+      const detail = error instanceof Error ? error.message : String(error);
+      throw new CardSubmissionError(`Card lookup failed on every search provider: ${detail}`, 502);
+    }
     searchResponse = providerSearch;
     searchCount = 1;
     creditsUsed += firecrawlCreditsUsed(providerSearch, 2);
@@ -3229,9 +3237,17 @@ export async function refreshAdminCardSubmission(submissionId: string): Promise<
   }
   if (!selectedUrl) throw new CardSubmissionError("No CardMarket URL found for refresh.", 404);
 
-  const scrape = await scrapePageWithFallback(selectedUrl, {
-    skipFirecrawl: !guard.firecrawlAllowed,
-  });
+  let scrape: ProviderPageScrapeResult;
+  try {
+    scrape = await scrapePageWithFallback(selectedUrl, {
+      skipFirecrawl: !guard.firecrawlAllowed,
+    });
+  } catch (error) {
+    // Surface the real provider failure instead of a generic 500; the same
+    // message ends up in the auto-refresh warnings.
+    const detail = error instanceof Error ? error.message : String(error);
+    throw new CardSubmissionError(`Price refresh failed: ${detail}`, 502);
+  }
   creditsUsed += firecrawlCreditsUsed(scrape, 1);
   const parsed = parseCardMarketScrape(scrape, input.condition);
   if (!parsed.imageUrl || parsed.nmPriceEur == null) {

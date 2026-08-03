@@ -154,6 +154,7 @@ export async function getFirecrawlProviderCreditUsage(options?: {
     const response = await fetch(`${getFirecrawlApiUrl()}/team/credit-usage`, {
       headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
       cache: "no-store",
+      signal: AbortSignal.timeout(8_000),
     });
     if (!response.ok) return null;
     const parsed = parseFirecrawlProviderCreditUsage(await response.json().catch(() => null));
@@ -179,6 +180,9 @@ async function postFirecrawl(path: string, payload: Record<string, unknown>): Pr
     },
     body: JSON.stringify(payload),
     cache: "no-store",
+    // Firecrawl gets 60s of provider-side time; a hard local cap keeps a
+    // hanging request from stalling the caller (and the reverse proxy) forever.
+    signal: AbortSignal.timeout(75_000),
   });
 
   const data = (await response.json().catch(() => null)) as unknown;
