@@ -34,6 +34,7 @@ import {
   type SetLifecycleJobSnapshot,
 } from "@/lib/sync/set-lifecycle-job";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
+import { maybeStartStartupWarmup } from "@/lib/startup-warmup";
 
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
 
@@ -120,6 +121,9 @@ async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<voi
 export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   const checkedAt = new Date();
   const scraperDisabled = areScraperRequestsDisabled();
+  // Fire-and-forget: rebuild the heaviest page caches once per boot so the
+  // first visitor after a deploy doesn't pay the full cold build.
+  maybeStartStartupWarmup();
   // Launch-market chase prices get first access to the scheduler. Their
   // direct CardMarket quote is more current than TCGGo's daily snapshot and
   // must land before a normal batch can select the same cards.

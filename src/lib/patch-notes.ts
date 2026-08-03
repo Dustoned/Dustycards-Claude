@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.45",
+    releasedAt: "August 3, 2026",
+    title: "No more slow first visit after a deploy",
+    summary:
+      "DustyCards 3.8.45 warms the heaviest page caches right after the server boots, and card lists now default to the grid view.",
+    tone: "improved",
+    highlights: [
+      "After a deploy or restart the scheduler immediately rebuilds the home and market data for recently active accounts in the background — the first visitor no longer pays a cold build that could take over half a minute.",
+      "Grid is now the default card view on desktop for new accounts, matching mobile.",
+    ],
+  },
+  {
     version: "3.8.44",
     releasedAt: "August 3, 2026",
     title: "Graded market loads over 10x lighter",

@@ -73,7 +73,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   autoPriceRefresh: false,
   signalRadarEmailAlerts: false,
   binderWatchMinPrice: 50,
-  defaultView: "table",
+  defaultView: "grid",
   mobileDefaultView: "grid",
   cardSize: "medium",
   mobileCardSize: "small",
