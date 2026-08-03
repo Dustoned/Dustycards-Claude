@@ -606,7 +606,7 @@ export default async function MoversPage({
             description: "Affordable high-rarity cards with movement, kept as a focused pocket inside Market.",
             href: buildMarketPocketHref("/movers/cheap-high-rarity"),
             hrefLabel: "Open pocket",
-            items: cardData.cheapestHighRarityMovers,
+            items: cardData.cheapestHighRarityMovers.slice(0, 12),
             reasonMode: "raw" as const,
           },
           {
@@ -615,7 +615,7 @@ export default async function MoversPage({
             description: "Raw cards that recently dropped by 50+ and still score well on the Movers weights.",
             href: buildMarketPocketHref("/movers/sudden-drops"),
             hrefLabel: "Open pocket",
-            items: cardData.suddenDropDeals,
+            items: cardData.suddenDropDeals.slice(0, 12),
             reasonMode: "raw" as const,
           },
           {
@@ -624,7 +624,7 @@ export default async function MoversPage({
             description: "High-rarity cards that pulled back hard from previous peaks.",
             href: buildMarketPocketHref("/movers/discount-watch"),
             hrefLabel: "Open pocket",
-            items: cardData.discountedHighRarity,
+            items: cardData.discountedHighRarity.slice(0, 12),
             reasonMode: "raw" as const,
           },
         ]

@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.44",
+    releasedAt: "August 3, 2026",
+    title: "Graded market loads over 10x lighter",
+    summary:
+      "DustyCards 3.8.44 fixes the heaviest page in the app: the Graded and Targets market views shipped every slab label to the browser, adding up to a 16 MB page that took over 10 seconds to load.",
+    tone: "fixed",
+    highlights: [
+      "The all-cards Graded and Targets market lists now cap the serialized payload at the top 500 entries, matching the Raw market — the header still reports the full label count.",
+      "Market pocket previews (cheap rarity, sudden drops, discount watch) only ship the handful of cards they actually show instead of the entire list.",
+      "Found during a live performance sweep of every page with a real collection; the other pages measured fast.",
+    ],
+  },
+  {
     version: "3.8.43",
     releasedAt: "August 3, 2026",
     title: "Warm the image cache from Settings",

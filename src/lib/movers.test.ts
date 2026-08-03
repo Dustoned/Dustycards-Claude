@@ -379,7 +379,9 @@ describe("mover scopes", () => {
 
       expect(gradedData.scope).toBe("graded");
       expect(gradedData.trackedCards).toBe(currentGradedCount);
-      expect(gradedData.movers.length).toBe(currentGradedCount);
+      expect(gradedData.eligibleCards).toBe(currentGradedCount);
+      // The serialized all-cards list is capped at 500 to keep the page payload sane.
+      expect(gradedData.movers.length).toBe(Math.min(currentGradedCount, 500));
       expect(gradedData.movers.every((item) => item.source === "graded")).toBe(true);
       expect(gradedData.movers.every((item) => item.currency === "EUR")).toBe(true);
       expect(gradedMover).toBeDefined();

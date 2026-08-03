@@ -2186,13 +2186,20 @@ async function buildGradedMoversData(
       .filter((item) => (item.change30dPct ?? 0) > 0)
       .sort((a, b) => (b.change30dPct ?? 0) - (a.change30dPct ?? 0))[0] ?? null;
 
+  // The all-cards graded list can hold thousands of slab labels; cap the
+  // serialized payload the same way the raw all-cards scope does.
+  const displayedMovers =
+    itemScope === "all" && sortedMovers.length > MAX_ALL_SCOPE_MOVERS
+      ? sortedMovers.slice(0, MAX_ALL_SCOPE_MOVERS)
+      : sortedMovers;
+
   return {
     result: {
       scope,
       preferredSource,
       trackedCards: currentRows.length,
       eligibleCards: sortedMovers.length,
-      movers: sortedMovers,
+      movers: displayedMovers,
       topOpportunities,
       cheapestHighRarityMovers,
       discountedHighRarity,
