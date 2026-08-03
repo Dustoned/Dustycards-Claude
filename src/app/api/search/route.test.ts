@@ -1412,7 +1412,7 @@ describe("GET /api/search", () => {
     });
   });
 
-  it("ranks exact direct matches before more expensive partial matches", async () => {
+  it("ranks exact direct matches first and equal partial matches by market interest", async () => {
     dbMock.card.findMany.mockResolvedValue([
       {
         id: "exact-card",
@@ -1423,6 +1423,9 @@ describe("GET /api/search", () => {
         image_url: null,
         episode: { id: "set", name: "Test Set", code: "TST" },
         prices: [{ cm_en_lowest_nm: 1, tcp_market: 1.5 }],
+        tcggo_score_demand: 5,
+        tcggo_score_liquidity: 5,
+        tcggo_score_momentum: 5,
       },
       {
         id: "cheap-card",
@@ -1433,6 +1436,9 @@ describe("GET /api/search", () => {
         image_url: null,
         episode: { id: "set", name: "Test Set", code: "TST" },
         prices: [{ cm_en_lowest_nm: 2, tcp_market: 3 }],
+        tcggo_score_demand: 20,
+        tcggo_score_liquidity: 18,
+        tcggo_score_momentum: 22,
       },
       {
         id: "premium-card",
@@ -1443,6 +1449,9 @@ describe("GET /api/search", () => {
         image_url: null,
         episode: { id: "set", name: "Test Set", code: "TST" },
         prices: [{ cm_en_lowest_nm: 150, tcp_market: 120 }],
+        tcggo_score_demand: 92,
+        tcggo_score_liquidity: 88,
+        tcggo_score_momentum: 84,
       },
       {
         id: "mid-card",
@@ -1453,6 +1462,7 @@ describe("GET /api/search", () => {
         image_url: null,
         episode: { id: "set", name: "Test Set", code: "TST" },
         prices: [{ cm_en_lowest_nm: 75, tcp_market: 80 }],
+        tcggo_score: 55,
       },
     ]);
     dbMock.sealedProduct.findMany.mockResolvedValue([

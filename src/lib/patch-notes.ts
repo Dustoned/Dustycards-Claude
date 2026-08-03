@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.50",
+    releasedAt: "August 3, 2026",
+    title: "Best match no longer peeks at price",
+    summary:
+      "DustyCards 3.8.50 removes price from the best-match search order: relevance and market interest decide, and the price sort filter remains the place for price ordering.",
+    tone: "improved",
+    highlights: [
+      "Equally matching results are ordered purely by market interest (demand, liquidity, momentum) and then name — expensive cards no longer jump the queue.",
+      "Sorting by price stays available through the existing high-to-low filter, which is remembered per user.",
+    ],
+  },
+  {
     version: "3.8.49",
     releasedAt: "August 3, 2026",
     title: "Smarter best-match search and friendlier stat explanations",
