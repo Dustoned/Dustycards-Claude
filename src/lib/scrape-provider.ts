@@ -51,6 +51,27 @@ function normalizedHttpUrl(rawUrl: string): string | null {
   }
 }
 
+// CardMarket consistently times out on Scrape.do's plain datacenter route;
+// the DE browser profile returns the complete offer table (five credits per
+// successful request). Same profile the chase-price job uses.
+function scrapeDoOptionsForUrl(url: string): Record<string, unknown> {
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    if (hostname === "cardmarket.com" || hostname.endsWith(".cardmarket.com")) {
+      return {
+        output: "html",
+        render: true,
+        geoCode: "de",
+        providerTimeoutMs: 65_000,
+        timeoutMs: 75_000,
+      };
+    }
+  } catch {
+    // Fall through to the plain profile.
+  }
+  return {};
+}
+
 function isRecoverableFirecrawlFailure(error: unknown): boolean {
   const normalized = toFirecrawlApiError(error);
   if (normalized.status >= 500) return true;
@@ -100,7 +121,10 @@ export async function scrapePageWithFallback(
 
   if (getScrapeDoConfigSnapshot().configured) {
     try {
-      return withPageProvider(await scrapeScrapeDoPage(url, scrapeOptions), "scrapedo");
+      return withPageProvider(
+        await scrapeScrapeDoPage(url, { ...scrapeOptions, ...scrapeDoOptionsForUrl(url) }),
+        "scrapedo"
+      );
     } catch (scrapeDoError) {
       // Without Firecrawl context the Scrape.do error keeps its own type so
       // direct callers can still inspect it.

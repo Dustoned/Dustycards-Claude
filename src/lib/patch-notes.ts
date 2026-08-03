@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.48",
+    releasedAt: "August 3, 2026",
+    title: "Scrape.do fallback actually reaches CardMarket",
+    summary:
+      "DustyCards 3.8.48 completes the scraper fallback: when the price refresh falls through to Scrape.do it now uses the DE browser profile for CardMarket pages, the same route the chase-price job already relies on.",
+    tone: "fixed",
+    highlights: [
+      "CardMarket blocks Scrape.do's plain datacenter route (the 502 from 3.8.47's clearer error); the fallback now renders through the DE browser profile and returns the full offer table.",
+      "Costs five Scrape.do credits per successful CardMarket scrape, matching the chase-price job.",
+    ],
+  },
+  {
     version: "3.8.47",
     releasedAt: "August 3, 2026",
     title: "Submitted-card price refresh survives an exhausted Firecrawl",
