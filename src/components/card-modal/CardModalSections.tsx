@@ -1326,6 +1326,7 @@ function GradedPricingPanel({
   graphFirst = false,
   rangeScopePoints,
   rangeStorageKey,
+  rangeStorageLegacyKey,
 }: {
   card: ModalCardData;
   collectionItem: ModalCardData["collection_item"] | null;
@@ -1335,6 +1336,7 @@ function GradedPricingPanel({
   graphFirst?: boolean;
   rangeScopePoints?: HistoryPointView[];
   rangeStorageKey?: string;
+  rangeStorageLegacyKey?: string;
 }) {
   const rows = getGradedPriceRows(card, collectionItem);
   const cardMarketRows = rows.filter((row) => row.sourceType === "cardmarket");
@@ -1491,6 +1493,7 @@ function GradedPricingPanel({
           layout="hero"
           rangeScopePoints={rangeScopePoints}
           rangeStorageKey={rangeStorageKey ?? `card-graded-${card.id}-${effectiveSource}-${chartRow?.label ?? "none"}`}
+          rangeStorageLegacyKey={rangeStorageLegacyKey}
           emptyText="No graded history yet"
         />
       </div>
@@ -2392,7 +2395,8 @@ export function CardModalMobileShowcase({
               compact
               graphFirst
               rangeScopePoints={mobileHistoryRangeScopePoints}
-              rangeStorageKey={`card-mobile-${card.id}`}
+              rangeStorageKey={`card-history-${card.id}`}
+              rangeStorageLegacyKey={`card-mobile-${card.id}`}
             />
           </div>
         )}
@@ -2407,7 +2411,8 @@ export function CardModalMobileShowcase({
               tone="dark"
               layout="hero"
               rangeScopePoints={mobileHistoryRangeScopePoints}
-              rangeStorageKey={`card-mobile-${card.id}`}
+              rangeStorageKey={`card-history-${card.id}`}
+              rangeStorageLegacyKey={`card-mobile-${card.id}`}
               headerAccessory={
                 <span className="inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76">
                   {activeCardMarketSeriesLabel}

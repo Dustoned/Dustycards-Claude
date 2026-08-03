@@ -40,10 +40,7 @@ import {
   CardModalRelatedPrintingsPanel,
 } from "@/components/card-modal/CardModalSections";
 import type { ModalCardData } from "@/components/card-modal/types";
-import PriceHistoryPanel, {
-  type PriceHistoryProjection,
-  type PriceHistoryValuePoint,
-} from "@/components/PriceHistoryPanel";
+import PriceHistoryPanel, { type PriceHistoryValuePoint } from "@/components/PriceHistoryPanel";
 import { useSettings } from "@/components/SettingsProvider";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { resolveCardMarketCardUrl } from "@/lib/cardmarket";
@@ -63,7 +60,6 @@ import {
   normalizeGradingGradeLabel,
 } from "@/lib/graded-slabs";
 import { getExpansionHref } from "@/lib/games";
-import { buildAttachedBasePrediction } from "@/lib/signal-price-history";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import useModalA11y from "@/lib/useModalA11y";
 
@@ -117,8 +113,6 @@ interface CardResearchSnapshot {
   results: CardResearchResult[];
 }
 
-type ForecastDirection = "strong-rise" | "rise" | "flat" | "decline";
-
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -126,19 +120,6 @@ function cx(...classes: Array<string | false | null | undefined>) {
 function signedPercent(value: number | null | undefined): string {
   if (value == null || !Number.isFinite(value)) return "--";
   return `${value > 0 ? "+" : ""}${value.toFixed(1)}%`;
-}
-
-function getForecastDirection(
-  outlook: "strong_up" | "modest_up" | "flat" | "down" | undefined,
-  changePct: number | null
-): ForecastDirection {
-  if (outlook === "strong_up") return "strong-rise";
-  if (outlook === "modest_up") return "rise";
-  if (outlook === "down") return "decline";
-  if (outlook === "flat") return "flat";
-  if (changePct == null || Math.abs(changePct) < 4) return "flat";
-  if (changePct < 0) return "decline";
-  return changePct >= 20 ? "strong-rise" : "rise";
 }
 
 function getRadarEvidenceLabel(input: {
@@ -444,34 +425,12 @@ export default function SignalRadarDetailClient({
       : rawMarketPrice;
   const displayCurrency =
     effectiveMode === "graded" ? scenario?.currency ?? market?.graded.currency ?? "EUR" : "EUR";
-  const predictionPoints = useMemo(
-    () =>
-      scenario
-        ? buildAttachedBasePrediction({
-            history: activeHistory,
-            currentPrice: displayPrice,
-            points: scenario.points,
-            modelDate: priceHistory.modelDate,
-          })
-        : [],
-    [activeHistory, displayPrice, priceHistory.modelDate, scenario]
-  );
   const horizonPoint = scenario?.points.find((point) => point.days === 180) ?? scenario?.points.at(-1);
   const forecastChangePct =
     scenario?.expectedReturnPct180 ??
     (displayPrice != null && displayPrice > 0 && horizonPoint
       ? ((horizonPoint.base - displayPrice) / displayPrice) * 100
       : null);
-  const forecastDirection = getForecastDirection(scenario?.outlook, forecastChangePct);
-  const projection: PriceHistoryProjection | null =
-    predictionPoints.length > 1
-      ? {
-          label: "Dusty forecast",
-          points: predictionPoints,
-          tone: forecastDirection,
-          summary: signedPercent(forecastChangePct),
-        }
-      : null;
   const researchResults = research?.results ?? [];
   const cardMarketHref = resolveCardMarketCardUrl({
     id: card.id,
@@ -822,9 +781,10 @@ export default function SignalRadarDetailClient({
             tone="dark"
             layout="hero"
             rangeScopePoints={combinedHistoryRangeScope}
-            rangeStorageKey={`signal-history-${signal.cardId}`}
+            defaultRange="ALL"
+            rangeStorageKey={`card-history-${signal.cardId}`}
+            rangeStorageLegacyKey={`signal-history-${signal.cardId}`}
             emptyText="No reliable price history yet"
-            projection={projection}
           />
         }
         actions={

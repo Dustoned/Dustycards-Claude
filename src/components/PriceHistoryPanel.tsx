@@ -28,7 +28,8 @@ export interface PriceHistoryProjection {
 }
 
 type Tone = "default" | "dark";
-type RangeKey = "1D" | "1W" | "1M" | "3M" | "6M" | "1Y" | "ALL";
+export type PriceHistoryRangeKey = "1D" | "1W" | "1M" | "3M" | "6M" | "1Y" | "ALL";
+type RangeKey = PriceHistoryRangeKey;
 type Layout = "default" | "hero" | "dashboard";
 
 interface Props {
@@ -47,7 +48,9 @@ interface Props {
   compact?: boolean;
   layout?: Layout;
   rangeStorageKey?: string | null;
+  rangeStorageLegacyKey?: string | null;
   rangeScopePoints?: PriceHistoryValuePoint[];
+  defaultRange?: RangeKey;
   fixedRange?: RangeKey;
   hideRangeControls?: boolean;
   projection?: PriceHistoryProjection | null;
@@ -109,6 +112,7 @@ function normalizeStorageKeyPart(value: string): string {
 
 function buildRangeStorageKeys(input: {
   explicitKey: string | null | undefined;
+  explicitLegacyKey?: string | null;
   pathname: string | null;
   title: string;
   currency: CurrencyCode;
@@ -119,7 +123,9 @@ function buildRangeStorageKeys(input: {
   if (explicitKey) {
     return {
       primary: `${RANGE_STORAGE_PREFIX}:${normalizeStorageKeyPart(explicitKey)}`,
-      legacy: null,
+      legacy: input.explicitLegacyKey?.trim()
+        ? `${RANGE_STORAGE_PREFIX}:${normalizeStorageKeyPart(input.explicitLegacyKey)}`
+        : null,
     };
   }
 
@@ -555,7 +561,9 @@ export default function PriceHistoryPanel({
   compact = false,
   layout = "default",
   rangeStorageKey,
+  rangeStorageLegacyKey,
   rangeScopePoints,
+  defaultRange = DEFAULT_RANGE_KEY,
   fixedRange,
   hideRangeControls = false,
   projection = null,
@@ -602,11 +610,12 @@ export default function PriceHistoryPanel({
     () =>
       buildRangeStorageKeys({
         explicitKey: rangeStorageKey,
+        explicitLegacyKey: rangeStorageLegacyKey,
         pathname,
         title,
         currency,
       }),
-    [currency, pathname, rangeStorageKey, title]
+    [currency, pathname, rangeStorageKey, rangeStorageLegacyKey, title]
   );
 
   const subscribeSelectedRange = useCallback(
@@ -638,8 +647,8 @@ export default function PriceHistoryPanel({
     [effectiveRangeStorageKeys]
   );
   const getSelectedRangeSnapshot = useCallback(
-    () => readStoredRange(effectiveRangeStorageKeys) ?? DEFAULT_RANGE_KEY,
-    [effectiveRangeStorageKeys]
+    () => readStoredRange(effectiveRangeStorageKeys) ?? defaultRange,
+    [defaultRange, effectiveRangeStorageKeys]
   );
   const getSelectedRangeServerSnapshot = useCallback((): RangeKey | null => null, []);
   const selectedRangeSnapshot = useSyncExternalStore(
@@ -648,18 +657,22 @@ export default function PriceHistoryPanel({
     getSelectedRangeServerSnapshot
   );
   const rangeResolved = fixedRange != null || selectedRangeSnapshot != null;
-  const selectedRange = fixedRange ?? selectedRangeSnapshot ?? DEFAULT_RANGE_KEY;
+  const selectedRange = fixedRange ?? selectedRangeSnapshot ?? defaultRange;
 
   useLayoutEffect(() => {
     if (fixedRange || !rangeResolved || !effectiveRangeStorageKeys.primary) return;
 
     const storedRange = readStoredRange(effectiveRangeStorageKeys);
-    if (!storedRange || readStoredRangeKey(effectiveRangeStorageKeys.primary) === storedRange) {
+    if (!storedRange) {
+      persistStoredRangeKey(effectiveRangeStorageKeys.primary, defaultRange);
+      return;
+    }
+    if (readStoredRangeKey(effectiveRangeStorageKeys.primary) === storedRange) {
       return;
     }
 
     persistStoredRangeKey(effectiveRangeStorageKeys.primary, storedRange);
-  }, [effectiveRangeStorageKeys, fixedRange, rangeResolved]);
+  }, [defaultRange, effectiveRangeStorageKeys, fixedRange, rangeResolved]);
 
   const parsedPoints = points.map((point) => ({
     ...point,
