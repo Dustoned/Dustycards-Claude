@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.57",
+    releasedAt: "August 4, 2026",
+    title: "Owned card images keep their natural shape",
+    summary:
+      "DustyCards 3.8.57 lets the card image itself determine the compact Owned Copy thumbnail ratio instead of forcing every source into one fixed frame.",
+    tone: "fixed",
+    highlights: [
+      "Owned Copy thumbnails now follow the source image's natural width-to-height ratio, including cached and fallback images.",
+      "The thumbnail stays compact at 72 pixels wide and uses contain rendering without squeezing, stretching or border-induced ratio changes.",
+    ],
+  },
+  {
     version: "3.8.56",
     releasedAt: "August 4, 2026",
     title: "Every openable sealed origin stays selectable",

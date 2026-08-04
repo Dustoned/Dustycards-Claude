@@ -8,7 +8,7 @@ import {
   isCacheableRemoteImageUrl,
 } from "@/lib/image-cache";
 
-type CachedImageProps = Omit<ImageProps, "src" | "onLoad" | "onError"> & {
+type CachedImageProps = Omit<ImageProps, "src" | "onError"> & {
   sourceUrl: string;
   alt: string;
 };
@@ -43,6 +43,7 @@ function CachedImageInner({
   style,
   unoptimized = false,
   onContextMenu,
+  onLoad,
   ...props
 }: Omit<CachedImageProps, "sourceUrl"> & { sourceUrl: string; preferredUrl: string }) {
   const [fallbackToSource, setFallbackToSource] = useState(false);
@@ -77,7 +78,10 @@ function CachedImageInner({
             }
             onContextMenu?.(event);
           }}
-          onLoad={() => setLoaded(true)}
+          onLoad={(event) => {
+            setLoaded(true);
+            onLoad?.(event);
+          }}
           onError={() => {
             if (!fallbackToSource && (useResponsiveDelivery || activeUrl !== sourceUrl)) {
               setFallbackToSource(true);

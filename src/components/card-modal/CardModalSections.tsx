@@ -3398,6 +3398,47 @@ function getRecentDesktopPricePoints(card: ModalCardData): Array<{ label: string
     .reverse();
 }
 
+function OwnedCopyCardImage({
+  sourceUrl,
+  alt,
+}: {
+  sourceUrl: string;
+  alt: string;
+}) {
+  const [loadedAspect, setLoadedAspect] = useState<{
+    sourceUrl: string;
+    ratio: number;
+  } | null>(null);
+  const aspectRatio = loadedAspect?.sourceUrl === sourceUrl ? loadedAspect.ratio : 63 / 88;
+
+  return (
+    <div
+      data-owned-copy-card-frame
+      className={getCardImageFrameClassName(
+        sourceUrl,
+        "relative w-[4.5rem] shrink-0 overflow-hidden rounded-xl bg-white/[0.04] ring-1 ring-inset ring-white/10"
+      )}
+      style={{ aspectRatio }}
+    >
+      <CachedImage
+        sourceUrl={sourceUrl}
+        alt={alt}
+        fill
+        sizes="72px"
+        className={getCardImageClassName(sourceUrl, "object-contain")}
+        style={{ objectFit: "contain" }}
+        unoptimized
+        onLoad={(event) => {
+          const { naturalWidth, naturalHeight } = event.currentTarget;
+          if (naturalWidth > 0 && naturalHeight > 0) {
+            setLoadedAspect({ sourceUrl, ratio: naturalWidth / naturalHeight });
+          }
+        }}
+      />
+    </div>
+  );
+}
+
 export function CardModalOwnedCopyPanel({
   card,
   collectionItem,
@@ -3495,23 +3536,7 @@ export function CardModalOwnedCopyPanel({
             : "mt-3"
         }
       >
-        {card.image_url && (
-          <div
-            className={getCardImageFrameClassName(
-              card.image_url,
-              "relative aspect-[63/88] w-[4.5rem] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]"
-            )}
-          >
-            <CachedImage
-              sourceUrl={card.image_url}
-              alt={card.name}
-              fill
-              sizes="72px"
-              className={getCardImageClassName(card.image_url, "object-contain")}
-              unoptimized
-            />
-          </div>
-        )}
+        {card.image_url && <OwnedCopyCardImage sourceUrl={card.image_url} alt={card.name} />}
         <div className="flex min-w-0 flex-col">
           <div className="flex min-w-0 flex-wrap items-center gap-1.5">
             <span className="rounded-full border border-white/9 bg-white/[0.045] px-2 py-1 text-[11px] font-semibold text-white/82">
