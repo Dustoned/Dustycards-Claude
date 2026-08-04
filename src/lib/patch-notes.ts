@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.56",
+    releasedAt: "August 4, 2026",
+    title: "Every openable sealed origin stays selectable",
+    summary:
+      "DustyCards 3.8.56 narrows the sealed-origin filter to outer multi-product packaging only, so collectors can record the exact item they opened.",
+    tone: "fixed",
+    highlights: [
+      "Cartons, tins, loose and sleeved boosters, blisters, Build & Battle products, boxes, bundles and collections are all available as card origins.",
+      "Only cases, displays and other packaging that contains multiple complete sealed products remain excluded.",
+    ],
+  },
+  {
     version: "3.8.55",
     releasedAt: "August 4, 2026",
     title: "Collector alerts, buy timing and binder sharing",

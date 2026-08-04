@@ -28,6 +28,13 @@ describe("isValidCollectionSealedOrigin", () => {
     });
 
     await expect(isValidCollectionSealedOrigin("other-box", [card])).resolves.toBe(true);
+
+    mocks.findProduct.mockResolvedValue({
+      id: "loose-pack",
+      game: "pokemon",
+      name: "Sleeved Booster",
+    });
+    await expect(isValidCollectionSealedOrigin("loose-pack", [card])).resolves.toBe(true);
   });
 
   it("rejects cases, displays and products from another game", async () => {

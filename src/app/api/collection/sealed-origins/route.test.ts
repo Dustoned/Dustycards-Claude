@@ -117,7 +117,7 @@ describe("POST /api/collection/sealed-origins", () => {
     expect(mocks.products).not.toHaveBeenCalled();
   });
 
-  it("keeps cases, cartons, displays and loose products out of origin suggestions", async () => {
+  it("keeps only cases and multi-product displays out of origin suggestions", async () => {
     const product = (id: string, name: string) => ({
       id,
       game: "pokemon",
@@ -140,7 +140,9 @@ describe("POST /api/collection/sealed-origins", () => {
       product("box", "Set One Elite Trainer Box"),
       product("case", "Set One Elite Trainer Box Case"),
       product("display", "Set One Booster Bundle Display"),
+      product("carton", "Set One Master Carton"),
       product("booster", "Set One Sleeved Booster"),
+      product("tin", "Set One Tin"),
     ]);
 
     const response = await POST(
@@ -153,6 +155,11 @@ describe("POST /api/collection/sealed-origins", () => {
     const payload = await response.json();
 
     expect(response.status).toBe(200);
-    expect(payload.options.map((option: { id: string }) => option.id)).toEqual(["box"]);
+    expect(payload.options.map((option: { id: string }) => option.id)).toEqual([
+      "box",
+      "carton",
+      "booster",
+      "tin",
+    ]);
   });
 });

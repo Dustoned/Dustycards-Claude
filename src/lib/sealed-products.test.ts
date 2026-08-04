@@ -53,18 +53,19 @@ describe("selectCardDetailSealedProducts", () => {
 });
 
 describe("isCollectionSealedOriginProduct", () => {
-  it("keeps single consumer boxes, bundles and collections", () => {
+  it("keeps every individually opened sealed product", () => {
     expect(isCollectionSealedOriginProduct("Prismatic Evolutions Elite Trainer Box")).toBe(true);
     expect(isCollectionSealedOriginProduct("Prismatic Evolutions Booster Bundle")).toBe(true);
     expect(isCollectionSealedOriginProduct("Prismatic Evolutions Poster Collection")).toBe(true);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Master Carton")).toBe(true);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Sleeved Booster")).toBe(true);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Tin")).toBe(true);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Build & Battle Kit")).toBe(true);
   });
 
-  it("rejects cases, cartons, displays and loose products", () => {
+  it("rejects only cases and multi-product displays", () => {
     expect(isCollectionSealedOriginProduct("Prismatic Evolutions ETB Case")).toBe(false);
     expect(isCollectionSealedOriginProduct("Prismatic Evolutions Booster Bundle Display")).toBe(false);
-    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Master Carton")).toBe(false);
-    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Sleeved Booster")).toBe(false);
-    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Tin")).toBe(false);
-    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Build & Battle Kit")).toBe(false);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Mini Tin Display")).toBe(false);
   });
 });
