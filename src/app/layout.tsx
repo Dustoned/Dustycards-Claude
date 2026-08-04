@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
 import ActionCenterButton from "@/components/ActionCenterButton";
+import AdminActiveUsersButton from "@/components/AdminActiveUsersButton";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import { HeaderMobileMenu, HeaderNav } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
@@ -185,6 +186,11 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
                 <HeaderMobileMenu />
                 <div className="flex-1 lg:hidden" />
                 <HeaderSearch />
+                {sidebarSummary?.role === "admin" ? (
+                  <div className="xl:hidden">
+                    <AdminActiveUsersButton initialCount={sidebarSummary.activeUserCount ?? 0} />
+                  </div>
+                ) : null}
                 <div className="xl:hidden">
                   <ActionCenterButton initialCount={sidebarSummary?.attentionCount ?? 0} />
                 </div>

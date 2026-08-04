@@ -101,7 +101,7 @@ function CreditGuide({ config }: { config: FirecrawlConfigSnapshot }) {
         <div className="min-w-0">
           <p className="text-sm font-semibold text-gray-900 dark:text-white">Credit guard</p>
           <p className="mt-1 text-xs leading-5 text-gray-500 dark:text-white/45">
-            Free plan budget is set to {config.monthlyCreditBudget.toLocaleString("en-US")} credits
+            Combined budget across {config.apiKeyCount} configured {config.apiKeyCount === 1 ? "key" : "keys"} is set to {config.monthlyCreditBudget.toLocaleString("en-US")} credits
             per month. Use single-page checks first; avoid crawls unless you really need them.
             {config.monthlyCreditOffset > 0
               ? ` Includes ${config.monthlyCreditOffset.toLocaleString("en-US")} manually tracked credits already spent outside this database.`
@@ -604,15 +604,15 @@ export default function FirecrawlSection({ config, isAdmin }: FirecrawlSectionPr
 
       <div className="grid gap-2 sm:grid-cols-3">
         <StatusTile
-          label="API key"
-          value={config.configured ? "Configured" : "Missing"}
-          hint="Stored server-side only"
+          label="API keys"
+          value={config.configured ? `${config.apiKeyCount} configured` : "Missing"}
+          hint={config.apiKeyCount > 1 ? "Separate credit pools" : "Stored server-side only"}
           tone={configuredTone}
         />
         <StatusTile
           label="Budget"
           value={`${config.monthlyCreditBudget.toLocaleString("en-US")} credits`}
-          hint="Free monthly guardrail"
+          hint="Combined monthly guardrail"
         />
         <StatusTile
           label="Mode"

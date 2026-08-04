@@ -377,6 +377,7 @@ const prismaCatalystStore: ExternalCatalystDiscoveryStore = {
       queryMode: input.source.query.mode,
       sourceUrl: input.scrape.sourceUrl,
       metadata: input.scrape.metadata,
+      changeTracking: input.scrape.changeTracking ?? null,
       upcomingReveals: extractUpcomingRevealsFromScrape(input.scrape),
     }).slice(0, 240_000);
 
@@ -862,6 +863,10 @@ export async function runExternalCatalystDiscovery(
             onlyMainContent: true,
             fastMode: true,
             maxAge: 6 * 60 * 60_000,
+            changeTracking: {
+              tag: "dustycards-signal-catalyst-v1",
+              includeGitDiff: true,
+            },
           });
           return providerState.response;
         },

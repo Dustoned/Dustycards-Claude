@@ -81,6 +81,7 @@ interface Props {
   highlightedCardId?: string | null;
   metricWindowLabel?: string;
   cardQuickActions: CardQuickActionMap;
+  parallelLayout?: boolean;
 }
 
 type FocusFilter =
@@ -251,6 +252,7 @@ export default function MoversBrowser({
   highlightedCardId = null,
   metricWindowLabel,
   cardQuickActions,
+  parallelLayout = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -604,7 +606,7 @@ export default function MoversBrowser({
   );
 
   return (
-    <div className="space-y-3 sm:space-y-5">
+    <div className={`space-y-3 sm:space-y-5 ${parallelLayout ? "sudden-drops-browser" : ""}`}>
       {visibleSpotlights.length > 0 || visiblePreviewCards.length > 0 ? (
         <MoverSpotlightSections
           spotlights={visibleSpotlights}
@@ -615,7 +617,7 @@ export default function MoversBrowser({
         />
       ) : null}
 
-      <section>
+      <section className={parallelLayout ? "sudden-drops-panel" : undefined}>
         <SectionHeader
           eyebrow={eyebrow}
           title={title}
@@ -626,6 +628,7 @@ export default function MoversBrowser({
               {allMoverGroupCount.toLocaleString("en-US")} {groupGradeVariants ? "cards" : "visible"}
             </p>
           }
+          className={parallelLayout ? "sudden-drops-section-header" : ""}
         />
 
         {detailError ? (
@@ -634,7 +637,7 @@ export default function MoversBrowser({
           </div>
         ) : null}
 
-        <div className="binder-panel mb-4 rounded-2xl px-3 py-3 sm:px-4 sm:py-4">
+        <div className={`binder-panel mb-4 rounded-2xl px-3 py-3 sm:px-4 sm:py-4 ${parallelLayout ? "sudden-drops-toolbar" : ""}`}>
           <div
             className={`grid gap-3 lg:items-end ${
               isSuddenDropMode

@@ -11,6 +11,7 @@ import {
   TCGGO_CARD_TRANSPARENT_TRIM_VARIANT,
   type ImageCacheVariant,
 } from "@/lib/image-cache";
+import { getRemoteImageCandidates } from "@/lib/image-cache-fallbacks";
 import { trimResponsiveImageCache } from "@/lib/image-cache-maintenance";
 
 function resolveImageCacheDir() {
@@ -308,26 +309,45 @@ async function downloadAndPersist(
   variant: ImageCacheVariant | null
 ): Promise<EnsureImageResult> {
   const release = await acquireRemoteImageFetchSlot();
-  const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
 
   try {
-    const headers: HeadersInit = {
-      Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
-    };
-    if (sourceUrl.hostname.includes("cardmarket.com")) {
-      headers["User-Agent"] =
-        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
-      headers.Referer = "https://www.cardmarket.com/";
+    let response: Response | null = null;
+    const failureStatuses: number[] = [];
+    for (const candidate of getRemoteImageCandidates(sourceUrl)) {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+      try {
+        const headers: HeadersInit = {
+          Accept: "image/avif,image/webp,image/png,image/jpeg,image/*,*/*;q=0.8",
+        };
+        if (candidate.hostname.includes("cardmarket.com")) {
+          headers["User-Agent"] =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
+          headers.Referer = "https://www.cardmarket.com/";
+        } else if (candidate.hostname === "www.pokemon.com") {
+          headers["User-Agent"] =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36";
+          headers.Referer = "https://www.pokemon.com/";
+        }
+
+        const candidateResponse = await fetch(candidate, {
+          signal: controller.signal,
+          headers,
+        });
+        if (candidateResponse.ok) {
+          response = candidateResponse;
+          break;
+        }
+        failureStatuses.push(candidateResponse.status);
+      } catch {
+        failureStatuses.push(0);
+      } finally {
+        clearTimeout(timeout);
+      }
     }
 
-    const response = await fetch(sourceUrl, {
-      signal: controller.signal,
-      headers,
-    });
-
-    if (!response.ok) {
-      throw new Error(`Image fetch failed with ${response.status}`);
+    if (!response) {
+      throw new Error(`Image fetch failed with ${failureStatuses.join(",") || "no response"}`);
     }
 
     const remoteContentType = response.headers.get("content-type") ?? "application/octet-stream";
@@ -363,7 +383,6 @@ async function downloadAndPersist(
 
     return { imagePath, contentType, hit: false, buffer };
   } finally {
-    clearTimeout(timeout);
     release();
   }
 }

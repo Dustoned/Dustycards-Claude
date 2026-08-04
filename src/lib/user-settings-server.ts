@@ -41,7 +41,9 @@ export const getServerUserSettings = cache(async function getServerUserSettings(
   });
   const accountSettings = parseStoredSettings(user?.settings_json);
 
-  // The cookie is written synchronously, while the account copy is saved over
-  // the network and can briefly lag behind during a refresh or navigation.
-  return mergeSettings(cookieSettings ?? accountSettings ?? DEFAULT_SETTINGS);
+  // Once an account has settings, that copy is authoritative on every device.
+  // The cookie remains the anonymous/first-save fallback and the fast prepaint
+  // mirror, but it must not push an old device-specific navigation grid back
+  // over the user's account layout.
+  return mergeSettings(accountSettings ?? cookieSettings ?? DEFAULT_SETTINGS);
 });

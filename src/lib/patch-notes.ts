@@ -17,6 +17,23 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.10.0",
+    releasedAt: "August 4, 2026",
+    title: "Account-synced navigation and quiet background intelligence",
+    summary:
+      "DustyCards moves personal layouts into the account, monitors changing sources without repeating work and finishes the reprint catalog through an isolated low-impact worker.",
+    tone: "new",
+    highlights: [
+      "Navigation choices for the phone quick bar, More grid, desktop menu and pinned shortcuts now follow the signed-in account across devices. Browser storage remains only a fast local mirror and no longer overrides newer account settings.",
+      "Upcoming & Leaks and Signal Radar now use tagged Firecrawl change monitoring. Unchanged pages reuse their complete stored result without reparsing or warming the same images, while changed pages still pass through the full native import and fallback pipeline.",
+      "Multiple configured Firecrawl keys form one deduplicated round-robin pool with cooldown and failover. Settings reports combined capacity without exposing credentials, and a single key remains fully supported.",
+      "The remaining reprint catalog audit now runs in its own durable low-priority service with CPU and memory limits. It pauses while collectors are active, resumes after quiet time and lets the normal web process skip duplicate reprint work.",
+      "Sudden Drops has a calmer compact summary, aligned Cards and Sealed sections on widescreen, and matching search and sorting controls for sealed products without the repeated status panels.",
+      "Admins can see Active Users beside the phone profile controls as well as on desktop, with the same compact blurred presence panel and visibility-aware refresh cadence.",
+      "Upcoming reveal images use source-specific fallback candidates and join the warm server cache, so temporary source-image failures no longer force every client to retry the original host.",
+    ],
+  },
+  {
     version: "3.9.6",
     releasedAt: "August 4, 2026",
     title: "Warm reveals and live admin presence",

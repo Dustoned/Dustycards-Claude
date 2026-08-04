@@ -48,13 +48,13 @@ describe("server user settings", () => {
     }));
   });
 
-  it("prefers the synchronously saved browser cookie while the account copy lags", async () => {
+  it("prefers account settings over an old device cookie", async () => {
     mocks.cookieValue = encodeURIComponent(serializeSettings(withAppearance("custom")));
     mocks.settingsJson = serializeSettings(withAppearance("rose-quartz"));
 
     const settings = await getServerUserSettings("cookie-newer-user");
 
-    expect(settings.appearance.preset).toBe("custom");
+    expect(settings.appearance.preset).toBe("rose-quartz");
   });
 
   it("falls back to account settings when the browser has no saved settings", async () => {
@@ -63,5 +63,14 @@ describe("server user settings", () => {
     const settings = await getServerUserSettings("account-only-user");
 
     expect(settings.appearance.preset).toBe("ocean-sapphire");
+  });
+
+  it("uses the device cookie to bootstrap an account that has no settings yet", async () => {
+    mocks.cookieValue = encodeURIComponent(serializeSettings(withAppearance("custom")));
+    mocks.settingsJson = null;
+
+    const settings = await getServerUserSettings("first-save-user");
+
+    expect(settings.appearance.preset).toBe("custom");
   });
 });

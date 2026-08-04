@@ -1,17 +1,11 @@
 import Link from "next/link";
 import {
-  ArrowDownRight,
   ArrowLeft,
   ArrowUpRight,
-  BadgePercent,
-  Gauge,
-  Sparkles,
 } from "lucide-react";
 import {
   HeaderAction,
-  HeaderPill,
   PageHeroHeader,
-  type HeaderStat,
 } from "@/components/PageHeader";
 import BackNavigationLink from "@/components/BackNavigationLink";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
@@ -121,32 +115,6 @@ export default async function SuddenDropsPage({
   ).length;
   const averageDrop = average(dropAmounts);
   const largestDrop = dropAmounts.length > 0 ? Math.max(...dropAmounts) : null;
-  const headerStats = [
-    {
-      label: "24H Matches",
-      value: data.preview.total.toLocaleString("en-US"),
-      Icon: ArrowDownRight,
-      tone: "rose",
-    },
-    {
-      label: `${formatCurrency(SUDDEN_DROP_DEAL_STRONG_AMOUNT, activeCurrency)}+ Drops`,
-      value: strongDropCount.toLocaleString("en-US"),
-      Icon: BadgePercent,
-      tone: "amber",
-    },
-    {
-      label: "Largest Drop",
-      value: largestDrop == null ? "--" : formatCurrency(largestDrop, activeCurrency),
-      Icon: Sparkles,
-      tone: "violet",
-    },
-    {
-      label: "Avg Drop",
-      value: averageDrop == null ? "--" : formatCurrency(averageDrop, activeCurrency),
-      Icon: Gauge,
-      tone: "sky",
-    },
-  ] satisfies HeaderStat[];
   const gameValue = getGameFilterSearchParamValue(activeGame);
   const buildSuddenDropsHref = (nextGame: TradingCardGameFilter = activeGame) => {
     const params = new URLSearchParams();
@@ -173,12 +141,11 @@ export default async function SuddenDropsPage({
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
       <SuddenDropsAutoRefresh />
-      <div className="flex w-full flex-col gap-8">
+      <div className="flex w-full flex-col gap-5 sm:gap-6">
         <PageHeroHeader
-          eyebrow="Sudden Drops"
-          title="Verified market drops from the last 24 hours"
-          description="A rolling view of cards whose current marketplace price fell by at least the threshold versus their immediately previous price. Internal job and batch boundaries no longer affect this list."
-          stats={headerStats}
+          eyebrow="Market monitor"
+          title="Sudden drops"
+          description={`Verified ${formatCurrency(activeDropMinimum, activeCurrency)}+ price drops in a rolling 24-hour window. Suspicious listing outliers are excluded.`}
           backLinks={
             <div className="flex flex-wrap items-center gap-3 text-sm text-gray-500 dark:text-white/50">
               <BackNavigationLink
@@ -221,52 +188,47 @@ export default async function SuddenDropsPage({
               </Link>
             </div>
           }
-          actions={
+          actions={settings.onePieceLibraryEnabled ? (
             <HeaderAction className="items-stretch">
-              {settings.onePieceLibraryEnabled ? (
-                <GameFilterSwitch
-                  items={gameSwitchItems}
-                  ariaLabel="Sudden drops library"
-                  className="min-w-[16rem] max-w-[21rem]"
-                />
-              ) : null}
-              <div className="flex flex-wrap items-center gap-[var(--ui-header-action-gap)]">
-                <HeaderPill tone={isAllScope ? "sky" : "emerald"}>Scope: {scopeLabel}</HeaderPill>
-                <HeaderPill tone="rose">
-                  Drop threshold: {formatCurrency(activeDropMinimum, activeCurrency)}+
-                </HeaderPill>
-                <HeaderPill tone="amber">
-                  Rolling window: 24 hours
-                </HeaderPill>
-                <HeaderPill tone="violet">Updated: {updatedLabel}</HeaderPill>
-                <HeaderPill>
-                  Price source: {activePriceSource === "tcp" ? "TCGPlayer market" : "CardMarket English"}
-                </HeaderPill>
-              </div>
+              <GameFilterSwitch
+                items={gameSwitchItems}
+                ariaLabel="Sudden drops library"
+                className="min-w-[16rem] max-w-[21rem]"
+              />
             </HeaderAction>
-          }
+          ) : undefined}
         />
 
-        <div className="flex flex-wrap gap-3 text-sm">
-          <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/20 bg-rose-400/[0.08] px-3 py-1.5 text-rose-700 dark:text-rose-200">
-            <ArrowDownRight className="h-4 w-4" />
-            Rolling 24-hour {formatCurrency(activeDropMinimum, activeCurrency)}+ drops
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-violet-400/20 bg-violet-400/[0.08] px-3 py-1.5 text-violet-700 dark:text-violet-200">
-            <Sparkles className="h-4 w-4" />
-            English price vs previous English price
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-3 py-1.5 text-amber-700 dark:text-amber-200">
-            <BadgePercent className="h-4 w-4" />
-            Suspicious listings excluded
-          </span>
-        </div>
+        <section className="binder-panel flex flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between sm:px-5">
+          <div className="grid min-w-0 flex-1 grid-cols-2 gap-x-6 gap-y-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-8">
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/34">Matches</p>
+              <p className="mt-0.5 text-lg font-black tabular-nums text-white">{data.preview.total.toLocaleString("en-US")}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/34">Strong drops</p>
+              <p className="mt-0.5 text-lg font-black tabular-nums text-white">{strongDropCount.toLocaleString("en-US")}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/34">Largest</p>
+              <p className="mt-0.5 text-lg font-black tabular-nums text-white">{largestDrop == null ? "--" : formatCurrency(largestDrop, activeCurrency)}</p>
+            </div>
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/34">Average</p>
+              <p className="mt-0.5 text-lg font-black tabular-nums text-white">{averageDrop == null ? "--" : formatCurrency(averageDrop, activeCurrency)}</p>
+            </div>
+          </div>
+          <p className="shrink-0 text-[10px] font-semibold leading-5 text-white/38 sm:text-right">
+            {activePriceSource === "tcp" ? "TCGPlayer market" : "CardMarket English"}<br />
+            Updated {updatedLabel} · {scopeLabel}
+          </p>
+        </section>
 
         <div
           className={
             sealedDrops.items.length > 0
-              ? "sudden-drops-content-grid grid min-w-0 gap-8"
-              : "grid min-w-0 gap-8"
+              ? "sudden-drops-content-grid grid min-w-0 gap-6"
+              : "grid min-w-0 gap-6"
           }
         >
           <div className="min-w-0">
@@ -280,14 +242,15 @@ export default async function SuddenDropsPage({
               highlightedCardId={highlight ?? null}
               metricWindowLabel="24H"
               eyebrow="Sudden Drops"
-              title="Cards that became cheaper in the last 24 hours"
+              title="Cards"
               description={
                 data.preview.total > movers.length
-                  ? `Showing the ${movers.length.toLocaleString("en-US")} largest of ${data.preview.total.toLocaleString("en-US")} verified raw-card drops. Every match is counted; the rendered list stays bounded for mobile performance.`
-                  : `Search, filter, and sort all ${data.preview.total.toLocaleString("en-US")} verified raw cards whose current price is at least ${formatCurrency(activeDropMinimum, activeCurrency)} below their previous price within the rolling 24-hour window.`
+                  ? `Largest ${movers.length.toLocaleString("en-US")} of ${data.preview.total.toLocaleString("en-US")} verified card drops.`
+                  : `${data.preview.total.toLocaleString("en-US")} verified card drops in the rolling 24-hour window.`
               }
               emptyTitle={`No verified ${formatCurrency(activeDropMinimum, activeCurrency)}+ drops in the last 24 hours`}
               emptyDescription="No raw cards currently meet the rolling 24-hour threshold. Suspicious listing outliers are excluded."
+              parallelLayout={sealedDrops.items.length > 0}
             />
           </div>
 

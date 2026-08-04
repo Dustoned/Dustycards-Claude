@@ -1,5 +1,7 @@
 import "server-only";
 
+import { statSync } from "node:fs";
+import path from "node:path";
 import { db } from "@/lib/db";
 import {
   buildCardPrintingEvidence,
@@ -21,6 +23,12 @@ const INITIAL_RUN_DELAY_MS = 2 * 60_000;
 const RUN_COOLDOWN_MS = 5 * 60_000;
 const EVIDENCE_REFRESH_MS = 90 * 24 * 60 * 60_000;
 const PARTIAL_RETRY_MS = 6 * 60 * 60_000;
+const EXTERNAL_WORKER_HEARTBEAT_MAX_AGE_MS = 10 * 60_000;
+
+export const CARD_REPRINT_EXTERNAL_WORKER_HEARTBEAT_PATH = path.join(
+  process.cwd(),
+  ".card-reprint-worker-heartbeat"
+);
 
 type ReprintCandidateCard = PrintingLookupCard & {
   printingEvidence: {
@@ -56,6 +64,17 @@ export interface CardReprintJobSnapshot {
   lastRelationsWritten: number;
 }
 
+export interface CardReprintBacklogBatchResult {
+  groupsProcessed: number;
+  cardsProcessed: number;
+  relationsWritten: number;
+}
+
+export interface CardReprintBacklogProgress {
+  pendingCards: number;
+  pendingFamilies: number;
+}
+
 let running = false;
 let lastFinishedAt: string | null = null;
 let lastError: string | null = null;
@@ -66,6 +85,15 @@ let nextEligibleAt = Date.now() + INITIAL_RUN_DELAY_MS;
 
 function yieldToWebTraffic(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, WEB_TRAFFIC_YIELD_MS));
+}
+
+export function isExternalCardReprintWorkerActive(now = Date.now()): boolean {
+  try {
+    return now - statSync(CARD_REPRINT_EXTERNAL_WORKER_HEARTBEAT_PATH).mtimeMs
+      < EXTERNAL_WORKER_HEARTBEAT_MAX_AGE_MS;
+  } catch {
+    return false;
+  }
 }
 
 export function getCardReprintJobSnapshot(): CardReprintJobSnapshot {
@@ -146,6 +174,53 @@ async function findPendingAnchor(now: Date): Promise<PendingAnchor | null> {
     retryBefore
   );
   return rows[0] ?? null;
+}
+
+export async function getCardReprintBacklogProgress(
+  now: Date = new Date()
+): Promise<CardReprintBacklogProgress> {
+  const staleBefore = new Date(now.getTime() - EVIDENCE_REFRESH_MS).toISOString();
+  const retryBefore = new Date(now.getTime() - PARTIAL_RETRY_MS).toISOString();
+  const rows = await db.$queryRawUnsafe<Array<{
+    pendingCards: bigint | number;
+    pendingFamilies: bigint | number;
+  }>>(
+    `
+    SELECT
+      count(*) AS pendingCards,
+      count(DISTINCT c.name || char(0) || coalesce(c.supertype, '')) AS pendingFamilies
+    FROM "Card" c
+    LEFT JOIN "CardPrintingEvidence" evidence ON evidence.card_id = c.id
+    WHERE c.game = 'pokemon'
+      AND c.image_url IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM "Card" candidate
+        WHERE candidate.id <> c.id
+          AND candidate.game = c.game
+          AND candidate.name = c.name
+          AND coalesce(candidate.supertype, '') = coalesce(c.supertype, '')
+          AND candidate.image_url IS NOT NULL
+      )
+      AND (
+        evidence.card_id IS NULL
+        OR evidence.match_version IS NULL
+        OR evidence.match_version <> ?
+        OR evidence.matched_at IS NULL
+        OR evidence.image_url <> c.image_url
+        OR evidence.source_checked_at < ?
+        OR (evidence.match_status = 'partial' AND evidence.source_checked_at < ?)
+      )
+    `,
+    CARD_REPRINT_MODEL_VERSION,
+    staleBefore,
+    retryBefore
+  );
+  const row = rows[0];
+  return {
+    pendingCards: Number(row?.pendingCards ?? 0),
+    pendingFamilies: Number(row?.pendingFamilies ?? 0),
+  };
 }
 
 async function loadCandidateGroup(anchorId: string): Promise<ReprintCandidateCard[]> {
@@ -439,13 +514,16 @@ export async function rebuildCardReprintGroup(
   return processCandidateGroup(cards, now);
 }
 
-async function runCardReprintBacklog(now: Date) {
+export async function runCardReprintBacklogBatch(
+  now: Date,
+  maxGroups: number = GROUPS_PER_RUN
+): Promise<CardReprintBacklogBatchResult> {
   let groupsProcessed = 0;
   let cardsProcessed = 0;
   let relationsWritten = 0;
   const processedAnchors = new Set<string>();
 
-  while (groupsProcessed < GROUPS_PER_RUN) {
+  while (groupsProcessed < Math.max(1, Math.floor(maxGroups))) {
     const anchor = await findPendingAnchor(now);
     if (!anchor || processedAnchors.has(anchor.id)) break;
     processedAnchors.add(anchor.id);
@@ -461,10 +539,14 @@ async function runCardReprintBacklog(now: Date) {
 }
 
 export function maybeRunCardReprintJob(now: Date = new Date()): CardReprintJobSnapshot {
-  if (running || now.getTime() < nextEligibleAt) return getCardReprintJobSnapshot();
+  if (
+    running ||
+    now.getTime() < nextEligibleAt ||
+    isExternalCardReprintWorkerActive(now.getTime())
+  ) return getCardReprintJobSnapshot();
   running = true;
 
-  void runCardReprintBacklog(now)
+  void runCardReprintBacklogBatch(now)
     .then((result) => {
       lastGroupsProcessed = result.groupsProcessed;
       lastCardsProcessed = result.cardsProcessed;

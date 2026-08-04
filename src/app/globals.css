@@ -932,6 +932,14 @@ html.widescreen .dc-wide-table-zone {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     align-items: start;
   }
+
+  html.widescreen .sudden-drops-section-header {
+    min-height: 5.5rem;
+  }
+
+  html.widescreen .sudden-drops-toolbar {
+    min-height: 5.75rem;
+  }
 }
 
 @media (min-width: 1536px) {

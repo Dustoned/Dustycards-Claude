@@ -1,8 +1,15 @@
+import {
+  collectFirecrawlApiKeys,
+  rotateFirecrawlApiKeys,
+} from "@/lib/firecrawl-key-pool";
+
 const DEFAULT_FIRECRAWL_API_URL = "https://api.firecrawl.dev/v2";
 const DEFAULT_FIRECRAWL_MONTHLY_CREDITS = 1000;
+const FIRECRAWL_KEY_FAILOVER_STATUSES = new Set([401, 402, 403, 429]);
 
 export interface FirecrawlConfigSnapshot {
   configured: boolean;
+  apiKeyCount: number;
   apiUrl: string;
   monthlyCreditBudget: number;
   monthlyCreditOffset: number;
@@ -22,6 +29,8 @@ export interface FirecrawlProviderCreditUsage {
 let providerCreditCache:
   | { expiresAt: number; value: FirecrawlProviderCreditUsage | null }
   | null = null;
+let nextFirecrawlKeyIndex = 0;
+const firecrawlKeyCooldowns = new Map<string, number>();
 
 export interface FirecrawlDocsSearchResult {
   answer: string;
@@ -58,6 +67,14 @@ export interface FirecrawlPageScrapeResult {
   links: string[];
   creditsUsed: number | null;
   metadata: Record<string, unknown>;
+  changeTracking?: FirecrawlChangeTrackingResult | null;
+}
+
+export interface FirecrawlChangeTrackingResult {
+  previousScrapeAt: string | null;
+  changeStatus: "new" | "same" | "changed" | "removed";
+  visibility: "visible" | "hidden" | null;
+  diff: Record<string, unknown> | null;
 }
 
 class FirecrawlRequestError extends Error {
@@ -76,8 +93,31 @@ function normalizeEnvValue(value: string | undefined): string | null {
   return trimmed;
 }
 
-function getFirecrawlApiKey(): string | null {
-  return normalizeEnvValue(process.env.FIRECRAWL_API_KEY);
+function getFirecrawlApiKeys(): string[] {
+  return collectFirecrawlApiKeys({
+    primary: process.env.FIRECRAWL_API_KEY,
+    secondary: process.env.FIRECRAWL_API_KEY_SECOND,
+    pool: process.env.FIRECRAWL_API_KEYS,
+  });
+}
+
+function getFirecrawlKeyAttempts(): string[] {
+  const keys = getFirecrawlApiKeys();
+  const now = Date.now();
+  const available = keys.filter((key) => (firecrawlKeyCooldowns.get(key) ?? 0) <= now);
+  const attempts = rotateFirecrawlApiKeys(available.length > 0 ? available : keys, nextFirecrawlKeyIndex);
+  if (keys.length > 0) nextFirecrawlKeyIndex = (nextFirecrawlKeyIndex + 1) % keys.length;
+  return attempts;
+}
+
+function coolDownFirecrawlKey(apiKey: string, response: Response): void {
+  const retryAfter = Number(response.headers.get("retry-after"));
+  const delayMs = response.status === 429 && Number.isFinite(retryAfter) && retryAfter > 0
+    ? retryAfter * 1_000
+    : response.status === 402
+      ? 10 * 60_000
+      : 5 * 60_000;
+  firecrawlKeyCooldowns.set(apiKey, Date.now() + delayMs);
 }
 
 function getFirecrawlApiUrl(): string {
@@ -87,7 +127,7 @@ function getFirecrawlApiUrl(): string {
 function getFirecrawlMonthlyCreditBudget(): number {
   const parsed = Number(process.env.FIRECRAWL_MONTHLY_CREDIT_BUDGET);
   if (Number.isFinite(parsed) && parsed > 0) return Math.floor(parsed);
-  return DEFAULT_FIRECRAWL_MONTHLY_CREDITS;
+  return DEFAULT_FIRECRAWL_MONTHLY_CREDITS * Math.max(1, getFirecrawlApiKeys().length);
 }
 
 function getFirecrawlMonthlyCreditOffset(): number {
@@ -107,8 +147,10 @@ function getFirecrawlCreditGuide(): FirecrawlConfigSnapshot["creditGuide"] {
 }
 
 export function getFirecrawlConfigSnapshot(): FirecrawlConfigSnapshot {
+  const apiKeyCount = getFirecrawlApiKeys().length;
   return {
-    configured: Boolean(getFirecrawlApiKey()),
+    configured: apiKeyCount > 0,
+    apiKeyCount,
     apiUrl: getFirecrawlApiUrl(),
     monthlyCreditBudget: getFirecrawlMonthlyCreditBudget(),
     monthlyCreditOffset: getFirecrawlMonthlyCreditOffset(),
@@ -120,6 +162,26 @@ export interface FirecrawlPageScrapeOptions {
   onlyMainContent?: boolean;
   fastMode?: boolean;
   maxAge?: number;
+  /** Store and compare a persistent Firecrawl snapshot for this URL. */
+  changeTracking?: {
+    tag?: string;
+    includeGitDiff?: boolean;
+  };
+}
+
+function parseFirecrawlChangeTracking(value: unknown): FirecrawlChangeTrackingResult | null {
+  if (!isRecord(value)) return null;
+  const changeStatus = value.changeStatus;
+  if (!["new", "same", "changed", "removed"].includes(String(changeStatus))) return null;
+  const visibility = value.visibility;
+  return {
+    previousScrapeAt:
+      typeof value.previousScrapeAt === "string" ? value.previousScrapeAt : null,
+    changeStatus: changeStatus as FirecrawlChangeTrackingResult["changeStatus"],
+    visibility:
+      visibility === "visible" || visibility === "hidden" ? visibility : null,
+    diff: isRecord(value.diff) ? value.diff : null,
+  };
 }
 
 export function parseFirecrawlProviderCreditUsage(
@@ -148,16 +210,26 @@ export async function getFirecrawlProviderCreditUsage(options?: {
   if (!options?.fresh && providerCreditCache && providerCreditCache.expiresAt > now) {
     return providerCreditCache.value;
   }
-  const apiKey = getFirecrawlApiKey();
-  if (!apiKey) return null;
+  const apiKeys = getFirecrawlApiKeys();
+  if (apiKeys.length === 0) return null;
   try {
-    const response = await fetch(`${getFirecrawlApiUrl()}/team/credit-usage`, {
-      headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
-      cache: "no-store",
-      signal: AbortSignal.timeout(8_000),
-    });
-    if (!response.ok) return null;
-    const parsed = parseFirecrawlProviderCreditUsage(await response.json().catch(() => null));
+    const balances = (await Promise.all(apiKeys.map(async (apiKey) => {
+      const response = await fetch(`${getFirecrawlApiUrl()}/team/credit-usage`, {
+        headers: { authorization: `Bearer ${apiKey}`, accept: "application/json" },
+        cache: "no-store",
+        signal: AbortSignal.timeout(8_000),
+      });
+      if (!response.ok) return null;
+      return parseFirecrawlProviderCreditUsage(await response.json().catch(() => null));
+    }))).filter((value): value is FirecrawlProviderCreditUsage => Boolean(value));
+    const parsed = balances.length > 0
+      ? {
+          remainingCredits: balances.reduce((sum, balance) => sum + balance.remainingCredits, 0),
+          planCredits: balances.reduce((sum, balance) => sum + balance.planCredits, 0),
+          billingPeriodStart: balances.map((balance) => balance.billingPeriodStart).filter((value): value is string => Boolean(value)).sort()[0] ?? null,
+          billingPeriodEnd: balances.map((balance) => balance.billingPeriodEnd).filter((value): value is string => Boolean(value)).sort().at(-1) ?? null,
+        } satisfies FirecrawlProviderCreditUsage
+      : null;
     providerCreditCache = { expiresAt: now + 30_000, value: parsed };
     return parsed;
   } catch {
@@ -167,34 +239,47 @@ export async function getFirecrawlProviderCreditUsage(options?: {
 }
 
 async function postFirecrawl(path: string, payload: Record<string, unknown>): Promise<unknown> {
-  const apiKey = getFirecrawlApiKey();
-  if (!apiKey) {
+  const apiKeys = getFirecrawlKeyAttempts();
+  if (apiKeys.length === 0) {
     throw new FirecrawlRequestError("Firecrawl API key is not configured.", 400);
   }
 
-  const response = await fetch(`${getFirecrawlApiUrl()}${path}`, {
-    method: "POST",
-    headers: {
-      authorization: `Bearer ${apiKey}`,
-      "content-type": "application/json",
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-    // Firecrawl gets 60s of provider-side time; a hard local cap keeps a
-    // hanging request from stalling the caller (and the reverse proxy) forever.
-    signal: AbortSignal.timeout(75_000),
-  });
+  let lastError: FirecrawlRequestError | null = null;
+  for (const [index, apiKey] of apiKeys.entries()) {
+    const response = await fetch(`${getFirecrawlApiUrl()}${path}`, {
+      method: "POST",
+      headers: {
+        authorization: `Bearer ${apiKey}`,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify(payload),
+      cache: "no-store",
+      // Firecrawl gets 60s of provider-side time; a hard local cap keeps a
+      // hanging request from stalling the caller (and the reverse proxy) forever.
+      signal: AbortSignal.timeout(75_000),
+    });
 
-  const data = (await response.json().catch(() => null)) as unknown;
-  if (!response.ok) {
-    throw new FirecrawlRequestError(extractFirecrawlMessage(data) ?? "Firecrawl request failed.", response.status);
+    const data = (await response.json().catch(() => null)) as unknown;
+    if (!response.ok || (isRecord(data) && data.success === false)) {
+      const error = new FirecrawlRequestError(
+        extractFirecrawlMessage(data) ?? "Firecrawl request failed.",
+        response.status
+      );
+      lastError = error;
+      const hasFallback = index < apiKeys.length - 1;
+      if (FIRECRAWL_KEY_FAILOVER_STATUSES.has(response.status)) {
+        coolDownFirecrawlKey(apiKey, response);
+        if (hasFallback) continue;
+      }
+      throw error;
+    }
+
+    firecrawlKeyCooldowns.delete(apiKey);
+    providerCreditCache = null;
+    return data;
   }
 
-  if (isRecord(data) && data.success === false) {
-    throw new FirecrawlRequestError(extractFirecrawlMessage(data) ?? "Firecrawl request failed.", response.status);
-  }
-
-  return data;
+  throw lastError ?? new FirecrawlRequestError("Firecrawl request failed.", 500);
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -335,9 +420,20 @@ export async function scrapeFirecrawlPage(
     throw new FirecrawlRequestError("Use a valid http(s) URL.", 400);
   }
 
+  const formats: Array<string | Record<string, unknown>> = ["markdown", "html", "links"];
+  if (options.changeTracking) {
+    formats.push({
+      type: "changeTracking",
+      ...(options.changeTracking.includeGitDiff === false ? {} : { modes: ["git-diff"] }),
+      ...(options.changeTracking.tag?.trim()
+        ? { tag: options.changeTracking.tag.trim().slice(0, 100) }
+        : {}),
+    });
+  }
+
   const data = await postFirecrawl("/scrape", {
     url,
-    formats: ["markdown", "html", "links"],
+    formats,
     onlyMainContent: options.onlyMainContent ?? false,
     fastMode: options.fastMode,
     maxAge: options.maxAge,
@@ -368,6 +464,9 @@ export async function scrapeFirecrawlPage(
     links: rawLinks.filter((link): link is string => typeof link === "string"),
     creditsUsed: getCreditsUsed(data),
     metadata,
+    changeTracking: isRecord(container)
+      ? parseFirecrawlChangeTracking(container.changeTracking)
+      : null,
   };
 }
 

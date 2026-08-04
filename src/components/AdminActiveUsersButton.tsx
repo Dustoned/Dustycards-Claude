@@ -59,8 +59,17 @@ export default function AdminActiveUsersButton({
   }, []);
 
   useEffect(() => {
-    const initialTimer = window.setTimeout(() => void load(), 0);
-    const timer = window.setInterval(load, 30_000);
+    function refreshWhenVisible() {
+      if (
+        document.visibilityState === "visible" &&
+        rootRef.current?.getClientRects().length
+      ) {
+        void load();
+      }
+    }
+
+    const initialTimer = window.setTimeout(refreshWhenVisible, 0);
+    const timer = window.setInterval(refreshWhenVisible, 30_000);
     return () => {
       window.clearTimeout(initialTimer);
       window.clearInterval(timer);
@@ -102,13 +111,16 @@ export default function AdminActiveUsersButton({
 
       {open ? (
         <div
-          className={`absolute z-[170] w-[20rem] ${
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setOpen(false);
+          }}
+          className={`fixed inset-0 z-[170] bg-black/30 backdrop-blur-sm sm:absolute sm:inset-auto sm:w-[20rem] sm:bg-transparent sm:backdrop-blur-0 ${
             placement === "above-left"
-              ? "bottom-[calc(100%+0.55rem)] left-0"
-              : "right-0 top-[calc(100%+0.55rem)]"
+              ? "sm:bottom-[calc(100%+0.55rem)] sm:left-0"
+              : "sm:right-0 sm:top-[calc(100%+0.55rem)]"
           }`}
         >
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/94 shadow-2xl shadow-black/40 backdrop-blur-2xl">
+          <div className="absolute left-3 right-3 top-[calc(var(--ui-app-header-height)+env(safe-area-inset-top,0px)+0.5rem)] max-h-[calc(100dvh-var(--ui-app-header-height)-env(safe-area-inset-top,0px)-1rem)] overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/94 shadow-2xl shadow-black/40 backdrop-blur-2xl sm:relative sm:left-auto sm:right-auto sm:top-auto sm:max-h-[32rem]">
             <div className="flex items-start justify-between gap-3 border-b border-white/8 px-4 py-3">
               <div>
                 <p className="flex items-center gap-2 text-sm font-black text-white">
@@ -127,7 +139,7 @@ export default function AdminActiveUsersButton({
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="max-h-[24rem] overflow-y-auto p-2">
+            <div className="max-h-[calc(100dvh-var(--ui-app-header-height)-env(safe-area-inset-top,0px)-5rem)] overscroll-contain overflow-y-auto p-2 sm:max-h-[24rem]">
               {users.length ? users.map((user) => {
                 const activeNow = referenceNow - new Date(user.lastSeenAt).getTime() < 75_000;
                 return (

@@ -304,6 +304,7 @@ if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.timer 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
+  systemctl stop dustycards-reprint-backlog.service 2>/dev/null || true
   systemctl stop dustycards 2>/dev/null || true
   PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
     const Database = require("better-sqlite3");
@@ -341,6 +342,7 @@ if [ "$PENDING_MIGRATIONS" -gt 0 ] 2>/dev/null; then
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.timer 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
+  systemctl stop dustycards-reprint-backlog.service 2>/dev/null || true
   systemctl stop dustycards 2>/dev/null || true
   npx prisma migrate deploy
 else
@@ -411,6 +413,30 @@ EnvironmentFile=$RemoteAppPath/.env
 ExecStart=/bin/bash -lc '/usr/bin/curl -fsS --max-time 120 -X POST -H "x-dustycards-scheduler-secret: \${DUSTYCARDS_SYNC_SCHEDULER_SECRET}" "\${DUSTYCARDS_SYNC_SCHEDULER_URL:-http://127.0.0.1:3000}/api/internal/sync-scheduler"'
 EOF
 
+cat > /etc/systemd/system/dustycards-reprint-backlog.service <<EOF
+[Unit]
+Description=DustyCards low-priority reprint backlog worker
+After=dustycards.service network-online.target
+Wants=dustycards.service network-online.target
+
+[Service]
+Type=simple
+User=dustycards
+Group=dustycards
+WorkingDirectory=$RemoteAppPath
+EnvironmentFile=$RemoteAppPath/.env
+Environment=UV_THREADPOOL_SIZE=1
+ExecStart=/usr/bin/node --no-warnings scripts/card-reprint-backlog-worker.mjs
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=35%
+MemoryHigh=768M
+MemoryMax=1G
+TimeoutStopSec=180
+Restart=on-failure
+RestartSec=30
+EOF
+
 cat > /etc/systemd/system/dustycards-sync-scheduler.timer <<'EOF'
 [Unit]
 Description=Run DustyCards sync scheduler every five minutes
@@ -466,6 +492,8 @@ EOF
 systemctl daemon-reload
 systemctl enable --now dustycards-sync-scheduler.timer
 systemctl enable --now dustycards-sealed-release-refresh.timer
+systemctl enable dustycards-reprint-backlog.service
+systemctl restart dustycards-reprint-backlog.service || true
 # Kick off one sync immediately, but do not fail the deploy if it does: the app
 # has only just restarted and may not be ready to serve the sync endpoint in
 # this exact instant. The timer (enabled above) runs it every 5 min regardless.

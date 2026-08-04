@@ -173,8 +173,13 @@ export default function SettingsProvider({
   const displaySettings = getDisplaySettings(settings, isMobileViewport);
 
   useEffect(() => {
+    // Signed-in accounts are authoritative. Browser storage is only a fast
+    // prepaint/offline mirror, so an old device-specific navigation layout can
+    // never overwrite the layout already saved on the account.
     const s = mergeSettings(
-      loadBrowserSettings() ?? initialSettings ?? DEFAULT_SETTINGS
+      syncToAccount && initialSettings
+        ? initialSettings
+        : loadBrowserSettings() ?? initialSettings ?? DEFAULT_SETTINGS
     );
     const initial = initialSettings ?? DEFAULT_SETTINGS;
     const nextRaw = JSON.stringify(s);
@@ -195,7 +200,7 @@ export default function SettingsProvider({
     return () => {
       cancelled = true;
     };
-  }, [initialSettings]);
+  }, [initialSettings, syncToAccount]);
 
   useEffect(() => {
     const media = window.matchMedia("(max-width: 767px)");

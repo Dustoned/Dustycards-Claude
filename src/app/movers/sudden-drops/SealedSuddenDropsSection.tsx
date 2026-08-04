@@ -1,8 +1,8 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useState } from "react";
-import { ArrowDownRight, ChevronRight, Package } from "lucide-react";
+import { useMemo, useState } from "react";
+import { ArrowDownRight, ChevronRight, Package, Search, X } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
 import {
   CardListTile,
@@ -18,6 +18,7 @@ import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { formatCurrency } from "@/lib/format";
 import type { FastSealedSuddenDropItem } from "@/lib/home-sudden-drops-server";
+import { SectionHeader } from "@/components/PageHeader";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
@@ -56,6 +57,18 @@ export default function SealedSuddenDropsSection({
   total: number;
 }) {
   const [selectedProduct, setSelectedProduct] = useState<SealedModalProductData | null>(null);
+  const [search, setSearch] = useState("");
+  const [sort, setSort] = useState<"drop" | "price">("drop");
+  const visibleItems = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase();
+    return [...items]
+      .filter((item) => !query || `${item.name} ${item.episodeName} ${item.episodeCode ?? ""}`.toLocaleLowerCase().includes(query))
+      .sort((left, right) => (
+        sort === "price"
+          ? right.currentPrice - left.currentPrice
+          : right.dropAmount - left.dropAmount
+      ));
+  }, [items, search, sort]);
 
   if (items.length === 0) return null;
 
@@ -64,27 +77,64 @@ export default function SealedSuddenDropsSection({
   }
 
   return (
-    <section id="sealed" className="scroll-mt-24">
-      <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-amber-600 dark:text-amber-300/80">
-            Sealed Sudden Drops
-          </p>
-          <h2 className="mt-1 text-xl font-black tracking-tight text-gray-900 dark:text-white">
-            Sealed products that became cheaper in the last 24 hours
-          </h2>
-          <p className="mt-1 text-sm font-medium text-gray-500 dark:text-white/48">
-            CardMarket EU price versus the immediately previous snapshot.
-          </p>
+    <section id="sealed" className="sudden-drops-panel scroll-mt-24">
+      <SectionHeader
+        eyebrow="Sudden drops"
+        title="Sealed"
+        description="Verified CardMarket EU drops in the same rolling 24-hour window."
+        className="sudden-drops-section-header"
+        actions={
+          <span className="text-sm font-semibold tabular-nums text-white/42">
+            {visibleItems.length.toLocaleString("en-US")} / {total.toLocaleString("en-US")}
+          </span>
+        }
+      />
+
+      <div className="sudden-drops-toolbar binder-panel mb-4 rounded-2xl px-3 py-3 sm:px-4 sm:py-4">
+        <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,12rem)] sm:items-end">
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+              Search
+            </span>
+            <span className="relative block">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
+              <input
+                type="text"
+                placeholder="Product or set"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] pl-10 pr-10 text-sm text-white outline-none transition-colors placeholder:text-white/28 focus:border-white/16"
+              />
+              {search ? (
+                <button
+                  type="button"
+                  onClick={() => setSearch("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-white/35 transition-colors hover:text-white"
+                  aria-label="Clear sealed search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              ) : null}
+            </span>
+          </label>
+          <label className="block">
+            <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+              Sort
+            </span>
+            <select
+              value={sort}
+              onChange={(event) => setSort(event.target.value as "drop" | "price")}
+              className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
+            >
+              <option className="bg-gray-950 text-white" value="drop">Largest drop</option>
+              <option className="bg-gray-950 text-white" value="price">Highest price</option>
+            </select>
+          </label>
         </div>
-        <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-amber-400/24 bg-amber-400/[0.08] px-3 text-[12px] font-black tabular-nums text-amber-700 dark:text-amber-200">
-          <Package className="h-3.5 w-3.5" />
-          {total.toLocaleString("en-US")}
-        </span>
       </div>
 
       <CardListTileGrid>
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <CardListTile
             key={item.productId}
             role="button"
@@ -180,6 +230,12 @@ export default function SealedSuddenDropsSection({
           </CardListTile>
         ))}
       </CardListTileGrid>
+
+      {visibleItems.length === 0 ? (
+        <div className="rounded-2xl border border-white/8 bg-white/[0.035] px-5 py-8 text-center text-sm text-white/42">
+          No sealed products match this search.
+        </div>
+      ) : null}
 
       {selectedProduct ? (
         <SealedProductModal

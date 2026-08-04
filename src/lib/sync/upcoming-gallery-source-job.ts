@@ -6,7 +6,12 @@ import {
   loadArtworkHash,
   type ArtworkHash,
 } from "@/lib/card-printings";
-import type { FirecrawlPageScrapeResult } from "@/lib/firecrawl";
+import {
+  getFirecrawlConfigSnapshot,
+  scrapeFirecrawlPage,
+  type FirecrawlPageScrapeResult,
+} from "@/lib/firecrawl";
+import { runBudgetedFirecrawlRequest } from "@/lib/firecrawl-budget";
 import {
   getScrapeDoConfigSnapshot,
   scrapeScrapeDoPage,
@@ -24,6 +29,7 @@ const DIRECT_MINIMUM_HTML_LENGTH = 12_000;
 const LIBRARY_MATCH_BATCH_SIZE = 3;
 const LIBRARY_MATCH_RECHECK_MS = 14 * 24 * 60 * 60_000;
 const STRONG_UPCOMING_ARTWORK_SIMILARITY = 0.8;
+const FIRECRAWL_CONSUMER = "upcoming-source-monitor";
 
 interface UpcomingGallerySourceDefinition {
   url: string;
@@ -126,6 +132,8 @@ const OFFICIAL_PROMO_NAMES: Readonly<Record<string, string>> = {
 export interface UpcomingGalleryRefreshResult {
   due: number;
   refreshed: number;
+  monitoredUnchanged: number;
+  firecrawl: number;
   direct: number;
   scrapeDoFallback: number;
   storedFallback: number;
@@ -456,7 +464,7 @@ async function storeSuccessfulSource(input: {
   definition: UpcomingGallerySourceDefinition;
   scrape: FirecrawlPageScrapeResult;
   reveals: StoredUpcomingReveal[];
-  provider: "direct" | "scrapedo";
+  provider: "firecrawl" | "direct" | "scrapedo";
   now: Date;
 }): Promise<void> {
   const canonicalUrl = input.definition.url;
@@ -495,48 +503,142 @@ async function storeSuccessfulSource(input: {
   });
 }
 
+function storedMetadataPayload(value: string | null): Record<string, unknown> {
+  if (!value) return {};
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" ? parsed as Record<string, unknown> : {};
+  } catch {
+    return {};
+  }
+}
+
+async function touchUnchangedMonitoredSource(input: {
+  definition: UpcomingGallerySourceDefinition;
+  metadataJson: string;
+  scrape: FirecrawlPageScrapeResult;
+  now: Date;
+}): Promise<void> {
+  const payload = storedMetadataPayload(input.metadataJson);
+  payload.provider = "firecrawl";
+  payload.fetchedAt = input.now.toISOString();
+  payload.sourceUrl = input.scrape.sourceUrl;
+  payload.changeTracking = input.scrape.changeTracking ?? null;
+  await db.externalCatalystSource.update({
+    where: { canonical_url: input.definition.url },
+    data: {
+      last_seen_at: input.now,
+      last_scraped_at: input.now,
+      updated_at: input.now,
+      metadata_json: JSON.stringify(payload),
+    },
+  });
+}
+
+async function scrapeMonitoredSource(
+  definition: UpcomingGallerySourceDefinition,
+  now: Date
+): Promise<FirecrawlPageScrapeResult | null> {
+  if (!getFirecrawlConfigSnapshot().configured) return null;
+  const bucket = Math.floor(now.getTime() / REFRESH_INTERVAL_MS);
+  const response = await runBudgetedFirecrawlRequest<FirecrawlPageScrapeResult>({
+    consumer: FIRECRAWL_CONSUMER,
+    operation: "upcoming-source-monitor",
+    idempotencyKey: `upcoming-monitor:${bucket}:${hash(definition.url)}`,
+    estimatedCredits: 1,
+    sourceUrl: definition.url,
+    request: () => scrapeFirecrawlPage(definition.url, {
+      onlyMainContent: false,
+      fastMode: true,
+      changeTracking: {
+        tag: "dustycards-upcoming-v1",
+        includeGitDiff: true,
+      },
+    }),
+    getCreditsUsed: (scrape) => scrape.creditsUsed,
+  });
+  return response.executed ? response.result : null;
+}
+
 async function refreshSource(
   definition: UpcomingGallerySourceDefinition,
   now: Date
-): Promise<{ provider: "direct" | "scrapedo" | "stored"; reveals: number; error: string | null }> {
+): Promise<{
+  provider: "firecrawl" | "direct" | "scrapedo" | "stored";
+  reveals: number;
+  unchanged: boolean;
+  error: string | null;
+}> {
   const existing = await db.externalCatalystSource.findUnique({
     where: { canonical_url: definition.url },
     select: { metadata_json: true },
   });
   const attempts: string[] = [];
-  let scrape: FirecrawlPageScrapeResult | null = null;
-  let provider: "direct" | "scrapedo" = "direct";
+  const previousReveals = readStoredUpcomingReveals(existing?.metadata_json ?? null);
+  const acceptScrape = async (
+    scrape: FirecrawlPageScrapeResult,
+    provider: "firecrawl" | "direct" | "scrapedo"
+  ) => {
+    const reveals = normalizeReveals(scrape, definition, previousReveals);
+    if (reveals.length < definition.minimumReveals) {
+      attempts.push(
+        `${provider}: only ${reveals.length} of at least ${definition.minimumReveals} expected card images were found.`
+      );
+      return null;
+    }
+    await storeSuccessfulSource({ definition, scrape, reveals, provider, now });
+    return { provider, reveals: reveals.length, unchanged: false, error: null } as const;
+  };
+
   try {
-    scrape = await scrapeDirect(definition.url);
+    const monitored = await scrapeMonitoredSource(definition, now);
+    if (
+      monitored?.changeTracking?.changeStatus === "same" &&
+      existing?.metadata_json &&
+      previousReveals.length >= definition.minimumReveals
+    ) {
+      await touchUnchangedMonitoredSource({
+        definition,
+        metadataJson: existing.metadata_json,
+        scrape: monitored,
+        now,
+      });
+      return {
+        provider: "firecrawl",
+        reveals: previousReveals.length,
+        unchanged: true,
+        error: null,
+      };
+    }
+    if (monitored) {
+      const accepted = await acceptScrape(monitored, "firecrawl");
+      if (accepted) return accepted;
+    }
   } catch (error) {
-    attempts.push(error instanceof Error ? error.message : String(error));
+    attempts.push(`firecrawl: ${error instanceof Error ? error.message : String(error)}`);
   }
 
-  if (!scrape && getScrapeDoConfigSnapshot().configured) {
+  try {
+    const direct = await scrapeDirect(definition.url);
+    const accepted = await acceptScrape(direct, "direct");
+    if (accepted) return accepted;
+  } catch (error) {
+    attempts.push(`direct: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (getScrapeDoConfigSnapshot().configured) {
     try {
-      provider = "scrapedo";
-      scrape = await scrapeScrapeDoPage(definition.url, {
+      const scrapeDo = await scrapeScrapeDoPage(definition.url, {
         output: "html",
         render: definition.sourceType === "official",
         providerTimeoutMs: 60_000,
         timeoutMs: 75_000,
       });
+      const accepted = await acceptScrape(scrapeDo, "scrapedo");
+      if (accepted) return accepted;
     } catch (error) {
-      attempts.push(error instanceof Error ? error.message : String(error));
+      attempts.push(`scrapedo: ${error instanceof Error ? error.message : String(error)}`);
     }
-  }
-
-  if (scrape) {
-    const reveals = normalizeReveals(
-      scrape,
-      definition,
-      readStoredUpcomingReveals(existing?.metadata_json ?? null)
-    );
-    if (reveals.length >= definition.minimumReveals) {
-      await storeSuccessfulSource({ definition, scrape, reveals, provider, now });
-      return { provider, reveals: reveals.length, error: null };
-    }
-    attempts.push(`Only ${reveals.length} of at least ${definition.minimumReveals} expected card images were found.`);
   }
 
   // Hard fallback: never replace or clear the last successful gallery when a
@@ -552,9 +654,14 @@ async function refreshSource(
         last_scraped_at: now,
       },
     });
-    return { provider: "stored", reveals: 0, error: attempts.join(" | ") || null };
+    return { provider: "stored", reveals: 0, unchanged: false, error: attempts.join(" | ") || null };
   }
-  return { provider: "stored", reveals: 0, error: attempts.join(" | ") || "No source provider succeeded." };
+  return {
+    provider: "stored",
+    reveals: 0,
+    unchanged: false,
+    error: attempts.join(" | ") || "No source provider succeeded.",
+  };
 }
 
 export async function refreshUpcomingGallerySources(
@@ -573,6 +680,8 @@ export async function refreshUpcomingGallerySources(
   const result: UpcomingGalleryRefreshResult = {
     due: due.length,
     refreshed: 0,
+    monitoredUnchanged: 0,
+    firecrawl: 0,
     direct: 0,
     scrapeDoFallback: 0,
     storedFallback: 0,
@@ -581,10 +690,12 @@ export async function refreshUpcomingGallerySources(
   };
   for (const definition of due) {
     const refreshed = await refreshSource(definition, now);
-    if (refreshed.provider === "direct") result.direct += 1;
+    if (refreshed.provider === "firecrawl") result.firecrawl += 1;
+    else if (refreshed.provider === "direct") result.direct += 1;
     else if (refreshed.provider === "scrapedo") result.scrapeDoFallback += 1;
     else result.storedFallback += 1;
-    if (refreshed.provider !== "stored") result.refreshed += 1;
+    if (refreshed.unchanged) result.monitoredUnchanged += 1;
+    else if (refreshed.provider !== "stored") result.refreshed += 1;
     result.reveals += refreshed.reveals;
     if (refreshed.error) result.errors.push(`${definition.url}: ${refreshed.error}`);
   }
@@ -652,6 +763,8 @@ export function maybeRunUpcomingGallerySourceJob(
     .catch((error: unknown) => ({
       due: 0,
       refreshed: 0,
+      monitoredUnchanged: 0,
+      firecrawl: 0,
       direct: 0,
       scrapeDoFallback: 0,
       storedFallback: 0,
