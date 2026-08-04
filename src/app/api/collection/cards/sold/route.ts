@@ -46,6 +46,8 @@ export async function POST(req: NextRequest) {
       itemIds?: unknown;
       prices?: unknown;
       totalPrice?: unknown;
+      feeTotal?: unknown;
+      platform?: unknown;
     }>(req);
 
     const itemIds = toStringArray(body.itemIds);
@@ -112,13 +114,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    const feeTotal = body.feeTotal == null || body.feeTotal === "" ? 0 : toMoney(body.feeTotal);
+    if (feeTotal == null || feeTotal < 0) {
+      return NextResponse.json({ error: "Fees must be zero or a positive amount" }, { status: 400 });
+    }
+    const feeTotalCents = toCents(feeTotal);
+    const feeBaseCents = Math.floor(feeTotalCents / itemIds.length);
+    const feeRemainder = feeTotalCents - feeBaseCents * itemIds.length;
+    const platform = typeof body.platform === "string" && body.platform.trim()
+      ? body.platform.trim().slice(0, 80)
+      : null;
+
     const soldAt = new Date();
     await db.$transaction(
-      itemIds.map((itemId) =>
+      itemIds.map((itemId, index) =>
         db.collectionCard.update({
           where: { id: itemId },
           data: {
             sale_price: priceByItemId.get(itemId) ?? 0,
+            sale_fee_eur: centsToMoney(feeBaseCents + (index < feeRemainder ? 1 : 0)),
+            sale_platform: platform,
             sold_at: soldAt,
             for_sale: true,
             binder_id: null,
@@ -135,6 +150,8 @@ export async function POST(req: NextRequest) {
       success: true,
       count: itemIds.length,
       soldTotal,
+      feeTotal: centsToMoney(feeTotalCents),
+      netTotal: centsToMoney(toCents(soldTotal) - feeTotalCents),
       soldAt: soldAt.toISOString(),
     });
   } catch (error) {

@@ -1,7 +1,22 @@
 ﻿"use client";
 
-import type { ReactNode } from "react";
-import { Check, Library, Mail, Maximize2, PanelLeft, PanelTop, Smartphone } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import {
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Library,
+  Mail,
+  Maximize2,
+  Navigation,
+  PanelLeft,
+  PanelTop,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Smartphone,
+  X,
+} from "lucide-react";
 import {
   type Card3dSize,
   type CardSize,
@@ -12,6 +27,18 @@ import {
   useSettings,
 } from "@/components/SettingsProvider";
 import ThemeSection from "./ThemeSection";
+import {
+  getNavigationCustomizationOptions,
+  resolveNavigationItems,
+} from "@/components/navigation-model";
+import {
+  DEFAULT_DESKTOP_PINNED_NAV_KEYS,
+  DEFAULT_MOBILE_BOTTOM_NAV_KEYS,
+  DEFAULT_MOBILE_MORE_PINNED_KEYS,
+  DESKTOP_PIN_LIMIT,
+  MOBILE_MORE_PIN_LIMIT,
+  type NavigationShortcutKey,
+} from "@/lib/navigation-preferences";
 
 type Option<T extends string> = {
   value: T;
@@ -271,11 +298,472 @@ function ToggleRow({
   );
 }
 
+type NavigationOption = ReturnType<typeof getNavigationCustomizationOptions>[number];
+
+function replaceShortcut(
+  keys: NavigationShortcutKey[],
+  index: number,
+  nextKey: NavigationShortcutKey
+): NavigationShortcutKey[] {
+  const next = [...keys];
+  const duplicateIndex = next.indexOf(nextKey);
+  if (duplicateIndex >= 0 && duplicateIndex !== index) {
+    [next[index], next[duplicateIndex]] = [next[duplicateIndex], next[index]];
+  } else {
+    next[index] = nextKey;
+  }
+  return next;
+}
+
+function moveShortcut(
+  keys: NavigationShortcutKey[],
+  index: number,
+  direction: -1 | 1
+): NavigationShortcutKey[] {
+  const target = index + direction;
+  if (target < 0 || target >= keys.length) return keys;
+  const next = [...keys];
+  [next[index], next[target]] = [next[target], next[index]];
+  return next;
+}
+
+function shortcutLabel(key: NavigationShortcutKey, options: NavigationOption[]): string {
+  return options.find((option) => option.key === key)?.label ?? key;
+}
+
+function NavigationIconPicker({
+  title,
+  options,
+  selectedKeys,
+  activeKey,
+  onSelect,
+  onClose,
+}: {
+  title: string;
+  options: NavigationOption[];
+  selectedKeys: NavigationShortcutKey[];
+  activeKey?: NavigationShortcutKey;
+  onSelect: (key: NavigationShortcutKey) => void;
+  onClose: () => void;
+}) {
+  const groups = ["Collection", "Browse", "Market"] as const;
+
+  return (
+    <div className="rounded-2xl border border-violet-400/20 bg-violet-500/[0.035] p-3 shadow-[inset_0_1px_0_rgba(139,92,246,0.06)]">
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-gray-900 dark:text-white">{title}</p>
+          <p className="mt-0.5 text-[11px] text-gray-400">Tap a destination to use it.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close shortcut picker"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-black/8 !bg-transparent !text-[var(--dc-text-muted)] transition hover:!bg-[rgb(var(--dc-surface-hover-rgb)/0.65)] hover:!text-[var(--dc-text-primary)] dark:border-white/10"
+        >
+          <X className="h-4 w-4" />
+        </button>
+      </div>
+
+      <div className="grid gap-3">
+        {groups.map((group) => {
+          const groupOptions = options.filter((option) => option.group === group);
+          if (groupOptions.length === 0) return null;
+
+          return (
+            <div key={group}>
+              <p className="mb-1.5 px-1 text-[9px] font-bold uppercase tracking-[0.12em] text-gray-400">
+                {group}
+              </p>
+              <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+                {groupOptions.map((option) => {
+                  const Icon = option.item.icon;
+                  const active = option.key === activeKey;
+                  const alreadyUsed = !active && selectedKeys.includes(option.key);
+
+                  return (
+                    <button
+                      key={option.key}
+                      type="button"
+                      aria-pressed={active}
+                      onClick={() => onSelect(option.key)}
+                      className={`grid min-h-14 min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-xl border p-2 text-left transition ${
+                        active
+                          ? "border-violet-400/45 !bg-violet-500/[0.16] !text-violet-700 dark:!text-violet-100"
+                          : "border-black/7 !bg-[rgb(var(--dc-surface-primary-rgb)/0.7)] !text-[var(--dc-text-secondary)] hover:border-violet-400/25 hover:!bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] hover:!text-[var(--dc-text-primary)] dark:border-white/8"
+                      }`}
+                    >
+                      <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                          active
+                            ? "bg-violet-500 text-white"
+                            : "bg-black/[0.045] text-gray-400 dark:bg-white/[0.055] dark:text-white/45"
+                        }`}
+                      >
+                        <Icon className="h-4 w-4" aria-hidden="true" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block line-clamp-2 text-[11px] font-semibold leading-tight">
+                          {option.label}
+                        </span>
+                        <span className="mt-0.5 block text-[9px] font-medium text-gray-400">
+                          {active ? "Selected" : alreadyUsed ? "Swap positions" : "Available"}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ShortcutPreview({
+  keys,
+  options,
+  emptyLabel,
+}: {
+  keys: NavigationShortcutKey[];
+  options: NavigationOption[];
+  emptyLabel: string;
+}) {
+  if (keys.length === 0) {
+    return <span className="text-[10px] font-semibold text-gray-400">{emptyLabel}</span>;
+  }
+
+  return (
+    <span className="flex min-w-0 flex-wrap justify-end gap-1">
+      {keys.slice(0, 4).map((key) => (
+        <span
+          key={key}
+          className="max-w-28 truncate rounded-full border border-violet-400/15 bg-violet-500/[0.08] px-2 py-1 text-[9px] font-bold text-violet-700 dark:text-violet-200"
+        >
+          {shortcutLabel(key, options)}
+        </span>
+      ))}
+      {keys.length > 4 ? (
+        <span className="rounded-full bg-black/[0.045] px-2 py-1 text-[9px] font-bold text-gray-400 dark:bg-white/[0.05]">
+          +{keys.length - 4}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function MobileBottomShortcutEditor({
+  keys,
+  options,
+  onChange,
+}: {
+  keys: NavigationShortcutKey[];
+  options: NavigationOption[];
+  onChange: (keys: NavigationShortcutKey[]) => void;
+}) {
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  return (
+    <div className="grid gap-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {keys.map((key, index) => {
+          const option = options.find((candidate) => candidate.key === key);
+          const Icon = option?.item.icon ?? Navigation;
+          const active = editingIndex === index;
+          return (
+            <button
+              key={`${index}:${key}`}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setEditingIndex((current) => (current === index ? null : index))}
+              className={`relative min-h-[6.8rem] min-w-0 rounded-2xl border p-3 text-left transition ${
+                active
+                  ? "border-violet-400/45 !bg-violet-500/[0.13] shadow-[0_0_24px_rgba(139,92,246,0.1)]"
+                  : "border-black/8 !bg-black/[0.02] hover:border-violet-400/20 hover:!bg-violet-500/[0.045] dark:border-white/8 dark:!bg-white/[0.02] dark:hover:!bg-violet-500/[0.06]"
+              }`}
+            >
+              <span className="absolute right-2 top-2 text-[9px] font-bold text-gray-400">
+                {index + 1}
+              </span>
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/[0.11] text-violet-600 dark:text-violet-200">
+                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+              </span>
+              <span className="mt-2 block truncate text-xs font-semibold text-gray-900 dark:text-white">
+                {option?.label ?? key}
+              </span>
+              <span className="mt-0.5 block text-[9px] font-medium text-gray-400">
+                {active ? "Choosing…" : "Tap to change"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {editingIndex !== null ? (
+        <NavigationIconPicker
+          title={`Choose quick-bar button ${editingIndex + 1}`}
+          options={options}
+          selectedKeys={keys}
+          activeKey={keys[editingIndex]}
+          onSelect={(key) => {
+            onChange(replaceShortcut(keys, editingIndex, key));
+            setEditingIndex(null);
+          }}
+          onClose={() => setEditingIndex(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function OrderedShortcutEditor({
+  keys,
+  options,
+  max,
+  onChange,
+}: {
+  keys: NavigationShortcutKey[];
+  options: NavigationOption[];
+  max: number;
+  onChange: (keys: NavigationShortcutKey[]) => void;
+}) {
+  const [picker, setPicker] = useState<{ mode: "add" } | { mode: "replace"; index: number } | null>(
+    null
+  );
+  const available = options.filter((option) => !keys.includes(option.key));
+
+  return (
+    <div className="grid gap-2">
+      {keys.length === 0 ? (
+        <p className="rounded-xl border border-dashed border-black/10 px-3 py-3 text-xs text-gray-400 dark:border-white/10">
+          No shortcuts pinned. The full navigation remains available.
+        </p>
+      ) : null}
+      {keys.map((key, index) => {
+        const option = options.find((candidate) => candidate.key === key);
+        const Icon = option?.item.icon ?? Navigation;
+        return (
+          <div
+            key={key}
+            className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-black/8 bg-black/[0.025] p-2 dark:border-white/8 dark:bg-white/[0.025]"
+          >
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/[0.1] text-violet-600 dark:text-violet-200">
+              <Icon className="h-4 w-4" aria-hidden="true" />
+            </span>
+            <button
+              type="button"
+              onClick={() => setPicker({ mode: "replace", index })}
+              className="flex min-h-10 min-w-0 items-center justify-between gap-2 rounded-lg !bg-transparent px-1.5 text-left !text-[var(--dc-text-primary)] transition hover:!bg-[rgb(var(--dc-surface-hover-rgb)/0.62)]"
+            >
+              <span className="min-w-0">
+                <span className="block truncate text-xs font-semibold">
+                  {option?.label ?? key}
+                </span>
+                <span className="mt-0.5 block text-[9px] font-medium uppercase tracking-[0.08em] text-gray-400">
+                  {option?.group ?? "Shortcut"}
+                </span>
+              </span>
+              <Pencil className="h-3.5 w-3.5 shrink-0 text-gray-400" aria-hidden="true" />
+            </button>
+            <span className="flex items-center gap-0.5">
+              <button
+                type="button"
+                aria-label={`Move ${shortcutLabel(key, options)} up`}
+                disabled={index === 0}
+                onClick={() => onChange(moveShortcut(keys, index, -1))}
+                className="flex h-9 w-8 items-center justify-center rounded-lg !bg-transparent !text-[var(--dc-text-muted)] transition hover:!bg-[rgb(var(--dc-surface-hover-rgb)/0.68)] hover:!text-[var(--dc-text-primary)] disabled:opacity-25"
+              >
+                <ChevronUp className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Move ${shortcutLabel(key, options)} down`}
+                disabled={index === keys.length - 1}
+                onClick={() => onChange(moveShortcut(keys, index, 1))}
+                className="flex h-9 w-8 items-center justify-center rounded-lg !bg-transparent !text-[var(--dc-text-muted)] transition hover:!bg-[rgb(var(--dc-surface-hover-rgb)/0.68)] hover:!text-[var(--dc-text-primary)] disabled:opacity-25"
+              >
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              <button
+                type="button"
+                aria-label={`Remove ${shortcutLabel(key, options)}`}
+                onClick={() => {
+                  setPicker(null);
+                  onChange(keys.filter((_, candidateIndex) => candidateIndex !== index));
+                }}
+                className="flex h-9 w-8 items-center justify-center rounded-lg !bg-transparent !text-[var(--dc-text-muted)] transition hover:!bg-rose-500/[0.08] hover:!text-rose-400"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </span>
+          </div>
+        );
+      })}
+
+      {keys.length < max && available.length > 0 ? (
+        <button
+          type="button"
+          onClick={() => setPicker((current) => (current?.mode === "add" ? null : { mode: "add" }))}
+          aria-expanded={picker?.mode === "add"}
+          className="grid min-h-12 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-dashed border-violet-400/20 !bg-violet-500/[0.025] p-2 text-left !text-violet-700 transition hover:border-violet-400/35 hover:!bg-violet-500/[0.06] dark:!text-violet-200"
+        >
+          <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-violet-500/[0.1]">
+            <Plus className="h-4 w-4" aria-hidden="true" />
+          </span>
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold">Add shortcut</span>
+            <span className="mt-0.5 block text-[9px] font-medium text-gray-400">
+              {max - keys.length} {max - keys.length === 1 ? "place" : "places"} left
+            </span>
+          </span>
+          <ChevronDown
+            className={`h-4 w-4 transition ${picker?.mode === "add" ? "rotate-180" : ""}`}
+            aria-hidden="true"
+          />
+        </button>
+      ) : null}
+
+      {picker ? (
+        <NavigationIconPicker
+          title={picker.mode === "add" ? "Add a shortcut" : "Replace shortcut"}
+          options={picker.mode === "add" ? available : options}
+          selectedKeys={keys}
+          activeKey={picker.mode === "replace" ? keys[picker.index] : undefined}
+          onSelect={(key) => {
+            if (picker.mode === "add") {
+              onChange([...keys, key]);
+            } else {
+              onChange(replaceShortcut(keys, picker.index, key));
+            }
+            setPicker(null);
+          }}
+          onClose={() => setPicker(null)}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function NavigationPreferencesSection() {
+  const { settings, set } = useSettings();
+  const options = getNavigationCustomizationOptions(settings.onePieceLibraryEnabled);
+  const desktopOptions = options.filter((option) => option.key !== "home");
+  const mobileBottomKeys = resolveNavigationItems(
+    settings.mobileBottomNavKeys,
+    settings.onePieceLibraryEnabled,
+    {
+      fallbackKeys: DEFAULT_MOBILE_BOTTOM_NAV_KEYS,
+      fill: true,
+      limit: DEFAULT_MOBILE_BOTTOM_NAV_KEYS.length,
+    }
+  ).map((item) => item.key as NavigationShortcutKey);
+  const mobileMorePinnedKeys = settings.mobileMorePinnedKeys.filter((key) =>
+    options.some((option) => option.key === key)
+  );
+  const desktopPinnedNavKeys = settings.desktopPinnedNavKeys.filter((key) =>
+    desktopOptions.some((option) => option.key === key)
+  );
+
+  const resetNavigation = () => {
+    set("mobileBottomNavKeys", [...DEFAULT_MOBILE_BOTTOM_NAV_KEYS]);
+    set("mobileMorePinnedKeys", [...DEFAULT_MOBILE_MORE_PINNED_KEYS]);
+    set("desktopPinnedNavKeys", [...DEFAULT_DESKTOP_PINNED_NAV_KEYS]);
+  };
+
+  return (
+    <section
+      id="navigation"
+      className="settings-panel glass scroll-mt-24 rounded-2xl p-5 shadow-md shadow-black/5 sm:p-6"
+    >
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="flex items-center gap-2">
+            <Navigation className="h-4 w-4 text-violet-500" aria-hidden="true" />
+            <h2 className="text-base font-semibold text-gray-900 dark:text-white">
+              Navigation
+            </h2>
+          </div>
+          <p className="mt-1 max-w-2xl text-sm text-gray-400">
+            Put the destinations you use most one tap away. Everything else stays visible in the full menus.
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={resetNavigation}
+          className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-black/8 !bg-transparent px-3 text-xs font-semibold !text-[var(--dc-text-muted)] transition hover:!bg-[rgb(var(--dc-surface-hover-rgb)/0.62)] hover:!text-[var(--dc-text-primary)] dark:border-white/10"
+        >
+          <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+          Reset
+        </button>
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        <details className="group rounded-2xl border border-black/8 bg-black/[0.018] open:bg-black/[0.028] dark:border-white/8 dark:bg-white/[0.018] dark:open:bg-white/[0.028]">
+          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/35 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-gray-900 dark:text-white">Phone quick bar</span>
+              <span className="mt-0.5 block text-xs text-gray-400">Four buttons; More always stays fifth.</span>
+            </span>
+            <ShortcutPreview keys={mobileBottomKeys} options={options} emptyLabel="Default" />
+          </summary>
+          <div className="border-t border-black/6 p-3 dark:border-white/6">
+            <MobileBottomShortcutEditor
+              keys={mobileBottomKeys}
+              options={options}
+              onChange={(keys) => set("mobileBottomNavKeys", keys)}
+            />
+          </div>
+        </details>
+
+        <details className="group rounded-2xl border border-black/8 bg-black/[0.018] open:bg-black/[0.028] dark:border-white/8 dark:bg-white/[0.018] dark:open:bg-white/[0.028]">
+          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/35 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-gray-900 dark:text-white">Phone More shortcuts</span>
+              <span className="mt-0.5 block text-xs text-gray-400">Choose and order up to six quick-access tiles.</span>
+            </span>
+            <ShortcutPreview keys={mobileMorePinnedKeys} options={options} emptyLabel="None pinned" />
+          </summary>
+          <div className="border-t border-black/6 p-3 dark:border-white/6">
+            <OrderedShortcutEditor
+              keys={mobileMorePinnedKeys}
+              options={options}
+              max={MOBILE_MORE_PIN_LIMIT}
+              onChange={(keys) => set("mobileMorePinnedKeys", keys)}
+            />
+          </div>
+        </details>
+
+        <details className="group rounded-2xl border border-black/8 bg-black/[0.018] open:bg-black/[0.028] dark:border-white/8 dark:bg-white/[0.018] dark:open:bg-white/[0.028]">
+          <summary className="flex min-h-16 cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-violet-400/35 [&::-webkit-details-marker]:hidden">
+            <span className="min-w-0">
+              <span className="block text-sm font-semibold text-gray-900 dark:text-white">Desktop favorites</span>
+              <span className="mt-0.5 block text-xs text-gray-400">Pinned in both the top menu and sidebar.</span>
+            </span>
+            <ShortcutPreview keys={desktopPinnedNavKeys} options={desktopOptions} emptyLabel="None pinned" />
+          </summary>
+          <div className="border-t border-black/6 p-3 dark:border-white/6">
+            <OrderedShortcutEditor
+              keys={desktopPinnedNavKeys}
+              options={desktopOptions}
+              max={DESKTOP_PIN_LIMIT}
+              onChange={(keys) => set("desktopPinnedNavKeys", keys)}
+            />
+          </div>
+        </details>
+      </div>
+    </section>
+  );
+}
+
 export default function SettingsPreferencesPanel() {
   const { settings, set } = useSettings();
 
   return (
     <div className="grid gap-4">
+      <NavigationPreferencesSection />
+
       <ThemeSection />
 
       <section className="settings-panel glass rounded-2xl p-5 shadow-md shadow-black/5 sm:p-6">

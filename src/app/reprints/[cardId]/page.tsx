@@ -15,6 +15,7 @@ type PrintingCard = {
   id: string;
   name: string;
   card_number: string | null;
+  version?: string | null;
   rarity: string | null;
   image_url: string | null;
   cardmarket_url: string | null;
@@ -61,7 +62,7 @@ function PrintingTile({
             alt=""
             fill
             sizes="112px"
-            className={getCardImageClassName(printing.image_url, "object-fill")}
+            className={getCardImageClassName(printing.image_url, "object-contain")}
             unoptimized
           />
         ) : null}
@@ -73,7 +74,7 @@ function PrintingTile({
             ? "border-sky-400/20 bg-sky-400/[0.08] text-sky-700 dark:text-sky-200"
             : "border-violet-400/20 bg-violet-400/[0.09] text-violet-700 dark:text-violet-200"
         }`}>
-          {printing.isCurrent ? "Current card" : "Reprint"}
+          {printing.isCurrent ? "Current card" : "Related print"}
         </span>
 
         <div className="mt-2 min-w-0">
@@ -85,7 +86,7 @@ function PrintingTile({
             {printing.card_number ? `#${printing.card_number}` : "Unknown number"}
           </p>
           <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-gray-400 dark:text-white/30">
-            {printing.rarity ?? "Standard printing"}
+            {printing.version ?? printing.rarity ?? "Standard printing"}
           </p>
         </div>
 
@@ -150,6 +151,7 @@ export default async function CardReprintsPage({
     id: card.id,
     name: card.name,
     card_number: card.card_number,
+    version: card.version ?? null,
     rarity: card.rarity,
     image_url: card.image_url,
     cardmarket_url: card.cardmarket_url,
@@ -193,15 +195,15 @@ export default async function CardReprintsPage({
             {card.name}
           </h1>
           <p className="mt-1 max-w-2xl text-sm leading-relaxed text-gray-500 dark:text-white/48">
-            The same card and artwork across another set or print treatment, together in one comparison.
+            Verified and likely reissues are pre-matched in the background, so this comparison opens instantly.
           </p>
         </div>
         <div className="shrink-0 sm:text-right">
           <p className="text-2xl font-black tabular-nums text-gray-950 dark:text-white">
-            {related.length}
+            {related.length + 1}
           </p>
           <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-gray-400 dark:text-white/32">
-            Verified {related.length === 1 ? "reprint" : "reprints"}
+            Matched {related.length + 1 === 1 ? "edition" : "editions"}
           </p>
         </div>
       </header>

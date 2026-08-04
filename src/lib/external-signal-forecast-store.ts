@@ -86,6 +86,9 @@ export interface ExternalForecastTrackingStatus {
   pending180d: number;
   complete180d: number;
   insufficient180d: number;
+  meaningfulCorrect90d: number;
+  meaningfulWrong90d: number;
+  smallMove90d: number;
   next90dMaturesAt: string | null;
   next180dMaturesAt: string | null;
 }
@@ -147,6 +150,7 @@ export interface ForecastCohortOutcomeSample {
   observedAt: Date;
   status?: "complete" | "insufficient";
   directionHit?: boolean | null;
+  meaningfulDirectionHit?: boolean | null;
   bandWithin?: boolean | null;
   realizedReturnPct?: number | null;
   entryExpectedReturnPct180?: number | null;
@@ -472,6 +476,9 @@ export async function evaluatePendingExternalSignalOutcomes(
       hit_3x: boolean | null;
       realized_return_pct: number | null;
       direction_hit: boolean | null;
+      absolute_change_eur: number | null;
+      meaningful_move: boolean | null;
+      meaningful_direction_hit: boolean | null;
       band_within: boolean | null;
     };
   }> = [];
@@ -531,6 +538,9 @@ export async function evaluatePendingExternalSignalOutcomes(
         hit_3x: status === "complete" ? evaluated.hit3x : null,
         realized_return_pct: score.realizedReturnPct,
         direction_hit: score.directionHit,
+        absolute_change_eur: score.absoluteChangeEur,
+        meaningful_move: score.meaningfulMove,
+        meaningful_direction_hit: score.meaningfulDirectionHit,
         band_within: score.bandWithin,
       },
     });
@@ -620,6 +630,7 @@ async function loadCompletedCohortOutcomes(
           hit_3x: true,
           realized_return_pct: true,
           direction_hit: true,
+          meaningful_direction_hit: true,
           band_within: true,
           entry_observation: {
             select: {
@@ -649,6 +660,7 @@ async function loadCompletedCohortOutcomes(
           observedAt: row.entry_observation.observed_at,
           status: row.status === "insufficient" ? ("insufficient" as const) : ("complete" as const),
           directionHit: row.direction_hit,
+          meaningfulDirectionHit: row.meaningful_direction_hit,
           bandWithin: row.band_within,
           realizedReturnPct: row.realized_return_pct,
           entryExpectedReturnPct180: row.entry_observation.entry_expected_return_pct_180,
@@ -700,6 +712,8 @@ async function loadForecastTrackingStatuses(
           select: {
             horizon_days: true,
             status: true,
+            meaningful_move: true,
+            meaningful_direction_hit: true,
             entry_observation: { select: { observed_at: true } },
           },
         }),
@@ -717,6 +731,25 @@ async function loadForecastTrackingStatuses(
         pending180d: count(180, "pending"),
         complete180d: count(180, "complete"),
         insufficient180d: count(180, "insufficient"),
+        meaningfulCorrect90d: outcomeRows.filter(
+          (row) =>
+            row.horizon_days === 90 &&
+            row.status === "complete" &&
+            row.meaningful_direction_hit === true
+        ).length,
+        meaningfulWrong90d: outcomeRows.filter(
+          (row) =>
+            row.horizon_days === 90 &&
+            row.status === "complete" &&
+            row.meaningful_direction_hit === false
+        ).length,
+        smallMove90d: outcomeRows.filter(
+          (row) =>
+            row.horizon_days === 90 &&
+            row.status === "complete" &&
+            row.meaningful_move === false &&
+            row.meaningful_direction_hit == null
+        ).length,
         next90dMaturesAt: getNextMaturityDate(outcomeRows, 90),
         next180dMaturesAt: getNextMaturityDate(outcomeRows, 180),
       });
@@ -788,9 +821,14 @@ function summarizeRows(
   const consideredCount = insufficientCount + samples;
   const insufficientShare = consideredCount > 0 ? insufficientCount / consideredCount : null;
 
-  const directionRows = independentRows.filter((row) => row.directionHit != null);
+  const directionRows = independentRows.filter(
+    (row) => (row.meaningfulDirectionHit ?? row.directionHit) != null
+  );
   const directionAccuracy = directionRows.length
-    ? directionRows.filter((row) => row.directionHit === true).length / directionRows.length
+    ? directionRows.filter(
+        (row) => (row.meaningfulDirectionHit ?? row.directionHit) === true
+      ).length /
+      directionRows.length
     : null;
   const bandRows = independentRows.filter((row) => row.bandWithin != null);
   const bandCoverage = bandRows.length

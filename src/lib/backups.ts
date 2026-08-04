@@ -122,6 +122,40 @@ async function pruneManualBackups(dir: string): Promise<number> {
   return prunePrefixedBackups(dir, MANUAL_BACKUP_PREFIX, MANUAL_BACKUPS_TO_KEEP);
 }
 
+async function copyDailyBackupOffServer(source: string, name: string): Promise<void> {
+  const configured = process.env.DUSTYCARDS_OFFSITE_BACKUP_DIR?.trim();
+  if (!configured) return;
+  const primaryDir = path.resolve(/*turbopackIgnore: true*/ path.dirname(source));
+  const offsiteDir = path.resolve(/*turbopackIgnore: true*/ configured);
+  if (offsiteDir === primaryDir) {
+    throw new Error("Offsite backup directory must differ from the primary backup directory");
+  }
+  await fs.mkdir(/*turbopackIgnore: true*/ offsiteDir, { recursive: true });
+  const finalTarget = joinRuntimeFile(offsiteDir, name);
+  const partialTarget = `${finalTarget}.partial`;
+  await fs.rm(/*turbopackIgnore: true*/ partialTarget, { force: true });
+  await fs.copyFile(/*turbopackIgnore: true*/ source, /*turbopackIgnore: true*/ partialTarget);
+  const [sourceStat, copyStat] = await Promise.all([
+    fs.stat(/*turbopackIgnore: true*/ source),
+    fs.stat(/*turbopackIgnore: true*/ partialTarget),
+  ]);
+  if (sourceStat.size !== copyStat.size) {
+    await fs.rm(/*turbopackIgnore: true*/ partialTarget, { force: true });
+    throw new Error("Offsite backup verification failed: copied size differs");
+  }
+  await fs.rename(/*turbopackIgnore: true*/ partialTarget, /*turbopackIgnore: true*/ finalTarget);
+  const entries = await fs.readdir(/*turbopackIgnore: true*/ offsiteDir, { withFileTypes: true });
+  const dailyFiles = entries
+    .filter((entry) => entry.isFile() && entry.name.startsWith(DAILY_BACKUP_PREFIX) && entry.name.endsWith(".db"))
+    .map((entry) => entry.name)
+    .sort((left, right) => right.localeCompare(left));
+  await Promise.all(
+    dailyFiles.slice(DAILY_BACKUPS_TO_KEEP).map((fileName) =>
+      fs.rm(/*turbopackIgnore: true*/ joinRuntimeFile(offsiteDir, fileName), { force: true })
+    )
+  );
+}
+
 /**
  * Creates a consistent online backup of the live database via SQLite's
  * `VACUUM INTO`, then prunes old manual backups (newest 5 are kept).
@@ -178,6 +212,7 @@ export async function createDailyBackup(): Promise<BackupFileInfo> {
   const stat = await fs.stat(/*turbopackIgnore: true*/ target);
   await prunePrefixedBackups(dir, DAILY_BACKUP_PREFIX, DAILY_BACKUPS_TO_KEEP);
   await prunePrefixedBackups(dir, PREDEPLOY_BACKUP_PREFIX, PREDEPLOY_BACKUPS_TO_KEEP);
+  await copyDailyBackupOffServer(target, name);
 
   return {
     name,

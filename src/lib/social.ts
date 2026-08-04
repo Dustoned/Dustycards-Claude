@@ -1,5 +1,9 @@
 import { db } from "@/lib/db";
 import { normalizeEmail } from "@/lib/auth-crypto";
+import {
+  isSpecificTradingCardGame,
+  type TradingCardGameFilter,
+} from "@/lib/games";
 
 export type SocialConnectionStatus = "pending" | "accepted";
 export type SocialFullAccessStatus = "none" | "pending" | "accepted";
@@ -55,6 +59,28 @@ export interface SocialPageData {
   incomingRequests: SocialRequestSummary[];
   outgoingRequests: SocialRequestSummary[];
   activeFriend: SocialFriendSummary | null;
+}
+
+export interface SocialTradeMatchCard {
+  id: string;
+  name: string;
+  cardNumber: string | null;
+  episodeName: string;
+  imageUrl: string | null;
+  value: number | null;
+  availableCopies: number;
+}
+
+export interface SocialTradeMatches {
+  yourCardsTheyWant: SocialTradeMatchCard[];
+  theirCardsYouWant: SocialTradeMatchCard[];
+  yourOfferValue: number;
+  theirOfferValue: number;
+}
+
+export interface SocialTradeOpportunity {
+  friend: SocialUserSummary;
+  matches: SocialTradeMatches;
 }
 
 type SocialConnectionWithUsers = Awaited<ReturnType<typeof getUserConnections>>[number];
@@ -307,6 +333,158 @@ export async function assertCanViewSocialCollection(
   if (connection?.status !== "accepted") {
     throw new SocialError("You can only view accepted friends.", 403);
   }
+}
+
+export async function getSocialTradeMatches(
+  currentUserId: string,
+  friendUserId: string,
+  game: TradingCardGameFilter = "all"
+): Promise<SocialTradeMatches | null> {
+  const pairIds = getConnectionPair(currentUserId, friendUserId);
+  const connection = await db.socialConnection.findUnique({
+    where: { user_a_id_user_b_id: pairIds },
+    select: { status: true, full_access_status: true },
+  });
+  if (connection?.status !== "accepted" || connection.full_access_status !== "accepted") {
+    return null;
+  }
+
+  const [yourCopies, theirCopies, yourWants, theirWants] = await Promise.all([
+    db.collectionCard.findMany({
+      where: {
+        user_id: currentUserId,
+        sold_at: null,
+        ...(isSpecificTradingCardGame(game) ? { card: { game } } : {}),
+      },
+      select: { card_id: true, for_sale: true },
+    }),
+    db.collectionCard.findMany({
+      where: {
+        user_id: friendUserId,
+        sold_at: null,
+        ...(isSpecificTradingCardGame(game) ? { card: { game } } : {}),
+      },
+      select: { card_id: true, for_sale: true },
+    }),
+    db.collectionWant.findMany({
+      where: {
+        user_id: currentUserId,
+        dismissed_at: null,
+        ...(isSpecificTradingCardGame(game) ? { card: { game } } : {}),
+      },
+      select: { card_id: true },
+    }),
+    db.collectionWant.findMany({
+      where: {
+        user_id: friendUserId,
+        dismissed_at: null,
+        ...(isSpecificTradingCardGame(game) ? { card: { game } } : {}),
+      },
+      select: { card_id: true },
+    }),
+  ]);
+
+  function available(rows: Array<{ card_id: string; for_sale: boolean }>) {
+    const grouped = new Map<string, { total: number; listed: number }>();
+    for (const row of rows) {
+      const value = grouped.get(row.card_id) ?? { total: 0, listed: 0 };
+      value.total += 1;
+      if (row.for_sale) value.listed += 1;
+      grouped.set(row.card_id, value);
+    }
+    return new Map(
+      [...grouped.entries()]
+        .map(([cardId, value]) => [cardId, Math.max(value.listed, value.total - 1)] as const)
+        .filter((entry) => entry[1] > 0)
+    );
+  }
+
+  const yours = available(yourCopies);
+  const theirs = available(theirCopies);
+  const yourWantIds = new Set(yourWants.map((item) => item.card_id));
+  const theirWantIds = new Set(theirWants.map((item) => item.card_id));
+  const yourMatchIds = [...yours.keys()].filter((cardId) => theirWantIds.has(cardId));
+  const theirMatchIds = [...theirs.keys()].filter((cardId) => yourWantIds.has(cardId));
+  const ids = [...new Set([...yourMatchIds, ...theirMatchIds])];
+  if (ids.length === 0) {
+    return { yourCardsTheyWant: [], theirCardsYouWant: [], yourOfferValue: 0, theirOfferValue: 0 };
+  }
+  const cards = await db.card.findMany({
+    where: { id: { in: ids } },
+    select: {
+      id: true,
+      name: true,
+      card_number: true,
+      image_url: true,
+      episode: { select: { name: true } },
+      prices: {
+        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
+        take: 1,
+        select: { cm_en_lowest_nm: true },
+      },
+    },
+  });
+  const cardById = new Map(cards.map((card) => [card.id, card]));
+  const build = (cardIds: string[], counts: Map<string, number>) => cardIds
+    .map((cardId) => {
+      const card = cardById.get(cardId);
+      if (!card) return null;
+      return {
+        id: card.id,
+        name: card.name,
+        cardNumber: card.card_number,
+        episodeName: card.episode.name,
+        imageUrl: card.image_url,
+        value: card.prices[0]?.cm_en_lowest_nm ?? null,
+        availableCopies: counts.get(card.id) ?? 1,
+      };
+    })
+    .filter((card): card is SocialTradeMatchCard => Boolean(card))
+    .sort((left, right) => (right.value ?? -1) - (left.value ?? -1))
+    .slice(0, 12);
+  const yourCardsTheyWant = build(yourMatchIds, yours);
+  const theirCardsYouWant = build(theirMatchIds, theirs);
+  const sum = (items: SocialTradeMatchCard[]) => Number(items.reduce((total, item) => total + (item.value ?? 0), 0).toFixed(2));
+  return {
+    yourCardsTheyWant,
+    theirCardsYouWant,
+    yourOfferValue: sum(yourCardsTheyWant),
+    theirOfferValue: sum(theirCardsYouWant),
+  };
+}
+
+export async function getSocialTradeOpportunities(
+  currentUserId: string,
+  game: TradingCardGameFilter = "all"
+): Promise<SocialTradeOpportunity[]> {
+  const connections = (await getUserConnections(currentUserId)).filter(
+    (connection) =>
+      connection.status === "accepted" && connection.full_access_status === "accepted"
+  );
+
+  const opportunities = await Promise.all(
+    connections.map(async (connection) => {
+      const friend = toUserSummary(getOtherUser(connection, currentUserId));
+      const matches = await getSocialTradeMatches(currentUserId, friend.id, game);
+      return matches ? { friend, matches } : null;
+    })
+  );
+
+  return opportunities
+    .filter((item): item is SocialTradeOpportunity => Boolean(item))
+    .sort((left, right) => {
+      const leftCount =
+        left.matches.yourCardsTheyWant.length + left.matches.theirCardsYouWant.length;
+      const rightCount =
+        right.matches.yourCardsTheyWant.length + right.matches.theirCardsYouWant.length;
+      return (
+        rightCount - leftCount ||
+        left.friend.displayName.localeCompare(right.friend.displayName, undefined, {
+          sensitivity: "base",
+        })
+      );
+    });
 }
 
 async function sendFriendRequestToTarget(

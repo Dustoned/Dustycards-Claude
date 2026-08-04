@@ -11,6 +11,8 @@ export interface CollectionCardViewItem {
   binder_type?: string | null;
   for_sale?: boolean;
   sale_price?: number | null;
+  sale_fee_eur?: number | null;
+  sale_platform?: string | null;
   sold_at?: string | null;
   card_id: string;
   name: string;

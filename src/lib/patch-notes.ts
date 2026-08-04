@@ -17,6 +17,29 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.9.0",
+    releasedAt: "August 4, 2026",
+    title: "Navigation, collection intelligence and connected workflows",
+    summary:
+      "DustyCards 3.9.0 makes every major feature easier to reach and connects reprints, openings, trades, selling, alerts and Signal Radar outcomes into durable collector workflows.",
+    tone: "new",
+    highlights: [
+      "Phone navigation now has four account-synced quick-bar slots plus a fixed More button. Mobile More adds ordered quick access and complete Market, Collection, Discover and Tools directories, with Sealed Market visible immediately instead of buried behind nested menus.",
+      "Desktop favorites become named direct top-menu links and a dedicated Pinned sidebar group; the same favorites also appear in the compact tablet menu.",
+      "Navigation Settings uses visual icon slots and an on-demand grouped picker instead of repeated dropdowns, with clear edit, reorder, remove and reset actions.",
+      "A new Action Center brings triggered price alerts, watched eBay endings, finished Signal Radar results and admin feedback into one responsive blurred panel; new feedback also adds a visible badge to Settings for admins.",
+      "Reprint matching is stored and refreshed in the background, covers alternate treatments such as gold, rainbow, promo and jumbo printings, and opens every related edition in a clean Card Detail popup.",
+      "Users can report an incorrect reprint from that popup. Reports arrive in the existing admin Feedback inbox, while only admins can approve or exclude uncertain reprint pairs; those decisions persist across later background scans.",
+      "Sealed Opening Sessions connect an owned product, opening cost, pack count and added pulls into a live ROI record, with search and scanner entry points and no need to recompute the session on every card view.",
+      "For Sale now has a Trade Center: compare any two cards without a friend and see the live EU value gap, or switch to private opportunities across every Full Access friend by matching Wants with duplicates and listed cards.",
+      "Selling now records marketplace and fees, shows gross, net and net P&L totals, and gives every sold card a proper ledger tile with sale price, fee-adjusted result, platform and date.",
+      "Signal Radar scores direction only when a finished move clears both 15% and EUR 10, and its validation panel separates meaningful correct calls, misses and small moves.",
+      "Watched eBay listings show a live countdown, ended state and their saved last-known result, while card history can repair old gaps automatically through the existing background queue.",
+      "Daily backups can be copied to a separately configured off-site directory with size verification, atomic completion and independent rotation.",
+      "Search Cards now belongs to the shared navigation model so phone, tablet, top menu and sidebar expose the same complete app directory.",
+    ],
+  },
+  {
     version: "3.8.60",
     releasedAt: "August 4, 2026",
     title: "Cleaner forecast validation",
@@ -2616,11 +2639,6 @@ export const patchNotes: PatchNoteEntry[] = [
 ];
 
 export const roadmapItems: RoadmapItem[] = [
-  {
-    title: "eBay watch countdowns",
-    status: "Next",
-    summary: "Show time remaining, ended state, and the final known result for watched listings.",
-  },
   {
     title: "Collection import and export",
     status: "Planned",

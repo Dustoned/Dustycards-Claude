@@ -213,6 +213,21 @@ interface CardSearchResult {
   episode_code: string | null;
 }
 
+function formatListingCountdown(endDate: string | null, nowMs: number): string | null {
+  if (!endDate) return null;
+  const endMs = new Date(endDate).getTime();
+  if (!Number.isFinite(endMs)) return null;
+  const remaining = endMs - nowMs;
+  if (remaining <= 0) return "Ended";
+  const totalMinutes = Math.max(1, Math.ceil(remaining / 60_000));
+  const days = Math.floor(totalMinutes / 1_440);
+  const hours = Math.floor((totalMinutes % 1_440) / 60);
+  const minutes = totalMinutes % 60;
+  if (days > 0) return `${days}d ${hours}h left`;
+  if (hours > 0) return `${hours}h ${minutes}m left`;
+  return `${minutes}m left`;
+}
+
 const DEFAULT_RESPONSE: DealsResponse = {
   configured: false,
   query: "",
@@ -848,8 +863,15 @@ export default function DealsBrowser() {
   const [watchedListings, setWatchedListings] = useState<WatchedListingPayload[]>([]);
   const [watchBusyItemId, setWatchBusyItemId] = useState<string | null>(null);
   const [watchedOpen, setWatchedOpen] = useState(false);
+  const [watchNowMs, setWatchNowMs] = useState(() => Date.now());
   const abortRef = useRef<AbortController | null>(null);
   const hasSearch = Boolean(paramQuery.trim() || cardId || productId);
+
+  useEffect(() => {
+    if (!watchedOpen) return;
+    const timer = window.setInterval(() => setWatchNowMs(Date.now()), 30_000);
+    return () => window.clearInterval(timer);
+  }, [watchedOpen]);
 
   const requestPath = useMemo(() => {
     if (!hasSearch) return null;
@@ -1682,7 +1704,10 @@ export default function DealsBrowser() {
           <section className="rounded-2xl border border-amber-400/15 bg-amber-400/[0.04] p-4">
             <button
               type="button"
-              onClick={() => setWatchedOpen((current) => !current)}
+              onClick={() => {
+                setWatchNowMs(Date.now());
+                setWatchedOpen((current) => !current);
+              }}
               className="flex w-full items-center justify-between gap-3 text-left"
             >
               <span className="inline-flex items-center gap-2 text-sm font-bold text-white">
@@ -1696,9 +1721,8 @@ export default function DealsBrowser() {
             {watchedOpen && (
               <ul className="mt-3 divide-y divide-white/8">
                 {watchedListings.map((watchedItem) => {
-                  const ended =
-                    watchedItem.itemEndDate != null &&
-                    new Date(watchedItem.itemEndDate).getTime() < new Date().getTime();
+                  const countdown = formatListingCountdown(watchedItem.itemEndDate, watchNowMs);
+                  const ended = countdown === "Ended";
 
                   return (
                     <li
@@ -1717,7 +1741,7 @@ export default function DealsBrowser() {
                         <p className="mt-0.5 text-[11px] font-medium text-white/42">
                           {[
                             watchedItem.priceEur != null
-                              ? formatCurrency(watchedItem.priceEur, "EUR")
+                              ? `${ended ? "Last known" : "Current"} ${formatCurrency(watchedItem.priceEur, "EUR")}`
                               : null,
                             watchedItem.discountPercent != null
                               ? `${watchedItem.discountPercent > 0 ? "-" : "+"}${Math.abs(
@@ -1725,11 +1749,29 @@ export default function DealsBrowser() {
                                 ).toFixed(1)}% vs base`
                               : null,
                             watchedItem.sellerUsername,
-                            ended ? "Ended" : null,
+                            countdown,
                           ]
                             .filter(Boolean)
                             .join(" · ")}
                         </p>
+                        {countdown && !ended ? (
+                          <div className="mt-1 h-1 overflow-hidden rounded-full bg-white/[0.06]">
+                            <div
+                              className="h-full rounded-full bg-gradient-to-r from-amber-400 to-rose-400"
+                              style={{
+                                width: `${Math.max(
+                                  4,
+                                  Math.min(
+                                    100,
+                                    ((new Date(watchedItem.itemEndDate as string).getTime() - watchNowMs) /
+                                      (7 * 24 * 60 * 60_000)) *
+                                      100
+                                  )
+                                )}%`,
+                              }}
+                            />
+                          </div>
+                        ) : null}
                       </div>
                       <button
                         type="button"

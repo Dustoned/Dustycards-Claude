@@ -142,6 +142,26 @@ describe("scoreForecastOutcome", () => {
     expect(score({ endPrice: 10 }).realizedReturnPct).toBe(0);
   });
 
+  it("only scores directional learning after both a 15% and EUR 10 move", () => {
+    expect(score({ entryPrice: 44, endPrice: 100 })).toMatchObject({
+      absoluteChangeEur: 56,
+      meaningfulMove: true,
+      meaningfulDirectionHit: true,
+    });
+    expect(score({ entryPrice: 100, endPrice: 114 })).toMatchObject({
+      meaningfulMove: false,
+      meaningfulDirectionHit: null,
+    });
+    expect(score({ entryPrice: 40, endPrice: 47 })).toMatchObject({
+      meaningfulMove: false,
+      meaningfulDirectionHit: null,
+    });
+    expect(score({ entryOutlook: "down", entryPrice: 44, endPrice: 100 })).toMatchObject({
+      meaningfulMove: true,
+      meaningfulDirectionHit: false,
+    });
+  });
+
   it("scores up outlooks as hits only above the +2pct dead zone", () => {
     expect(score({ entryOutlook: "strong_up", endPrice: 12 }).directionHit).toBe(true);
     expect(score({ entryOutlook: "modest_up", endPrice: 12 }).directionHit).toBe(true);
@@ -185,6 +205,9 @@ describe("scoreForecastOutcome", () => {
     expect(score({ endPrice: null })).toEqual({
       realizedReturnPct: null,
       directionHit: null,
+      absoluteChangeEur: null,
+      meaningfulMove: null,
+      meaningfulDirectionHit: null,
       bandWithin: null,
     });
   });

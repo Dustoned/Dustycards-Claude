@@ -114,7 +114,10 @@ export interface CollectionOverviewData {
     soldTotal: number;
     soldCards: number;
     soldCost: number;
+    soldFees: number;
+    soldNet: number;
     soldPnl: number;
+    soldNetPnl: number;
   };
   sealed: CollectionSealedViewItem[];
   valueDrivers: CollectionValueDriversData;
@@ -270,6 +273,8 @@ const collectionCardSelect = {
   binder_id: true,
   for_sale: true,
   sale_price: true,
+  sale_fee_eur: true,
+  sale_platform: true,
   sold_at: true,
   purchase_price: true,
   condition: true,
@@ -352,6 +357,8 @@ const collectionCardMetricSelect = {
   binder_id: true,
   for_sale: true,
   sale_price: true,
+  sale_fee_eur: true,
+  sale_platform: true,
   sold_at: true,
   purchase_price: true,
   grading_company: true,
@@ -723,6 +730,8 @@ type CollectionCardMetricRecord = {
   binder_id: string | null;
   for_sale: boolean;
   sale_price: number | null;
+  sale_fee_eur: number | null;
+  sale_platform: string | null;
   sold_at: Date | null;
   purchase_price: number | null;
   grading_company: string | null;
@@ -1258,6 +1267,8 @@ function buildCardViewItem(
     binder_type: record.binder?.type ?? null,
     for_sale: record.for_sale,
     sale_price: record.sale_price,
+    sale_fee_eur: record.sale_fee_eur,
+    sale_platform: record.sale_platform,
     sold_at: record.sold_at ? record.sold_at.toISOString() : null,
     card_id: record.card.id,
     name: record.card.name,
@@ -2208,11 +2219,18 @@ export async function getCollectionOverviewData(
     metricSoldCards.reduce((total, item) => total + (item.sale_price ?? 0), 0)
   );
   const soldCost = sumCollectionPurchasePrices(metricSoldCards.map((item) => item.purchase_price));
+  const soldFees = roundCurrency(
+    metricSoldCards.reduce((total, item) => total + (item.sale_fee_eur ?? 0), 0)
+  );
+  const soldNet = roundCurrency(soldTotal - soldFees);
   const saleSummary = {
     soldTotal,
     soldCards: metricSoldCards.length,
     soldCost,
+    soldFees,
+    soldNet,
     soldPnl: roundCurrency(soldTotal - soldCost),
+    soldNetPnl: roundCurrency(soldNet - soldCost),
   };
   const looseSingleViewItems: CollectionCardViewItem[] = [];
   const binderCardViewItems: CollectionCardViewItem[] = [];
@@ -2414,7 +2432,10 @@ function sanitizeSocialCollectionOverviewData(
       soldTotal: 0,
       soldCards: 0,
       soldCost: 0,
+      soldFees: 0,
+      soldNet: 0,
       soldPnl: 0,
+      soldNetPnl: 0,
     },
     sealed: data.sealed.map((item) => ({
       ...item,

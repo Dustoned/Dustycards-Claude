@@ -80,6 +80,26 @@ export default function LiveForecastDataStatus({
           ))}
         </div>
 
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
+          {[
+            ["Correct", tracking.meaningfulCorrect90d, "text-emerald-200"],
+            ["Wrong", tracking.meaningfulWrong90d, "text-rose-200"],
+            ["Small move", tracking.smallMove90d, "text-white/58"],
+          ].map(([label, value, tone]) => (
+            <div key={String(label)} className="rounded-lg border border-white/6 bg-white/[0.025] px-2 py-1.5">
+              <p className={`text-[12px] font-black tabular-nums ${tone}`}>
+                {Number(value).toLocaleString("en-US")}
+              </p>
+              <p className="mt-0.5 text-[8px] font-bold uppercase tracking-[0.08em] text-white/30">
+                {label}
+              </p>
+            </div>
+          ))}
+        </div>
+        <p className="mt-1.5 text-[8px] leading-3.5 text-white/28">
+          A directional result only scores after at least 15% and EUR 10 movement. Smaller changes stay neutral.
+        </p>
+
         <div className="mt-2.5 space-y-2">
           {TARGET_GATES.map((target) => {
             const targetSummary = forecast.targets[target.key];
@@ -136,7 +156,7 @@ export default function LiveForecastDataStatus({
           </p>
         )}
         <p className="mt-2 text-[9px] leading-4 text-white/28">
-          Correct means the full multiplier was reached; small moves do not count. Active calls score only after their horizon ends.
+          Multiplier rows measure 1.5x, 2x and 3x targets. Active calls score only after their horizon ends.
         </p>
       </div>
     </details>

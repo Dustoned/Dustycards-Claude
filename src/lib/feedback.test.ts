@@ -35,6 +35,23 @@ describe("normalizeFeedbackInput", () => {
     ).toBeNull();
   });
 
+  it("keeps reprint reports in their own admin inbox category", () => {
+    expect(
+      normalizeFeedbackInput(
+        {
+          category: "reprint",
+          message: "These two printings are not the same card.",
+          pageUrl: "/cards/source-card",
+        },
+        "https://dustycards.example"
+      )
+    ).toEqual({
+      category: "reprint",
+      message: "These two printings are not the same card.",
+      pageUrl: "/cards/source-card",
+    });
+  });
+
   it("rejects feedback without useful detail", () => {
     expect(() =>
       normalizeFeedbackInput(

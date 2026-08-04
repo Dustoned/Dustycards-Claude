@@ -61,14 +61,14 @@ describe("card printings", () => {
     ).toBe("swsh12.5gg-GG01");
   });
 
-  it("rejects identical rules when the artwork is visibly different", () => {
+  it("accepts identical rules when a treatment uses visibly different artwork", () => {
     expect(
       getPrintingMatchType(
         CHARIZARD_RULES,
         CHARIZARD_RULES,
-        0.6
+        0.59
       )
-    ).toBeNull();
+    ).toBe("reprint");
   });
 
   it("matches a visually equivalent reprint when the complete card rules are equal", () => {
@@ -86,6 +86,47 @@ describe("card printings", () => {
 
   it("accepts a rules-verified rainbow treatment below the normal artwork threshold", () => {
     expect(getPrintingMatchType(CHARIZARD_RULES, CHARIZARD_RULES, 0.645)).toBe("reprint");
+  });
+
+  it("accepts an exact gold, promo or jumbo variant even when art and illustrator differ", () => {
+    expect(
+      getPrintingMatchType(
+        CHARIZARD_RULES,
+        { ...CHARIZARD_RULES, illustrator: "Promo Studio" },
+        0.28
+      )
+    ).toBe("reprint");
+  });
+
+  it("accepts an exact promo variant when the provider omits its illustrator", () => {
+    expect(
+      getPrintingMatchType(
+        CHARIZARD_RULES,
+        { ...CHARIZARD_RULES, illustrator: undefined },
+        0.24
+      )
+    ).toBe("reprint");
+  });
+
+  it("accepts an updated reprint lineage when move names and art still match", () => {
+    expect(
+      getPrintingMatchType(
+        CHARIZARD_RULES,
+        {
+          ...CHARIZARD_RULES,
+          hp: 340,
+          abilities: CHARIZARD_RULES.abilities?.map((ability) => ({
+            ...ability,
+            effect: "Modernized rules wording.",
+          })),
+          attacks: CHARIZARD_RULES.attacks?.map((attack) => ({
+            ...attack,
+            damage: "200+",
+          })),
+        },
+        0.61
+      )
+    ).toBe("reprint");
   });
 
   it("accepts matching core rules when optional source metadata is absent", () => {
@@ -148,11 +189,15 @@ describe("card printings", () => {
     expect(getPerceptualHashSimilarity("1", "11")).toBe(0);
   });
 
-  it("rejects matching rules and imagery credited to a different illustrator", () => {
+  it("rejects different rules and imagery credited to a different illustrator", () => {
     expect(
       getPrintingMatchType(
         CHARIZARD_RULES,
-        { ...CHARIZARD_RULES, illustrator: "Different Artist" },
+        {
+          ...CHARIZARD_RULES,
+          illustrator: "Different Artist",
+          attacks: [{ name: "Entirely different move", damage: "20" }],
+        },
         1
       )
     ).toBeNull();
@@ -163,11 +208,11 @@ describe("card printings", () => {
       getPrintingMatchType(CHARIZARD_RULES, {
         ...CHARIZARD_RULES,
         attacks: [{ cost: ["Fire"], name: "A different Charizard", damage: "90" }],
-      }, 1)
+      }, 0.66)
     ).toBeNull();
   });
 
-  it("connects treatment variants through a verified base printing", () => {
+  it("connects treatment and alternate-art variants through a verified base printing", () => {
     const regular = CHARIZARD_RULES;
     const rainbow = { ...CHARIZARD_RULES };
     const gallery = {
@@ -191,7 +236,7 @@ describe("card printings", () => {
         [rainbow, regular, gallery, alternateArtwork],
         (leftIndex, rightIndex) => similarities[leftIndex][rightIndex]
       )
-    ).toEqual([1, 2]);
+    ).toEqual([1, 2, 3]);
   });
 
   it("refuses weak identities without actual card rules", () => {

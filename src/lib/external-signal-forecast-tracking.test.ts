@@ -65,6 +65,9 @@ describe("live forecast tracking status", () => {
       pending180d: 1,
       complete180d: 0,
       insufficient180d: 0,
+      meaningfulCorrect90d: 0,
+      meaningfulWrong90d: 0,
+      smallMove90d: 0,
       next90dMaturesAt: "2026-11-02T00:00:00.000Z",
       next180dMaturesAt: "2027-01-31T00:00:00.000Z",
     });

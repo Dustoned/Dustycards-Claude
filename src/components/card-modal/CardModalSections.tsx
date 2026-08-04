@@ -1,6 +1,7 @@
 ﻿"use client";
 
 import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
@@ -11,6 +12,7 @@ import {
   ChevronDown,
   ChevronRight,
   ExternalLink,
+  Flag,
   Globe2,
   Info,
   LineChart,
@@ -20,11 +22,13 @@ import {
   Package,
   Radar,
   RefreshCw,
+  Repeat2,
   ShoppingCart,
   Sparkles,
   Star,
   Trash2,
   UserRound,
+  X,
 } from "lucide-react";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CachedImage from "@/components/CachedImage";
@@ -60,6 +64,13 @@ import type { CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import { normalizeRarityLabel } from "@/lib/rarity";
+import {
+  modalBodyClass,
+  modalCenteredMobileOverlayClass,
+  modalCenteredPanelClass,
+  modalCloseButtonClass,
+  modalCompactHeaderClass,
+} from "@/components/modal-glass-styles";
 import { formatCurrency } from "./utils";
 import type { ModalCardCollectionItem, ModalCardData } from "./types";
 
@@ -3662,13 +3673,56 @@ export function CardModalRecentPricesPanel({
 export function CardModalRelatedPrintingsPanel({
   card,
   onNavigate,
-  context = "standard",
 }: {
   card: ModalCardData;
   onNavigate?: () => void;
   context?: "standard" | "radar";
 }) {
+  const [allPrintingsOpen, setAllPrintingsOpen] = useState(false);
+  const [reportingPrintingId, setReportingPrintingId] = useState<string | null>(null);
+  const [reportedPrintingId, setReportedPrintingId] = useState<string | null>(null);
+  const [reportError, setReportError] = useState<string | null>(null);
   const printings = card.related_printings ?? [];
+
+  async function reportIncorrectPrinting(printing: NonNullable<ModalCardData["related_printings"]>[number]) {
+    if (reportingPrintingId) return;
+    setReportingPrintingId(printing.id);
+    setReportError(null);
+    try {
+      const response = await fetch("/api/feedback", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          category: "reprint",
+          message: `Incorrect reprint match: ${card.name} [${card.id}] is linked to ${printing.name} (${printing.episode_name} ${printing.card_number ?? "no number"}) [${printing.id}].`,
+          pageUrl: window.location.href,
+        }),
+      });
+      if (!response.ok) throw new Error("Could not report this match");
+      setReportedPrintingId(printing.id);
+    } catch (error) {
+      setReportError(error instanceof Error ? error.message : "Could not report this match");
+    } finally {
+      setReportingPrintingId(null);
+    }
+  }
+
+  useEffect(() => {
+    if (!allPrintingsOpen) return;
+
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setAllPrintingsOpen(false);
+    };
+
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [allPrintingsOpen]);
+
   if (printings.length === 0) return null;
 
   const visiblePrintings = printings.slice(0, 3);
@@ -3682,22 +3736,39 @@ export function CardModalRelatedPrintingsPanel({
     ? availablePrices
     : [currentPrice, ...availablePrices];
   const lowestPrice = comparisonPrices.length > 0 ? Math.min(...comparisonPrices) : null;
+  const allPrintings = [
+    {
+      id: card.id,
+      name: card.name,
+      card_number: card.card_number,
+      version: card.version ?? null,
+      rarity: card.rarity,
+      image_url: card.image_url,
+      episode_id: card.episode_id,
+      episode_name: card.episode_name,
+      episode_release_date: card.episode_release_date,
+      price: currentPrice,
+      isCurrent: true,
+    },
+    ...printings.map((printing) => ({ ...printing, isCurrent: false })),
+  ];
 
   return (
-    <section
-      className={`card-detail-surface card-detail-related-printings ${printings.length === 1 ? "card-detail-related-printings--compact" : ""}`}
-      data-card-related-printings
-    >
-      <div className="flex min-w-0 items-start justify-between gap-4">
+    <>
+      <section
+        className={`card-detail-surface card-detail-related-printings ${printings.length === 1 ? "card-detail-related-printings--compact" : ""}`}
+        data-card-related-printings
+      >
+      <div className="flex min-w-0 items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="card-detail-eyebrow">Reprint comparison</p>
-          <h2 className="card-detail-surface-title mt-1.5">Reprints</h2>
+          <p className="card-detail-eyebrow">Print family</p>
+          <h2 className="card-detail-surface-title mt-1.5">Related printings</h2>
           <p className="card-detail-surface-copy">
-            The same card and artwork, reissued in another set or holo treatment. Compare editions before you buy.
+            Pre-matched from card rules, artwork and print variants.
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center rounded-full border border-violet-300/16 bg-violet-400/[0.07] px-2.5 py-1 text-[11px] font-bold text-violet-100/72">
-          {printings.length} verified {printings.length === 1 ? "option" : "options"}
+          {printings.length + 1} editions
         </span>
       </div>
 
@@ -3707,24 +3778,23 @@ export function CardModalRelatedPrintingsPanel({
           const isCheaper =
             printing.price != null && currentPrice != null && printing.price < currentPrice;
           const detailHref = `${getExpansionHref(printing.episode_id)}?card=${encodeURIComponent(printing.id)}`;
-          const ebayHref = buildCardEbaySearchUrl({
-            name: printing.name,
-            cardNumber: printing.card_number,
-          });
+          const savings = isCheaper && currentPrice && printing.price != null
+            ? Math.round((1 - printing.price / currentPrice) * 100)
+            : null;
+          const releaseYear = printing.episode_release_date?.slice(0, 4) ?? null;
 
           return (
-            <article key={printing.id} className="card-detail-printing-card">
-              <Link
-                href={detailHref}
-                onClick={onNavigate}
-                className="absolute inset-0 z-0 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
-                aria-label={`View ${printing.name} from ${printing.episode_name}`}
-              />
-
+            <Link
+              key={printing.id}
+              href={detailHref}
+              onClick={onNavigate}
+              className="card-detail-printing-card group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
+              aria-label={`View ${printing.name} from ${printing.episode_name}`}
+            >
               <div
                 className={getCardImageFrameClassName(
                   printing.image_url,
-                  "pointer-events-none relative z-10 aspect-[63/88] w-[6.75rem] shrink-0 self-start overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] shadow-[0_12px_24px_rgba(0,0,0,0.24)]"
+                  "relative aspect-[63/88] w-[4.35rem] shrink-0 self-start overflow-hidden rounded-lg border border-white/10 bg-white/[0.035] shadow-[0_10px_20px_rgba(0,0,0,0.22)]"
                 )}
               >
                 {printing.image_url ? (
@@ -3732,93 +3802,230 @@ export function CardModalRelatedPrintingsPanel({
                     sourceUrl={printing.image_url}
                     alt=""
                     fill
-                    sizes="108px"
-                    className={getCardImageClassName(printing.image_url, "object-fill")}
+                    sizes="70px"
+                    className={getCardImageClassName(printing.image_url, "object-contain")}
                     unoptimized
                   />
                 ) : null}
               </div>
 
-              <div className="pointer-events-none relative z-10 flex min-w-0 flex-1 flex-col py-0.5">
-                <div className="flex min-w-0 items-start justify-between gap-2">
-                  <span className="inline-flex min-h-5 max-w-full items-center rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2 text-[9px] font-black uppercase tracking-[0.07em] text-violet-100/62">
-                    Reprint
-                  </span>
-                  <div className="shrink-0 text-right">
-                    <p className="text-lg font-black tabular-nums text-white/94">
-                      {formatCurrency(printing.price, "EUR")}
+              <div className="flex min-w-0 flex-1 flex-col py-0.5">
+                <div className="flex min-w-0 items-start justify-between gap-2.5">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-black text-white/92">
+                      {printing.episode_name}
                     </p>
-                    <p className="text-[9px] font-bold uppercase tracking-[0.08em] text-white/28">
+                    <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-white/36">
+                      {printing.card_number ? `#${printing.card_number}` : "No number"}
+                      {releaseYear ? ` · ${releaseYear}` : ""}
+                    </p>
+                  </div>
+                  <ChevronRight className="mt-0.5 h-4 w-4 shrink-0 text-white/24 transition group-hover:text-violet-200/70" />
+                </div>
+
+                <p className="mt-2 truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-white/30">
+                  {printing.version ?? printing.rarity ?? "Standard printing"}
+                </p>
+
+                <div className="mt-auto flex items-end justify-between gap-2 pt-2.5">
+                  <div>
+                    <p className="text-base font-black tabular-nums text-white/94">
+                      {printing.price == null ? "No price" : formatCurrency(printing.price, "EUR")}
+                    </p>
+                    <p className="text-[9px] font-bold uppercase tracking-[0.07em] text-white/28">
                       English NM
                     </p>
                   </div>
-                </div>
-
-                <p className="mt-2 truncate text-base font-black text-white/92">
-                  {printing.name}
-                </p>
-                <p className="mt-1 line-clamp-2 text-[11px] font-medium leading-4 text-white/42">
-                  {printing.episode_name}
-                  {printing.card_number ? ` · #${printing.card_number}` : ""}
-                </p>
-                <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.08em] text-white/30">
-                  {printing.rarity ?? "Standard printing"}
-                </p>
-
-                <div className="mt-auto flex items-end justify-between gap-2 pt-3">
-                  <span className="inline-flex items-center gap-1 text-[10px] font-bold text-violet-100/60">
-                    View card
-                    <ChevronRight className="h-3.5 w-3.5" />
-                  </span>
                   {isLowest || isCheaper ? (
-                    <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.07em] text-emerald-200/78">
-                      {isLowest ? "Lowest" : "Cheaper"}
+                    <span className="shrink-0 rounded-full border border-emerald-300/14 bg-emerald-400/[0.06] px-2 py-1 text-[9px] font-black uppercase tracking-[0.06em] text-emerald-200/78">
+                      {isLowest ? "Lowest" : savings != null ? `${savings}% less` : "Cheaper"}
                     </span>
                   ) : null}
                 </div>
               </div>
-
-              <div className={`relative z-20 col-span-full grid gap-2 ${printing.cardmarket_url ? "grid-cols-2" : "grid-cols-1"}`}>
-                {printing.cardmarket_url ? (
-                  <a
-                    href={printing.cardmarket_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.075] bg-white/[0.025] px-2 text-xs font-bold text-white/54 transition hover:border-violet-300/22 hover:bg-violet-400/[0.07] hover:text-white"
-                    aria-label={`Open ${printing.name} on CardMarket`}
-                  >
-                    <ShoppingCart className="h-3.5 w-3.5 shrink-0" />
-                    <span className="truncate">CardMarket</span>
-                  </a>
-                ) : null}
-                <a
-                  href={ebayHref}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex min-h-10 min-w-0 items-center justify-center gap-1.5 rounded-xl border border-white/[0.075] bg-white/[0.025] px-2 text-xs font-bold text-white/54 transition hover:border-violet-300/22 hover:bg-violet-400/[0.07] hover:text-white"
-                  aria-label={`Find ${printing.name} on eBay`}
-                >
-                  eBay Deals
-                  <ExternalLink className="h-3 w-3 shrink-0 opacity-55" />
-                </a>
-              </div>
-            </article>
+            </Link>
           );
         })}
       </div>
 
-      {hasMore ? (
-        <Link
-          href={`/reprints/${encodeURIComponent(card.id)}${context === "radar" ? "?from=radar" : ""}`}
-          prefetch={false}
-          onClick={onNavigate}
+      {hasMore || printings.length > 1 ? (
+        <button
+          type="button"
+          onClick={() => setAllPrintingsOpen(true)}
+          aria-haspopup="dialog"
+          aria-expanded={allPrintingsOpen}
           className="mt-3 inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-300/15 bg-violet-400/[0.055] px-4 text-sm font-bold text-violet-100/78 transition hover:border-violet-300/25 hover:bg-violet-400/[0.09] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
         >
-          Show all {printings.length} reprints
+          Compare all {printings.length + 1} editions
           <ChevronRight className="h-4 w-4" />
-        </Link>
+        </button>
       ) : null}
-    </section>
+      </section>
+
+      {allPrintingsOpen && typeof document !== "undefined"
+        ? createPortal(
+            <div
+              className={`${modalCenteredMobileOverlayClass} z-[420]`}
+              data-card-printings-dialog-overlay
+              onClick={(event) => {
+                event.stopPropagation();
+                setAllPrintingsOpen(false);
+              }}
+            >
+              <div
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="card-printings-dialog-title"
+                data-card-printings-dialog
+                className={`${modalCenteredPanelClass} max-w-[72rem]`}
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => event.stopPropagation()}
+              >
+                <header className={modalCompactHeaderClass}>
+                  <div className="flex min-w-0 flex-1 items-start gap-3">
+                    <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.08] text-violet-200/80 max-[640px]:h-9 max-[640px]:w-9">
+                      <Repeat2 className="h-4 w-4" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-200/48">
+                        Print family · {allPrintings.length} editions
+                      </p>
+                      <h2
+                        id="card-printings-dialog-title"
+                        className="mt-1 truncate text-xl font-black text-white max-[640px]:text-lg"
+                      >
+                        {card.name}
+                      </h2>
+                      <p className="mt-1 text-xs font-medium text-white/42 max-[640px]:line-clamp-1">
+                        Compare every related printing without leaving card detail.
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    autoFocus
+                    onClick={() => setAllPrintingsOpen(false)}
+                    className={modalCloseButtonClass}
+                    aria-label="Close print comparison"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </header>
+
+                <div className={`${modalBodyClass} !pt-3`}>
+                  {reportError ? (
+                    <p className="mb-2 rounded-xl border border-rose-300/14 bg-rose-500/[0.07] px-3 py-2 text-xs text-rose-100">
+                      {reportError}
+                    </p>
+                  ) : null}
+                  <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
+                    {allPrintings.map((printing) => {
+                      const releaseYear = printing.episode_release_date?.slice(0, 4) ?? null;
+                      const isLowest = printing.price != null && printing.price === lowestPrice;
+                      const detailHref = `${getExpansionHref(printing.episode_id)}?card=${encodeURIComponent(printing.id)}`;
+
+                      return (
+                        <article
+                          key={printing.id}
+                          className={`grid min-w-0 grid-cols-[4.5rem_minmax(0,1fr)] gap-3 rounded-2xl border p-2.5 ${
+                            printing.isCurrent
+                              ? "border-violet-300/22 bg-violet-400/[0.075]"
+                              : "border-white/[0.075] bg-white/[0.025]"
+                          }`}
+                        >
+                          <div
+                            className={getCardImageFrameClassName(
+                              printing.image_url,
+                              "relative aspect-[63/88] w-[4.5rem] overflow-hidden rounded-lg border border-white/10 bg-black/20"
+                            )}
+                          >
+                            {printing.image_url ? (
+                              <CachedImage
+                                sourceUrl={printing.image_url}
+                                alt=""
+                                fill
+                                sizes="72px"
+                                className={getCardImageClassName(printing.image_url, "object-contain")}
+                                unoptimized
+                              />
+                            ) : null}
+                          </div>
+
+                          <div className="flex min-w-0 flex-col py-0.5">
+                            <div className="flex min-w-0 items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-black text-white/92">
+                                  {printing.episode_name}
+                                </p>
+                                <p className="mt-1 truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-white/38">
+                                  {printing.card_number ? `#${printing.card_number}` : "No number"}
+                                  {releaseYear ? ` · ${releaseYear}` : ""}
+                                </p>
+                              </div>
+                              {printing.isCurrent ? (
+                                <span className="shrink-0 rounded-full border border-violet-300/18 bg-violet-400/[0.08] px-2 py-1 text-[8px] font-black uppercase tracking-[0.08em] text-violet-100/78">
+                                  Current
+                                </span>
+                              ) : null}
+                            </div>
+
+                            <p className="mt-2 truncate text-[10px] font-semibold uppercase tracking-[0.07em] text-white/30">
+                              {printing.version ?? printing.rarity ?? "Standard printing"}
+                            </p>
+
+                            <div className="mt-auto flex items-end justify-between gap-2 pt-2">
+                              <div>
+                                <p className="text-base font-black tabular-nums text-white/94">
+                                  {printing.price == null ? "No price" : formatCurrency(printing.price, "EUR")}
+                                </p>
+                                <p className="text-[9px] font-bold uppercase tracking-[0.07em] text-white/28">
+                                  English NM
+                                </p>
+                              </div>
+                              <div className="flex shrink-0 items-center gap-1.5">
+                                {isLowest ? (
+                                  <span className="rounded-full border border-emerald-300/14 bg-emerald-400/[0.06] px-2 py-1 text-[8px] font-black uppercase tracking-[0.07em] text-emerald-200/80">
+                                    Lowest
+                                  </span>
+                                ) : null}
+                                {!printing.isCurrent && "match_type" in printing ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      onClick={() => void reportIncorrectPrinting(printing)}
+                                      disabled={reportingPrintingId === printing.id || reportedPrintingId === printing.id}
+                                      className="inline-flex h-9 items-center gap-1 rounded-xl border border-white/9 bg-white/[0.025] px-2.5 text-[10px] font-bold text-white/44 transition hover:border-rose-300/18 hover:text-rose-100 disabled:cursor-default disabled:text-emerald-200/70"
+                                    >
+                                      {reportingPrintingId === printing.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <Flag className="h-3 w-3" />}
+                                      {reportedPrintingId === printing.id ? "Reported" : "Not correct"}
+                                    </button>
+                                    <Link
+                                      href={detailHref}
+                                      onClick={() => {
+                                        setAllPrintingsOpen(false);
+                                        onNavigate?.();
+                                      }}
+                                      className="inline-flex h-9 items-center gap-1 rounded-xl border border-white/9 bg-white/[0.035] px-2.5 text-[10px] font-bold text-white/58 transition hover:border-violet-300/22 hover:text-violet-100"
+                                    >
+                                      Open
+                                      <ChevronRight className="h-3.5 w-3.5" />
+                                    </Link>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
+                          </div>
+                        </article>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
+    </>
   );
 }
 

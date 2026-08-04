@@ -8,11 +8,6 @@ waves are not part of the active roadmap.
 
 ## Product roadmap
 
-### Next
-
-- **eBay watch countdowns** — show time remaining, ended state and the final known
-  result for watched listings.
-
 ### Planned
 
 - **Collection import and export** — keep this for later, once a representative
@@ -24,12 +19,10 @@ waves are not part of the active roadmap.
 These are reliability tasks, not user-facing promises:
 
 - Build releases out of place before swapping the live application directory.
-- Keep an automated off-server database backup in addition to the local backup
-  directory rotation that already exists.
+- Configure `DUSTYCARDS_OFFSITE_BACKUP_DIR` on production so the verified daily
+  backup copy is stored outside the primary application volume.
 - Finish graceful shutdown for in-flight sync work and SQLite WAL checkpointing
   (database disconnect and boot reconciliation are live).
-- Apply the sealed anchor-based history gap repair (3.8.36) to card history too,
-  so card gaps can be repaired instead of only extended forward.
 - Make quota-pause progress messages count only work actually completed.
 - Split very large modules only while a related feature or fix already touches them.
 

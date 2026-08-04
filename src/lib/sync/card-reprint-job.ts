@@ -1,0 +1,466 @@
+import "server-only";
+
+import { db } from "@/lib/db";
+import {
+  buildCardPrintingEvidence,
+  buildFallbackCardIdentity,
+  CARD_REPRINT_MODEL_VERSION,
+  getArtworkHashSimilarity,
+  getPrintingMatchDetails,
+  type ArtworkHash,
+  type CardPrintingMatchMethod,
+  type PrintingLookupCard,
+  type TcgDexCardIdentity,
+} from "@/lib/card-printings";
+
+const GROUPS_PER_RUN = 24;
+const EVIDENCE_CONCURRENCY = 6;
+const EVIDENCE_REFRESH_MS = 90 * 24 * 60 * 60_000;
+const PARTIAL_RETRY_MS = 6 * 60 * 60_000;
+
+type ReprintCandidateCard = PrintingLookupCard & {
+  updated_at: Date;
+  printingEvidence: {
+    image_url: string;
+    identity_json: string | null;
+    artwork_hash_full: string | null;
+    artwork_hash_illustration: string | null;
+    source_status: string;
+    source_checked_at: Date;
+    match_status: string | null;
+    match_version: string | null;
+    matched_at: Date | null;
+  } | null;
+};
+
+type PendingAnchor = {
+  id: string;
+};
+
+type PreparedEvidence = {
+  identity: TcgDexCardIdentity;
+  artworkHash: ArtworkHash | null;
+  sourceStatus: string;
+  sourceCheckedAt: Date;
+};
+
+export interface CardReprintJobSnapshot {
+  running: boolean;
+  lastFinishedAt: string | null;
+  lastError: string | null;
+  lastGroupsProcessed: number;
+  lastCardsProcessed: number;
+  lastRelationsWritten: number;
+}
+
+let running = false;
+let lastFinishedAt: string | null = null;
+let lastError: string | null = null;
+let lastGroupsProcessed = 0;
+let lastCardsProcessed = 0;
+let lastRelationsWritten = 0;
+
+export function getCardReprintJobSnapshot(): CardReprintJobSnapshot {
+  return {
+    running,
+    lastFinishedAt,
+    lastError,
+    lastGroupsProcessed,
+    lastCardsProcessed,
+    lastRelationsWritten,
+  };
+}
+
+function parseIdentity(value: string | null): TcgDexCardIdentity | null {
+  if (!value) return null;
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return parsed && typeof parsed === "object" ? parsed as TcgDexCardIdentity : null;
+  } catch {
+    return null;
+  }
+}
+
+function getStoredArtworkHash(card: ReprintCandidateCard): ArtworkHash | null {
+  const full = card.printingEvidence?.artwork_hash_full;
+  const illustration = card.printingEvidence?.artwork_hash_illustration;
+  return full && illustration ? { full, illustration } : null;
+}
+
+function shouldRefreshEvidence(card: ReprintCandidateCard, now: Date): boolean {
+  const evidence = card.printingEvidence;
+  if (!evidence || evidence.image_url !== card.image_url) return true;
+  if (evidence.match_version !== CARD_REPRINT_MODEL_VERSION) return true;
+  if (!getStoredArtworkHash(card)) return true;
+  if (!parseIdentity(evidence.identity_json) && evidence.source_status !== "image-only") {
+    return true;
+  }
+  return now.getTime() - evidence.source_checked_at.getTime() >= EVIDENCE_REFRESH_MS;
+}
+
+async function findPendingAnchor(now: Date): Promise<PendingAnchor | null> {
+  const staleBefore = new Date(now.getTime() - EVIDENCE_REFRESH_MS).toISOString();
+  const retryBefore = new Date(now.getTime() - PARTIAL_RETRY_MS).toISOString();
+  const rows = await db.$queryRawUnsafe<PendingAnchor[]>(
+    `
+    SELECT c.id
+    FROM "Card" c
+    LEFT JOIN "CardPrintingEvidence" evidence ON evidence.card_id = c.id
+    WHERE c.game = 'pokemon'
+      AND c.image_url IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM "Card" candidate
+        WHERE candidate.id <> c.id
+          AND candidate.game = c.game
+          AND candidate.name = c.name
+          AND coalesce(candidate.supertype, '') = coalesce(c.supertype, '')
+          AND candidate.image_url IS NOT NULL
+      )
+      AND (
+        evidence.card_id IS NULL
+        OR evidence.match_version IS NULL
+        OR evidence.match_version <> ?
+        OR evidence.matched_at IS NULL
+        OR evidence.image_url <> c.image_url
+        OR evidence.matched_at < c.updated_at
+        OR evidence.source_checked_at < ?
+        OR (evidence.match_status = 'partial' AND evidence.source_checked_at < ?)
+      )
+    ORDER BY
+      evidence.card_id IS NOT NULL,
+      coalesce(c.market_score, 0) DESC,
+      c.updated_at DESC,
+      c.id ASC
+    LIMIT 1
+    `,
+    CARD_REPRINT_MODEL_VERSION,
+    staleBefore,
+    retryBefore
+  );
+  return rows[0] ?? null;
+}
+
+async function loadCandidateGroup(anchorId: string): Promise<ReprintCandidateCard[]> {
+  const anchor = await db.card.findUnique({
+    where: { id: anchorId },
+    select: {
+      game: true,
+      name: true,
+      supertype: true,
+    },
+  });
+  if (!anchor) return [];
+
+  return db.card.findMany({
+    where: {
+      game: anchor.game,
+      name: anchor.name,
+      supertype: anchor.supertype,
+      image_url: { not: null },
+    },
+    orderBy: [{ episode: { release_date: "asc" } }, { card_number: "asc" }],
+    select: {
+      id: true,
+      game: true,
+      name: true,
+      hp: true,
+      artist: true,
+      image_url: true,
+      tcgid: true,
+      supertype: true,
+      updated_at: true,
+      episode: {
+        select: { id: true, name: true, code: true, release_date: true },
+      },
+      printingEvidence: {
+        select: {
+          image_url: true,
+          identity_json: true,
+          artwork_hash_full: true,
+          artwork_hash_illustration: true,
+          source_status: true,
+          source_checked_at: true,
+          match_status: true,
+          match_version: true,
+          matched_at: true,
+        },
+      },
+    },
+  });
+}
+
+async function prepareEvidence(
+  card: ReprintCandidateCard,
+  now: Date
+): Promise<PreparedEvidence> {
+  const existingIdentity = parseIdentity(card.printingEvidence?.identity_json ?? null);
+  const existingArtworkHash = getStoredArtworkHash(card);
+  const refresh = shouldRefreshEvidence(card, now);
+  const loaded = refresh ? await buildCardPrintingEvidence(card) : null;
+  const canReuseExisting = card.printingEvidence?.image_url === card.image_url;
+  const identity = loaded?.identity ?? (canReuseExisting ? existingIdentity : null);
+  const artworkHash = loaded?.artworkHash ?? (canReuseExisting ? existingArtworkHash : null);
+  const sourceStatus = !artworkHash
+    ? "missing-image"
+    : identity
+      ? "complete"
+      : "image-only";
+  const sourceCheckedAt = loaded ? now : card.printingEvidence?.source_checked_at ?? now;
+
+  await db.cardPrintingEvidence.upsert({
+    where: { card_id: card.id },
+    create: {
+      card_id: card.id,
+      image_url: card.image_url!,
+      identity_json: identity ? JSON.stringify(identity) : null,
+      artwork_hash_full: artworkHash?.full ?? null,
+      artwork_hash_illustration: artworkHash?.illustration ?? null,
+      source_status: sourceStatus,
+      source_checked_at: sourceCheckedAt,
+      match_status: "running",
+    },
+    update: {
+      image_url: card.image_url!,
+      identity_json: identity ? JSON.stringify(identity) : null,
+      artwork_hash_full: artworkHash?.full ?? null,
+      artwork_hash_illustration: artworkHash?.illustration ?? null,
+      source_status: sourceStatus,
+      source_checked_at: sourceCheckedAt,
+      match_status: "running",
+    },
+  });
+
+  return {
+    identity: identity ?? buildFallbackCardIdentity(card),
+    artworkHash,
+    sourceStatus,
+    sourceCheckedAt,
+  };
+}
+
+class DisjointSet {
+  private readonly parents: number[];
+
+  constructor(size: number) {
+    this.parents = Array.from({ length: size }, (_, index) => index);
+  }
+
+  find(index: number): number {
+    const parent = this.parents[index];
+    if (parent === index) return index;
+    const root = this.find(parent);
+    this.parents[index] = root;
+    return root;
+  }
+
+  union(left: number, right: number): void {
+    const leftRoot = this.find(left);
+    const rightRoot = this.find(right);
+    if (leftRoot !== rightRoot) this.parents[rightRoot] = leftRoot;
+  }
+}
+
+async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
+  if (cards.length < 2) return { cards: cards.length, relations: 0 };
+
+  // Treat every same-name printing as a candidate family. This deliberately
+  // favors recall (including promo/jumbo/gold/rainbow cards with changed HP or
+  // illustrator), while the identity + artwork matcher still decides which
+  // cards belong together. Small batches keep provider load predictable.
+  const evidence: PreparedEvidence[] = [];
+  for (let offset = 0; offset < cards.length; offset += EVIDENCE_CONCURRENCY) {
+    evidence.push(...await Promise.all(
+      cards.slice(offset, offset + EVIDENCE_CONCURRENCY)
+        .map((card) => prepareEvidence(card, now))
+    ));
+  }
+  const groups = new DisjointSet(cards.length);
+  const directMatches = new Map<string, {
+    method: CardPrintingMatchMethod;
+    imageSimilarity: number;
+  }>();
+  const cardIndexById = new Map(cards.map((card, index) => [card.id, index]));
+  const overrides = await db.cardPrintingOverride.findMany({
+    where: {
+      OR: [
+        { source_card_id: { in: cards.map((card) => card.id) } },
+        { target_card_id: { in: cards.map((card) => card.id) } },
+      ],
+    },
+    select: { source_card_id: true, target_card_id: true, decision: true },
+  });
+  const overrideByPair = new Map(
+    overrides.map((override) => [
+      [override.source_card_id, override.target_card_id].sort().join("\u0000"),
+      override.decision,
+    ])
+  );
+
+  for (let left = 0; left < cards.length; left += 1) {
+    for (let right = left + 1; right < cards.length; right += 1) {
+      const override = overrideByPair.get([cards[left].id, cards[right].id].sort().join("\u0000"));
+      if (override === "exclude") continue;
+      if (override === "include") {
+        groups.union(left, right);
+        directMatches.set(`${left}:${right}`, { method: "manual-include", imageSimilarity: 1 });
+        continue;
+      }
+      const imageSimilarity = getArtworkHashSimilarity(
+        evidence[left].artworkHash,
+        evidence[right].artworkHash
+      );
+      const match = getPrintingMatchDetails(
+        evidence[left].identity,
+        evidence[right].identity,
+        imageSimilarity
+      );
+      if (!match) continue;
+      // Same-set cards can deliberately share a name and illustrator while
+      // showing different artwork (Ditto is the classic example). A merely
+      // likely visual match is useful across releases, but within one set it
+      // still needs rules/lineage or a strong artwork match.
+      if (
+        match.method === "likely-art" &&
+        cards[left].episode.id === cards[right].episode.id
+      ) continue;
+      groups.union(left, right);
+      directMatches.set(`${left}:${right}`, {
+        method: match.method,
+        imageSimilarity,
+      });
+    }
+  }
+
+  for (const override of overrides) {
+    if (override.decision !== "include") continue;
+    const left = cardIndexById.get(override.source_card_id);
+    const right = cardIndexById.get(override.target_card_id);
+    if (left == null || right == null || left === right) continue;
+    groups.union(left, right);
+  }
+
+  const components = new Map<number, number[]>();
+  for (let index = 0; index < cards.length; index += 1) {
+    const root = groups.find(index);
+    const component = components.get(root) ?? [];
+    component.push(index);
+    components.set(root, component);
+  }
+
+  const relations: Array<{
+    source_card_id: string;
+    target_card_id: string;
+    match_type: string;
+    match_method: string;
+    image_similarity: number;
+    model_version: string;
+    matched_at: Date;
+  }> = [];
+  for (const component of components.values()) {
+    if (component.length < 2) continue;
+    for (const source of component) {
+      for (const target of component) {
+        if (source === target) continue;
+        const [left, right] = source < target ? [source, target] : [target, source];
+        if (
+          overrideByPair.get([cards[source].id, cards[target].id].sort().join("\u0000")) ===
+          "exclude"
+        ) continue;
+        const direct = directMatches.get(`${left}:${right}`);
+        relations.push({
+          source_card_id: cards[source].id,
+          target_card_id: cards[target].id,
+          match_type: "reprint",
+          match_method: direct?.method ?? "connected-reprint",
+          image_similarity: direct?.imageSimilarity ?? getArtworkHashSimilarity(
+            evidence[source].artworkHash,
+            evidence[target].artworkHash
+          ),
+          model_version: CARD_REPRINT_MODEL_VERSION,
+          matched_at: now,
+        });
+      }
+    }
+  }
+
+  const cardIds = cards.map((card) => card.id);
+  const matchStatus = evidence.every((item) => item.artworkHash != null)
+    ? "complete"
+    : "partial";
+  await db.$transaction([
+    db.cardPrintingRelation.deleteMany({
+      where: {
+        OR: [
+          { source_card_id: { in: cardIds } },
+          { target_card_id: { in: cardIds } },
+        ],
+      },
+    }),
+    ...(relations.length > 0
+      ? [db.cardPrintingRelation.createMany({ data: relations })]
+      : []),
+    db.cardPrintingEvidence.updateMany({
+      where: { card_id: { in: cardIds } },
+      data: {
+        match_status: matchStatus,
+        match_version: CARD_REPRINT_MODEL_VERSION,
+        matched_at: now,
+      },
+    }),
+  ]);
+
+  return { cards: cards.length, relations: relations.length };
+}
+
+/** Rebuilds one complete candidate family; useful for focused repairs/audits. */
+export async function rebuildCardReprintGroup(
+  cardId: string,
+  now: Date = new Date()
+): Promise<{ cards: number; relations: number }> {
+  const cards = await loadCandidateGroup(cardId);
+  return processCandidateGroup(cards, now);
+}
+
+async function runCardReprintBacklog(now: Date) {
+  let groupsProcessed = 0;
+  let cardsProcessed = 0;
+  let relationsWritten = 0;
+  const processedAnchors = new Set<string>();
+
+  while (groupsProcessed < GROUPS_PER_RUN) {
+    const anchor = await findPendingAnchor(now);
+    if (!anchor || processedAnchors.has(anchor.id)) break;
+    processedAnchors.add(anchor.id);
+    const cards = await loadCandidateGroup(anchor.id);
+    const result = await processCandidateGroup(cards, now);
+    groupsProcessed += 1;
+    cardsProcessed += result.cards;
+    relationsWritten += result.relations;
+  }
+
+  return { groupsProcessed, cardsProcessed, relationsWritten };
+}
+
+export function maybeRunCardReprintJob(now: Date = new Date()): CardReprintJobSnapshot {
+  if (running) return getCardReprintJobSnapshot();
+  running = true;
+
+  void runCardReprintBacklog(now)
+    .then((result) => {
+      lastGroupsProcessed = result.groupsProcessed;
+      lastCardsProcessed = result.cardsProcessed;
+      lastRelationsWritten = result.relationsWritten;
+      lastError = null;
+    })
+    .catch((error: unknown) => {
+      lastError = error instanceof Error ? error.message : String(error);
+      console.error("[card-reprint-job] backlog batch failed:", lastError);
+    })
+    .finally(() => {
+      running = false;
+      lastFinishedAt = new Date().toISOString();
+    });
+
+  return getCardReprintJobSnapshot();
+}

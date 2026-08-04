@@ -1,38 +1,108 @@
 import { describe, expect, it } from "vitest";
-import { getMobileMoreRouteInventory, getMoreMenuSections } from "./MobileBottomNav";
+import {
+  getMobileMoreRouteInventory,
+  getMobilePinnedNavigation,
+  getMobilePrimaryNavigation,
+  getMoreMenuSections,
+} from "./MobileBottomNav";
 
-describe("mobile More navigation model", () => {
-  it("keeps the primary bottom destinations out of the More hub", () => {
-    const inventory = getMobileMoreRouteInventory(true);
-    const moreRoutes = [
-      inventory.featured,
-      ...inventory.quickActions,
-      ...inventory.account,
-      ...inventory.sections.flatMap((section) => section.routes),
-    ];
+describe("mobile navigation model", () => {
+  it("keeps four configurable quick-bar destinations in their chosen order", () => {
+    const items = getMobilePrimaryNavigation(
+      ["market-sealed", "home", "openings", "wants"],
+      true
+    );
 
-    expect(moreRoutes).not.toContain("/");
-    expect(moreRoutes).not.toContain("/?tab=complete");
-    expect(moreRoutes).not.toContain("/wants");
-    expect(moreRoutes).not.toContain("/movers");
-    expect(new Set(moreRoutes).size).toBe(moreRoutes.length);
+    expect(items.map((item) => item.key)).toEqual([
+      "market-sealed",
+      "home",
+      "openings",
+      "wants",
+    ]);
+    expect(items.map((item) => item.shortLabel ?? item.label)).toEqual([
+      "Sealed",
+      "Home",
+      "Openings",
+      "Wants",
+    ]);
   });
 
-  it("surfaces high-value destinations before the library sections", () => {
-    const inventory = getMobileMoreRouteInventory(true);
+  it("fills a hidden One Piece quick-bar choice with a safe default", () => {
+    const items = getMobilePrimaryNavigation(
+      ["one-piece", "market-sealed", "openings", "wants"],
+      false
+    );
 
-    expect(inventory.featured).toBe("/movers/signal-radar");
-    expect(inventory.quickActions).toEqual(["/submit-card", "/?tab=selling"]);
+    expect(items.map((item) => item.key)).toEqual([
+      "market-sealed",
+      "openings",
+      "wants",
+      "home",
+    ]);
+  });
+
+  it("keeps ordered More shortcuts independently configurable", () => {
+    const items = getMobilePinnedNavigation(
+      ["selling", "market-sealed", "market-radar"],
+      true
+    );
+
+    expect(items.map((item) => item.key)).toEqual([
+      "selling",
+      "market-sealed",
+      "market-radar",
+    ]);
+  });
+
+  it("makes every market mode directly discoverable in More", () => {
+    const inventory = getMobileMoreRouteInventory(true);
+    const market = inventory.sections.find((section) => section.label === "Market");
+
+    expect(market?.routes).toEqual([
+      "/movers",
+      "/movers?scope=graded",
+      "/movers?scope=grading",
+      "/movers?scope=sealed",
+      "/movers/signal-radar",
+      "/?tab=selling",
+    ]);
+    expect(inventory.pinned).toEqual([
+      "/movers?scope=sealed",
+      "/movers/signal-radar",
+      "/?tab=selling",
+      "/openings",
+      "/search",
+      "/?tab=binders",
+    ]);
     expect(inventory.account).toEqual(["/account", "/settings"]);
   });
 
-  it("keeps collection and discovery routes grouped consistently", () => {
+  it("groups the complete app directory consistently", () => {
     const inventory = getMobileMoreRouteInventory(true);
 
     expect(inventory.sections).toEqual([
       {
+        label: "Market",
+        routes: [
+          "/movers",
+          "/movers?scope=graded",
+          "/movers?scope=grading",
+          "/movers?scope=sealed",
+          "/movers/signal-radar",
+          "/?tab=selling",
+        ],
+      },
+      {
         label: "My collection",
-        routes: ["/?tab=singles", "/?tab=binders", "/?tab=sealed", "/?tab=graded"],
+        routes: [
+          "/?tab=complete",
+          "/?tab=singles",
+          "/?tab=binders",
+          "/?tab=sealed",
+          "/openings",
+          "/?tab=graded",
+          "/wants",
+        ],
       },
       {
         label: "Discover",
@@ -43,6 +113,10 @@ describe("mobile More navigation model", () => {
           "/illustrators",
           "/social",
         ],
+      },
+      {
+        label: "Tools",
+        routes: ["/search", "/submit-card"],
       },
     ]);
   });

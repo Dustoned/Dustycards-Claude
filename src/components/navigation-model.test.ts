@@ -4,7 +4,9 @@ import {
   formatNavigationCount,
   getNavigationBadge,
   getNavigationDisplayName,
+  getNavigationCustomizationOptions,
   isNavigationItemActive,
+  resolveNavigationItems,
   type NavigationMarketMode,
 } from "./navigation-model";
 
@@ -169,5 +171,36 @@ describe("navigation-model badges and labels", () => {
     ["   @example.com", "Dusty"],
   ])("derives display name from %s", (email, expected) => {
     expect(getNavigationDisplayName(email)).toBe(expected);
+  });
+});
+
+describe("navigation customization", () => {
+  it("offers direct search and distinct sealed destinations", () => {
+    const labels = Object.fromEntries(
+      getNavigationCustomizationOptions(true).map((option) => [option.key, option.label])
+    );
+
+    expect(labels.search).toBe("Search cards");
+    expect(labels.sealed).toBe("Sealed collection");
+    expect(labels["market-sealed"]).toBe("Sealed market");
+  });
+
+  it("filters disabled libraries and fills fixed shortcut rows from fallbacks", () => {
+    const items = resolveNavigationItems(
+      ["one-piece", "market-sealed"],
+      false,
+      {
+        fallbackKeys: ["home", "complete", "wants", "market-raw"],
+        fill: true,
+        limit: 4,
+      }
+    );
+
+    expect(items.map((item) => item.key)).toEqual([
+      "market-sealed",
+      "home",
+      "complete",
+      "wants",
+    ]);
   });
 });

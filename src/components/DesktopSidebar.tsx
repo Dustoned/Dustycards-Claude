@@ -26,8 +26,13 @@ import {
   isNavigationItemActive,
   NAVIGATION_ACCOUNT_ITEMS,
   NAVIGATION_SECTIONS,
+  resolveNavigationItems,
   type NavigationSummary,
 } from "@/components/navigation-model";
+import {
+  DEFAULT_DESKTOP_PINNED_NAV_KEYS,
+  DESKTOP_PIN_LIMIT,
+} from "@/lib/navigation-preferences";
 
 export type DesktopSidebarSummary = NavigationSummary;
 
@@ -52,6 +57,22 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
   const displayName = getNavigationDisplayName(summary.email);
   const roleLabel = summary.role === "admin" ? "Admin" : "Collector";
   const moverScope = searchParams.get("scope");
+  const pinnedItems = resolveNavigationItems(
+    settings.desktopPinnedNavKeys,
+    settings.onePieceLibraryEnabled,
+    {
+      fallbackKeys: DEFAULT_DESKTOP_PINNED_NAV_KEYS,
+      limit: DESKTOP_PIN_LIMIT,
+    }
+  ).filter((item) => item.key !== "home");
+  const pinnedKeys = new Set(pinnedItems.map((item) => item.key));
+  const sidebarSections = [
+    ...(pinnedItems.length > 0 ? [{ label: "Pinned", items: pinnedItems }] : []),
+    ...NAVIGATION_SECTIONS.map((section) => ({
+      label: section.label,
+      items: section.items.filter((item) => !pinnedKeys.has(item.key)),
+    })),
+  ].filter((section) => section.items.length > 0);
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => setForSaleCardsCount(summary.forSaleCards));
@@ -134,7 +155,7 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
         </Link>
 
         <nav className="grid gap-4" aria-label="Desktop navigation">
-          {NAVIGATION_SECTIONS.map((section) => (
+          {sidebarSections.map((section) => (
             <div key={section.label} className="grid gap-px">
               <p className="mb-1.5 px-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/35">
                 {section.label}
@@ -242,7 +263,12 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
                     }`}
                   >
                     <Icon className={`h-3.5 w-3.5 ${active ? "text-violet-200" : "text-white/55"}`} />
-                    {item.label}
+                    <span className="min-w-0 flex-1">{item.label}</span>
+                    {item.key === "settings" && (summary.attentionCount ?? 0) > 0 ? (
+                      <span className="min-w-4 rounded-full bg-rose-500 px-1 text-center text-[8px] font-black leading-4 text-white">
+                        {(summary.attentionCount ?? 0) > 99 ? "99+" : summary.attentionCount}
+                      </span>
+                    ) : null}
                   </Link>
                 );
               })}

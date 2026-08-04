@@ -1,4 +1,4 @@
-export const FEEDBACK_CATEGORIES = ["general", "bug", "idea", "data"] as const;
+export const FEEDBACK_CATEGORIES = ["general", "bug", "idea", "data", "reprint"] as const;
 export const FEEDBACK_STATUSES = ["new", "reviewed", "resolved"] as const;
 
 export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];

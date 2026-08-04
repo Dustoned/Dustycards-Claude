@@ -43,6 +43,7 @@ import {
   getHomeFeaturedCards,
   getHomeValueDriversPreview,
 } from "@/lib/home-page-payload";
+import { getSocialTradeOpportunities } from "@/lib/social";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const ProgressiveCollectionOverviewSections = nextDynamic(
@@ -53,6 +54,9 @@ const BinderOverviewGrid = nextDynamic(() => import("@/components/BinderOverview
 const HomeFeaturedCardsPanel = nextDynamic(() => import("@/components/HomeFeaturedCardsPanel"));
 const HomeValueDriversPanel = nextDynamic(() => import("@/components/HomeValueDriversPanel"));
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"));
+const TradeOpportunitiesPanel = nextDynamic(
+  () => import("@/components/TradeOpportunitiesPanel")
+);
 
 export const dynamic = "force-dynamic";
 
@@ -489,12 +493,17 @@ async function HomePageContent({
       : graded === "1"
         ? "graded"
         : "overview";
-  const data = await getCachedCollectionOverviewData({
-    userId: user.id,
-    activeTab,
-    game: activeGame,
-    deferDetailedRows: activeTab === "complete",
-  });
+  const [data, tradeOpportunities] = await Promise.all([
+    getCachedCollectionOverviewData({
+      userId: user.id,
+      activeTab,
+      game: activeGame,
+      deferDetailedRows: activeTab === "complete",
+    }),
+    activeTab === "selling"
+      ? getSocialTradeOpportunities(user.id, activeGame)
+      : Promise.resolve([]),
+  ]);
   const totalTrackedItems = data.overview.totalCards + data.overview.totalSealedUnits;
   const collectionRoi =
     data.overview.investment > 0 ? (data.overview.pnl / data.overview.investment) * 100 : null;
@@ -597,7 +606,9 @@ async function HomePageContent({
   const forSalePricedCards = data.forSaleCards.filter((item) => item.current_value != null).length;
   const soldTotal = data.saleSummary.soldTotal;
   const soldCount = data.saleSummary.soldCards;
-  const soldPnl = data.saleSummary.soldPnl;
+  const soldFees = data.saleSummary.soldFees;
+  const soldNet = data.saleSummary.soldNet;
+  const soldPnl = data.saleSummary.soldNetPnl;
 
   function buildCollectionHref(tabValue: CollectionPageTab) {
     const params = new URLSearchParams();
@@ -936,15 +947,19 @@ async function HomePageContent({
       }
       sellingSlot={
         activeTab === "selling" ? (
-        data.forSaleCards.length === 0 ? (
-          <EmptyState
-            title="Nothing marked for sale yet"
-            description="Open a saved card, choose Edit, and enable For Sale. It will appear here with its estimated value and sale tracking."
-            actionHref="/search"
-            actionLabel="Find cards"
-          />
+        data.forSaleCards.length === 0 && data.soldCards.length === 0 ? (
+          <div className="space-y-3">
+            <TradeOpportunitiesPanel opportunities={tradeOpportunities} game={activeGame} />
+            <EmptyState
+              title="Nothing marked for sale yet"
+              description="Open a saved card, choose Edit, and enable For Sale. It will appear here with its estimated value and sale tracking."
+              actionHref="/search"
+              actionLabel="Find cards"
+            />
+          </div>
         ) : (
         <div className="space-y-3">
+          <TradeOpportunitiesPanel opportunities={tradeOpportunities} game={activeGame} />
           <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
@@ -973,33 +988,53 @@ async function HomePageContent({
             </div>
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
-                Sold Total
+                Net Sold
               </p>
               <p className="mt-1 text-xl font-black tabular-nums text-white">
-                {formatCollectionCurrency(soldTotal)}
+                {formatCollectionCurrency(soldNet)}
               </p>
               <p className="mt-0.5 truncate text-[11px] font-semibold tabular-nums text-white/42">
-                {soldCount.toLocaleString("en-US")} sold / P&amp;L{" "}
+                {soldCount.toLocaleString("en-US")} sold · gross {formatCollectionCurrency(soldTotal)} · fees {formatCollectionCurrency(soldFees)} · P&amp;L{" "}
                 <span className={soldPnl >= 0 ? "text-emerald-300" : "text-rose-300"}>
                   {formatSignedCurrency(soldPnl)}
                 </span>
               </p>
             </div>
           </section>
-          <CollectionCardsView
-            items={data.forSaleCards}
-            allowCollectionRemoval
-            allowSoldMarking
-            showGradedSlabPreview
-            emptyTitle="No cards marked for sale"
-            emptyText="Cards you save to For Sale will appear here."
-            showFilters
-            forcedSortBy="cm_en"
-            forcedSortDir="desc"
-            hideSortControls
-            collectionRemovalLabel="For Sale"
-            collectionRemovalWarning="This removes the saved For Sale entry entirely."
-          />
+          {data.forSaleCards.length > 0 ? (
+            <CollectionCardsView
+              items={data.forSaleCards}
+              allowCollectionRemoval
+              allowSoldMarking
+              showGradedSlabPreview
+              emptyTitle="No cards marked for sale"
+              emptyText="Cards you save to For Sale will appear here."
+              showFilters
+              forcedSortBy="cm_en"
+              forcedSortDir="desc"
+              hideSortControls
+              collectionRemovalLabel="For Sale"
+              collectionRemovalWarning="This removes the saved For Sale entry entirely."
+            />
+          ) : null}
+          {data.soldCards.length > 0 ? (
+            <section className="mt-5 border-t border-white/8 pt-4">
+              <div className="mb-3 flex items-end justify-between gap-3">
+                <div><p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/34">Sales ledger</p><h2 className="mt-1 text-lg font-black text-white">Sold history</h2></div>
+                <span className="text-xs font-bold tabular-nums text-white/42">{data.soldCards.length.toLocaleString("en-US")} cards</span>
+              </div>
+              <CollectionCardsView
+                items={data.soldCards}
+                readOnlyCollectionItems
+                salesLedger
+                showGradedSlabPreview
+                showFilters
+                hideSortControls
+                emptyTitle="No sold cards"
+                emptyText="Completed sales will appear here."
+              />
+            </section>
+          ) : null}
         </div>
         )
         ) : null

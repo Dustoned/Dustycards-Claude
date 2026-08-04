@@ -42,6 +42,10 @@ import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { maybeRunCacheWarmer } from "@/lib/startup-warmup";
 import { maybeRunDailyBackupJob } from "@/lib/sync/backup-job";
 import { maybeRunMarketScoreJob } from "@/lib/sync/market-score-job";
+import {
+  maybeRunCardReprintJob,
+  type CardReprintJobSnapshot,
+} from "@/lib/sync/card-reprint-job";
 
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
 
@@ -90,6 +94,7 @@ export interface SyncSchedulerTickResult {
     hasLiveWindow: boolean;
   };
   maintenance: {
+    reprints: CardReprintJobSnapshot;
     normalizedPriceCheckedAtCards: number;
     signalOutcomePrices: {
       trackedCards: number;
@@ -116,7 +121,8 @@ async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<voi
     result.externalRadar.running ||
     result.chaseWatch.running ||
     result.setLifecycle.running ||
-    result.sealedSync.running;
+    result.sealedSync.running ||
+    result.maintenance.reprints.running;
   const status = result.scraperDisabled ? "paused" : hasRunningWork ? "running" : "success";
 
   await db.syncJob.upsert({
@@ -151,6 +157,9 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   // Fire-and-forget: persist DustyCards market scores in small batches so
   // search can rank on real market interest.
   maybeRunMarketScoreJob(checkedAt);
+  // Reprint relationships are precomputed in resumable batches. Card-detail
+  // requests only read stored matches and never wait for TCGdex or image work.
+  const reprints = maybeRunCardReprintJob(checkedAt);
   // Launch-market chase prices get first access to the scheduler. Their
   // direct CardMarket quote is more current than TCGGo's daily snapshot and
   // must land before a normal batch can select the same cards.
@@ -330,6 +339,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
       hasLiveWindow: quota.hasLiveWindow,
     },
     maintenance: {
+      reprints,
       normalizedPriceCheckedAtCards,
       signalOutcomePrices,
       signalOutcomes,

@@ -390,6 +390,7 @@ function ScannerArtwork({
 
 export default function CardScannerClient() {
   const searchParams = useSearchParams();
+  const openingSessionId = searchParams.get("openingSession");
   const { settings } = useSettings();
   const initialGame = normalizeTradingCardGame(searchParams.get("game"));
   const [game, setGame] = useState<TradingCardGame>(
@@ -1287,6 +1288,7 @@ export default function CardScannerClient() {
           cardIds: scannedCards.map((item) => item.match.id),
           condition: "Near Mint",
           language: "English",
+          openingSessionId,
         }),
       });
       const data = (await response.json()) as {

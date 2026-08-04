@@ -145,6 +145,7 @@ interface Props {
   allowSoldMarking?: boolean;
   allowSaleListing?: boolean;
   readOnlyCollectionItems?: boolean;
+  salesLedger?: boolean;
 }
 
 interface RemoveDialogState {
@@ -164,6 +165,8 @@ interface SoldDialogState {
   mode: "per-card" | "stack";
   prices: Record<string, string>;
   totalPrice: string;
+  feeTotal: string;
+  platform: string;
   error: string | null;
 }
 
@@ -201,6 +204,28 @@ function parseCurrencyInput(value: string): number | null {
 
 function formatPricePlaceholder(value: number | null | undefined): string {
   return value == null ? "0.00" : value.toFixed(2);
+}
+
+function getNetSalePrice(item: CollectionCardViewItem): number | null {
+  if (item.sale_price == null) return null;
+  return Number((item.sale_price - (item.sale_fee_eur ?? 0)).toFixed(2));
+}
+
+function getSalePnl(item: CollectionCardViewItem, costBasis: number | null): number | null {
+  const netSalePrice = getNetSalePrice(item);
+  if (netSalePrice == null || costBasis == null) return null;
+  return Number((netSalePrice - costBasis).toFixed(2));
+}
+
+function formatSoldDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(date);
 }
 
 function getCollectionCardQuickActionData(item: CollectionCardViewItem): CardQuickActionData {
@@ -253,6 +278,7 @@ export default function CollectionCardsView({
   allowSoldMarking = false,
   allowSaleListing = false,
   readOnlyCollectionItems = false,
+  salesLedger = false,
 }: Props) {
   const router = useRouter();
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
@@ -1138,6 +1164,8 @@ export default function CollectionCardsView({
       mode: "per-card",
       prices: Object.fromEntries(items.map(({ itemId }) => [itemId, ""])),
       totalPrice: "",
+      feeTotal: "",
+      platform: "",
       error: null,
     });
     setSellQuoteDialog(null);
@@ -1163,7 +1191,7 @@ export default function CollectionCardsView({
     if (!soldDialog || soldDialog.items.length === 0) return;
 
     const itemIds = soldDialog.items.map((item) => item.itemId);
-    let payload: { itemIds: string[]; prices?: Record<string, number>; totalPrice?: number };
+    let payload: { itemIds: string[]; prices?: Record<string, number>; totalPrice?: number; feeTotal?: number; platform?: string };
 
     if (soldDialog.mode === "per-card") {
       const prices: Record<string, number> = {};
@@ -1188,6 +1216,13 @@ export default function CollectionCardsView({
       }
       payload = { itemIds, totalPrice };
     }
+    const feeTotal = soldDialog.feeTotal.trim() ? parseCurrencyInput(soldDialog.feeTotal) : 0;
+    if (feeTotal == null) {
+      setSoldDialog((current) => current ? { ...current, error: "Fill in a valid fee amount." } : current);
+      return;
+    }
+    payload.feeTotal = feeTotal;
+    payload.platform = soldDialog.platform.trim();
 
     setSavingSold(true);
     setSoldDialog((current) => (current ? { ...current, error: null } : current));
@@ -2086,15 +2121,17 @@ export default function CollectionCardsView({
                   const missing = !item.owned;
                   const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
                   const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
-                  const displayPrice = getCollectionItemPrice(item, primaryPriceSource);
-                  const displayPriceCurrency = getCollectionItemPriceCurrency(
-                    item,
-                    primaryPriceSource
-                  );
+                  const displayPrice = salesLedger
+                    ? item.sale_price
+                    : getCollectionItemPrice(item, primaryPriceSource);
+                  const displayPriceCurrency = salesLedger
+                    ? "EUR"
+                    : getCollectionItemPriceCurrency(item, primaryPriceSource);
                   const costBasis = getCollectionItemCostBasis(item);
                   const costBasisLabel = getCollectionItemCostBasisLabel(item);
-                  const pnl =
-                    item.current_value != null && costBasis != null
+                  const pnl = salesLedger
+                    ? getSalePnl(item, costBasis)
+                    : item.current_value != null && costBasis != null
                       ? Number((item.current_value - costBasis).toFixed(2))
                       : null;
 
@@ -2168,7 +2205,13 @@ export default function CollectionCardsView({
                             </div>
                           </div>
                           <CardListTilePrice
-                            label={primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+                            label={
+                              salesLedger
+                                ? "Sold"
+                                : primaryPriceSource === "tcp"
+                                  ? "TCGPlayer"
+                                  : "CardMarket"
+                            }
                             value={
                               displayPrice != null
                                 ? formatMarketCurrency(displayPrice, displayPriceCurrency)
@@ -2186,8 +2229,12 @@ export default function CollectionCardsView({
                             </span>
                           ) : null}
                           <span className="inline-flex items-center rounded-md border border-[rgb(var(--dc-border-rgb)/0.74)] bg-[rgb(var(--dc-surface-hover-rgb)/0.42)] px-2 py-1 text-[10px] font-medium leading-none text-white/52">
-                            {missing && blurMissing
-                              ? "Missing"
+                            {salesLedger
+                              ? ["Sold", item.sale_platform, formatSoldDate(item.sold_at)]
+                                  .filter(Boolean)
+                                  .join(" · ")
+                              : missing && blurMissing
+                                ? "Missing"
                               : item.owned_count && item.owned_count > 1
                                 ? `${item.owned_count}× owned`
                                 : item.owned
@@ -2209,7 +2256,7 @@ export default function CollectionCardsView({
                           </div>
                           <div className="min-w-0">
                             <p className="truncate text-[9.5px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-white/35">
-                              P&amp;L
+                              {salesLedger ? "Net P&L" : "P&L"}
                             </p>
                             <p
                               className={`mt-0.5 whitespace-nowrap text-[13px] font-semibold tabular-nums ${
@@ -2290,7 +2337,11 @@ export default function CollectionCardsView({
                       <th className="px-4 py-3 text-left font-semibold">Card</th>
                       <th className="px-4 py-3 text-left font-semibold">Rarity</th>
                       <th className="px-4 py-3 text-left font-semibold">
-                        {primaryPriceSource === "tcp" ? "TCGPlayer" : "CardMarket"}
+                        {salesLedger
+                          ? "Sold"
+                          : primaryPriceSource === "tcp"
+                            ? "TCGPlayer"
+                            : "CardMarket"}
                       </th>
                       <th className="px-4 py-3 text-left font-semibold">Cost Basis</th>
                       <th className="px-4 py-3 text-left font-semibold">P&amp;L</th>
@@ -2303,15 +2354,17 @@ export default function CollectionCardsView({
                       const missing = !item.owned;
                       const selectableInMode = selectionEnabled ? true : !blurMissing || missing;
                       const isSelected = activeSelectionMode && selectedKeySet.has(selectionKey);
-                      const displayPrice = getCollectionItemPrice(item, primaryPriceSource);
-                      const displayPriceCurrency = getCollectionItemPriceCurrency(
-                        item,
-                        primaryPriceSource
-                      );
+                      const displayPrice = salesLedger
+                        ? item.sale_price
+                        : getCollectionItemPrice(item, primaryPriceSource);
+                      const displayPriceCurrency = salesLedger
+                        ? "EUR"
+                        : getCollectionItemPriceCurrency(item, primaryPriceSource);
                       const costBasis = getCollectionItemCostBasis(item);
                       const costBasisLabel = getCollectionItemCostBasisLabel(item);
-                      const pnl =
-                        item.current_value != null && costBasis != null
+                      const pnl = salesLedger
+                        ? getSalePnl(item, costBasis)
+                        : item.current_value != null && costBasis != null
                           ? Number((item.current_value - costBasis).toFixed(2))
                           : null;
 
@@ -2402,11 +2455,15 @@ export default function CollectionCardsView({
                                 <p className="font-semibold tabular-nums">
                                   {formatMarketCurrency(displayPrice, displayPriceCurrency)}
                                 </p>
-                                {item.current_value_label && (
+                                {salesLedger && (item.sale_fee_eur ?? 0) > 0 ? (
+                                  <p className="text-[11px] text-gray-400 dark:text-white/35">
+                                    Net {formatCollectionCurrency(getNetSalePrice(item) ?? 0)} after fees
+                                  </p>
+                                ) : item.current_value_label ? (
                                   <p className="text-[11px] text-gray-400 dark:text-white/35">
                                     {item.current_value_label}
                                   </p>
-                                )}
+                                ) : null}
                               </div>
                             ) : (
                               <span className="text-xs text-gray-400 dark:text-white/35">
@@ -2450,7 +2507,13 @@ export default function CollectionCardsView({
                           </td>
 
                           <td className="px-4 py-3 text-xs text-gray-500 dark:text-white/55">
-                            {missing && blurMissing ? (
+                            {salesLedger ? (
+                              <span>
+                                {[item.sale_platform, formatSoldDate(item.sold_at)]
+                                  .filter(Boolean)
+                                  .join(" · ") || "Sold"}
+                              </span>
+                            ) : missing && blurMissing ? (
                               <span>Missing</span>
                             ) : item.owned_count && item.owned_count > 1 ? (
                               <span>x{item.owned_count} owned</span>
@@ -2555,13 +2618,17 @@ export default function CollectionCardsView({
                     blurMissing && missing
                       ? `${croppedImageClass} blur-[2.5px] saturate-[0.72] opacity-55`
                       : croppedImageClass;
-                  const displayPrice = getCollectionItemPrice(item, primaryPriceSource);
-                  const displayPriceCurrency = getCollectionItemPriceCurrency(
-                    item,
-                    primaryPriceSource
-                  );
+                  const displayPrice = salesLedger
+                    ? item.sale_price
+                    : getCollectionItemPrice(item, primaryPriceSource);
+                  const displayPriceCurrency = salesLedger
+                    ? "EUR"
+                    : getCollectionItemPriceCurrency(item, primaryPriceSource);
                   const costBasis = getCollectionItemCostBasis(item);
-                  const trendPercent = getTileTrendPercent(item.current_value, costBasis);
+                  const trendPercent = getTileTrendPercent(
+                    salesLedger ? getNetSalePrice(item) : item.current_value,
+                    costBasis
+                  );
                   const tileAction =
                     !activeSelectionMode && !item.owned ? (
                       allowWantRemoval ? (
@@ -2687,7 +2754,11 @@ export default function CollectionCardsView({
                           </div>
                         )}
 
-                        {(item.owned_count ?? 0) > 1 && (
+                        {salesLedger ? (
+                          <span className={`absolute right-2 top-2 ${collectionOverlayBadgeClass(displaySettings.cardSize)}`}>
+                            Sold
+                          </span>
+                        ) : (item.owned_count ?? 0) > 1 && (
                           <span className={`absolute left-2 top-2 ${collectionOverlayBadgeClass(displaySettings.cardSize)}`}>
                             x{item.owned_count}
                           </span>
@@ -2725,9 +2796,13 @@ export default function CollectionCardsView({
                     {displayPrice != null ? (
                       <span
                         title={
-                          item.current_value_label
-                            ? `Using ${item.current_value_label}`
-                            : undefined
+                          salesLedger
+                            ? [item.sale_platform, formatSoldDate(item.sold_at)]
+                                .filter(Boolean)
+                                .join(" · ") || "Sold"
+                            : item.current_value_label
+                              ? `Using ${item.current_value_label}`
+                              : undefined
                         }
                         className={collectionTilePriceClass(displaySettings.cardSize)}
                       >
@@ -3321,6 +3396,35 @@ export default function CollectionCardsView({
                   ))}
                 </div>
               )}
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.12em] text-white/35">
+                  Platform
+                  <input
+                    type="text"
+                    value={soldDialog.platform}
+                    onChange={(event) => setSoldDialog((current) => current ? { ...current, platform: event.target.value, error: null } : current)}
+                    placeholder="CardMarket, eBay, local..."
+                    disabled={savingSold}
+                    className={`${modalInputClass} mt-1.5 normal-case tracking-normal`}
+                  />
+                </label>
+                <label className="text-[10px] font-black uppercase tracking-[0.12em] text-white/35">
+                  Total fees
+                  <span className="relative mt-1.5 block">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-white/36">EUR</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={soldDialog.feeTotal}
+                      onChange={(event) => setSoldDialog((current) => current ? { ...current, feeTotal: event.target.value, error: null } : current)}
+                      placeholder="0.00"
+                      disabled={savingSold}
+                      className={`${modalInputClass} pl-11 tabular-nums normal-case tracking-normal`}
+                    />
+                  </span>
+                </label>
+              </div>
 
               {soldDialog.error && (
                 <p className="mt-4 text-sm font-semibold text-rose-300">{soldDialog.error}</p>

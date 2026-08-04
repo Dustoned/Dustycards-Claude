@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import { GAME_SEARCH_PARAM } from "@/lib/games";
+import type { NavigationShortcutKey } from "@/lib/navigation-preferences";
 
 export interface NavigationSummary {
   cards: number;
@@ -28,6 +29,7 @@ export interface NavigationSummary {
   wants: number;
   email: string;
   role: "admin" | "user";
+  attentionCount?: number;
 }
 
 export type NavigationBadge = "cards" | "forSale" | "wants" | null;
@@ -62,6 +64,7 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
       { href: "/?tab=singles", label: "Loose Singles", icon: Sparkles, badge: null, key: "singles" },
       { href: "/?tab=binders", label: "Binders", icon: Boxes, badge: null, key: "binders" },
       { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "sealed" },
+      { href: "/openings", label: "Openings", icon: PackageOpen, badge: null, key: "openings" },
       { href: "/?tab=graded", label: "Graded", icon: LibraryBig, badge: null, key: "graded" },
       { href: "/wants", label: "Wants", icon: Heart, badge: "wants", key: "wants" },
       { href: "/social", label: "Social", icon: UsersRound, badge: null, key: "social" },
@@ -70,6 +73,7 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
   {
     label: "Browse",
     items: [
+      { href: "/search", label: "Search Cards", icon: Search, badge: null, key: "search" },
       { href: "/expansions", label: "Pokémon Sets", icon: FolderOpen, badge: null, key: "expansions" },
       {
         href: "/one-piece/expansions",
@@ -107,6 +111,78 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
   },
 ];
 
+export const ALL_NAVIGATION_ITEMS: readonly NavigationItem[] = NAVIGATION_SECTIONS.flatMap(
+  (section) => section.items
+);
+
+const NAVIGATION_ITEMS_BY_KEY = new Map(
+  ALL_NAVIGATION_ITEMS.map((item) => [item.key, item])
+);
+
+export interface NavigationCustomizationOption {
+  key: NavigationShortcutKey;
+  label: string;
+  group: NavigationSection["label"];
+  item: NavigationItem;
+}
+
+const NAVIGATION_CUSTOM_LABELS: Partial<Record<NavigationShortcutKey, string>> = {
+  complete: "Complete collection",
+  sealed: "Sealed collection",
+  graded: "Graded collection",
+  search: "Search cards",
+  expansions: "Pokémon sets",
+  "market-raw": "Raw market",
+  "market-graded": "Graded market",
+  "market-targets": "Grading targets",
+  "market-sealed": "Sealed market",
+  "market-radar": "Signal Radar",
+};
+
+export function getNavigationItem(key: string): NavigationItem | null {
+  return NAVIGATION_ITEMS_BY_KEY.get(key) ?? null;
+}
+
+export function getVisibleNavigationItems(onePieceEnabled: boolean): readonly NavigationItem[] {
+  return ALL_NAVIGATION_ITEMS.filter(
+    (item) => item.key !== "one-piece" || onePieceEnabled
+  );
+}
+
+export function resolveNavigationItems(
+  keys: readonly string[],
+  onePieceEnabled: boolean,
+  options: { fallbackKeys?: readonly string[]; limit?: number; fill?: boolean } = {}
+): NavigationItem[] {
+  const visible = new Set(getVisibleNavigationItems(onePieceEnabled).map((item) => item.key));
+  const resolved: NavigationItem[] = [];
+  const append = (key: string) => {
+    if (!visible.has(key) || resolved.some((item) => item.key === key)) return;
+    const item = getNavigationItem(key);
+    if (item) resolved.push(item);
+  };
+
+  keys.forEach(append);
+  if (options.fill) options.fallbackKeys?.forEach(append);
+
+  return resolved.slice(0, options.limit ?? Number.POSITIVE_INFINITY);
+}
+
+export function getNavigationCustomizationOptions(
+  onePieceEnabled: boolean
+): NavigationCustomizationOption[] {
+  return NAVIGATION_SECTIONS.flatMap((section) =>
+    section.items
+      .filter((item) => item.key !== "one-piece" || onePieceEnabled)
+      .map((item) => ({
+        key: item.key as NavigationShortcutKey,
+        label: NAVIGATION_CUSTOM_LABELS[item.key as NavigationShortcutKey] ?? item.label,
+        group: section.label,
+        item,
+      }))
+  );
+}
+
 export const NAVIGATION_ACCOUNT_ITEMS: readonly NavigationItem[] = [
   { href: "/settings", label: "Settings", icon: Settings, badge: null, key: "settings" },
   { href: "/account", label: "Account", icon: UserRound, badge: null, key: "account" },
@@ -135,6 +211,7 @@ export function isNavigationItemActive(
   if (key === "singles") return pathname === "/" && tab === "singles";
   if (key === "binders") return (pathname === "/" && tab === "binders") || pathname.startsWith("/binders");
   if (key === "sealed") return pathname === "/" && tab === "sealed";
+  if (key === "openings") return pathname.startsWith("/openings");
   if (key === "graded") return pathname === "/" && tab === "graded";
   if (key === "selling") return pathname === "/" && tab === "selling";
   if (key === "market-raw") {
@@ -152,6 +229,7 @@ export function isNavigationItemActive(
   if (key === "one-piece") return pathname.startsWith("/one-piece");
   if (key === "categories") return pathname.startsWith("/categories");
   if (key === "illustrators") return pathname.startsWith("/illustrators");
+  if (key === "search") return pathname.startsWith("/search");
   if (key === "scan") return pathname.startsWith("/scan");
   return pathname === `/${key}` || pathname.startsWith(`/${key}/`);
 }

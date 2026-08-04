@@ -8,13 +8,15 @@ import { useSettings } from "@/components/SettingsProvider";
 import FeedbackButton from "@/components/FeedbackButton";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import {
+  ALL_NAVIGATION_ITEMS,
   buildNavigationMarketHref,
   formatNavigationCount,
   getNavigationBadge,
   getNavigationDisplayName,
+  getNavigationItem,
   isNavigationItemActive,
   NAVIGATION_ACCOUNT_ITEMS,
-  NAVIGATION_SECTIONS,
+  resolveNavigationItems,
   type NavigationItem,
   type NavigationSummary,
 } from "@/components/navigation-model";
@@ -25,10 +27,15 @@ import {
 } from "@/lib/collection-client-events";
 import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import { WANTS_CHANGED_EVENT } from "@/lib/wants-client-events";
+import {
+  DEFAULT_DESKTOP_PINNED_NAV_KEYS,
+  DESKTOP_PIN_LIMIT,
+} from "@/lib/navigation-preferences";
 
 interface NavItem {
   href: string;
   label: string;
+  key?: string;
   /** Pathname prefixes that should mark this link active. */
   matches: ReadonlyArray<string>;
   /** Descendants that belong to a separate child navigation item. */
@@ -69,6 +76,12 @@ const COLLECTION_SEALED_ITEM: NavItem = {
   href: "/?tab=sealed",
   label: "Sealed",
   matches: ["tab:sealed"],
+};
+
+const COLLECTION_OPENINGS_ITEM: NavItem = {
+  href: "/openings",
+  label: "Openings",
+  matches: ["/openings"],
 };
 
 const COLLECTION_GRADED_ITEM: NavItem = {
@@ -201,6 +214,7 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         COLLECTION_SINGLES_ITEM,
         COLLECTION_BINDERS_ITEM,
         COLLECTION_SEALED_ITEM,
+        COLLECTION_OPENINGS_ITEM,
         COLLECTION_GRADED_ITEM,
         WANTS_ITEM,
       ],
@@ -229,21 +243,16 @@ type DesktopMenuGroup = {
   items: readonly NavigationItem[];
 };
 
-const ALL_NAVIGATION_ITEMS = NAVIGATION_SECTIONS.flatMap((section) => section.items);
+const DESKTOP_HOME_ITEM = getNavigationItem("home")!;
 
-function getNavigationItem(key: string): NavigationItem {
-  const item = ALL_NAVIGATION_ITEMS.find((candidate) => candidate.key === key);
-  if (!item) throw new Error(`Missing navigation item: ${key}`);
-  return item;
-}
-
-const DESKTOP_HOME_ITEM = getNavigationItem("home");
-const DESKTOP_RADAR_ITEM = getNavigationItem("market-radar");
-
-function getDesktopMenuGroups(onePieceEnabled: boolean): readonly DesktopMenuGroup[] {
-  const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "graded", "wants"]);
+function getDesktopMenuGroups(
+  onePieceEnabled: boolean,
+  pinnedKeys: ReadonlySet<string> = new Set()
+): readonly DesktopMenuGroup[] {
+  const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "openings", "graded", "wants"]);
   const browseKeys = new Set([
     "expansions",
+    "search",
     "one-piece",
     "categories",
     "illustrators",
@@ -258,7 +267,7 @@ function getDesktopMenuGroups(onePieceEnabled: boolean): readonly DesktopMenuGro
   ]);
   const moreKeys = new Set(["social", "submit-card"]);
   const visibleItems = ALL_NAVIGATION_ITEMS.filter(
-    (item) => item.key !== "one-piece" || onePieceEnabled
+    (item) => (item.key !== "one-piece" || onePieceEnabled) && !pinnedKeys.has(item.key)
   );
 
   return [
@@ -305,7 +314,18 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
   const [wantsCount, setWantsCount] = useState(summary.wants);
   const rootRef = useRef<HTMLDivElement>(null);
   const moverScope = searchParams.get("scope");
-  const menuGroups = getDesktopMenuGroups(settings.onePieceLibraryEnabled);
+  const pinnedItems = resolveNavigationItems(
+    settings.desktopPinnedNavKeys,
+    settings.onePieceLibraryEnabled,
+    {
+      fallbackKeys: DEFAULT_DESKTOP_PINNED_NAV_KEYS,
+      limit: DESKTOP_PIN_LIMIT,
+    }
+  ).filter((item) => item.key !== "home");
+  const menuGroups = getDesktopMenuGroups(
+    settings.onePieceLibraryEnabled,
+    new Set(pinnedItems.map((item) => item.key))
+  );
   const displayName = getNavigationDisplayName(summary.email);
 
   useEffect(() => {
@@ -393,7 +413,6 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
   }
 
   const homeActive = itemActive(DESKTOP_HOME_ITEM);
-  const radarActive = itemActive(DESKTOP_RADAR_ITEM);
   const accountSectionActive = NAVIGATION_ACCOUNT_ITEMS.some(itemActive);
   const accountOpen = openMenu === "Account";
 
@@ -418,10 +437,7 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
         </Link>
 
         {menuGroups.map((group) => {
-          const active =
-            group.label === "Market"
-              ? pathname.startsWith("/movers") && !pathname.startsWith("/movers/signal-radar")
-              : group.items.some(itemActive);
+          const active = group.items.some(itemActive);
           const isOpen = openMenu === group.label;
 
           return (
@@ -505,14 +521,23 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
           );
         })}
 
-        <Link
-          href={DESKTOP_RADAR_ITEM.href}
-          prefetch={false}
-          aria-current={radarActive ? "page" : undefined}
-          className={desktopTopLinkClasses(radarActive)}
-        >
-          Signal Radar
-        </Link>
+        {pinnedItems.map((item) => {
+          const active = itemActive(item);
+          const Icon = item.icon;
+          return (
+            <Link
+              key={item.key}
+              href={itemHref(item)}
+              prefetch={false}
+              aria-current={active ? "page" : undefined}
+              className={desktopTopLinkClasses(active)}
+              title={item.label}
+            >
+              <Icon className="h-4 w-4 shrink-0" aria-hidden="true" />
+              <span>{item.label}</span>
+            </Link>
+          );
+        })}
       </nav>
 
       <div
@@ -596,7 +621,12 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
                       className={desktopMenuLinkClasses(active)}
                     >
                       <Icon className="h-4 w-4 text-white/46" />
-                      {item.label}
+                      <span className="min-w-0 flex-1">{item.label}</span>
+                      {item.key === "settings" && (summary.attentionCount ?? 0) > 0 ? (
+                        <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[9px] font-black leading-5 text-white">
+                          {(summary.attentionCount ?? 0) > 99 ? "99+" : summary.attentionCount}
+                        </span>
+                      ) : null}
                     </Link>
                   );
                 })}
@@ -626,13 +656,28 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
 
 export function HeaderMobileMenu() {
   const pathname = usePathname() ?? "/";
+  const searchParams = useSearchParams();
   const tab = useLiveCollectionTab();
   const { settings } = useSettings();
   const onePieceEnabled = settings.onePieceLibraryEnabled;
   const [open, setOpen] = useState(false);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
-  const mobileSections = getMobileSections(onePieceEnabled);
+  const moverScope = searchParams.get("scope");
+  const pinnedItems: NavItem[] = resolveNavigationItems(
+    settings.desktopPinnedNavKeys,
+    onePieceEnabled,
+    {
+      fallbackKeys: DEFAULT_DESKTOP_PINNED_NAV_KEYS,
+      limit: DESKTOP_PIN_LIMIT,
+    }
+  )
+    .filter((item) => item.key !== "home")
+    .map((item) => ({ href: item.href, label: item.label, key: item.key, matches: [] }));
+  const mobileSections = [
+    ...(pinnedItems.length > 0 ? [{ label: "Pinned", items: pinnedItems }] : []),
+    ...getMobileSections(onePieceEnabled),
+  ];
 
   // Close on outside interaction/Escape, lock body scroll while open.
   useEffect(() => {
@@ -707,7 +752,9 @@ export function HeaderMobileMenu() {
                   {section.label}
                 </p>
                 {section.items.map((item) => {
-                    const active = isTopLevelActive(pathname, tab, item);
+                    const active = item.key
+                      ? isNavigationItemActive(pathname, tab, item.key, moverScope)
+                      : isTopLevelActive(pathname, tab, item);
                   return (
                     <Link
                       key={item.href}

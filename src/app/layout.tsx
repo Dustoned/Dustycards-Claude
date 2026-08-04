@@ -5,6 +5,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { Suspense } from "react";
 import AppVersionWatcher from "@/components/AppVersionWatcher";
+import ActionCenterButton from "@/components/ActionCenterButton";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
 import { HeaderMobileMenu, HeaderNav } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
@@ -88,7 +89,7 @@ async function getDesktopSidebarSummary(
   email: string,
   role: DesktopSidebarSummary["role"]
 ): Promise<DesktopSidebarSummary> {
-  const [cards, forSaleCards, binders, wants, sealed] = await Promise.all([
+  const [cards, forSaleCards, binders, wants, sealed, attentionCount] = await Promise.all([
     db.collectionCard.count({ where: { user_id: userId, for_sale: false, sold_at: null } }),
     db.collectionCard.count({ where: { user_id: userId, for_sale: true, sold_at: null } }),
     db.collectionBinder.count({ where: { user_id: userId } }),
@@ -97,6 +98,7 @@ async function getDesktopSidebarSummary(
       where: { user_id: userId },
       _sum: { quantity: true },
     }),
+    role === "admin" ? db.feedback.count({ where: { status: "new" } }) : Promise.resolve(0),
   ]);
 
   return {
@@ -107,6 +109,7 @@ async function getDesktopSidebarSummary(
     wants,
     email,
     role,
+    attentionCount,
   };
 }
 
@@ -179,6 +182,7 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
                 <HeaderMobileMenu />
                 <div className="flex-1 lg:hidden" />
                 <HeaderSearch />
+                <ActionCenterButton initialCount={sidebarSummary?.attentionCount ?? 0} />
               </>
             ) : (
               <div className="flex-1" />

@@ -2418,7 +2418,7 @@ html.widescreen .settings-page {
 .card-detail-printing-rail {
   display: grid;
   grid-auto-flow: column;
-  grid-auto-columns: minmax(15.5rem, 82%);
+  grid-auto-columns: minmax(17rem, 88%);
   gap: 0.75rem;
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -2434,15 +2434,25 @@ html.widescreen .settings-page {
 .card-detail-printing-card {
   position: relative;
   display: grid;
-  grid-template-columns: 6.75rem minmax(0, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: 4.35rem minmax(0, 1fr);
+  gap: 0.7rem;
   min-width: 0;
   scroll-snap-align: start;
   border: 1px solid rgba(255, 255, 255, 0.075);
   border-radius: 1rem;
   background: rgba(4, 4, 7, 0.34);
-  padding: 0.75rem;
+  padding: 0.65rem;
   cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    transform 160ms ease;
+}
+
+.card-detail-printing-card:hover {
+  border-color: rgba(167, 139, 250, 0.2);
+  background: rgba(139, 92, 246, 0.055);
+  transform: translateY(-1px);
 }
 
 /* Collection content is intentionally asymmetric: the owned-copy summary is

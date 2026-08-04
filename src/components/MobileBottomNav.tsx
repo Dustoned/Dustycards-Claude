@@ -1,30 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
-  Heart,
-  Home,
-  LibraryBig,
   LogOut,
   Mail,
   MoreHorizontal,
-  Radar,
   Settings as SettingsIcon,
   ShieldCheck,
-  TrendingUp,
   UserRound,
   X,
-  type LucideIcon,
 } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import FeedbackButton from "@/components/FeedbackButton";
 import type { DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import {
+  buildNavigationMarketHref,
+  isNavigationItemActive,
   NAVIGATION_ACCOUNT_ITEMS,
   NAVIGATION_SECTIONS,
+  resolveNavigationItems,
   type NavigationItem,
 } from "@/components/navigation-model";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
@@ -36,25 +33,14 @@ import {
 } from "@/lib/collection-client-events";
 import { MOBILE_EDGE_BACK_EVENT } from "@/lib/mobile-edge-back";
 import { WANTS_CHANGED_EVENT } from "@/lib/wants-client-events";
+import {
+  DEFAULT_MOBILE_BOTTOM_NAV_KEYS,
+  DEFAULT_MOBILE_MORE_PINNED_KEYS,
+  MOBILE_BOTTOM_NAV_LIMIT,
+  MOBILE_MORE_PIN_LIMIT,
+} from "@/lib/navigation-preferences";
 
-const PRIMARY_NAV_ITEMS: readonly MobileNavItem[] = [
-  { href: "/", label: "Home", icon: Home, matches: ["home"] },
-  {
-    href: "/?tab=complete",
-    label: "Collection",
-    icon: LibraryBig,
-    matches: ["tab:complete", "tab:cards", "tab:singles", "tab:binders", "tab:sealed", "tab:graded", "/binders"],
-  },
-  { href: "/wants", label: "Wants", icon: Heart, matches: ["/wants"] },
-  { href: "/movers", label: "Market", icon: TrendingUp, matches: ["/movers", "tab:selling"] },
-] as const;
-
-type MobileNavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  matches: readonly string[];
-  excludeMatches?: readonly string[];
+type MobileNavItem = Omit<NavigationItem, "badge"> & {
   shortLabel?: string;
   description?: string;
   badge?: "binders" | "sealed" | "selling";
@@ -69,37 +55,106 @@ const SHARED_NAVIGATION_ITEMS = new Map(
   NAVIGATION_SECTIONS.flatMap((section) => section.items).map((item) => [item.key, item])
 );
 
+const MOBILE_NAV_DESCRIPTIONS: Record<string, string> = {
+  home: "Portfolio dashboard",
+  complete: "Every owned card",
+  singles: "Raw cards outside binders",
+  binders: "Sets and progress",
+  sealed: "Owned products and boxes",
+  openings: "Pulls and opening results",
+  graded: "Slabs and graded prices",
+  wants: "Cards and binders to buy",
+  social: "Friends, trades and activity",
+  search: "Find any card or product",
+  expansions: "Browse every Pokémon expansion",
+  "one-piece": "Explore the One Piece library",
+  categories: "Explore card types",
+  illustrators: "Discover artists",
+  scan: "Identify a card with your camera",
+  "submit-card": "Add a missing card",
+  "market-raw": "Raw card movers and history",
+  "market-graded": "Graded market movement",
+  "market-targets": "Cards worth grading",
+  "market-sealed": "Sealed products and movers",
+  "market-radar": "Evidence-backed opportunities",
+  selling: "Sales, trades and ledger",
+};
+
+const MOBILE_SHORT_LABELS: Partial<Record<string, string>> = {
+  complete: "Collection",
+  "market-raw": "Market",
+  "market-graded": "Graded",
+  "market-targets": "Targets",
+  "market-sealed": "Sealed",
+  "market-radar": "Radar",
+  "submit-card": "Submit",
+  expansions: "Sets",
+  illustrators: "Artists",
+  "one-piece": "One Piece",
+};
+
+function toMobileNavItem(
+  item: NavigationItem,
+  options: Pick<MobileNavItem, "shortLabel" | "badge"> & { label?: string; description?: string } = {}
+): MobileNavItem {
+  return {
+    ...item,
+    label: options.label ?? item.label,
+    shortLabel: options.shortLabel ?? MOBILE_SHORT_LABELS[item.key],
+    description: options.description ?? MOBILE_NAV_DESCRIPTIONS[item.key] ?? item.label,
+    badge: options.badge,
+  };
+}
+
 function mobileMoreItem(
   key: string,
-  description: string,
-  matches: readonly string[],
-  options: Pick<MobileNavItem, "shortLabel" | "badge"> & { label?: string } = {}
+  options: Pick<MobileNavItem, "shortLabel" | "badge"> & { label?: string; description?: string } = {}
 ): MobileNavItem {
   const sharedItem = SHARED_NAVIGATION_ITEMS.get(key) as NavigationItem | undefined;
   if (!sharedItem) {
     throw new Error(`Unknown shared navigation item: ${key}`);
   }
 
-  return {
-    href: sharedItem.href,
-    label: options.label ?? sharedItem.label,
-    icon: sharedItem.icon,
-    matches,
-    shortLabel: options.shortLabel,
-    description,
-    badge: options.badge,
-  };
+  return toMobileNavItem(sharedItem, options);
+}
+
+function mobileMoreItems(keys: readonly string[]): MobileNavItem[] {
+  return keys.flatMap((key) => {
+    const item = SHARED_NAVIGATION_ITEMS.get(key);
+    return item ? [toMobileNavItem(item)] : [];
+  });
+}
+
+export function getMobilePrimaryNavigation(
+  keys: readonly string[],
+  onePieceEnabled: boolean
+): MobileNavItem[] {
+  return resolveNavigationItems(keys, onePieceEnabled, {
+    fallbackKeys: DEFAULT_MOBILE_BOTTOM_NAV_KEYS,
+    fill: true,
+    limit: MOBILE_BOTTOM_NAV_LIMIT,
+  }).map((item) => toMobileNavItem(item));
+}
+
+export function getMobilePinnedNavigation(
+  keys: readonly string[],
+  onePieceEnabled: boolean
+): MobileNavItem[] {
+  return resolveNavigationItems(keys, onePieceEnabled, {
+    fallbackKeys: DEFAULT_MOBILE_MORE_PINNED_KEYS,
+    limit: MOBILE_MORE_PIN_LIMIT,
+  }).map((item) => toMobileNavItem(item));
 }
 
 export function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNavSection[] {
   const expansionItems: MobileNavItem[] = [
-    mobileMoreItem("expansions", "Browse every expansion", ["/expansions"], {
-      shortLabel: onePieceEnabled ? "Pokemon" : "Sets",
+    mobileMoreItem("expansions", {
+      shortLabel: onePieceEnabled ? "Pokémon" : "Sets",
       label: onePieceEnabled ? undefined : "Expansions",
     }),
     ...(onePieceEnabled
       ? [
-          mobileMoreItem("one-piece", "Explore the full library", ["/one-piece"], {
+          mobileMoreItem("one-piece", {
             shortLabel: "One Piece",
           }),
         ]
@@ -108,57 +163,61 @@ export function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNa
 
   return [
     {
+      label: "Market",
+      items: mobileMoreItems([
+        "market-raw",
+        "market-graded",
+        "market-targets",
+        "market-sealed",
+        "market-radar",
+        "selling",
+      ]).map((item) =>
+        item.key === "selling" ? { ...item, badge: "selling" as const } : item
+      ),
+    },
+    {
       label: "My collection",
       items: [
-        mobileMoreItem("singles", "Raw cards outside binders", ["tab:singles"], {
-          shortLabel: "Singles",
-        }),
-        mobileMoreItem("binders", "Sets and progress", ["tab:binders", "/binders"], {
+        mobileMoreItem("complete"),
+        mobileMoreItem("singles", { shortLabel: "Singles" }),
+        mobileMoreItem("binders", {
           badge: "binders",
         }),
-        mobileMoreItem("sealed", "Products and boxes", ["tab:sealed"], {
+        mobileMoreItem("sealed", {
           badge: "sealed",
         }),
-        mobileMoreItem("graded", "Slabs and graded prices", ["tab:graded"]),
+        mobileMoreItem("openings"),
+        mobileMoreItem("graded"),
+        mobileMoreItem("wants"),
       ],
     },
     {
       label: "Discover",
       items: [
         ...expansionItems,
-        mobileMoreItem("categories", "Explore card types", ["/categories"]),
-        mobileMoreItem("illustrators", "Discover artists", ["/illustrators"], {
+        mobileMoreItem("categories"),
+        mobileMoreItem("illustrators", {
           shortLabel: "Artists",
         }),
-        mobileMoreItem("social", "Collector activity", ["/social"]),
+        mobileMoreItem("social"),
       ],
+    },
+    {
+      label: "Tools",
+      items: mobileMoreItems(["search", "scan", "submit-card"]),
     },
   ];
 }
 
-const MORE_QUICK_ACTIONS: readonly MobileNavItem[] = [
-  mobileMoreItem("submit-card", "Add a missing card", ["/submit-card"], {
-    label: "Submit card",
-  }),
-  mobileMoreItem("selling", "Manage selling cards", ["tab:selling"], {
-    label: "For sale",
-    badge: "selling",
-  }),
-];
-
-const SIGNAL_RADAR_ITEM: MobileNavItem = mobileMoreItem(
-  "market-radar",
-  "Research opportunities with the strongest evidence",
-  ["/movers/signal-radar"]
-);
-
 const ACCOUNT_ITEM = NAVIGATION_ACCOUNT_ITEMS.find((item) => item.key === "account")!;
 const SETTINGS_ITEM = NAVIGATION_ACCOUNT_ITEMS.find((item) => item.key === "settings")!;
 
-export function getMobileMoreRouteInventory(onePieceEnabled: boolean) {
+export function getMobileMoreRouteInventory(
+  onePieceEnabled: boolean,
+  pinnedKeys: readonly string[] = DEFAULT_MOBILE_MORE_PINNED_KEYS
+) {
   return {
-    featured: SIGNAL_RADAR_ITEM.href,
-    quickActions: MORE_QUICK_ACTIONS.map((item) => item.href),
+    pinned: getMobilePinnedNavigation(pinnedKeys, onePieceEnabled).map((item) => item.href),
     sections: getMoreMenuSections(onePieceEnabled).map((section) => ({
       label: section.label,
       routes: section.items.map((item) => item.href),
@@ -193,52 +252,9 @@ function getDisplayName(email: string): string {
     .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-function isActive(pathname: string, matches: readonly string[]) {
-  return matches.some((prefix) => {
-    if (prefix.startsWith("tab:")) return false;
-    return (
-    prefix === "/" ? pathname === "/" : pathname === prefix || pathname.startsWith(`${prefix}/`)
-    );
-  });
-}
-
-function isNavItemActive(
-  pathname: string,
-  collectionTab: string | null,
-  matches: readonly string[],
-  excludeMatches: readonly string[] = []
-) {
-  const excluded = excludeMatches.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
-  );
-  if (excluded) return false;
-
-  const tabMatches = matches
-    .filter((match) => match.startsWith("tab:"))
-    .map((match) => match.slice(4));
-
-  if (tabMatches.length > 0) {
-    const tabActive = tabMatches.some((targetTab) =>
-      targetTab === "overview"
-        ? !collectionTab || collectionTab === "overview"
-        : collectionTab === targetTab
-    );
-    const pathActive = matches
-      .filter((match) => !match.startsWith("tab:"))
-      .some((match) => pathname === match || pathname.startsWith(`${match}/`));
-
-    return (pathname === "/" && tabActive) || pathActive;
-  }
-
-  if (matches[0] === "home") return pathname === "/" && (!collectionTab || collectionTab === "overview");
-
-  if (matches[0] === "/movers") return pathname.startsWith("/movers");
-
-  return isActive(pathname, matches);
-}
-
 export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSummary | null }) {
   const pathname = usePathname() ?? "/";
+  const searchParams = useSearchParams();
   const router = useRouter();
   const collectionTab = useLiveCollectionTab();
   const { settings } = useSettings();
@@ -256,20 +272,35 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const moreWasOpenRef = useRef(false);
   const logoutWasOpenRef = useRef(false);
   const closingForNavigationRef = useRef(false);
-  const moreSections = getMoreMenuSections(settings.onePieceLibraryEnabled);
-  const moreRouteActive = [
-    SIGNAL_RADAR_ITEM,
-    ...MORE_QUICK_ACTIONS,
-    ...moreSections.flatMap((section) => section.items),
-  ].some((item) =>
-    isNavItemActive(pathname, collectionTab, item.matches, item.excludeMatches)
-  ) || [ACCOUNT_ITEM.href, SETTINGS_ITEM.href].some(
-    (href) => pathname === href || pathname.startsWith(`${href}/`)
+  const moverScope = searchParams.get("scope");
+  const primaryNavItems = getMobilePrimaryNavigation(
+    settings.mobileBottomNavKeys,
+    settings.onePieceLibraryEnabled
   );
+  const pinnedNavItems = getMobilePinnedNavigation(
+    settings.mobileMorePinnedKeys,
+    settings.onePieceLibraryEnabled
+  );
+  const moreSections = getMoreMenuSections(settings.onePieceLibraryEnabled);
+  const itemActive = (item: MobileNavItem) =>
+    isNavigationItemActive(pathname, collectionTab, item.key, moverScope);
+  const primaryRouteActive = primaryNavItems.some(itemActive);
+  const moreRouteActive =
+    !primaryRouteActive &&
+    (moreSections.flatMap((section) => section.items).some(itemActive) ||
+      [ACCOUNT_ITEM.href, SETTINGS_ITEM.href].some(
+        (href) => pathname === href || pathname.startsWith(`${href}/`)
+      ));
   const moreActive = moreOpen || moreRouteActive;
   useBodyScrollLock(moreOpen);
   const accountInitial = summary?.email.slice(0, 1).toUpperCase() ?? "D";
   const accountName = summary ? getDisplayName(summary.email) : "Account";
+
+  function itemHref(item: MobileNavItem): string {
+    return item.marketMode
+      ? buildNavigationMarketHref(item.marketMode, pathname, searchParams)
+      : item.href;
+  }
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() =>
@@ -586,6 +617,11 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     >
                       <SettingsIcon className="h-4 w-4" aria-hidden="true" />
                       {SETTINGS_ITEM.label}
+                      {(summary?.attentionCount ?? 0) > 0 ? (
+                        <span className="min-w-4 rounded-full bg-rose-500 px-1 text-center text-[8px] font-black leading-4 text-white">
+                          {(summary?.attentionCount ?? 0) > 99 ? "99+" : summary?.attentionCount}
+                        </span>
+                      ) : null}
                     </Link>
                   </div>
                   <FeedbackButton
@@ -594,67 +630,34 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                   />
                 </section>
 
-                <Link
-                  href={SIGNAL_RADAR_ITEM.href}
-                  prefetch={null}
-                  onClick={navigateFromMoreMenu}
-                  data-mobile-more-featured
-                  aria-current={
-                    isNavItemActive(
-                      pathname,
-                      collectionTab,
-                      SIGNAL_RADAR_ITEM.matches,
-                      SIGNAL_RADAR_ITEM.excludeMatches
-                    )
-                      ? "page"
-                      : undefined
-                  }
-                  className="group relative grid min-h-[5.6rem] grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[22px] border border-[rgb(var(--dc-primary-soft-rgb)/0.25)] bg-[linear-gradient(135deg,rgb(var(--dc-primary-rgb)/0.22),rgb(var(--dc-surface-elevated-rgb)/0.9))] p-3 shadow-[0_14px_38px_rgb(var(--dc-primary-rgb)/0.12)]"
-                >
-                  <span className="absolute -right-10 -top-12 h-32 w-32 rounded-full bg-[rgb(var(--dc-primary-rgb)/0.16)] blur-2xl" aria-hidden="true" />
-                  <span className="relative flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] border border-[rgb(var(--dc-primary-soft-rgb)/0.28)] bg-[rgb(var(--dc-primary-rgb)/0.2)] text-[var(--dc-primary-soft)] shadow-[0_0_28px_rgb(var(--dc-primary-rgb)/0.18)]">
-                    <Radar className="h-6 w-6" aria-hidden="true" />
-                  </span>
-                  <span className="relative min-w-0">
-                    <span className="block text-[9px] font-black uppercase tracking-[0.12em] text-[var(--dc-primary-soft)]">
-                      Market intelligence
-                    </span>
-                    <span className="mt-0.5 block text-[15px] font-black leading-tight text-[var(--dc-text-primary)]">
-                      Signal Radar
-                    </span>
-                    <span className="mt-1 block text-[11px] font-semibold leading-snug text-[var(--dc-text-muted)]">
-                      Strong opportunities, evidence first
-                    </span>
-                  </span>
-                  <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgb(var(--dc-primary-soft-rgb)/0.18)] bg-[rgb(var(--dc-primary-rgb)/0.13)] text-[var(--dc-primary-soft)]">
-                    <ChevronRight className="h-4 w-4" aria-hidden="true" />
-                  </span>
-                </Link>
-
+                {pinnedNavItems.length > 0 ? (
                 <section aria-labelledby="mobile-more-quick-title">
                   <div className="mb-1.5 flex items-center justify-between px-1">
                     <h2
                       id="mobile-more-quick-title"
                       className="text-[10px] font-black uppercase tracking-[0.13em] text-[var(--dc-text-muted)]"
                     >
-                      Quick actions
+                      Your quick access
                     </h2>
+                    <Link
+                      href="/settings#navigation"
+                      prefetch={false}
+                      onClick={navigateFromMoreMenu}
+                      className="text-[10px] font-black text-[var(--dc-primary-soft)]"
+                    >
+                      Edit
+                    </Link>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
-                    {MORE_QUICK_ACTIONS.map((item) => {
-                      const active = isNavItemActive(
-                        pathname,
-                        collectionTab,
-                        item.matches,
-                        item.excludeMatches
-                      );
+                    {pinnedNavItems.map((item) => {
+                      const active = itemActive(item);
                       const Icon = item.icon;
                       const badge = getMoreItemBadge(item, summary, forSaleCardsCount);
 
                       return (
                         <Link
-                          key={item.href}
-                          href={item.href}
+                          key={item.key}
+                          href={itemHref(item)}
                           prefetch={false}
                           onClick={navigateFromMoreMenu}
                           data-mobile-more-quick-link
@@ -688,6 +691,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     })}
                   </div>
                 </section>
+                ) : null}
 
                 {moreSections.map((section) => (
                   <section key={section.label} aria-labelledby={`mobile-more-${section.label.replace(/\s+/g, "-").toLowerCase()}`}>
@@ -701,19 +705,14 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       {section.items.map((item) => {
-                        const active = isNavItemActive(
-                          pathname,
-                          collectionTab,
-                          item.matches,
-                          item.excludeMatches
-                        );
+                        const active = itemActive(item);
                         const Icon = item.icon;
                         const badge = getMoreItemBadge(item, summary, forSaleCardsCount);
 
                         return (
                           <Link
                             key={`${section.label}:${item.href}:${item.label}`}
-                            href={item.href}
+                            href={itemHref(item)}
                             prefetch={false}
                             onClick={navigateFromMoreMenu}
                             data-mobile-more-link
@@ -803,21 +802,14 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
         className="pointer-events-auto fixed inset-x-0 bottom-0 z-[70] border-t border-violet-300/12 bg-[linear-gradient(180deg,rgb(var(--dc-surface-primary-rgb)/0.98),rgb(var(--dc-bg-main-rgb)/1))] px-2 pb-[calc(0.45rem+env(safe-area-inset-bottom))] pt-2 shadow-[0_-18px_45px_rgba(0,0,0,0.58),0_-10px_42px_rgb(var(--dc-primary-rgb)/0.14)] md:hidden"
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
-          {PRIMARY_NAV_ITEMS.map((item) => {
-            const active =
-              !moreOpen &&
-              isNavItemActive(
-                pathname,
-                collectionTab,
-                item.matches,
-                item.excludeMatches
-              );
+          {primaryNavItems.map((item) => {
+            const active = !moreOpen && itemActive(item);
             const Icon = item.icon;
 
             return (
               <Link
-                key={`${item.href}:${item.label}`}
-                href={item.href}
+                key={item.key}
+                href={itemHref(item)}
                 // Home is revisited from almost every screen. Automatic
                 // prefetch warms its loading boundary without forcing the
                 // expensive personalized dashboard query to compete with the
@@ -835,7 +827,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                   className={`h-5 w-5 shrink-0 ${active ? "text-[var(--dc-primary-soft)] drop-shadow-[0_0_14px_rgb(var(--dc-primary-rgb)/0.36)]" : ""}`}
                   aria-hidden="true"
                 />
-                <span className="truncate">{item.label}</span>
+                <span className="truncate">{item.shortLabel ?? item.label}</span>
               </Link>
             );
           })}

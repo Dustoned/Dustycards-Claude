@@ -71,6 +71,8 @@ const FINAL_WINDOW_DAYS = 7;
 const WILSON_80_Z = 1.28155;
 const DIRECTION_TOLERANCE_PCT = 2;
 const FLAT_TOLERANCE_PCT = 7;
+export const MEANINGFUL_SIGNAL_MOVE_PCT = 15;
+export const MEANINGFUL_SIGNAL_MOVE_EUR = 10;
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -227,7 +229,14 @@ export function scoreForecastOutcome(input: {
   horizonDays: 30 | 90 | 180;
   entryPrice: number;
   endPrice: number | null;
-}): { realizedReturnPct: number | null; directionHit: boolean | null; bandWithin: boolean | null } {
+}): {
+  realizedReturnPct: number | null;
+  directionHit: boolean | null;
+  absoluteChangeEur: number | null;
+  meaningfulMove: boolean | null;
+  meaningfulDirectionHit: boolean | null;
+  bandWithin: boolean | null;
+} {
   const realizedReturnPct =
     isValidPrice(input.entryPrice) && isValidPrice(input.endPrice)
       ? ((input.endPrice - input.entryPrice) / input.entryPrice) * 100
@@ -244,13 +253,36 @@ export function scoreForecastOutcome(input: {
     }
   }
 
+  const absoluteChangeEur =
+    isValidPrice(input.entryPrice) && isValidPrice(input.endPrice)
+      ? Math.abs(input.endPrice - input.entryPrice)
+      : null;
+  const meaningfulMove =
+    realizedReturnPct != null && absoluteChangeEur != null
+      ? Math.abs(realizedReturnPct) >= MEANINGFUL_SIGNAL_MOVE_PCT &&
+        absoluteChangeEur >= MEANINGFUL_SIGNAL_MOVE_EUR
+      : null;
+  let meaningfulDirectionHit: boolean | null = null;
+  if (input.entryOutlook === "flat" && meaningfulMove != null) {
+    meaningfulDirectionHit = !meaningfulMove;
+  } else if (meaningfulMove === true) {
+    meaningfulDirectionHit = directionHit;
+  }
+
   const band = parseScenarioBand(input.entryScenarioJson, input.horizonDays);
   const bandWithin =
     band != null && isValidPrice(input.endPrice)
       ? input.endPrice >= band.low && input.endPrice <= band.high
       : null;
 
-  return { realizedReturnPct, directionHit, bandWithin };
+  return {
+    realizedReturnPct,
+    directionHit,
+    absoluteChangeEur,
+    meaningfulMove,
+    meaningfulDirectionHit,
+    bandWithin,
+  };
 }
 
 export function calculateWilsonInterval(

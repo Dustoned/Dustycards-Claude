@@ -118,6 +118,7 @@ export interface ModalCardData {
     id: string;
     name: string;
     card_number: string | null;
+    version?: string | null;
     rarity: string | null;
     image_url: string | null;
     cardmarket_url: string | null;
@@ -127,6 +128,8 @@ export interface ModalCardData {
     episode_release_date: string | null;
     price: number | null;
     match_type: "reprint";
+    match_method?: "rules-and-art" | "exact-card-variant" | "lineage-and-art" | "likely-art" | "strong-art" | "manual-include" | "connected-reprint";
+    image_similarity?: number;
   }>;
   collection_item?: {
     id: string;

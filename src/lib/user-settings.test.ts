@@ -26,6 +26,38 @@ describe("user settings", () => {
     expect(settings.desktopNavigation).toBe("top");
   });
 
+  it("roundtrips ordered navigation shortcuts", () => {
+    const settings = mergeSettings({
+      mobileBottomNavKeys: ["market-sealed", "home", "openings", "wants"],
+      mobileMorePinnedKeys: ["selling", "market-radar"],
+      desktopPinnedNavKeys: ["market-sealed", "market-radar"],
+    });
+    const restored = parseStoredSettings(serializeSettings(settings));
+
+    expect(restored).toMatchObject({
+      mobileBottomNavKeys: ["market-sealed", "home", "openings", "wants"],
+      mobileMorePinnedKeys: ["selling", "market-radar"],
+      desktopPinnedNavKeys: ["market-sealed", "market-radar"],
+    });
+  });
+
+  it("repairs duplicate and invalid navigation shortcuts without shortening the phone bar", () => {
+    const settings = mergeSettings({
+      mobileBottomNavKeys: ["home", "home", "unknown", "market-sealed"] as never,
+      mobileMorePinnedKeys: ["selling", "selling", "invalid"] as never,
+      desktopPinnedNavKeys: [] as never,
+    });
+
+    expect(settings.mobileBottomNavKeys).toEqual([
+      "home",
+      "market-sealed",
+      "complete",
+      "wants",
+    ]);
+    expect(settings.mobileMorePinnedKeys).toEqual(["selling"]);
+    expect(settings.desktopPinnedNavKeys).toEqual([]);
+  });
+
   it("roundtrips known display preferences", () => {
     const settings = mergeSettings({ card3dSize: "large", mobileCard3dSize: "medium" });
     const restored = parseStoredSettings(serializeSettings(settings));

@@ -3,16 +3,25 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-const MAX_PRINTING_CANDIDATES = 80;
-const MAX_RELATED_PRINTINGS = 8;
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v3";
 const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.62;
-const STRONG_REPRINT_IMAGE_SIMILARITY = 0.82;
+const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.6;
+const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.67;
+const STRONG_REPRINT_IMAGE_SIMILARITY = 0.8;
 const MAX_CACHED_ARTWORK_HASHES = 512;
+const MAX_CACHED_TCGDEX_SEARCHES = 256;
 const artworkHashCache = new Map<string, Promise<ArtworkHash | null>>();
+const tcgdexSearchCache = new Map<string, Promise<TcgDexCardBrief[]>>();
 
-type ArtworkHash = {
+export type ArtworkHash = {
   full: string;
   illustration: string;
+};
+
+type TcgDexCardBrief = {
+  id?: string;
+  name?: string;
+  image?: string;
 };
 
 type TcgDexAbility = {
@@ -51,6 +60,7 @@ export interface RelatedCardPrinting {
   id: string;
   name: string;
   card_number: string | null;
+  version: string | null;
   rarity: string | null;
   image_url: string | null;
   cardmarket_url: string | null;
@@ -60,9 +70,11 @@ export interface RelatedCardPrinting {
   episode_release_date: string | null;
   price: number | null;
   match_type: "reprint";
+  match_method?: CardPrintingMatchMethod;
+  image_similarity?: number;
 }
 
-type PrintingLookupCard = {
+export type PrintingLookupCard = {
   id: string;
   game: string;
   name: string;
@@ -77,6 +89,27 @@ type PrintingLookupCard = {
     code: string | null;
     release_date: string | null;
   };
+};
+
+export type CardPrintingMatchMethod =
+  | "rules-and-art"
+  | "exact-card-variant"
+  | "lineage-and-art"
+  | "likely-art"
+  | "strong-art"
+  | "manual-include"
+  | "connected-reprint";
+
+export type CardPrintingMatch = {
+  matchType: RelatedCardPrinting["match_type"];
+  method: CardPrintingMatchMethod;
+  imageSimilarity: number;
+};
+
+export type CardPrintingEvidenceResult = {
+  identity: TcgDexCardIdentity | null;
+  artworkHash: ArtworkHash | null;
+  sourceStatus: "complete" | "image-only" | "missing-image";
 };
 
 function normalizeText(value: unknown): string | null {
@@ -225,6 +258,40 @@ function buildCoreRulesFingerprint(card: TcgDexCardIdentity): string | null {
   return hasCoreRules ? JSON.stringify(fingerprint) : null;
 }
 
+/**
+ * A reissue may modernize HP, damage and effect wording while preserving the
+ * recognizable card line. Attack and Ability names are far more stable than
+ * the full rules text and, combined with artwork similarity, separate real
+ * reprints from another card drawn by the same illustrator.
+ */
+export function buildCardLineageFingerprint(card: TcgDexCardIdentity): string | null {
+  const category = normalizeText(card.category);
+  const name = normalizeText(card.name);
+  const illustrator = normalizeText(card.illustrator);
+  if (!category || !name || !illustrator) return null;
+
+  const abilityNames = (card.abilities ?? [])
+    .map((ability) => normalizeText(ability.name))
+    .filter((value): value is string => Boolean(value));
+  const attackNames = (card.attacks ?? [])
+    .map((attack) => normalizeText(attack.name))
+    .filter((value): value is string => Boolean(value));
+  const effect = normalizeText(card.effect);
+  const hasLineage = abilityNames.length > 0 || attackNames.length > 0 || effect != null;
+  if (!hasLineage) return null;
+
+  return JSON.stringify({
+    category,
+    name,
+    illustrator,
+    abilityNames,
+    attackNames,
+    trainerType: normalizeText(card.trainerType),
+    energyType: normalizeText(card.energyType),
+    effect: abilityNames.length === 0 && attackNames.length === 0 ? effect : null,
+  });
+}
+
 function knownScalarMatches(left: string | number | null, right: string | number | null) {
   return left == null || right == null || left === right;
 }
@@ -280,17 +347,15 @@ export function getPerceptualHashSimilarity(left: string, right: string): number
   return equalBits / left.length;
 }
 
-export function getPrintingMatchType(
+export function getPrintingMatchDetails(
   current: TcgDexCardIdentity,
   candidate: TcgDexCardIdentity,
   imageSimilarity: number
-): RelatedCardPrinting["match_type"] | null {
-  const samePrintedIdentity =
+): CardPrintingMatch | null {
+  const sameNamedCard =
     normalizeText(current.category) === normalizeText(candidate.category) &&
-    normalizeText(current.name) === normalizeText(candidate.name) &&
-    normalizeText(current.illustrator) != null &&
-    normalizeText(current.illustrator) === normalizeText(candidate.illustrator);
-  if (!samePrintedIdentity) return null;
+    normalizeText(current.name) === normalizeText(candidate.name);
+  if (!sameNamedCard) return null;
 
   const currentFingerprint = buildCardIdentityFingerprint(current);
   const candidateFingerprint = buildCardIdentityFingerprint(candidate);
@@ -305,18 +370,49 @@ export function getPrintingMatchType(
         haveCompatibleKnownIdentityFields(current, candidate)
       );
 
-    return rulesMatch && imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY
-      ? "reprint"
-      : null;
+    if (rulesMatch) {
+      return {
+        matchType: "reprint",
+        method: imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY
+          ? "rules-and-art"
+          : "exact-card-variant",
+        imageSimilarity,
+      };
+    }
   }
 
-  const sameHp =
-    typeof current.hp === "number" &&
-    typeof candidate.hp === "number" &&
-    current.hp === candidate.hp;
-  return sameHp && imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY
-    ? "reprint"
-    : null;
+  const sameIllustrator =
+    normalizeText(current.illustrator) != null &&
+    normalizeText(current.illustrator) === normalizeText(candidate.illustrator);
+  if (!sameIllustrator) return null;
+
+  if (imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY) {
+    return { matchType: "reprint", method: "strong-art", imageSimilarity };
+  }
+
+  const currentLineage = buildCardLineageFingerprint(current);
+  const candidateLineage = buildCardLineageFingerprint(candidate);
+  if (
+    currentLineage != null &&
+    currentLineage === candidateLineage &&
+    imageSimilarity >= MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY
+  ) {
+    return { matchType: "reprint", method: "lineage-and-art", imageSimilarity };
+  }
+
+  if (imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY) {
+    return { matchType: "reprint", method: "likely-art", imageSimilarity };
+  }
+
+  return null;
+}
+
+export function getPrintingMatchType(
+  current: TcgDexCardIdentity,
+  candidate: TcgDexCardIdentity,
+  imageSimilarity: number
+): RelatedCardPrinting["match_type"] | null {
+  return getPrintingMatchDetails(current, candidate, imageSimilarity)?.matchType ?? null;
 }
 
 export function getConnectedPrintingIndexes(
@@ -430,7 +526,7 @@ function loadArtworkHash(imageUrl: string | null): Promise<ArtworkHash | null> {
   return pending;
 }
 
-function getArtworkHashSimilarity(
+export function getArtworkHashSimilarity(
   left: ArtworkHash | null,
   right: ArtworkHash | null
 ): number {
@@ -441,126 +537,197 @@ function getArtworkHashSimilarity(
   );
 }
 
-async function fetchTcgdexCard(card: {
-  image_url: string | null;
-  tcgid?: string | null;
-}): Promise<TcgDexCardIdentity | null> {
-  for (const cardId of getTcgdexCardIds(card)) {
+function getTcgDexProviderPrefix(tcgid: string | null | undefined): string | null {
+  const prefix = tcgid?.trim().split("-")[0]?.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return prefix || null;
+}
+
+async function searchTcgdexCardsByName(name: string): Promise<TcgDexCardBrief[]> {
+  const cacheKey = normalizeText(name) ?? name.trim().toLowerCase();
+  const cached = tcgdexSearchCache.get(cacheKey);
+  if (cached) return cached;
+
+  if (tcgdexSearchCache.size >= MAX_CACHED_TCGDEX_SEARCHES) {
+    const oldestKey = tcgdexSearchCache.keys().next().value;
+    if (oldestKey) tcgdexSearchCache.delete(oldestKey);
+  }
+
+  const pending = (async () => {
     try {
-      const response = await fetch(`${TCGDEX_CARD_ENDPOINT}/${encodeURIComponent(cardId)}`, {
-        headers: { accept: "application/json" },
-        next: { revalidate: 60 * 60 * 24 * 7 },
-        signal: AbortSignal.timeout(2_500),
-      });
-      if (response.ok) return (await response.json()) as TcgDexCardIdentity;
+      const response = await fetch(
+        `${TCGDEX_CARD_ENDPOINT}?name=${encodeURIComponent(name)}`,
+        {
+          headers: { accept: "application/json" },
+          next: { revalidate: 60 * 60 * 24 * 7 },
+          signal: AbortSignal.timeout(4_000),
+        }
+      );
+      if (!response.ok) return [];
+      const payload = (await response.json()) as unknown;
+      return Array.isArray(payload) ? payload as TcgDexCardBrief[] : [];
     } catch {
-      // Try the stored provider id when the image-derived id is unavailable.
+      return [];
+    }
+  })();
+  tcgdexSearchCache.set(cacheKey, pending);
+  return pending;
+}
+
+function isCompatibleIdentityFallback(
+  card: PrintingLookupCard,
+  identity: TcgDexCardIdentity
+): boolean {
+  if (normalizeText(identity.name) !== normalizeText(card.name)) return false;
+  const storedArtist = normalizeText(card.artist);
+  const providerArtist = normalizeText(identity.illustrator);
+  if (
+    storedArtist &&
+    providerArtist &&
+    providerArtist !== storedArtist
+  ) return false;
+  const storedCategory = normalizeText(card.supertype);
+  const providerCategory = normalizeText(identity.category);
+  if (
+    storedCategory &&
+    providerCategory &&
+    providerCategory !== storedCategory
+  ) return false;
+  return true;
+}
+
+async function fetchTcgdexCardById(cardId: string): Promise<TcgDexCardIdentity | null> {
+  try {
+    const response = await fetch(`${TCGDEX_CARD_ENDPOINT}/${encodeURIComponent(cardId)}`, {
+      headers: { accept: "application/json" },
+      next: { revalidate: 60 * 60 * 24 * 7 },
+      signal: AbortSignal.timeout(2_500),
+    });
+    return response.ok ? (await response.json()) as TcgDexCardIdentity : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchTcgdexCard(
+  card: PrintingLookupCard
+): Promise<TcgDexCardIdentity | null> {
+  for (const cardId of getTcgdexCardIds(card)) {
+    const identity = await fetchTcgdexCardById(cardId);
+    if (identity && isCompatibleIdentityFallback(card, identity)) return identity;
+  }
+
+  // Some provider ids use a different set-local id than TCGdex (notably the
+  // Celebrations Classic Collection). Search only the same provider-prefix
+  // family and verify name, illustrator and category before accepting it.
+  const providerPrefix = getTcgDexProviderPrefix(card.tcgid);
+  if (providerPrefix) {
+    const candidates = (await searchTcgdexCardsByName(card.name))
+      .filter((candidate) => {
+        const candidatePrefix = getTcgDexProviderPrefix(candidate.id);
+        return candidatePrefix != null && (
+          candidatePrefix.startsWith(providerPrefix) ||
+          providerPrefix.startsWith(candidatePrefix)
+        );
+      })
+      .slice(0, 4);
+    for (const candidate of candidates) {
+      if (!candidate.id) continue;
+      const identity = await fetchTcgdexCardById(candidate.id);
+      if (identity && isCompatibleIdentityFallback(card, identity)) return identity;
     }
   }
 
   return null;
 }
 
+export async function buildCardPrintingEvidence(
+  card: PrintingLookupCard
+): Promise<CardPrintingEvidenceResult> {
+  const [identity, artworkHash] = await Promise.all([
+    fetchTcgdexCard(card),
+    loadArtworkHash(card.image_url),
+  ]);
+
+  return {
+    identity,
+    artworkHash,
+    sourceStatus: !artworkHash
+      ? "missing-image"
+      : identity
+        ? "complete"
+        : "image-only",
+  };
+}
+
+export function buildFallbackCardIdentity(card: PrintingLookupCard): TcgDexCardIdentity {
+  return {
+    category: card.supertype ?? undefined,
+    name: card.name,
+    illustrator: card.artist ?? undefined,
+    hp: card.hp ?? undefined,
+  };
+}
+
 export async function loadRelatedCardPrintings(
   current: PrintingLookupCard
 ): Promise<RelatedCardPrinting[]> {
-  if (current.game !== "pokemon" || !current.image_url) return [];
+  if (current.game !== "pokemon") return [];
+  // Keep card detail available while an older worker/test client is still on the
+  // pre-reprint Prisma shape during a rolling migration.
+  if (!db.cardPrintingRelation?.findMany) return [];
 
-  const candidates = await db.card.findMany({
+  const relations = await db.cardPrintingRelation.findMany({
     where: {
-      id: { not: current.id },
-      game: current.game,
-      name: current.name,
-      supertype: current.supertype,
-      ...(current.artist ? { artist: current.artist } : { hp: current.hp }),
-      image_url: { not: null },
+      source_card_id: current.id,
+      model_version: CARD_REPRINT_MODEL_VERSION,
     },
-    orderBy: [{ episode: { release_date: "desc" } }, { card_number: "asc" }],
-    take: MAX_PRINTING_CANDIDATES,
     select: {
-      id: true,
-      game: true,
-      name: true,
-      card_number: true,
-      rarity: true,
-      hp: true,
-      artist: true,
-      image_url: true,
-      tcgid: true,
-      supertype: true,
-      cardmarket_url: true,
-      episode: {
-        select: { id: true, name: true, code: true, release_date: true },
-      },
-      prices: {
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-        orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-        take: 1,
-        select: { cm_en_lowest_nm: true },
+      match_method: true,
+      image_similarity: true,
+      targetCard: {
+        select: {
+          id: true,
+          name: true,
+          card_number: true,
+          version: true,
+          rarity: true,
+          image_url: true,
+          cardmarket_url: true,
+          episode: {
+            select: { id: true, name: true, code: true, release_date: true },
+          },
+          prices: {
+            where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
+            take: 1,
+            select: { cm_en_lowest_nm: true },
+          },
+        },
       },
     },
   });
-  if (candidates.length === 0) return [];
-
-  const [loadedIdentities, currentArtworkHash] = await Promise.all([
-    Promise.all([
-      fetchTcgdexCard(current),
-      ...candidates.map((candidate) => fetchTcgdexCard(candidate)),
-    ]),
-    loadArtworkHash(current.image_url),
-  ]);
-  const [currentIdentity, ...candidateIdentities] = loadedIdentities;
-  if (!currentArtworkHash) return [];
-
-  const candidateArtworkHashes = await Promise.all(
-    candidates.map((candidate) => loadArtworkHash(candidate.image_url))
-  );
-  const identities: TcgDexCardIdentity[] = [
-    currentIdentity ?? {
-      category: current.supertype ?? undefined,
-      name: current.name,
-      illustrator: current.artist ?? undefined,
-      hp: current.hp ?? undefined,
-    },
-    ...candidates.map((candidate, index) =>
-      candidateIdentities[index] ?? {
-        category: candidate.supertype ?? undefined,
-        name: candidate.name,
-        illustrator: candidate.artist ?? undefined,
-        hp: candidate.hp ?? undefined,
-      }
-    ),
-  ];
-  const artworkHashes = [currentArtworkHash, ...candidateArtworkHashes];
-  const connectedIndexes = new Set(
-    getConnectedPrintingIndexes(
-      identities,
-      (leftIndex, rightIndex) =>
-        getArtworkHashSimilarity(artworkHashes[leftIndex], artworkHashes[rightIndex])
-    )
-  );
-
-  return candidates
-    .map((candidate, index): RelatedCardPrinting | null => {
-      if (!connectedIndexes.has(index + 1)) return null;
-      const latestPrice = candidate.prices[0] ?? null;
-
+  return relations
+    .map((relation): RelatedCardPrinting => {
+      const card = relation.targetCard;
+      const latestPrice = card.prices[0] ?? null;
       return {
-        id: candidate.id,
-        name: candidate.name,
-        card_number: candidate.card_number,
-        rarity: candidate.rarity,
-        image_url: candidate.image_url,
-        cardmarket_url: candidate.cardmarket_url,
-        episode_id: candidate.episode.id,
-        episode_name: candidate.episode.name,
-        episode_code: candidate.episode.code,
-        episode_release_date: candidate.episode.release_date,
+        id: card.id,
+        name: card.name,
+        card_number: card.card_number,
+        version: card.version,
+        rarity: card.rarity,
+        image_url: card.image_url,
+        cardmarket_url: card.cardmarket_url,
+        episode_id: card.episode.id,
+        episode_name: card.episode.name,
+        episode_code: card.episode.code,
+        episode_release_date: card.episode.release_date,
         price: latestPrice ? getCurrentRawCardmarketValue(latestPrice) : null,
         match_type: "reprint",
+        match_method: relation.match_method as CardPrintingMatchMethod,
+        image_similarity: relation.image_similarity,
       };
     })
-    .filter((printing): printing is RelatedCardPrinting => printing != null)
     .sort((left, right) => {
       if (left.price == null && right.price != null) return 1;
       if (left.price != null && right.price == null) return -1;
@@ -570,6 +737,5 @@ export async function loadRelatedCardPrintings(
       return (right.episode_release_date ?? "").localeCompare(
         left.episode_release_date ?? ""
       );
-    })
-    .slice(0, MAX_RELATED_PRINTINGS);
+    });
 }

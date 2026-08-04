@@ -46,7 +46,7 @@ function makeCardWithFourPrintings(): ModalCardData {
 }
 
 describe("CardModalRelatedPrintingsPanel", () => {
-  it("stays absent when there is no verified reprint", () => {
+  it("stays absent when there is no related printing", () => {
     expect(
       renderToStaticMarkup(
         createElement(CardModalRelatedPrintingsPanel, { card: makeCard(false) })
@@ -54,24 +54,23 @@ describe("CardModalRelatedPrintingsPanel", () => {
     ).toBe("");
   });
 
-  it("renders a compact internal detail link and direct market option", () => {
+  it("renders a compact pre-matched printing link", () => {
     const markup = renderToStaticMarkup(
       createElement(CardModalRelatedPrintingsPanel, { card: makeCard() })
     );
 
-    expect(markup).toContain("Reprints");
-    expect(markup).toContain("1 verified option");
+    expect(markup).toContain("Related printings");
+    expect(markup).toContain("2 editions");
     expect(markup).toContain("Paldean Fates");
     expect(markup).toContain("€2.50");
     expect(markup).toContain("Lowest");
     expect(markup).toContain("/expansions/paldean-fates?card=reprint-card");
-    expect(markup).toContain("CardMarket");
-    expect(markup).toContain("eBay Deals");
-    expect(markup).toContain("ebay.nl");
-    expect(markup).not.toContain("Show all");
+    expect(markup).not.toContain("CardMarket");
+    expect(markup).not.toContain("eBay Deals");
+    expect(markup).not.toContain("Compare all");
   });
 
-  it("keeps the detail panel compact and links to the card-specific page", () => {
+  it("keeps the detail panel compact and opens the full comparison in a dialog", () => {
     const markup = renderToStaticMarkup(
       createElement(CardModalRelatedPrintingsPanel, {
         card: makeCardWithFourPrintings(),
@@ -79,8 +78,9 @@ describe("CardModalRelatedPrintingsPanel", () => {
       })
     );
 
-    expect(markup).toContain("Show all 4 reprints");
-    expect(markup).toContain("/reprints/current-card?from=radar");
+    expect(markup).toContain("Compare all 5 editions");
+    expect(markup).toContain('aria-haspopup="dialog"');
+    expect(markup).not.toContain("/reprints/current-card");
     expect(markup).not.toContain("Set 4");
   });
 });

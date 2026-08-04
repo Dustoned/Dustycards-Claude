@@ -1,0 +1,120 @@
+import { NextResponse } from "next/server";
+import { authErrorResponse, requireUser } from "@/lib/auth";
+import { db } from "@/lib/db";
+
+export const dynamic = "force-dynamic";
+
+type ActionItem = {
+  id: string;
+  kind: "alert" | "ebay" | "signal" | "feedback";
+  title: string;
+  detail: string;
+  href: string;
+  occurredAt: string;
+  tone: "positive" | "warning" | "neutral";
+};
+
+export async function GET() {
+  try {
+    const user = await requireUser();
+    const now = new Date();
+    const recent = new Date(now.getTime() - 30 * 24 * 60 * 60_000);
+    const ebayWindowStart = new Date(now.getTime() - 24 * 60 * 60_000);
+    const ebayWindowEnd = new Date(now.getTime() + 48 * 60 * 60_000);
+
+    const [cardAlerts, collectionAlerts, watched, outcomes, feedback] = await Promise.all([
+      db.cardPriceAlert.findMany({
+        where: { user_id: user.id, triggered_at: { gte: recent } },
+        orderBy: { triggered_at: "desc" },
+        take: 8,
+        include: { card: { select: { id: true, name: true } } },
+      }),
+      db.collectionPriceAlert.findMany({
+        where: { user_id: user.id, triggered_at: { gte: recent } },
+        orderBy: { triggered_at: "desc" },
+        take: 8,
+      }),
+      db.ebayWatchedListing.findMany({
+        where: { user_id: user.id, item_end_date: { gte: ebayWindowStart, lte: ebayWindowEnd } },
+        orderBy: { item_end_date: "asc" },
+        take: 8,
+      }),
+      db.externalSignalOutcome.findMany({
+        where: {
+          status: "complete",
+          evaluated_at: { gte: recent },
+          meaningful_direction_hit: { not: null },
+        },
+        orderBy: { evaluated_at: "desc" },
+        take: 5,
+        include: {
+          entry_observation: { select: { card_id: true, card_name: true } },
+        },
+      }),
+      user.role === "admin"
+        ? db.feedback.findMany({ where: { status: "new" }, orderBy: { created_at: "desc" }, take: 12 })
+        : Promise.resolve([]),
+    ]);
+
+    const items: ActionItem[] = [
+      ...cardAlerts.map((alert) => ({
+        id: `card-alert-${alert.id}`,
+        kind: "alert" as const,
+        title: `${alert.card.name} price alert`,
+        detail:
+          alert.triggered_price_eur == null
+            ? "Your price condition was reached."
+            : `Triggered at EUR ${alert.triggered_price_eur.toFixed(2)}.`,
+        href: `/?card=${encodeURIComponent(alert.card.id)}`,
+        occurredAt: (alert.triggered_at ?? alert.updated_at).toISOString(),
+        tone: "positive" as const,
+      })),
+      ...collectionAlerts.map((alert) => ({
+        id: `collection-alert-${alert.id}`,
+        kind: "alert" as const,
+        title: `${alert.target_type === "sealed" ? "Sealed" : "Collection"} price alert`,
+        detail:
+          alert.triggered_price_eur == null
+            ? "Your price condition was reached."
+            : `Triggered at EUR ${alert.triggered_price_eur.toFixed(2)}.`,
+        href: alert.target_type === "sealed" ? "/?tab=sealed" : alert.target_type === "binder" ? "/?tab=binders" : "/wants",
+        occurredAt: (alert.triggered_at ?? alert.updated_at).toISOString(),
+        tone: "positive" as const,
+      })),
+      ...watched.map((listing) => {
+        const ended = Boolean(listing.item_end_date && listing.item_end_date <= now);
+        return {
+          id: `ebay-${listing.id}`,
+          kind: "ebay" as const,
+          title: ended ? "Watched eBay listing ended" : "eBay listing ending soon",
+          detail: listing.title,
+          href: listing.item_web_url,
+          occurredAt: (listing.item_end_date ?? listing.created_at).toISOString(),
+          tone: ended ? ("neutral" as const) : ("warning" as const),
+        };
+      }),
+      ...outcomes.map((outcome) => ({
+        id: `signal-${outcome.id}`,
+        kind: "signal" as const,
+        title: outcome.meaningful_direction_hit ? "Signal prediction was correct" : "Signal prediction missed",
+        detail: `${outcome.entry_observation.card_name} finished its ${outcome.horizon_days}-day check.`,
+        href: `/movers/signal-radar/${encodeURIComponent(outcome.entry_observation.card_id)}`,
+        occurredAt: (outcome.evaluated_at ?? outcome.updated_at).toISOString(),
+        tone: outcome.meaningful_direction_hit ? ("positive" as const) : ("warning" as const),
+      })),
+      ...feedback.map((item) => ({
+        id: `feedback-${item.id}`,
+        kind: "feedback" as const,
+        title: item.category === "reprint" ? "Reprint report needs review" : "New feedback",
+        detail: item.message,
+        href: "/settings?section=feedback",
+        occurredAt: item.created_at.toISOString(),
+        tone: "warning" as const,
+      })),
+    ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 24);
+
+    return NextResponse.json({ ok: true, count: items.length, items });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Could not load actions" }, { status: 500 });
+  }
+}

@@ -30,6 +30,7 @@ import BackupsSection from "./BackupsSection";
 import DataQualitySection from "./DataQualitySection";
 import FirecrawlSection from "./FirecrawlSection";
 import FeedbackSection from "./FeedbackSection";
+import ReprintReviewSection from "./ReprintReviewSection";
 import HealthDashboardSection from "./HealthDashboardSection";
 import PullRateImportSection from "./PullRateImportSection";
 import SettingsCollectionDefaultsPanel from "./SettingsCollectionDefaultsPanel";
@@ -297,6 +298,7 @@ export default async function SettingsPage() {
     latestPriceSnapshot,
     systemFileHealth,
     backupSnapshot,
+    newFeedbackCount,
   ] = await timeAsync("settings.summary-data", () => Promise.all([
     db.syncLog.findFirst({
       where: {
@@ -470,6 +472,7 @@ export default async function SettingsPage() {
     }),
     getSystemFileHealth(),
     listBackups().catch(() => ({ dir: null, backups: [] as BackupFileInfo[] })),
+    db.feedback.count({ where: { status: "new" } }),
   ]));
 
   const relevantLogs = [
@@ -804,9 +807,14 @@ export default async function SettingsPage() {
           },
           {
             key: "feedback",
-            label: "Feedback",
+            label: newFeedbackCount > 0 ? `Feedback (${newFeedbackCount})` : "Feedback",
             description: "Review reports and ideas submitted from inside DustyCards.",
-            content: <FeedbackSection />,
+            content: (
+              <div className="grid gap-4">
+                {user.role === "admin" ? <ReprintReviewSection /> : null}
+                <FeedbackSection />
+              </div>
+            ),
           },
           {
             key: "system",

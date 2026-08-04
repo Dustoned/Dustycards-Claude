@@ -64,6 +64,8 @@ model User {
   collectionCards          CollectionCard[]
   wants                    CollectionWant[]
   sealedItems              CollectionSealed[]
+  sealedOpeningSessions    SealedOpeningSession[]
+  cardPrintingOverrides    CardPrintingOverride[]
   ebayListingCardOverrides EbayListingCardOverride[]
   ebayWatchedListings      EbayWatchedListing[]
   cardPriceAlerts          CardPriceAlert[]
@@ -243,6 +245,7 @@ model SealedProduct {
   episode                   Episode                   @relation(fields: [episode_id], references: [id])
   collectionItems           CollectionSealed[]
   originatedCollectionCards CollectionCard[]          @relation("CollectionCardOriginSealedProduct")
+  openingSessions           SealedOpeningSession[]
   contentSets               SealedProductContentSet[]
   includedCards             CardSealedProduct[]
 
@@ -431,6 +434,11 @@ model Card {
   sealedProducts               CardSealedProduct[]
   cardSubmissions              CardSubmission[]                  @relation("SubmissionCreatedCard")
   officialCardSubmissions      CardSubmission[]                  @relation("SubmissionOfficialCard")
+  printingEvidence             CardPrintingEvidence?
+  reprintRelationsFrom         CardPrintingRelation[]            @relation("CardReprintSource")
+  reprintRelationsTo           CardPrintingRelation[]            @relation("CardReprintTarget")
+  reprintOverridesFrom         CardPrintingOverride[]            @relation("CardReprintOverrideSource")
+  reprintOverridesTo           CardPrintingOverride[]            @relation("CardReprintOverrideTarget")
 
   @@index([episode_id])
   @@index([game, episode_id])
@@ -447,6 +455,63 @@ model Card {
   @@index([market_score_updated_at])
   @@index([is_user_submitted])
   @@index([submitted_by_user_id])
+}
+
+model CardPrintingEvidence {
+  card_id                   String    @id
+  image_url                 String
+  identity_json             String?
+  artwork_hash_full         String?
+  artwork_hash_illustration String?
+  source_status             String
+  source_checked_at         DateTime
+  match_status              String?
+  match_version             String?
+  matched_at                DateTime?
+  created_at                DateTime  @default(now())
+  updated_at                DateTime  @updatedAt
+
+  card Card @relation(fields: [card_id], references: [id], onDelete: Cascade)
+
+  @@index([match_status, matched_at])
+  @@index([match_version, matched_at])
+  @@index([source_status, source_checked_at])
+}
+
+model CardPrintingRelation {
+  source_card_id   String
+  target_card_id   String
+  match_type       String   @default("reprint")
+  match_method     String
+  image_similarity Float
+  model_version    String
+  matched_at       DateTime @default(now())
+
+  sourceCard Card @relation("CardReprintSource", fields: [source_card_id], references: [id], onDelete: Cascade)
+  targetCard Card @relation("CardReprintTarget", fields: [target_card_id], references: [id], onDelete: Cascade)
+
+  @@id([source_card_id, target_card_id])
+  @@index([target_card_id])
+  @@index([model_version, matched_at])
+}
+
+model CardPrintingOverride {
+  id             String   @id @default(cuid())
+  user_id        String?
+  source_card_id String
+  target_card_id String
+  decision       String
+  reason         String?
+  created_at     DateTime @default(now())
+  updated_at     DateTime @updatedAt
+
+  user       User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+  sourceCard Card  @relation("CardReprintOverrideSource", fields: [source_card_id], references: [id], onDelete: Cascade)
+  targetCard Card  @relation("CardReprintOverrideTarget", fields: [target_card_id], references: [id], onDelete: Cascade)
+
+  @@unique([source_card_id, target_card_id])
+  @@index([decision, updated_at])
+  @@index([user_id, updated_at])
 }
 
 model CardSubmission {
@@ -746,9 +811,9 @@ model CollectionBinder {
   created_at          DateTime @default(now())
   updated_at          DateTime @updatedAt
 
-  user    User?            @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  episode Episode?         @relation(fields: [episode_id], references: [id])
-  cards   CollectionCard[]
+  user       User?             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  episode    Episode?          @relation(fields: [episode_id], references: [id])
+  cards      CollectionCard[]
   shareLinks BinderShareLink[]
 
   @@index([user_id])
@@ -788,16 +853,20 @@ model CollectionCard {
   grading_subgrades_json   String?
   origin_sealed_product_id String?
   purchase_price_source    String?
+  opening_session_id       String?
   for_sale                 Boolean   @default(false)
   sale_price               Float?
+  sale_fee_eur             Float?
+  sale_platform            String?
   sold_at                  DateTime?
   added_at                 DateTime  @default(now())
   updated_at               DateTime  @updatedAt
 
-  user                User?               @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  card                Card                @relation(fields: [card_id], references: [id])
-  binder              CollectionBinder?   @relation(fields: [binder_id], references: [id], onDelete: SetNull)
-  originSealedProduct SealedProduct?      @relation("CollectionCardOriginSealedProduct", fields: [origin_sealed_product_id], references: [id], onDelete: SetNull)
+  user                User?                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  card                Card                  @relation(fields: [card_id], references: [id])
+  binder              CollectionBinder?     @relation(fields: [binder_id], references: [id], onDelete: SetNull)
+  originSealedProduct SealedProduct?        @relation("CollectionCardOriginSealedProduct", fields: [origin_sealed_product_id], references: [id], onDelete: SetNull)
+  openingSession      SealedOpeningSession? @relation(fields: [opening_session_id], references: [id], onDelete: SetNull)
   tags                CollectionCardTag[]
 
   @@index([user_id])
@@ -806,6 +875,7 @@ model CollectionCard {
   @@index([binder_id])
   @@index([binder_id, added_at])
   @@index([origin_sealed_product_id])
+  @@index([opening_session_id])
   @@index([user_id, for_sale])
   @@index([user_id, for_sale, sold_at])
   @@index([sold_at])
@@ -856,14 +926,40 @@ model CollectionSealed {
   added_at                DateTime @default(now())
   updated_at              DateTime @updatedAt
 
-  user    User?                 @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  product SealedProduct         @relation(fields: [product_id], references: [id])
-  tags    CollectionSealedTag[]
+  user            User?                  @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  product         SealedProduct          @relation(fields: [product_id], references: [id])
+  tags            CollectionSealedTag[]
+  openingSessions SealedOpeningSession[]
 
   @@index([user_id])
   @@index([product_id])
   @@index([product_id, added_at])
   @@index([added_at])
+}
+
+model SealedOpeningSession {
+  id                   String   @id @default(cuid())
+  user_id              String
+  collection_sealed_id String?
+  sealed_product_id    String
+  title                String?
+  packs_opened         Int      @default(1)
+  opened_cost_eur      Float?
+  notes                String?
+  status               String   @default("open")
+  opened_at            DateTime @default(now())
+  created_at           DateTime @default(now())
+  updated_at           DateTime @updatedAt
+
+  user             User              @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  collectionSealed CollectionSealed? @relation(fields: [collection_sealed_id], references: [id], onDelete: SetNull)
+  sealedProduct    SealedProduct     @relation(fields: [sealed_product_id], references: [id], onDelete: Cascade)
+  cards            CollectionCard[]
+
+  @@index([user_id, opened_at])
+  @@index([collection_sealed_id])
+  @@index([sealed_product_id, opened_at])
+  @@index([status, updated_at])
 }
 
 model CollectionSealedTag {
@@ -1092,24 +1188,27 @@ model ExternalSignalObservation {
 }
 
 model ExternalSignalOutcome {
-  id                   String    @id @default(cuid())
-  entry_observation_id String
-  horizon_days         Int
-  status               String    @default("pending")
-  evaluated_at         DateTime?
-  observed_days        Int       @default(0)
-  coverage_ratio       Float     @default(0)
-  max_reference_price  Float?
-  max_multiplier       Float?
-  end_reference_price  Float?
-  hit_15x              Boolean?
-  hit_2x               Boolean?
-  hit_3x               Boolean?
-  realized_return_pct  Float?
-  direction_hit        Boolean?
-  band_within          Boolean?
-  created_at           DateTime  @default(now())
-  updated_at           DateTime  @updatedAt
+  id                       String    @id @default(cuid())
+  entry_observation_id     String
+  horizon_days             Int
+  status                   String    @default("pending")
+  evaluated_at             DateTime?
+  observed_days            Int       @default(0)
+  coverage_ratio           Float     @default(0)
+  max_reference_price      Float?
+  max_multiplier           Float?
+  end_reference_price      Float?
+  hit_15x                  Boolean?
+  hit_2x                   Boolean?
+  hit_3x                   Boolean?
+  realized_return_pct      Float?
+  direction_hit            Boolean?
+  absolute_change_eur      Float?
+  meaningful_move          Boolean?
+  meaningful_direction_hit Boolean?
+  band_within              Boolean?
+  created_at               DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
 
   entry_observation ExternalSignalObservation @relation(fields: [entry_observation_id], references: [id], onDelete: Cascade)
 
@@ -1123,15 +1222,15 @@ model ExternalSignalOutcome {
 // in place, while forecast coverage must remember that the same value was
 // independently observed on every UTC day.
 model ExternalSignalPriceObservation {
-  id                  String   @id @default(cuid())
-  card_id             String
-  reference_source    String
-  reference_price     Float
-  source_price_at     DateTime?
-  observed_at         DateTime @default(now())
-  observed_day        String
-  provenance          String
-  created_at          DateTime @default(now())
+  id               String    @id @default(cuid())
+  card_id          String
+  reference_source String
+  reference_price  Float
+  source_price_at  DateTime?
+  observed_at      DateTime  @default(now())
+  observed_day     String
+  provenance       String
+  created_at       DateTime  @default(now())
 
   @@unique([card_id, reference_source, observed_day])
   @@index([card_id, reference_source, observed_at])

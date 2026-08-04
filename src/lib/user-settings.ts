@@ -6,6 +6,16 @@ import {
   normalizeAppearanceSettings,
   type AppearanceSettings,
 } from "@/lib/appearance-themes";
+import {
+  DEFAULT_DESKTOP_PINNED_NAV_KEYS,
+  DEFAULT_MOBILE_BOTTOM_NAV_KEYS,
+  DEFAULT_MOBILE_MORE_PINNED_KEYS,
+  DESKTOP_PIN_LIMIT,
+  MOBILE_BOTTOM_NAV_LIMIT,
+  MOBILE_MORE_PIN_LIMIT,
+  normalizeNavigationShortcutKeys,
+  type NavigationShortcutKey,
+} from "@/lib/navigation-preferences";
 
 export type {
   AppearancePalette,
@@ -25,11 +35,15 @@ export type UiScale = DisplaySize;
 export type Card3dSize = DisplaySize;
 export type PriceSource = "cm_en" | "tcp";
 export type DesktopNavigation = "top" | "sidebar";
+export type { NavigationShortcutKey } from "@/lib/navigation-preferences";
 
 export interface UserSettings {
   theme: Theme;
   appearance: AppearanceSettings;
   desktopNavigation: DesktopNavigation;
+  desktopPinnedNavKeys: NavigationShortcutKey[];
+  mobileBottomNavKeys: NavigationShortcutKey[];
+  mobileMorePinnedKeys: NavigationShortcutKey[];
   widescreen: boolean;
   onePieceLibraryEnabled: boolean;
   uiScale: UiScale;
@@ -66,6 +80,9 @@ export const DEFAULT_SETTINGS: UserSettings = {
     custom: { ...DEFAULT_APPEARANCE_SETTINGS.custom },
   },
   desktopNavigation: "top",
+  desktopPinnedNavKeys: [...DEFAULT_DESKTOP_PINNED_NAV_KEYS],
+  mobileBottomNavKeys: [...DEFAULT_MOBILE_BOTTOM_NAV_KEYS],
+  mobileMorePinnedKeys: [...DEFAULT_MOBILE_MORE_PINNED_KEYS],
   widescreen: false,
   onePieceLibraryEnabled: false,
   uiScale: "medium",
@@ -124,6 +141,24 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       source.desktopNavigation,
       ["top", "sidebar"],
       DEFAULT_SETTINGS.desktopNavigation
+    ),
+    desktopPinnedNavKeys: normalizeNavigationShortcutKeys(
+      source.desktopPinnedNavKeys,
+      DEFAULT_DESKTOP_PINNED_NAV_KEYS,
+      DESKTOP_PIN_LIMIT,
+      { allowEmpty: true }
+    ),
+    mobileBottomNavKeys: normalizeNavigationShortcutKeys(
+      source.mobileBottomNavKeys,
+      DEFAULT_MOBILE_BOTTOM_NAV_KEYS,
+      MOBILE_BOTTOM_NAV_LIMIT,
+      { exact: true }
+    ),
+    mobileMorePinnedKeys: normalizeNavigationShortcutKeys(
+      source.mobileMorePinnedKeys,
+      DEFAULT_MOBILE_MORE_PINNED_KEYS,
+      MOBILE_MORE_PIN_LIMIT,
+      { allowEmpty: true }
     ),
     widescreen:
       typeof source.widescreen === "boolean" ? source.widescreen : DEFAULT_SETTINGS.widescreen,

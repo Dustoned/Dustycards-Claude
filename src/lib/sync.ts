@@ -1411,6 +1411,7 @@ async function backfillCardNativeHistoryDetailed(
       failedCards: number;
       snapshotsCreated: number;
     }) => Promise<void> | void;
+    anchorBefore?: Date;
   }
 ): Promise<{
   syncedCards: number;
@@ -1478,7 +1479,12 @@ async function backfillCardNativeHistoryDetailed(
 
         try {
           const latestExisting = nativeHistorySyncedCardIds.has(cardId)
-            ? latestSnapshotByCard.get(cardId)
+            ? options?.anchorBefore
+              ? [...(existingByCard.get(cardId) ?? [])]
+                  .map((value) => new Date(value))
+                  .filter((value) => value < options.anchorBefore!)
+                  .sort((left, right) => right.getTime() - left.getTime())[0]
+              : latestSnapshotByCard.get(cardId)
             : undefined;
           const history = await fetchHistoryPricesByItemId(cardId, {
             dateFrom: latestExisting ? formatHistoryDateFrom(latestExisting) : undefined,
@@ -2064,17 +2070,79 @@ function buildManualCardHistoryCardWhere(options?: {
   };
 }
 
+const CARD_HISTORY_TOPUP_STALE_DAYS = 2;
+const CARD_HISTORY_TOPUP_GAP_TOLERANCE_DAYS = 2;
+
+function cardHistoryTopUpCutoffs() {
+  const now = Date.now();
+  const anchorCutoff = new Date(now - CARD_HISTORY_TOPUP_STALE_DAYS * 24 * 60 * 60_000);
+  const gapCutoff = new Date(
+    now - (CARD_HISTORY_TOPUP_STALE_DAYS + CARD_HISTORY_TOPUP_GAP_TOLERANCE_DAYS) * 24 * 60 * 60_000
+  );
+  return { anchorCutoff, anchorCutoffIso: anchorCutoff.toISOString(), gapCutoffIso: gapCutoff.toISOString() };
+}
+
+function sqlStringList(values: readonly string[]): string {
+  return values.map((value) => `'${value.replaceAll("'", "''")}'`).join(",");
+}
+
+function cardHistoryTopUpSql(game?: TradingCardGame): string {
+  return `
+    FROM "Card" c
+    LEFT JOIN (
+      SELECT card_id, MAX(fetched_at) AS anchor_fetched_at
+      FROM "Price"
+      WHERE datetime(fetched_at) < datetime(?)
+      GROUP BY card_id
+    ) p ON p.card_id = c.id
+    WHERE c.native_history_synced_at IS NOT NULL
+      AND (c.native_history_status IS NULL OR c.native_history_status <> 'unavailable')
+      AND c.tcggo_url IS NOT NULL
+      AND (c.native_history_checked_at IS NULL OR datetime(c.native_history_checked_at) < datetime(?))
+      AND (p.anchor_fetched_at IS NULL OR datetime(p.anchor_fetched_at) < datetime(?))
+      AND (c.rarity IS NULL OR c.rarity NOT IN (${sqlStringList(MANUAL_HISTORY_BASE_PRICE_ONLY_RARITIES)}))
+      AND NOT (c.game = '${POKEMON_GAME}' AND c.rarity IN (${sqlStringList(MANUAL_HISTORY_POKEMON_RARE_EXCLUDED_RARITIES)}))
+      ${game ? "AND c.game = ?" : ""}`;
+}
+
+export async function countCardHistoryTopUpCandidates(options?: { game?: TradingCardGame }): Promise<number> {
+  const { anchorCutoffIso, gapCutoffIso } = cardHistoryTopUpCutoffs();
+  const params: Array<string> = [anchorCutoffIso, anchorCutoffIso, gapCutoffIso];
+  if (options?.game) params.push(options.game);
+  const rows = await db.$queryRawUnsafe<Array<{ total: number | bigint }>>(
+    `SELECT COUNT(*) AS total${cardHistoryTopUpSql(options?.game)}`,
+    ...params
+  );
+  return Number(rows[0]?.total ?? 0);
+}
+
+async function selectCardHistoryTopUpCandidates(take: number): Promise<string[]> {
+  if (take <= 0) return [];
+  const { anchorCutoffIso, gapCutoffIso } = cardHistoryTopUpCutoffs();
+  const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
+    `SELECT c.id${cardHistoryTopUpSql()} ORDER BY p.anchor_fetched_at ASC, c.id ASC LIMIT ?`,
+    anchorCutoffIso,
+    anchorCutoffIso,
+    gapCutoffIso,
+    take
+  );
+  return rows.map((row) => row.id);
+}
+
 export async function countManualCardHistoryCandidates(options?: {
   game?: TradingCardGame;
 }): Promise<number> {
-  return timeAsync("sync.card-history-candidates.count", () =>
-    db.card.count({
-      where: buildManualCardHistoryCardWhere(options),
-    })
-  );
+  return timeAsync("sync.card-history-candidates.count", async () => {
+    const [missing, topUps] = await Promise.all([
+      db.card.count({ where: buildManualCardHistoryCardWhere(options) }),
+      countCardHistoryTopUpCandidates(options),
+    ]);
+    return missing + topUps;
+  });
 }
 
 async function selectManualCardHistoryCandidates(options?: { take?: number }): Promise<string[]> {
+  const take = options?.take ?? Number.MAX_SAFE_INTEGER;
   const cards = await db.card.findMany({
     where: buildManualCardHistoryCardWhere(),
     orderBy: [
@@ -2083,10 +2151,11 @@ async function selectManualCardHistoryCandidates(options?: { take?: number }): P
       { id: "asc" },
     ],
     select: { id: true },
-    ...(options?.take ? { take: options.take } : {}),
+    take,
   });
-
-  return cards.map((card) => card.id);
+  const missingIds = cards.map((card) => card.id);
+  const topUpIds = await selectCardHistoryTopUpCandidates(Math.max(0, take - missingIds.length));
+  return [...missingIds, ...topUpIds];
 }
 
 export async function countEbaySoldGradedPriceCandidates(): Promise<number> {
@@ -4080,9 +4149,11 @@ export async function runCardHistorySync(): Promise<CardHistorySyncResult> {
       );
 
       const syncedAt = new Date();
+      const { anchorCutoff } = cardHistoryTopUpCutoffs();
       const result = await backfillCardNativeHistoryDetailed(candidateCards, syncedAt, {
         batchSize: MANUAL_HISTORY_SYNC_BATCH_SIZE,
         markFailedAsSynced: true,
+        anchorBefore: anchorCutoff,
         throwIfCancelled: progress.throwIfCancelled,
         onProgress: async ({
           totalCards,

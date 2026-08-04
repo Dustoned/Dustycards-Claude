@@ -74,6 +74,7 @@ export async function POST(req: NextRequest) {
     gradingSubgrades?: unknown;
     originSealedProductId?: unknown;
     purchasePriceSource?: unknown;
+    openingSessionId?: unknown;
     }>(req);
 
   const cardIds = (() => {
@@ -150,7 +151,25 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  const originSealedProductId = toNullableString(body.originSealedProductId);
+  const openingSessionId = toNullableString(body.openingSessionId);
+  const openingSession = openingSessionId
+    ? await db.sealedOpeningSession.findFirst({
+        where: { id: openingSessionId, user_id: user.id, status: "open" },
+        select: { id: true, sealed_product_id: true },
+      })
+    : null;
+  if (openingSessionId && !openingSession) {
+    return NextResponse.json({ error: "Opening session not found or already closed" }, { status: 404 });
+  }
+  const requestedOriginSealedProductId = toNullableString(body.originSealedProductId);
+  if (
+    openingSession &&
+    requestedOriginSealedProductId &&
+    requestedOriginSealedProductId !== openingSession.sealed_product_id
+  ) {
+    return NextResponse.json({ error: "Opening session and sealed origin do not match" }, { status: 400 });
+  }
+  const originSealedProductId = openingSession?.sealed_product_id ?? requestedOriginSealedProductId;
   const rawPurchasePriceSource = toNullableString(body.purchasePriceSource);
   if (
     rawPurchasePriceSource != null &&
@@ -271,6 +290,7 @@ export async function POST(req: NextRequest) {
             grading_subgrades_json: gradingSubgradesJson,
             origin_sealed_product_id: originSealedProductId,
             purchase_price_source: rawPurchasePriceSource,
+            opening_session_id: openingSession?.id ?? null,
             tags: tags.length > 0 ? { create: tags.map((label) => ({ label })) } : undefined,
           },
           select: {
