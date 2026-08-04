@@ -3725,7 +3725,7 @@ export function CardModalRelatedPrintingsPanel({
 
   if (printings.length === 0) return null;
 
-  const visiblePrintings = printings.slice(0, 3);
+  const visiblePrintings = printings.slice(0, 4);
   const hasMore = printings.length > visiblePrintings.length;
 
   const currentPrice = card.price?.cm_en_lowest_nm ?? null;

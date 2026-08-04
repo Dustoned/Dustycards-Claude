@@ -2,8 +2,11 @@
 
 import Link from "next/link";
 import { ArrowLeftRight, Search, UsersRound, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import CachedImage from "@/components/CachedImage";
+import CardSearchPickerDialog, {
+  type CardSearchPickerResult,
+} from "@/components/CardSearchPickerDialog";
 import { formatCollectionCurrency } from "@/lib/collection";
 import type { TradingCardGameFilter } from "@/lib/games";
 import type {
@@ -13,15 +16,7 @@ import type {
 
 type PanelMode = "compare" | "friends";
 
-type ManualTradeCard = {
-  id: string;
-  name: string;
-  card_number: string | null;
-  image_url: string | null;
-  episode_name: string;
-  episode_code: string | null;
-  cm_en_lowest_nm: number | null;
-};
+type ManualTradeCard = CardSearchPickerResult;
 
 function matchCount(opportunity: SocialTradeOpportunity): number {
   return (
@@ -32,68 +27,42 @@ function matchCount(opportunity: SocialTradeOpportunity): number {
 
 function ManualCardPicker({
   label,
-  game,
   selected,
-  onSelect,
+  onOpen,
+  onClear,
 }: {
   label: string;
-  game: TradingCardGameFilter;
   selected: ManualTradeCard | null;
-  onSelect: (card: ManualTradeCard | null) => void;
+  onOpen: () => void;
+  onClear: () => void;
 }) {
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<ManualTradeCard[]>([]);
-  const [loading, setLoading] = useState(false);
-  const trimmedQuery = query.trim();
-  const visibleResults = !selected && trimmedQuery.length >= 2 ? results : [];
-
-  useEffect(() => {
-    if (selected || trimmedQuery.length < 2) return;
-    const controller = new AbortController();
-    const timer = window.setTimeout(async () => {
-      setLoading(true);
-      try {
-        const params = new URLSearchParams({ q: trimmedQuery, game });
-        const response = await fetch(`/api/search?${params.toString()}`, {
-          cache: "no-store",
-          signal: controller.signal,
-        });
-        const payload = (await response.json().catch(() => ({}))) as {
-          singles?: ManualTradeCard[];
-        };
-        if (response.ok) setResults((payload.singles ?? []).slice(0, 6));
-      } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setResults([]);
-        }
-      } finally {
-        if (!controller.signal.aborted) setLoading(false);
-      }
-    }, 220);
-
-    return () => {
-      controller.abort();
-      window.clearTimeout(timer);
-    };
-  }, [game, selected, trimmedQuery]);
-
   return (
-    <div className="min-w-0 rounded-2xl border border-white/8 bg-black/14 p-2.5">
+    <div
+      className="min-w-0 rounded-2xl border border-white/8 bg-black/14 p-2.5"
+      data-trade-card-picker={label === "Trade side A" ? "left" : "right"}
+    >
       <div className="mb-2 flex items-center justify-between gap-2 px-1">
         <p className="text-[10px] font-black uppercase tracking-[0.11em] text-white/40">
           {label}
         </p>
         {selected ? (
-          <button
-            type="button"
-            onClick={() => {
-              onSelect(null);
-              setQuery("");
-            }}
-            className="inline-flex h-7 items-center gap-1 rounded-lg border border-white/8 px-2 text-[9px] font-bold text-white/42 hover:text-white/70"
-          >
-            <X className="h-3 w-3" /> Change
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={onOpen}
+              className="inline-flex h-7 items-center gap-1 rounded-lg border border-violet-300/14 bg-violet-500/[0.06] px-2 text-[9px] font-bold text-violet-100/62 hover:bg-violet-500/[0.11] hover:text-white"
+            >
+              <Search className="h-3 w-3" /> Change
+            </button>
+            <button
+              type="button"
+              onClick={onClear}
+              className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-white/8 text-white/32 hover:bg-white/[0.05] hover:text-white/70"
+              aria-label={`Clear ${label}`}
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </div>
         ) : null}
       </div>
 
@@ -126,65 +95,21 @@ function ManualCardPicker({
           </span>
         </div>
       ) : (
-        <div className="relative">
-          <label className="flex h-11 items-center gap-2 rounded-xl border border-white/9 bg-white/[0.025] px-3 focus-within:border-violet-300/24 focus-within:bg-violet-500/[0.04]">
-            <Search className="h-3.5 w-3.5 shrink-0 text-white/30" />
-            <input
-              value={query}
-              onChange={(event) => {
-                setQuery(event.target.value);
-                setResults([]);
-              }}
-              aria-label={`Search card for ${label}`}
-              placeholder="Search any card..."
-              className="min-w-0 flex-1 bg-transparent text-xs font-semibold text-white outline-none placeholder:text-white/25"
-            />
-            {loading ? <span className="text-[8px] font-bold text-white/28">Searching</span> : null}
-          </label>
-
-          {visibleResults.length > 0 ? (
-            <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-40 grid max-h-64 gap-1 overflow-y-auto rounded-2xl border border-white/10 bg-zinc-950/96 p-1.5 shadow-2xl backdrop-blur-2xl">
-              {visibleResults.map((card) => (
-                <button
-                  key={card.id}
-                  type="button"
-                  onClick={() => {
-                    onSelect(card);
-                    setQuery("");
-                    setResults([]);
-                  }}
-                  className="flex min-w-0 items-center gap-2 rounded-xl p-1.5 text-left hover:bg-white/[0.06]"
-                >
-                  <span className="relative aspect-[63/88] w-8 shrink-0 overflow-hidden rounded-md">
-                    {card.image_url ? (
-                      <CachedImage
-                        sourceUrl={card.image_url}
-                        alt=""
-                        fill
-                        sizes="32px"
-                        className="object-contain"
-                        unoptimized
-                      />
-                    ) : null}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-[10px] text-white/76">
-                      {card.name}
-                    </strong>
-                    <small className="block truncate text-[8px] text-white/32">
-                      {card.episode_name} {card.card_number ? `#${card.card_number}` : ""}
-                    </small>
-                  </span>
-                  <span className="shrink-0 text-[9px] font-black tabular-nums text-white/52">
-                    {card.cm_en_lowest_nm == null
-                      ? "--"
-                      : formatCollectionCurrency(card.cm_en_lowest_nm)}
-                  </span>
-                </button>
-              ))}
-            </div>
-          ) : null}
-        </div>
+        <button
+          type="button"
+          onClick={onOpen}
+          className="group flex min-h-24 w-full items-center gap-3 rounded-xl border border-dashed border-white/9 bg-white/[0.018] p-3 text-left transition-colors hover:border-violet-300/20 hover:bg-violet-500/[0.045]"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/14 bg-violet-500/[0.08] text-violet-100/52 transition-colors group-hover:text-violet-100">
+            <Search className="h-4 w-4" />
+          </span>
+          <span className="min-w-0">
+            <strong className="block text-xs font-black text-white/68">Choose a card</strong>
+            <small className="mt-1 block text-[9px] leading-snug text-white/30">
+              Open the full card search with clear images, sets and EU prices.
+            </small>
+          </span>
+        </button>
       )}
     </div>
   );
@@ -193,6 +118,7 @@ function ManualCardPicker({
 function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
   const [left, setLeft] = useState<ManualTradeCard | null>(null);
   const [right, setRight] = useState<ManualTradeCard | null>(null);
+  const [pickerSide, setPickerSide] = useState<"left" | "right" | null>(null);
   const leftValue = left?.cm_en_lowest_nm ?? null;
   const rightValue = right?.cm_en_lowest_nm ?? null;
   const difference =
@@ -212,7 +138,12 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
   return (
     <div className="mt-3">
       <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
-        <ManualCardPicker label="Trade side A" game={game} selected={left} onSelect={setLeft} />
+        <ManualCardPicker
+          label="Trade side A"
+          selected={left}
+          onOpen={() => setPickerSide("left")}
+          onClear={() => setLeft(null)}
+        />
         <button
           type="button"
           onClick={() => {
@@ -224,7 +155,12 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
         >
           <ArrowLeftRight className="h-4 w-4" />
         </button>
-        <ManualCardPicker label="Trade side B" game={game} selected={right} onSelect={setRight} />
+        <ManualCardPicker
+          label="Trade side B"
+          selected={right}
+          onOpen={() => setPickerSide("right")}
+          onClear={() => setRight(null)}
+        />
       </div>
 
       {left && right ? (
@@ -269,6 +205,21 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
           Pick one card on each side to compare the current EU market value.
         </p>
       )}
+
+      {pickerSide ? (
+        <CardSearchPickerDialog
+          key={pickerSide}
+          label={pickerSide === "left" ? "Trade side A" : "Trade side B"}
+          game={game}
+          selectedCardId={(pickerSide === "left" ? left : right)?.id ?? null}
+          onClose={() => setPickerSide(null)}
+          onSelect={(card) => {
+            if (pickerSide === "left") setLeft(card);
+            else setRight(card);
+            setPickerSide(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }

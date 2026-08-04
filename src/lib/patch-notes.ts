@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.9.2",
+    releasedAt: "August 4, 2026",
+    title: "Clearer trade search and richer reprint previews",
+    summary:
+      "DustyCards makes manual trade comparisons easier to build and shows more related editions directly on Card Detail.",
+    tone: "improved",
+    highlights: [
+      "Trade Center now opens the complete shared card search in a clean blurred popup with large images, set details, card numbers, EU prices and sorting by match, price or release date.",
+      "Typing another letter no longer clears the trade results while the next search is loading; the existing cards remain visible until the refreshed result set is ready.",
+      "For Sale no longer repeats the general Collection section switcher as if All, Loose, Binders, Sealed and Graded were sale filters; an enabled game switch remains available because it does filter the sale list.",
+      "Related printings now use the available Card Detail width to show up to four editions before the full comparison popup.",
+    ],
+  },
+  {
     version: "3.9.1",
     releasedAt: "August 4, 2026",
     title: "Responsive background reprint processing",

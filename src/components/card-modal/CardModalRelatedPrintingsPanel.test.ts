@@ -81,6 +81,6 @@ describe("CardModalRelatedPrintingsPanel", () => {
     expect(markup).toContain("Compare all 5 editions");
     expect(markup).toContain('aria-haspopup="dialog"');
     expect(markup).not.toContain("/reprints/current-card");
-    expect(markup).not.toContain("Set 4");
+    expect(markup).toContain("Set 4");
   });
 });

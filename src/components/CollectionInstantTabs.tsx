@@ -160,7 +160,7 @@ export default function CollectionInstantTabs({
   }
 
   const isOverview = activeTab === "overview";
-  const showCollectionSectionNav = activeTab !== "complete";
+  const showCollectionSectionNav = activeTab !== "complete" && activeTab !== "selling";
   const showControlStrip = Boolean(gameControls) || showCollectionSectionNav;
   const contentSlot = isOverview ? emptySlot : activeSlot();
 
