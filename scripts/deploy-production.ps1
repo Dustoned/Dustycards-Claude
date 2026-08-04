@@ -435,6 +435,9 @@ MemoryMax=1G
 TimeoutStopSec=180
 Restart=on-failure
 RestartSec=30
+
+[Install]
+WantedBy=multi-user.target
 EOF
 
 cat > /etc/systemd/system/dustycards-sync-scheduler.timer <<'EOF'
