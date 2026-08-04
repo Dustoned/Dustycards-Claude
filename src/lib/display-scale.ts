@@ -218,18 +218,18 @@ export function getIllustratorTileScale(uiScale: UiScale, widescreen: boolean) {
   if (uiScale === "small") {
     return {
       minWidth,
-      tileClass: "rounded-2xl p-3 gap-3",
-      imageWrapClass: "aspect-[63/88]",
+      tileClass: "rounded-[1.1rem] p-2.5",
+      mediaClass: "aspect-[16/10]",
       titleClass: "text-sm",
-      metaClass: "text-xs",
+      metaClass: "text-[11px]",
     };
   }
 
   if (uiScale === "large") {
     return {
       minWidth,
-      tileClass: "rounded-[24px] p-6 gap-5",
-      imageWrapClass: "aspect-[63/88]",
+      tileClass: "rounded-[1.6rem] p-4",
+      mediaClass: "aspect-[16/10]",
       titleClass: "text-lg",
       metaClass: "text-sm",
     };
@@ -237,9 +237,9 @@ export function getIllustratorTileScale(uiScale: UiScale, widescreen: boolean) {
 
   return {
     minWidth,
-    tileClass: "rounded-2xl p-4 gap-3.5",
-    imageWrapClass: "aspect-[63/88]",
-    titleClass: "text-sm",
+    tileClass: "rounded-[1.3rem] p-3",
+    mediaClass: "aspect-[16/10]",
+    titleClass: "text-base",
     metaClass: "text-xs",
   };
 }

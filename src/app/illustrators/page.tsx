@@ -1,13 +1,12 @@
 import { cookies } from "next/headers";
-import { ArrowUpRight, BrushCleaning, LibraryBig, Sparkles } from "lucide-react";
+import { ArrowUpRight, BrushCleaning, LibraryBig, Palette, Sparkles } from "lucide-react";
 import {
-  HeaderStatCard,
+  PageHeroHeader,
   type HeaderStat,
 } from "@/components/PageHeader";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
 import { db } from "@/lib/db";
 import { getFixedTrackGridTemplate, getIllustratorTileScale } from "@/lib/display-scale";
-import IllustratorSortToggle from "@/app/illustrators/IllustratorSortToggle";
 import { createSwrCache } from "@/lib/server-swr-cache";
 import {
   buildVisibleEpisodeWhereSql,
@@ -40,7 +39,22 @@ type IllustratorSummaryRow = {
   top_card_episode_id: string | null;
   top_card_episode_name: string | null;
   top_card_episode_code: string | null;
+  second_card_id: string | null;
+  second_card_name: string | null;
+  second_card_image_url: string | null;
+  second_card_episode_id: string | null;
+  second_card_episode_name: string | null;
+  second_card_episode_code: string | null;
   top_price: number | null;
+};
+
+export type IllustratorFeaturedCard = {
+  id: string;
+  name: string;
+  image_url: string | null;
+  episode_id: string;
+  episode_name: string;
+  episode_code: string | null;
 };
 
 export type IllustratorSummary = {
@@ -48,14 +62,8 @@ export type IllustratorSummary = {
   cardCount: number;
   pricedCount: number;
   expansionCount: number;
-  topCard: {
-    id: string;
-    name: string;
-    image_url: string | null;
-    episode_id: string;
-    episode_name: string;
-    episode_code: string | null;
-  } | null;
+  topCard: IllustratorFeaturedCard | null;
+  secondCard: IllustratorFeaturedCard | null;
   topPrice: number | null;
 };
 
@@ -165,6 +173,12 @@ ${visibleEpisodeWhereSql}
       MAX(CASE WHEN featured_rank = 1 THEN episode_id END) AS top_card_episode_id,
       MAX(CASE WHEN featured_rank = 1 THEN episode_name END) AS top_card_episode_name,
       MAX(CASE WHEN featured_rank = 1 THEN episode_code END) AS top_card_episode_code,
+      MAX(CASE WHEN featured_rank = 2 THEN id END) AS second_card_id,
+      MAX(CASE WHEN featured_rank = 2 THEN name END) AS second_card_name,
+      MAX(CASE WHEN featured_rank = 2 THEN image_url END) AS second_card_image_url,
+      MAX(CASE WHEN featured_rank = 2 THEN episode_id END) AS second_card_episode_id,
+      MAX(CASE WHEN featured_rank = 2 THEN episode_name END) AS second_card_episode_name,
+      MAX(CASE WHEN featured_rank = 2 THEN episode_code END) AS second_card_episode_code,
       MAX(CASE WHEN featured_rank = 1 THEN market_price END) AS top_price
     FROM ranked_cards
     GROUP BY artist
@@ -188,6 +202,20 @@ ${visibleEpisodeWhereSql}
             episode_id: row.top_card_episode_id,
             episode_name: row.top_card_episode_name,
             episode_code: row.top_card_episode_code,
+          }
+        : null,
+    secondCard:
+      row.second_card_id &&
+      row.second_card_name &&
+      row.second_card_episode_id &&
+      row.second_card_episode_name
+        ? {
+            id: row.second_card_id,
+            name: row.second_card_name,
+            image_url: row.second_card_image_url,
+            episode_id: row.second_card_episode_id,
+            episode_name: row.second_card_episode_name,
+            episode_code: row.second_card_episode_code,
           }
         : null,
     topPrice: row.top_price,
@@ -319,37 +347,24 @@ export default async function IllustratorsPage({
 
   return (
     <div className={`page-container mx-auto ${pageMaxWidth} px-4 py-5 sm:px-6 sm:py-8 lg:px-8`}>
-      <div className="mb-4 flex min-w-0 flex-col gap-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
-        <div className="min-w-0">
-          <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
-            {activeGame === ONE_PIECE_GAME ? "One Piece Illustrators" : "Illustrators"}
-          </h1>
-          <p className="mt-1 max-w-2xl text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
-            {`${formatCount(totalIllustrators)} illustrators across ${formatCount(trackedCards)} tracked ${libraryLabel} cards.`}
-          </p>
-        </div>
-
-        {settings.onePieceLibraryEnabled ? (
-          <div className="shrink-0 sm:ml-auto">
-            <GameFilterSwitch items={gameSwitchItems} ariaLabel="Illustrator library" />
+      <PageHeroHeader
+        className="mb-5"
+        eyebrow="Artist archive"
+        title={activeGame === ONE_PIECE_GAME ? "One Piece Illustrators" : "Illustrators"}
+        description={`${formatCount(totalIllustrators)} artists behind ${formatCount(trackedCards)} tracked ${libraryLabel} cards. Discover their standout artwork, sets and market reach.`}
+        leadingVisual={
+          <div className="relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-2xl border border-violet-300/18 bg-[linear-gradient(145deg,rgba(139,92,246,0.2),rgba(244,114,182,0.08))] text-violet-200 shadow-[0_14px_34px_rgba(76,29,149,0.24)] sm:h-14 sm:w-14">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_45%)]" />
+            <Palette className="relative h-5 w-5 sm:h-6 sm:w-6" />
           </div>
-        ) : null}
-      </div>
-
-      <div className="mb-4 grid min-w-0 grid-cols-2 gap-2 sm:mb-5 sm:gap-3 sm:grid-cols-4">
-        {headerStats.map((stat) => (
-          <HeaderStatCard key={stat.label} {...stat} />
-        ))}
-      </div>
-
-      <div className="binder-subpanel mb-5 flex flex-col gap-3 rounded-2xl px-3 py-3 lg:flex-row lg:items-center">
-        <div className="flex flex-wrap items-center gap-3">
-          <span className="inline-flex h-8 items-center rounded-full border border-white/8 bg-white/[0.04] px-3 text-[11px] font-semibold uppercase tracking-[0.16em] text-white/42">
-            Sort
-          </span>
-          <IllustratorSortToggle activeSort={sort} />
-        </div>
-      </div>
+        }
+        titleActions={
+          settings.onePieceLibraryEnabled ? (
+            <GameFilterSwitch items={gameSwitchItems} ariaLabel="Illustrator library" />
+          ) : null
+        }
+        stats={headerStats}
+      />
 
       <IllustratorGridClient
         groups={illustratorGroups}
@@ -357,6 +372,7 @@ export default async function IllustratorsPage({
         priorityGroups={["A", "Most cards", "Most value"]}
         tileConfig={tileConfig}
         gameQueryParam={activeGameQuery}
+        activeSort={sort}
       />
     </div>
   );

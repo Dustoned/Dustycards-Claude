@@ -2,19 +2,30 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { Images, Search, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import {
+  ArrowUpRight,
+  Images,
+  Layers3,
+  Palette,
+  Search,
+  SlidersHorizontal,
+  Sparkles,
+  X,
+} from "lucide-react";
+import { useMemo, useState, type CSSProperties } from "react";
 import { SectionHeader } from "@/components/PageHeader";
+import IllustratorSortToggle from "@/app/illustrators/IllustratorSortToggle";
 import { textMatchesSearchQuery } from "@/lib/card-search";
-import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
+import { getCardImageClassName } from "@/lib/card-image-display";
 import { formatCurrency } from "@/lib/format";
 import { getCachedImageUrl } from "@/lib/image-cache";
-import type { IllustratorSummary } from "./page";
+import type { IllustratorSort } from "@/lib/illustrators";
+import type { IllustratorFeaturedCard, IllustratorSummary } from "./page";
 
 interface IllustratorTileConfig {
   minWidth: string;
   tileClass: string;
-  imageWrapClass: string;
+  mediaClass: string;
   titleClass: string;
   metaClass: string;
 }
@@ -37,6 +48,7 @@ interface Props {
   priorityGroups: string[];
   tileConfig: IllustratorTileConfig;
   gameQueryParam?: string | null;
+  activeSort: IllustratorSort;
 }
 
 const INITIAL_ILLUSTRATORS = 24;
@@ -52,6 +64,7 @@ export default function IllustratorGridClient({
   priorityGroups,
   tileConfig,
   gameQueryParam,
+  activeSort,
 }: Props) {
   const allEntries = useMemo<VisibleIllustratorEntry[]>(() => {
     let globalIndex = 0;
@@ -89,11 +102,15 @@ export default function IllustratorGridClient({
       }
 
       const topCard = entry.illustrator.topCard;
+      const secondCard = entry.illustrator.secondCard;
       return textMatchesSearchQuery([
         entry.illustrator.artist,
         topCard?.name,
         topCard?.episode_name,
         topCard?.episode_code,
+        secondCard?.name,
+        secondCard?.episode_name,
+        secondCard?.episode_code,
       ], normalizedQuery);
     });
   }, [allEntries, effectiveActiveGroup, normalizedQuery]);
@@ -135,66 +152,101 @@ export default function IllustratorGridClient({
 
   return (
     <div className="space-y-8 sm:space-y-10">
-      <div className="glass sticky top-[calc(var(--ui-app-header-height)+0.75rem)] z-20 rounded-3xl border border-white/8 bg-[#0b0c11]/96 p-2.5 shadow-lg shadow-black/30 backdrop-blur-xl sm:p-4">
-        <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
-        <div className="relative min-w-0">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-[18px] w-[18px] -translate-y-1/2 text-white/38" />
-          <input
-            type="text"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-            placeholder="Search illustrator, card, or set..."
-            className="h-11 w-full rounded-2xl border border-white/10 bg-black/30 pl-11 pr-10 text-sm font-semibold text-white shadow-sm transition-colors placeholder:font-medium placeholder:text-white/34 focus:border-white/20 focus:bg-black/20 focus:outline-none"
-            autoComplete="off"
-            spellCheck={false}
-          />
-          {query.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setQuery("")}
-              className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1 text-white/38 transition-colors hover:bg-white/8 hover:text-white/78"
-              aria-label="Clear illustrator search"
-            >
-              <X className="h-4 w-4" />
-            </button>
-          )}
+      <div className="binder-panel sticky top-[calc(var(--ui-app-header-height)+0.75rem)] z-20 rounded-[1.4rem] p-2.5 shadow-xl shadow-black/32 sm:p-3">
+        <div className="grid gap-2.5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="flex min-w-0 items-center gap-2">
+            <div className="relative min-w-0 flex-1">
+              <Search className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-white/34" />
+              <input
+                type="text"
+                value={query}
+                onChange={(event) => setQuery(event.target.value)}
+                placeholder="Search illustrator, featured card, or set..."
+                className="h-11 w-full rounded-xl border border-white/9 bg-black/25 pl-10 pr-10 text-sm font-semibold text-white shadow-inner shadow-black/18 transition-colors placeholder:font-medium placeholder:text-white/30 focus:border-violet-300/28 focus:bg-black/18 focus:outline-none"
+                autoComplete="off"
+                spellCheck={false}
+              />
+              {query.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setQuery("")}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-white/34 transition-colors hover:bg-white/8 hover:text-white/78"
+                  aria-label="Clear illustrator search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+
+            <span className="inline-flex h-11 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] px-3 text-xs font-bold tabular-nums text-white/52">
+              {formatCount(filteredEntries.length)}
+              <span className="ml-1 hidden font-semibold text-white/30 sm:inline">artists</span>
+            </span>
+          </div>
+
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="hidden h-9 shrink-0 items-center gap-1.5 px-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/32 xl:inline-flex">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              Sort
+            </span>
+            <div className="min-w-0 flex-1 sm:flex-none">
+              <IllustratorSortToggle activeSort={activeSort} />
+            </div>
+          </div>
         </div>
 
-          <span className="inline-flex h-10 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.035] px-3 text-xs font-bold tabular-nums text-white/48">
-            {formatCount(filteredEntries.length)} visible
+        <label className="relative mt-2.5 block sm:hidden">
+          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[9px] font-bold uppercase tracking-[0.14em] text-white/32">
+            Browse
           </span>
-        </div>
-
-        <div className="-mx-1 mt-2 overflow-x-auto px-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:mt-3">
-        <div className="flex w-max min-w-full items-center gap-1.5 rounded-2xl border border-white/8 bg-black/25 p-1.5">
-          <button
-            type="button"
-            onClick={() => setActiveGroup("All")}
-            aria-pressed={activeGroup === "All"}
-            className={`inline-flex h-8 min-w-12 shrink-0 items-center justify-center rounded-full border px-3 text-xs font-bold transition-colors ${
-              effectiveActiveGroup === "All"
-                ? "border-violet-400/40 bg-violet-600 text-white"
-                : "border-transparent bg-transparent text-white/45 hover:bg-white/[0.07] hover:text-white"
-            }`}
+          <select
+            value={effectiveActiveGroup}
+            onChange={(event) => setActiveGroup(event.target.value)}
+            aria-label="Filter illustrators by first letter"
+            className="h-10 w-full appearance-none rounded-xl border border-white/8 bg-black/20 pl-[4.35rem] pr-9 text-xs font-bold text-white/76 outline-none transition-colors focus:border-violet-300/28"
           >
-            All
-          </button>
-          {alphabetGroups.map((group) => (
+            <option value="All">All illustrators</option>
+            {alphabetGroups.map((group) => (
+              <option key={group} value={group}>
+                {group === "#" ? "Other names" : `Starts with ${group}`}
+              </option>
+            ))}
+          </select>
+          <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-white/36">
+            ▼
+          </span>
+        </label>
+
+        <div className="-mx-0.5 mt-2.5 hidden overflow-x-auto px-0.5 [scrollbar-width:none] sm:block [&::-webkit-scrollbar]:hidden">
+          <div className="flex w-max min-w-full items-center gap-1 rounded-xl border border-white/7 bg-black/20 p-1">
             <button
-              key={group}
               type="button"
-              onClick={() => setActiveGroup(group)}
-              aria-pressed={effectiveActiveGroup === group}
-              className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-full border px-2.5 text-xs font-bold transition-colors ${
-                effectiveActiveGroup === group
-                  ? "border-violet-400/40 bg-violet-600 text-white"
-                  : "border-transparent bg-transparent text-white/45 hover:bg-white/[0.07] hover:text-white"
+              onClick={() => setActiveGroup("All")}
+              aria-pressed={activeGroup === "All"}
+              className={`inline-flex h-8 min-w-12 shrink-0 items-center justify-center rounded-lg border px-3 text-xs font-bold transition-all ${
+                effectiveActiveGroup === "All"
+                  ? "border-violet-300/28 bg-violet-500/85 text-white shadow-[0_6px_18px_rgba(124,58,237,0.2)]"
+                  : "border-transparent bg-transparent text-white/40 hover:bg-white/[0.055] hover:text-white"
               }`}
             >
-              {group}
+              All
             </button>
-          ))}
-        </div>
+            {alphabetGroups.map((group) => (
+              <button
+                key={group}
+                type="button"
+                onClick={() => setActiveGroup(group)}
+                aria-pressed={effectiveActiveGroup === group}
+                className={`inline-flex h-8 min-w-8 shrink-0 items-center justify-center rounded-lg border px-2.5 text-xs font-bold transition-all ${
+                  effectiveActiveGroup === group
+                    ? "border-violet-300/28 bg-violet-500/85 text-white shadow-[0_6px_18px_rgba(124,58,237,0.2)]"
+                    : "border-transparent bg-transparent text-white/40 hover:bg-white/[0.055] hover:text-white"
+                }`}
+              >
+                {group}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -209,98 +261,144 @@ export default function IllustratorGridClient({
           <SectionHeader title={group} count={groupTotal} compact />
 
           <div
-            className="grid gap-3"
-              style={{
-                gridTemplateColumns,
+            className="grid grid-cols-1 gap-3 sm:[grid-template-columns:var(--illustrator-grid-columns)]"
+            style={
+              {
+                "--illustrator-grid-columns": gridTemplateColumns,
                 justifyContent: "stretch",
-              }}
-            >
-            {entries.map(({ illustrator, globalIndex }) => (
-              <Link
-                key={illustrator.artist}
-                href={
-                  gameQueryParam
-                    ? `/illustrators/${encodeURIComponent(illustrator.artist)}?game=${gameQueryParam}`
-                    : `/illustrators/${encodeURIComponent(illustrator.artist)}`
-                }
-                prefetch={false}
-                className={`group glass relative grid overflow-hidden text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-white/8 hover:shadow-xl hover:shadow-black/8 active:scale-[0.98] sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:items-start dark:hover:bg-white/6 dark:hover:shadow-black/35 ${tileConfig.tileClass}`}
-              >
-                <div
-                  className={getCardImageFrameClassName(
-                    illustrator.topCard?.image_url,
-                    `relative overflow-hidden rounded-[4.75%] bg-transparent drop-shadow-[0_10px_18px_rgba(0,0,0,0.18)] sm:row-span-2 sm:w-full ${tileConfig.imageWrapClass}`
-                  )}
+              } as CSSProperties
+            }
+          >
+            {entries.map(({ illustrator, globalIndex }) => {
+              const featuredCards = [illustrator.topCard, illustrator.secondCard].filter(
+                (card): card is IllustratorFeaturedCard & { image_url: string } =>
+                  typeof card?.image_url === "string" && card.image_url.length > 0
+              );
+              const imageUrl = illustrator.topCard?.image_url
+                ? getCachedImageUrl(illustrator.topCard.image_url) ?? illustrator.topCard.image_url
+                : null;
+              return (
+                <Link
+                  key={illustrator.artist}
+                  href={
+                    gameQueryParam
+                      ? `/illustrators/${encodeURIComponent(illustrator.artist)}?game=${gameQueryParam}`
+                      : `/illustrators/${encodeURIComponent(illustrator.artist)}`
+                  }
+                  prefetch={false}
+                  className={`group relative flex min-h-full flex-col overflow-hidden border border-[rgb(var(--dc-border-rgb)/0.88)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-elevated-rgb)/0.94),rgb(var(--dc-surface-primary-rgb)/0.97))] text-left shadow-[0_12px_34px_rgba(0,0,0,0.16)] transition-[border-color,box-shadow,transform] duration-200 before:pointer-events-none before:absolute before:inset-x-8 before:top-0 before:h-px before:bg-gradient-to-r before:from-transparent before:via-violet-300/50 before:to-transparent hover:-translate-y-0.5 hover:border-[rgb(var(--dc-border-hover-rgb)/0.96)] hover:shadow-[0_18px_42px_rgba(0,0,0,0.28)] active:scale-[0.985] ${tileConfig.tileClass}`}
                 >
-                  {illustrator.topCard?.image_url ? (
-                    <Image
-                      src={
-                        getCachedImageUrl(illustrator.topCard.image_url) ??
-                        illustrator.topCard.image_url
-                      }
-                      alt={illustrator.topCard.name}
-                      fill
-                      className={getCardImageClassName(
-                        illustrator.topCard.image_url,
-                        "rounded-[4.75%] object-fill transition-transform duration-300 group-hover:scale-[1.02]"
-                      )}
-                      sizes={tileConfig.minWidth}
-                      priority={globalIndex < 4 && priorityGroups.includes(group)}
-                      unoptimized
-                    />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center">
-                      <span className="text-sm font-medium text-gray-400 dark:text-white/35">
-                        {illustrator.artist.slice(0, 2)}
+                  <div className={`relative isolate min-h-24 w-full overflow-hidden rounded-2xl border border-white/8 bg-black/24 ${tileConfig.mediaClass}`}>
+                    {imageUrl ? (
+                      <>
+                        <Image
+                          src={imageUrl}
+                          alt=""
+                          fill
+                          aria-hidden="true"
+                          className="scale-125 object-cover opacity-30 blur-xl saturate-150 transition duration-500 group-hover:scale-[1.32] group-hover:opacity-38"
+                          sizes={tileConfig.minWidth}
+                          unoptimized
+                        />
+                        <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(5,6,10,0.78),rgba(10,12,20,0.12)_48%,rgba(5,6,10,0.72))]" />
+                        <div className="absolute inset-0 z-10 flex items-center justify-center gap-1.5 p-2.5 sm:gap-2">
+                          {featuredCards.map((card) => {
+                            const cardImageUrl =
+                              getCachedImageUrl(card.image_url) ?? card.image_url;
+
+                            return (
+                              <div
+                                key={card.id}
+                                className={featuredCards.length > 1 ? "relative h-full w-[46%]" : "relative h-full w-full"}
+                              >
+                                <Image
+                                  src={cardImageUrl}
+                                  alt={card.name}
+                                  fill
+                                  className={getCardImageClassName(
+                                    card.image_url,
+                                    "rounded-[4.75%] object-contain drop-shadow-[0_12px_22px_rgba(0,0,0,0.42)] transition-transform duration-300 group-hover:scale-[1.035]"
+                                  )}
+                                  sizes={featuredCards.length > 1 ? `calc(${tileConfig.minWidth} / 2)` : tileConfig.minWidth}
+                                  priority={globalIndex < 4 && priorityGroups.includes(group)}
+                                  unoptimized
+                                />
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center bg-[radial-gradient(circle_at_50%_15%,rgba(139,92,246,0.18),transparent_58%)] text-white/34">
+                        <Palette className="h-6 w-6" />
+                        <span className="mt-2 text-sm font-bold uppercase tracking-[0.18em]">
+                          {illustrator.artist.slice(0, 2)}
+                        </span>
+                      </div>
+                    )}
+                    <span className="absolute left-2.5 top-2.5 z-20 inline-flex items-center gap-1 rounded-full border border-white/10 bg-black/45 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-white/62 backdrop-blur-md">
+                      <Sparkles className="h-2.5 w-2.5 text-amber-200/80" />
+                      Featured work
+                    </span>
+                  </div>
+
+                  <div className="mt-3 flex min-h-0 flex-1 flex-col">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-bold uppercase tracking-[0.16em] text-violet-200/48">
+                          Illustrator
+                        </p>
+                        <h3 className={`mt-1 line-clamp-2 font-extrabold leading-tight tracking-tight text-white transition-colors group-hover:text-violet-100 ${tileConfig.titleClass}`}>
+                          {illustrator.artist}
+                        </h3>
+                      </div>
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/8 bg-white/[0.04] text-white/34 transition-all group-hover:border-violet-300/20 group-hover:bg-violet-400/10 group-hover:text-violet-100">
+                        <ArrowUpRight className="h-3.5 w-3.5" />
                       </span>
                     </div>
-                  )}
-                </div>
 
-                <div className="space-y-1 sm:col-start-2">
-                  <p
-                    className={`line-clamp-2 font-bold leading-snug text-gray-900 transition-colors group-hover:text-black dark:text-white dark:group-hover:text-white ${tileConfig.titleClass}`}
-                  >
-                    {illustrator.artist}
-                  </p>
-                  <div className={`space-y-0.5 text-gray-400 dark:text-white/40 ${tileConfig.metaClass}`}>
-                    <p className="truncate">{illustrator.topCard?.name ?? "No featured card yet"}</p>
-                    {illustrator.topCard ? (
-                      <p className="truncate">
-                        {illustrator.topCard.episode_name}
-                        {illustrator.topCard.episode_code
-                          ? ` (${illustrator.topCard.episode_code})`
-                          : ""}
+                    <div className={`mt-2 min-h-[2.35rem] text-white/42 ${tileConfig.metaClass}`}>
+                      <p className="truncate font-semibold text-white/62">
+                        {illustrator.topCard?.name ?? "No featured card yet"}
                       </p>
-                    ) : null}
-                  </div>
-                </div>
+                      {illustrator.topCard ? (
+                        <p className="mt-0.5 truncate">
+                          {illustrator.topCard.episode_name}
+                          {illustrator.topCard.episode_code
+                            ? ` · ${illustrator.topCard.episode_code}`
+                            : ""}
+                        </p>
+                      ) : null}
+                    </div>
 
-                <div className="mt-auto border-t border-black/6 pt-3 sm:col-start-2 dark:border-white/8">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="inline-flex items-center gap-1.5 rounded-full border border-black/8 bg-white/60 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55">
-                      <Images className="h-3 w-3" />
-                      {formatCount(illustrator.cardCount)}
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-black/8 bg-white/60 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55">
-                      {formatCount(illustrator.expansionCount)} sets
-                    </span>
-                    <span className="inline-flex items-center rounded-full border border-black/8 bg-white/60 px-2.5 py-1 text-[11px] font-semibold text-gray-600 dark:border-white/10 dark:bg-white/[0.04] dark:text-white/55">
-                      {formatCount(illustrator.pricedCount)} priced
-                    </span>
-                  </div>
+                    <div className="mt-3 grid grid-cols-2 divide-x divide-white/7 overflow-hidden rounded-xl border border-white/7 bg-black/18">
+                      <div className="min-w-0 px-2 py-2">
+                        <Images className="mb-1 h-3 w-3 text-violet-200/58" />
+                        <p className="truncate text-[9px] font-bold uppercase tracking-[0.1em] text-white/28">Cards</p>
+                        <p className="mt-0.5 truncate text-xs font-extrabold tabular-nums text-white/78">{formatCount(illustrator.cardCount)}</p>
+                      </div>
+                      <div className="min-w-0 px-2 py-2">
+                        <Layers3 className="mb-1 h-3 w-3 text-sky-200/58" />
+                        <p className="truncate text-[9px] font-bold uppercase tracking-[0.1em] text-white/28">Sets</p>
+                        <p className="mt-0.5 truncate text-xs font-extrabold tabular-nums text-white/78">{formatCount(illustrator.expansionCount)}</p>
+                      </div>
+                    </div>
 
-                  <div className="mt-3 flex items-end justify-between gap-3">
-                    <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-gray-400 dark:text-white/35">
-                      Top card value
-                    </p>
-                    <p className="shrink-0 whitespace-nowrap text-base font-bold tabular-nums text-gray-900 dark:text-white">
-                      {formatCurrency(illustrator.topPrice)}
-                    </p>
+                    <div className="mt-3 border-t border-white/7 pt-3">
+                      <div className="flex items-end justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-white/28">Top card</p>
+                          <p className="mt-0.5 truncate text-[10px] font-semibold text-white/38">Market value</p>
+                        </div>
+                        <p className="shrink-0 whitespace-nowrap text-base font-extrabold tabular-nums text-white">
+                          {formatCurrency(illustrator.topPrice)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
-                </div>
-              </Link>
-            ))}
+                </Link>
+              );
+            })}
           </div>
         </section>
       ))}
@@ -319,7 +417,7 @@ export default function IllustratorGridClient({
                 ),
               }))
             }
-            className="inline-flex min-h-11 items-center justify-center rounded-full border border-black/8 bg-white/75 px-5 text-sm font-semibold text-gray-600 shadow-sm shadow-black/5 transition-colors hover:border-black/15 hover:text-gray-900 dark:border-white/10 dark:bg-white/[0.05] dark:text-white/58 dark:hover:border-white/18 dark:hover:text-white"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/9 bg-white/[0.045] px-5 text-sm font-bold text-white/58 shadow-sm shadow-black/20 transition-all hover:border-violet-300/20 hover:bg-violet-400/[0.08] hover:text-white"
           >
             Load more illustrators ({formatCount(visibleEntries.length)} /{" "}
             {formatCount(filteredEntries.length)})

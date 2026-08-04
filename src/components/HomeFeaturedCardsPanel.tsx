@@ -76,6 +76,7 @@ function mergeCollectionItem(
     collection_item:
       shouldAttachCollectionItem
         ? {
+            ...data.collection_item,
             id: item.collection_item_id ?? `readonly-${item.card_id}`,
             binder_id: item.binder_id ?? null,
             binder_name: item.binder_name ?? null,

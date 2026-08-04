@@ -460,7 +460,7 @@ export default function AdminUsersPanel({
       </div>
 
       {confirmAction ? (
-        <div className="fixed inset-0 z-[240] flex items-center justify-center bg-black/72 p-4 backdrop-blur-sm">
+        <div className="dc-modal-overlay fixed inset-0 z-[240] flex items-center justify-center p-4">
           <div
             ref={confirmationRef}
             role="alertdialog"

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getSealedProductPrice,
+  isCollectionSealedOriginProduct,
   selectCardDetailSealedProducts,
 } from "@/lib/sealed-products";
 
@@ -48,5 +49,22 @@ describe("selectCardDetailSealedProducts", () => {
     ];
 
     expect(selectCardDetailSealedProducts(products, 2)).toHaveLength(2);
+  });
+});
+
+describe("isCollectionSealedOriginProduct", () => {
+  it("keeps single consumer boxes, bundles and collections", () => {
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Elite Trainer Box")).toBe(true);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Booster Bundle")).toBe(true);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Poster Collection")).toBe(true);
+  });
+
+  it("rejects cases, cartons, displays and loose products", () => {
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions ETB Case")).toBe(false);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Booster Bundle Display")).toBe(false);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Master Carton")).toBe(false);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Sleeved Booster")).toBe(false);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Tin")).toBe(false);
+    expect(isCollectionSealedOriginProduct("Prismatic Evolutions Build & Battle Kit")).toBe(false);
   });
 });

@@ -260,6 +260,8 @@ export interface CardPriceAlertEmailItem {
   baselinePriceEur: number | null;
   targetPriceEur: number | null;
   url: string;
+  sourceLabel?: string;
+  actionLabel?: string;
 }
 
 function formatEuro(value: number): string {
@@ -286,7 +288,7 @@ export async function sendCardPriceAlertDigest({
   const subject =
     items.length === 1
       ? `Price alert: ${items[0].name}`
-      : `${items.length} cards hit your price alerts`;
+      : `${items.length} items hit your price alerts`;
   const textItems = items.flatMap((item) => {
     const rule =
       item.kind === "drop"
@@ -298,7 +300,7 @@ export async function sendCardPriceAlertDigest({
           }`;
     return [
       `${item.name} - ${item.setName}`,
-      `CardMarket EN / Near Mint: ${formatEuro(item.currentPriceEur)}`,
+      `${item.sourceLabel ?? "CardMarket EN / Near Mint"}: ${formatEuro(item.currentPriceEur)}`,
       rule,
       item.url,
       "",
@@ -323,8 +325,8 @@ export async function sendCardPriceAlertDigest({
           <div style="font-size:17px;font-weight:800;color:#111827;">${escapeHtml(item.name)}</div>
           <div style="margin-top:2px;font-size:13px;color:#6b7280;">${escapeHtml(item.setName)}</div>
           <div style="margin-top:10px;font-size:20px;font-weight:800;color:#111827;">${escapeHtml(formatEuro(item.currentPriceEur))}</div>
-          <div style="margin-top:4px;font-size:13px;color:#4b5563;">CardMarket EN / Near Mint &middot; ${rule}</div>
-          <a href="${escapeHtml(item.url)}" style="display:inline-block;margin-top:12px;padding:9px 12px;background:#6d4aff;color:#ffffff;border-radius:9px;text-decoration:none;font-weight:700;">View card</a>
+          <div style="margin-top:4px;font-size:13px;color:#4b5563;">${escapeHtml(item.sourceLabel ?? "CardMarket EN / Near Mint")} &middot; ${rule}</div>
+          <a href="${escapeHtml(item.url)}" style="display:inline-block;margin-top:12px;padding:9px 12px;background:#6d4aff;color:#ffffff;border-radius:9px;text-decoration:none;font-weight:700;">${escapeHtml(item.actionLabel ?? "View card")}</a>
         </div>`;
     })
     .join("");
@@ -334,17 +336,17 @@ export async function sendCardPriceAlertDigest({
     to,
     subject,
     text: [
-      "Your DustyCards card price alert was triggered.",
+      "Your DustyCards price alert was triggered.",
       "",
       ...textItems,
-      "These are one-time alerts. Triggered alerts are now paused; open the card to set one again.",
+      "These are one-time alerts. Triggered alerts are now paused; open the item to set one again.",
     ].join("\n"),
     html: `
       <div style="font-family:Arial,sans-serif;color:#111827;line-height:1.5;max-width:680px;margin:0 auto;">
         <h1 style="font-size:22px;margin:0 0 6px;">Your price alert was triggered</h1>
-        <p style="margin:0 0 18px;color:#6b7280;">Latest raw CardMarket English / Near Mint prices.</p>
+        <p style="margin:0 0 18px;color:#6b7280;">Latest market values for the items you follow.</p>
         ${htmlItems}
-        <p style="margin-top:18px;font-size:12px;color:#9ca3af;">These are one-time alerts. Triggered alerts are now paused; open the card to set one again.</p>
+        <p style="margin-top:18px;font-size:12px;color:#9ca3af;">These are one-time alerts. Triggered alerts are now paused; open the item to set one again.</p>
       </div>`,
   });
 }

@@ -17,6 +17,37 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.55",
+    releasedAt: "August 4, 2026",
+    title: "Collector alerts, buy timing and binder sharing",
+    summary:
+      "DustyCards 3.8.55 extends price monitoring beyond individual cards and turns Wants into a more useful buying plan with chase-aware recommendations.",
+    tone: "new",
+    highlights: [
+      "Sealed products, individual wants, missing want-binder value and complete owned binders can now use the same one-shot target or price-drop alerts with grouped e-mail sweeps.",
+      "Wants and want binders now show compact Best to buy now advice using Signal Radar momentum, set-relative chase position and completion impact; easy low-value pickups are deliberately downweighted.",
+      "Owned binders can create, rotate and revoke public read-only links that expose current card values without purchase prices, notes or collection access.",
+      "Signal Radar adds price low-to-high and high-to-low sorting, while remaining fullscreen popups use the cleaner translucent blurred backdrop.",
+      "The refreshed Illustrators library now adapts properly to phones with one readable tile per row and a compact complete letter filter.",
+      "Card Detail now lets the widescreen chart fill its market column and combines Card Profile with the Collector Snapshot in one balanced overview, while Owned Copy cards stay compact.",
+      "Pulled from sealed now shows every known matching box, bundle and collection, while search can reach other same-game consumer products as a manual fallback when pack-content data is incomplete; cases, cartons, multi-product displays, tins and loose packs stay out.",
+    ],
+  },
+  {
+    version: "3.8.54",
+    releasedAt: "August 3, 2026",
+    title: "Sealed pull origins and balanced Sudden Drops",
+    summary:
+      "DustyCards 3.8.54 can remember which sealed product an owned card came from, while Sudden Drops gives sealed products the same visual treatment as singles.",
+    tone: "new",
+    highlights: [
+      "Single-card, bulk-add and edit forms now include one compact optional sealed-origin row; matching products load only when that row is opened.",
+      "Selecting a sealed product immediately fills its current EU market price as cost basis, with bulk totals distributed across the selected cards and manual overrides still available.",
+      "Card Detail shows the sealed product and reference beside the owned copy, and widescreen Sudden Drops places matching sealed and singles tiles side by side.",
+      "The Illustrators library now has one compact discovery toolbar and artwork-led tiles that showcase two standout cards beside cleaner set and top-value context.",
+    ],
+  },
+  {
     version: "3.8.53",
     releasedAt: "August 3, 2026",
     title: "Submitted-card refreshes survive slow CardMarket requests",
@@ -2521,28 +2552,13 @@ export const patchNotes: PatchNoteEntry[] = [
 
 export const roadmapItems: RoadmapItem[] = [
   {
-    title: "Collection import and export",
-    status: "Next",
-    summary: "Import CSV or pasted lists with matching and duplicate review, and export collection, binders, sealed, and wants.",
-  },
-  {
-    title: "Target price alerts",
-    status: "Planned",
-    summary: "Set useful price targets for cards, sealed products, wants, and binders without noisy notifications.",
-  },
-  {
-    title: "Binder next-buy guidance",
-    status: "Planned",
-    summary: "Rank missing cards by price, rarity, completion impact, and affordability.",
-  },
-  {
     title: "eBay watch countdowns",
-    status: "Planned",
+    status: "Next",
     summary: "Show time remaining, ended state, and the final known result for watched listings.",
   },
   {
-    title: "Shareable binder links",
+    title: "Collection import and export",
     status: "Planned",
-    summary: "Create revocable read-only links for selected binders without granting collection access.",
+    summary: "Revisit CSV and pasted-list matching once a representative Collectr export is available for real-world validation.",
   },
 ];

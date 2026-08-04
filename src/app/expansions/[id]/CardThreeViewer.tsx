@@ -2391,7 +2391,7 @@ export default function CardThreeViewer({
       className={
         isInline
           ? "card-detail-inline-three-viewer relative aspect-[5/7] w-full touch-none overflow-hidden rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_50%_34%,rgb(var(--dc-primary-rgb)/0.13),rgb(var(--dc-bg-main-rgb)/0.96)_66%)]"
-          : "fixed inset-0 z-[320] touch-none bg-black/85 backdrop-blur-md"
+          : "dc-modal-overlay fixed inset-0 z-[320] touch-none"
       }
       style={{
         overscrollBehavior: "contain",

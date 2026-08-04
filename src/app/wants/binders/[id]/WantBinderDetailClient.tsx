@@ -10,6 +10,8 @@ import { HeaderStatCard, PageHeroHeader } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import type { WantBinderPageData } from "@/lib/collection-data";
 import { getCachedImageUrl } from "@/lib/image-cache";
+import WantsBuyNowPanel from "@/components/WantsBuyNowPanel";
+import CardPriceAlertButton from "@/components/card-detail/CardPriceAlertButton";
 
 const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
   loading: () => (
@@ -117,6 +119,16 @@ export default function WantBinderDetailClient({ data }: { data: WantBinderPageD
           </>
         }
         sideClassName="grid min-w-0 auto-rows-fr grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
+        titleActions={
+          <CardPriceAlertButton
+            cardId={data.binder.id}
+            cardName={data.binder.name}
+            endpoint={`/api/price-alerts/wants/${encodeURIComponent(data.binder.id)}`}
+            eyebrow="Wants price alert"
+            sourceLabel="Missing wants value"
+            triggerLabel="Alert"
+          />
+        }
         accessory={
           <PriceHistoryPanel
             layout="dashboard"
@@ -129,6 +141,12 @@ export default function WantBinderDetailClient({ data }: { data: WantBinderPageD
             rangeStorageKey={`wants-binder:${data.binder.id}`}
           />
         }
+      />
+
+      <WantsBuyNowPanel
+        items={data.nextBuys}
+        eyebrow="Binder next-buy advice"
+        title="Best missing cards to buy now"
       />
 
       <CollectionCardsView

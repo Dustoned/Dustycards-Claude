@@ -28,6 +28,10 @@ export interface CollectionCardViewItem {
   tcp_value?: number | null;
   current_value: number | null;
   current_value_label?: string | null;
+  signal_score?: number | null;
+  signal_tier?: string | null;
+  chase_score?: number | null;
+  chase_tier?: string | null;
   purchase_price: number | null;
   cost_basis_value: number | null;
   cost_basis_label: "Paid" | "Overall Spend";

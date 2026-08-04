@@ -1,5 +1,5 @@
 ﻿import { db } from "@/lib/db";
-import type { Prisma } from "@/generated/prisma";
+import { Prisma } from "@/generated/prisma";
 import type { CollectionCardViewItem, CollectionSealedViewItem } from "@/types/collection-view";
 import {
   buildOwnedCardValueHistory,
@@ -36,6 +36,11 @@ import {
   type EpisodeSealedPriceHistorySnapshot,
 } from "@/lib/price-history";
 import { buildMoverScores } from "@/lib/mover-scoring";
+import {
+  buildBinderNextBuyRecommendations,
+  type BinderNextBuyRecommendation,
+} from "@/lib/binder-next-buy";
+import { calculateSetRarityPosition } from "@/lib/external-market-intelligence-core";
 import { WANT_SOURCE_BINDER_MISSING, syncMissingBinderWantsForUser } from "@/lib/wantlist-planner";
 
 export interface CollectionSummaryMetric {
@@ -206,6 +211,7 @@ export interface WantsPageData {
   pricedCards: number;
   estimatedValue: number;
   averageValue: number | null;
+  buyNow: BinderNextBuyRecommendation[];
 }
 
 export interface WantBinderPageData {
@@ -237,6 +243,7 @@ export interface WantBinderPageData {
     estimatedCost: number;
     averageCost: number | null;
   };
+  nextBuys: BinderNextBuyRecommendation[];
 }
 
 export interface WantPlannerGroup {
@@ -292,6 +299,9 @@ const collectionCardSelect = {
       version: true,
       rarity: true,
       supertype: true,
+      market_score: true,
+      tcggo_score: true,
+      tcggo_score_tier: true,
       episode_id: true,
       prices: {
         where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
@@ -402,6 +412,9 @@ const collectionWantSelect = {
       version: true,
       rarity: true,
       supertype: true,
+      market_score: true,
+      tcggo_score: true,
+      tcggo_score_tier: true,
       prices: {
         where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
@@ -783,6 +796,9 @@ type CollectionWantRecord = {
     version: string | null;
     rarity: string | null;
     supertype: string | null;
+    market_score: number | null;
+    tcggo_score: number | null;
+    tcggo_score_tier: string | null;
     prices: Array<{
       cm_en_lowest_nm: number | null;
       cm_de_lowest_nm: number | null;
@@ -1300,6 +1316,8 @@ function buildWantViewItem(record: CollectionWantRecord): CollectionCardViewItem
     tcp_value: tcpValue,
     current_value: cmValue,
     current_value_label: null,
+    signal_score: record.card.market_score ?? record.card.tcggo_score,
+    signal_tier: record.card.tcggo_score_tier,
     purchase_price: null,
     cost_basis_value: null,
     cost_basis_label: "Paid",
@@ -2831,13 +2849,98 @@ function sortWantPlannerItems(items: CollectionCardViewItem[]) {
   });
 }
 
+async function addWantChasePosition(
+  items: CollectionCardViewItem[]
+): Promise<CollectionCardViewItem[]> {
+  const episodeIds = [...new Set(items.map((item) => item.episode_id))];
+  if (episodeIds.length === 0) return items;
+
+  const cards = await db.$queryRaw<
+    Array<{
+      episode_id: string;
+      rarity: string | null;
+      cm_en_lowest_nm: number | null;
+    }>
+  >(Prisma.sql`
+    SELECT
+      c.episode_id,
+      c.rarity,
+      (
+        SELECT p.cm_en_lowest_nm
+        FROM Price p
+        WHERE p.card_id = c.id
+        ORDER BY p.fetched_at DESC, p.id DESC
+        LIMIT 1
+      ) AS cm_en_lowest_nm
+    FROM Card c
+    WHERE c.episode_id IN (${Prisma.join(episodeIds)})
+  `);
+  const raritiesByEpisode = new Map<string, Array<string | null>>();
+  const pricesByEpisode = new Map<string, number[]>();
+  for (const card of cards) {
+    const rarities = raritiesByEpisode.get(card.episode_id) ?? [];
+    rarities.push(card.rarity);
+    raritiesByEpisode.set(card.episode_id, rarities);
+
+    const price = card.cm_en_lowest_nm;
+    if (price != null && Number.isFinite(price) && price > 0 && price !== 9001) {
+      const prices = pricesByEpisode.get(card.episode_id) ?? [];
+      prices.push(price);
+      pricesByEpisode.set(card.episode_id, prices);
+    }
+  }
+
+  for (const prices of pricesByEpisode.values()) prices.sort((a, b) => a - b);
+
+  return items.map((item) => {
+    const rarityPosition = calculateSetRarityPosition(
+      item.rarity,
+      raritiesByEpisode.get(item.episode_id) ?? []
+    );
+    const setPrices = pricesByEpisode.get(item.episode_id) ?? [];
+    const currentPrice = item.current_value;
+    const pricePercentile =
+      currentPrice != null && currentPrice > 0 && setPrices.length > 0
+        ? (setPrices.filter((price) => price <= currentPrice).length / setPrices.length) * 100
+        : null;
+    const absolutePriceStrength =
+      currentPrice != null && currentPrice > 0
+        ? Math.min(100, (Math.log10(currentPrice + 1) / Math.log10(101)) * 100)
+        : null;
+    const chaseScore =
+      rarityPosition.setRarityScore == null
+        ? null
+        : pricePercentile == null || absolutePriceStrength == null
+          ? rarityPosition.setRarityScore
+          : Math.round(
+              rarityPosition.setRarityScore * 0.45 +
+                pricePercentile * 0.25 +
+                absolutePriceStrength * 0.3
+            );
+    return {
+      ...item,
+      chase_score: chaseScore,
+      chase_tier:
+        chaseScore == null
+          ? "Unknown"
+          : chaseScore >= 85
+            ? "Chase tier"
+            : chaseScore >= 65
+              ? "Upper tier"
+              : chaseScore >= 40
+                ? "Mid tier"
+                : "Entry tier",
+    };
+  });
+}
+
 export async function getWantsPageData(
   userId: string,
   game: TradingCardGameFilter = POKEMON_GAME
 ): Promise<WantsPageData> {
   const timer = startPerformanceTimer("collection.wants", { game });
   const wants = (await getCollectionWants(userId, game)) as CollectionWantRecord[];
-  const items = wants.map(buildWantViewItem);
+  const items = await addWantChasePosition(wants.map(buildWantViewItem));
   const linkedBinders = await db.collectionBinder.findMany({
     where: {
       user_id: userId,
@@ -3006,6 +3109,12 @@ export async function getWantsPageData(
   const estimatedValue = Number(
     pricedItems.reduce((total, item) => total + (item.current_value ?? 0), 0).toFixed(2)
   );
+  const buyNow = buildBinderNextBuyRecommendations({
+    items,
+    history: historyRows,
+    ownedCount: 0,
+    totalCards: items.length,
+  });
 
   timer.finish({
     wants: items.length,
@@ -3028,6 +3137,7 @@ export async function getWantsPageData(
     estimatedValue,
     averageValue:
       pricedItems.length > 0 ? Number((estimatedValue / pricedItems.length).toFixed(2)) : null,
+    buyNow,
   };
 }
 
@@ -3110,7 +3220,7 @@ export async function getWantBinderPageData(
   ]);
 
   const items = sortWantPlannerItems(
-    (wants as CollectionWantRecord[]).map(buildWantViewItem)
+    await addWantChasePosition((wants as CollectionWantRecord[]).map(buildWantViewItem))
   );
   const pricedItems = items.filter((item) => item.current_value != null);
   const wantQuantities = buildCardQuantityMap(wants as CollectionWantRecord[]);
@@ -3129,6 +3239,12 @@ export async function getWantBinderPageData(
   const estimatedCost = Number(
     pricedItems.reduce((total, item) => total + (item.current_value ?? 0), 0).toFixed(2)
   );
+  const nextBuys = buildBinderNextBuyRecommendations({
+    items,
+    history: historyRows,
+    ownedCount,
+    totalCards,
+  });
 
   return {
     binder: {
@@ -3156,6 +3272,7 @@ export async function getWantBinderPageData(
       averageCost:
         pricedItems.length > 0 ? Number((estimatedCost / pricedItems.length).toFixed(2)) : null,
     },
+    nextBuys,
   };
 }
 

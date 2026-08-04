@@ -262,27 +262,41 @@ export default async function SuddenDropsPage({
           </span>
         </div>
 
-        <MoversBrowser
-          movers={movers}
-          cardQuickActions={cardQuickActions}
-          activeScope={cardScope}
-          activeItemScope={activeItemScope}
-          marketMode="sudden_drops"
-          initialDirection="fallers"
-          highlightedCardId={highlight ?? null}
-          metricWindowLabel="24H"
-          eyebrow="Sudden Drops"
-          title="Cards that became cheaper in the last 24 hours"
-          description={
-            data.preview.total > movers.length
-              ? `Showing the ${movers.length.toLocaleString("en-US")} largest of ${data.preview.total.toLocaleString("en-US")} verified raw-card drops. Every match is counted; the rendered list stays bounded for mobile performance.`
-              : `Search, filter, and sort all ${data.preview.total.toLocaleString("en-US")} verified raw cards whose current price is at least ${formatCurrency(activeDropMinimum, activeCurrency)} below their previous price within the rolling 24-hour window.`
+        <div
+          className={
+            sealedDrops.items.length > 0
+              ? "sudden-drops-content-grid grid min-w-0 gap-8"
+              : "grid min-w-0 gap-8"
           }
-          emptyTitle={`No verified ${formatCurrency(activeDropMinimum, activeCurrency)}+ drops in the last 24 hours`}
-          emptyDescription="No raw cards currently meet the rolling 24-hour threshold. Suspicious listing outliers are excluded."
-        />
+        >
+          <div className="min-w-0">
+            <MoversBrowser
+              movers={movers}
+              cardQuickActions={cardQuickActions}
+              activeScope={cardScope}
+              activeItemScope={activeItemScope}
+              marketMode="sudden_drops"
+              initialDirection="fallers"
+              highlightedCardId={highlight ?? null}
+              metricWindowLabel="24H"
+              eyebrow="Sudden Drops"
+              title="Cards that became cheaper in the last 24 hours"
+              description={
+                data.preview.total > movers.length
+                  ? `Showing the ${movers.length.toLocaleString("en-US")} largest of ${data.preview.total.toLocaleString("en-US")} verified raw-card drops. Every match is counted; the rendered list stays bounded for mobile performance.`
+                  : `Search, filter, and sort all ${data.preview.total.toLocaleString("en-US")} verified raw cards whose current price is at least ${formatCurrency(activeDropMinimum, activeCurrency)} below their previous price within the rolling 24-hour window.`
+              }
+              emptyTitle={`No verified ${formatCurrency(activeDropMinimum, activeCurrency)}+ drops in the last 24 hours`}
+              emptyDescription="No raw cards currently meet the rolling 24-hour threshold. Suspicious listing outliers are excluded."
+            />
+          </div>
 
-        <SealedSuddenDropsSection items={sealedDrops.items} total={sealedDrops.total} />
+          {sealedDrops.items.length > 0 ? (
+            <div className="min-w-0">
+              <SealedSuddenDropsSection items={sealedDrops.items} total={sealedDrops.total} />
+            </div>
+          ) : null}
+        </div>
       </div>
     </div>
   );

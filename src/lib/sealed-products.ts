@@ -157,6 +157,44 @@ const CARD_DETAIL_PREVIEW_CATEGORY_RANK: Partial<Record<SealedCategory, number>>
   other: 18,
 };
 
+const COLLECTION_SEALED_ORIGIN_CATEGORIES = new Set<SealedCategory>([
+  "booster_box",
+  "booster_bundle",
+  "elite_trainer_box",
+  "box",
+  "ultra_premium_collection",
+  "super_premium_collection",
+  "premium_collection",
+  "figure_collection",
+  "binder_collection",
+  "illustration_collection",
+  "pin_collection",
+  "poster_collection",
+  "sticker_collection",
+  "playmat_collection",
+  "tournament_collection",
+  "special_collection",
+  "ex_collection",
+  "knockout_collection",
+  "collection",
+]);
+
+/**
+ * Collection-card origins should point at one consumer product, not a
+ * wholesale case/carton or a display containing several sealed products.
+ */
+export function isCollectionSealedOriginProduct(name: string): boolean {
+  const normalized = normalizeSealedName(name);
+  if (
+    normalized.includes(" case ") ||
+    normalized.includes(" carton ") ||
+    normalized.includes(" display ")
+  ) {
+    return false;
+  }
+  return COLLECTION_SEALED_ORIGIN_CATEGORIES.has(classifySealedProduct(name));
+}
+
 /**
  * Keeps the compact card-detail preview focused on consumer products.
  * Wholesale cases and retail displays remain available on the full sealed page.

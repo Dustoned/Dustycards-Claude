@@ -141,6 +141,7 @@ export default async function WantsPage({
           game={activeGame}
           tileTrackWidth={binderTileTrackWidth}
           widescreen={settings.widescreen}
+          buyNow={data.buyNow}
         />
       </div>
     </div>

@@ -3451,69 +3451,130 @@ export function CardModalOwnedCopyPanel({
   }
   const ownedPrice = getOwnedCopyPrice(card, collectionItem);
   const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
-  const priceLabel = collectionItem?.cost_basis_value != null
-    ? "Cost basis"
-    : collectionItem?.purchase_price != null
-      ? "Purchase price"
-      : "English NM market";
+  const usesSealedPriceBasis = collectionItem?.purchase_price_source === "sealed_origin";
+  const priceLabel = usesSealedPriceBasis
+    ? "Sealed basis"
+    : collectionItem?.cost_basis_value != null
+      ? "Cost basis"
+      : collectionItem?.purchase_price != null
+        ? "Purchase price"
+        : "English NM market";
 
   return (
-    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
+    <section
+      className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} card-detail-owned-copy flex flex-col ${className}`}
+      data-card-detail-owned-copy
+    >
       <div className="flex items-center justify-between gap-3">
-        <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>
-          {readOnlyCollectionItem
-            ? "Shared Copy"
-            : collectionItem?.for_sale
-              ? "For Sale Copy"
-              : collectionItem
-                ? "Owned Copy"
-                : "Add to Collection"}
-        </h3>
+        <div className="min-w-0">
+          <p className="text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200/42">
+            Collection copy
+          </p>
+          <h3 className={`mt-1 ${CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}`}>
+            {readOnlyCollectionItem
+              ? "Shared Copy"
+              : collectionItem?.for_sale
+                ? "For Sale Copy"
+                : collectionItem
+                  ? "Owned Copy"
+                  : "Add to Collection"}
+          </h3>
+        </div>
         {collectionItem && (
-          <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-violet-500 text-white">
+          <span className="inline-flex shrink-0 items-center gap-1.5 rounded-full border border-violet-300/18 bg-violet-500/16 px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-violet-100/86">
             <Sparkles className="h-3.5 w-3.5" />
+            {readOnlyCollectionItem ? "Shared" : collectionItem.for_sale ? "For sale" : "Owned"}
           </span>
         )}
       </div>
 
-      <div className="mt-4 flex gap-3">
+      <div
+        className={
+          card.image_url
+            ? "mt-3 grid grid-cols-[4.5rem_minmax(0,1fr)] gap-3"
+            : "mt-3"
+        }
+      >
         {card.image_url && (
           <div
             className={getCardImageFrameClassName(
               card.image_url,
-              "relative aspect-[63/88] w-16 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-white/[0.04]"
+              "relative aspect-[63/88] w-[4.5rem] shrink-0 overflow-hidden rounded-xl border border-white/10 bg-white/[0.04]"
             )}
           >
             <CachedImage
               sourceUrl={card.image_url}
               alt={card.name}
               fill
-              sizes="64px"
-              className={getCardImageClassName(card.image_url, "object-fill")}
+              sizes="72px"
+              className={getCardImageClassName(card.image_url, "object-contain")}
               unoptimized
             />
           </div>
         )}
-        <div className="min-w-0">
-          <p className="text-sm font-semibold text-white/88">
-            {collectionItem?.condition ?? "Not owned"}
-          </p>
-          <p className="mt-1 text-xs text-white/46">
-            {collectionItem?.language ?? "This card is not in your collection"}
-          </p>
-          <p className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/34">
-            {priceLabel}
-          </p>
-          <p className="mt-1 text-lg font-semibold tabular-nums text-white">
-            {formatCurrency(ownedPrice, "EUR")}
-          </p>
-          {collectionItem?.for_sale ? (
-            <p className="mt-1 truncate text-xs text-amber-200/62">For sale</p>
-          ) : collectionItem?.binder_name ? (
-            <p className="mt-1 truncate text-xs text-white/42">{collectionItem.binder_name}</p>
-          ) : null}
+        <div className="flex min-w-0 flex-col">
+          <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+            <span className="rounded-full border border-white/9 bg-white/[0.045] px-2 py-1 text-[11px] font-semibold text-white/82">
+              {collectionItem.condition ?? "Unknown"}
+            </span>
+            <span className="truncate text-[11px] font-medium text-white/42">
+              {collectionItem.language ?? "Language unknown"}
+            </span>
+          </div>
+
+          <dl className="mt-3 grid min-w-0 grid-cols-[0.85fr_1.15fr] gap-2">
+            <div className="min-w-0 rounded-xl border border-white/[0.07] bg-black/16 px-2.5 py-2">
+              <dt className="truncate text-[9px] font-bold uppercase tracking-[0.11em] text-white/32">
+                {priceLabel}
+              </dt>
+              <dd className="mt-1 truncate text-sm font-bold tabular-nums text-white/90">
+                {formatCurrency(ownedPrice, "EUR")}
+              </dd>
+            </div>
+            <div className="min-w-0 rounded-xl border border-white/[0.07] bg-black/16 px-2.5 py-2">
+              <dt className="text-[9px] font-bold uppercase tracking-[0.11em] text-white/32">
+                Location
+              </dt>
+              <dd className={`mt-1 truncate text-xs font-semibold ${collectionItem.for_sale ? "text-amber-200/76" : "text-white/68"}`}>
+                {collectionItem.for_sale ? "For sale" : collectionItem.binder_name ?? "Singles"}
+              </dd>
+            </div>
+          </dl>
         </div>
       </div>
+
+      {collectionItem.origin_sealed_product ? (
+        <div className="mt-3 flex items-center gap-2.5 rounded-xl border border-amber-300/14 bg-amber-300/[0.045] p-2.5">
+          <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-lg border border-white/9 bg-white/[0.04]">
+            {collectionItem.origin_sealed_product.image_url ? (
+              <CachedImage
+                sourceUrl={collectionItem.origin_sealed_product.image_url}
+                alt=""
+                fill
+                sizes="40px"
+                className="object-contain p-1"
+              />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-amber-100/48">
+                <Package className="h-4 w-4" />
+              </span>
+            )}
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-[9px] font-bold uppercase tracking-[0.13em] text-amber-100/44">
+              Pulled from sealed
+            </p>
+            <p className="mt-0.5 truncate text-xs font-semibold text-white/76">
+              {collectionItem.origin_sealed_product.name}
+            </p>
+            {usesSealedPriceBasis && collectionItem.origin_sealed_product.price_basis != null ? (
+              <p className="mt-0.5 text-[10px] text-white/38">
+                Sealed reference {formatCurrency(collectionItem.origin_sealed_product.price_basis, "EUR")}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
 
       {showActions ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
         <CollectionAddCardButton

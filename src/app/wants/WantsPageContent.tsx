@@ -9,6 +9,8 @@ import type { WantPlannerGroup } from "@/lib/collection-data";
 import type { TradingCardGameFilter } from "@/lib/games";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 import WantsPlannerSection from "./WantsPlannerSection";
+import WantsBuyNowPanel from "@/components/WantsBuyNowPanel";
+import type { BinderNextBuyRecommendation } from "@/lib/binder-next-buy";
 
 const CollectionCardsView = dynamic(() => import("@/components/CollectionCardsView"), {
   ssr: false,
@@ -75,6 +77,7 @@ interface Props {
   game: TradingCardGameFilter;
   tileTrackWidth: string;
   widescreen: boolean;
+  buyNow: BinderNextBuyRecommendation[];
 }
 
 export default function WantsPageContent({
@@ -84,6 +87,7 @@ export default function WantsPageContent({
   game,
   tileTrackWidth,
   widescreen,
+  buyNow,
 }: Props) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -147,6 +151,8 @@ export default function WantsPageContent({
           </div>
         </div>
       </section>
+
+      {!hasSearch ? <WantsBuyNowPanel items={buyNow} /> : null}
 
       <WantsPlannerSection
         groups={filteredPlannerGroups}

@@ -64,7 +64,7 @@ import {
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
-type SortKey = "opportunity" | "confluence" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
+type SortKey = "opportunity" | "price_asc" | "price_desc" | "confluence" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
 
 interface Props {
   signals: ExternalCardSignal[];
@@ -87,6 +87,8 @@ const CONFIDENCE_OPTIONS: Array<{ value: ConfidenceFilter; label: string }> = [
 
 const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: "opportunity", label: "Best match" },
+  { value: "price_asc", label: "Price: low to high" },
+  { value: "price_desc", label: "Price: high to low" },
   { value: "confluence", label: "Setup" },
   { value: "signal", label: "Signal" },
   { value: "sealed", label: "Sealed pressure" },
@@ -1181,6 +1183,20 @@ export default function ExternalSignalBrowser({
         );
       })
       .sort((left, right) => {
+        if (sortKey === "price_asc" || sortKey === "price_desc") {
+          const leftPrice =
+            (marketMode === "graded"
+              ? left.marketIntelligence?.gradedScenario?.currentPrice
+              : left.marketIntelligence?.rawScenario?.currentPrice) ?? left.currentPrice;
+          const rightPrice =
+            (marketMode === "graded"
+              ? right.marketIntelligence?.gradedScenario?.currentPrice
+              : right.marketIntelligence?.rawScenario?.currentPrice) ?? right.currentPrice;
+          if (leftPrice == null && rightPrice == null) return left.rank - right.rank;
+          if (leftPrice == null) return 1;
+          if (rightPrice == null) return -1;
+          return sortKey === "price_asc" ? leftPrice - rightPrice : rightPrice - leftPrice;
+        }
         if (sortKey === "opportunity") {
           const leftScore =
             marketMode === "graded"

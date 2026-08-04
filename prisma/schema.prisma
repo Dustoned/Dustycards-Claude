@@ -67,6 +67,8 @@ model User {
   ebayListingCardOverrides EbayListingCardOverride[]
   ebayWatchedListings      EbayWatchedListing[]
   cardPriceAlerts          CardPriceAlert[]
+  collectionPriceAlerts    CollectionPriceAlert[]
+  binderShareLinks         BinderShareLink[]
   cardSubmissions          CardSubmission[]
   feedback                 Feedback[]
   socialRequestsSent       SocialConnection[]        @relation("SocialConnectionRequester")
@@ -238,10 +240,11 @@ model SealedProduct {
   native_history_checked_at DateTime?
   synced_at                 DateTime  @default(now())
 
-  episode         Episode                   @relation(fields: [episode_id], references: [id])
-  collectionItems CollectionSealed[]
-  contentSets     SealedProductContentSet[]
-  includedCards   CardSealedProduct[]
+  episode                   Episode                   @relation(fields: [episode_id], references: [id])
+  collectionItems           CollectionSealed[]
+  originatedCollectionCards CollectionCard[]          @relation("CollectionCardOriginSealedProduct")
+  contentSets               SealedProductContentSet[]
+  includedCards             CardSealedProduct[]
 
   @@index([episode_id])
   @@index([game, episode_id])
@@ -708,6 +711,28 @@ model CardPriceAlert {
   @@index([card_id, enabled])
 }
 
+model CollectionPriceAlert {
+  id                  String    @id @default(cuid())
+  user_id             String
+  target_type         String
+  target_id           String
+  kind                String
+  target_price_eur    Float?
+  baseline_price_eur  Float?
+  baseline_price_at   DateTime?
+  enabled             Boolean   @default(true)
+  triggered_at        DateTime?
+  triggered_price_eur Float?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, target_type, target_id])
+  @@index([enabled, updated_at])
+  @@index([target_type, target_id, enabled])
+}
+
 model CollectionBinder {
   id                  String   @id @default(cuid())
   user_id             String?
@@ -724,6 +749,7 @@ model CollectionBinder {
   user    User?            @relation(fields: [user_id], references: [id], onDelete: Cascade)
   episode Episode?         @relation(fields: [episode_id], references: [id])
   cards   CollectionCard[]
+  shareLinks BinderShareLink[]
 
   @@index([user_id])
   @@index([type])
@@ -731,34 +757,55 @@ model CollectionBinder {
   @@index([created_at])
 }
 
-model CollectionCard {
-  id                     String    @id @default(cuid())
-  user_id                String?
-  card_id                String
-  binder_id              String?
-  purchase_price         Float?
-  condition              String?
-  language               String?
-  notes                  String?
-  grading_company        String?
-  grading_grade          String?
-  grading_subgrades_json String?
-  for_sale               Boolean   @default(false)
-  sale_price             Float?
-  sold_at                DateTime?
-  added_at               DateTime  @default(now())
-  updated_at             DateTime  @updatedAt
+model BinderShareLink {
+  id         String    @id @default(cuid())
+  user_id    String
+  binder_id  String
+  token      String    @unique
+  revoked_at DateTime?
+  created_at DateTime  @default(now())
+  updated_at DateTime  @updatedAt
 
-  user   User?               @relation(fields: [user_id], references: [id], onDelete: Cascade)
-  card   Card                @relation(fields: [card_id], references: [id])
-  binder CollectionBinder?   @relation(fields: [binder_id], references: [id], onDelete: SetNull)
-  tags   CollectionCardTag[]
+  user   User             @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  binder CollectionBinder @relation(fields: [binder_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, binder_id])
+  @@index([binder_id, revoked_at])
+  @@index([revoked_at, updated_at])
+}
+
+model CollectionCard {
+  id                       String    @id @default(cuid())
+  user_id                  String?
+  card_id                  String
+  binder_id                String?
+  purchase_price           Float?
+  condition                String?
+  language                 String?
+  notes                    String?
+  grading_company          String?
+  grading_grade            String?
+  grading_subgrades_json   String?
+  origin_sealed_product_id String?
+  purchase_price_source    String?
+  for_sale                 Boolean   @default(false)
+  sale_price               Float?
+  sold_at                  DateTime?
+  added_at                 DateTime  @default(now())
+  updated_at               DateTime  @updatedAt
+
+  user                User?               @relation(fields: [user_id], references: [id], onDelete: Cascade)
+  card                Card                @relation(fields: [card_id], references: [id])
+  binder              CollectionBinder?   @relation(fields: [binder_id], references: [id], onDelete: SetNull)
+  originSealedProduct SealedProduct?      @relation("CollectionCardOriginSealedProduct", fields: [origin_sealed_product_id], references: [id], onDelete: SetNull)
+  tags                CollectionCardTag[]
 
   @@index([user_id])
   @@index([card_id])
   @@index([card_id, added_at])
   @@index([binder_id])
   @@index([binder_id, added_at])
+  @@index([origin_sealed_product_id])
   @@index([user_id, for_sale])
   @@index([user_id, for_sale, sold_at])
   @@index([sold_at])

@@ -17,6 +17,8 @@ import {
 import { getCachedImageUrl } from "@/lib/image-cache";
 import type { BinderHistoryRange, BinderPageData } from "@/lib/collection-data";
 import type { CollectionCardViewItem } from "@/types/collection-view";
+import CardPriceAlertButton from "@/components/card-detail/CardPriceAlertButton";
+import ShareBinderButton from "@/components/ShareBinderButton";
 
 const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
   loading: () => (
@@ -262,23 +264,34 @@ export default function BinderDetailClient({
         }
         sideClassName="grid min-w-0 auto-rows-fr grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
         titleActions={
-          <EditBinderButton
-            binder={{
-              id: data.binder.id,
-              name: data.binder.name,
-              type: data.binder.type,
-              accent_color: data.binder.accent_color,
-              icon_name: data.binder.icon_name,
-              base_purchase_price: data.binder.base_purchase_price,
-              episode: data.binder.episode
-                ? {
-                    name: data.binder.episode.name,
-                    code: data.binder.episode.code,
-                    logo_url: data.binder.episode.logo_url,
-                  }
-                : null,
-            }}
-          />
+          <div className="flex flex-wrap items-center gap-2">
+            <CardPriceAlertButton
+              cardId={data.binder.id}
+              cardName={data.binder.name}
+              endpoint={`/api/price-alerts/binder/${encodeURIComponent(data.binder.id)}`}
+              eyebrow="Binder price alert"
+              sourceLabel="Binder market value"
+              triggerLabel="Alert"
+            />
+            <ShareBinderButton binderId={data.binder.id} binderName={data.binder.name} />
+            <EditBinderButton
+              binder={{
+                id: data.binder.id,
+                name: data.binder.name,
+                type: data.binder.type,
+                accent_color: data.binder.accent_color,
+                icon_name: data.binder.icon_name,
+                base_purchase_price: data.binder.base_purchase_price,
+                episode: data.binder.episode
+                  ? {
+                      name: data.binder.episode.name,
+                      code: data.binder.episode.code,
+                      logo_url: data.binder.episode.logo_url,
+                    }
+                  : null,
+              }}
+            />
+          </div>
         }
         accessory={
           <PriceHistoryPanel

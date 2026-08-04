@@ -33,6 +33,7 @@ interface CardPriceAlertResponse {
   currentPriceEur: number | null;
   currentPriceAt: string | null;
   mailConfigured: boolean;
+  sourceLabel?: string;
   error?: string;
 }
 
@@ -46,10 +47,22 @@ function parseTargetPrice(value: string): number | null {
 export default function CardPriceAlertButton({
   cardId,
   cardName,
+  endpoint,
+  eyebrow = "Card price alert",
+  sourceLabel = "CardMarket EN / Near Mint",
+  triggerLabel,
+  triggerClassName = "",
+  lazy = false,
   onOpenChange,
 }: {
   cardId: string;
   cardName: string;
+  endpoint?: string;
+  eyebrow?: string;
+  sourceLabel?: string;
+  triggerLabel?: string;
+  triggerClassName?: string;
+  lazy?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
   const titleId = useId();
@@ -57,12 +70,13 @@ export default function CardPriceAlertButton({
   const dialogRef = useRef<HTMLElement | null>(null);
   const targetInputRef = useRef<HTMLInputElement | null>(null);
   const [open, setOpen] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!lazy);
   const [saving, setSaving] = useState(false);
   const [kind, setKind] = useState<AlertKind>("drop");
   const [targetPrice, setTargetPrice] = useState("");
   const [data, setData] = useState<CardPriceAlertResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const alertEndpoint = endpoint ?? `/api/cards/${encodeURIComponent(cardId)}/price-alert`;
 
   useBodyScrollLock(open);
   useModalA11y({
@@ -77,10 +91,7 @@ export default function CardPriceAlertButton({
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(
-        `/api/cards/${encodeURIComponent(cardId)}/price-alert`,
-        { cache: "no-store", signal }
-      );
+      const response = await fetch(alertEndpoint, { cache: "no-store", signal });
       const payload = (await response.json().catch(() => ({}))) as CardPriceAlertResponse;
       if (!response.ok) throw new Error(payload.error ?? "Could not load this price alert");
       setData(payload);
@@ -99,16 +110,17 @@ export default function CardPriceAlertButton({
     } finally {
       if (!signal?.aborted) setLoading(false);
     }
-  }, [cardId]);
+  }, [alertEndpoint]);
 
   useEffect(() => {
+    if (lazy) return;
     const controller = new AbortController();
     const frame = window.requestAnimationFrame(() => void loadAlert(controller.signal));
     return () => {
       window.cancelAnimationFrame(frame);
       controller.abort();
     };
-  }, [loadAlert]);
+  }, [lazy, loadAlert]);
 
   function openDialog() {
     setOpen(true);
@@ -144,7 +156,7 @@ export default function CardPriceAlertButton({
     setError(null);
     try {
       const response = await fetch(
-        `/api/cards/${encodeURIComponent(cardId)}/price-alert`,
+        alertEndpoint,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -169,10 +181,7 @@ export default function CardPriceAlertButton({
     setSaving(true);
     setError(null);
     try {
-      const response = await fetch(
-        `/api/cards/${encodeURIComponent(cardId)}/price-alert`,
-        { method: "DELETE" }
-      );
+      const response = await fetch(alertEndpoint, { method: "DELETE" });
       const payload = (await response.json().catch(() => ({}))) as CardPriceAlertResponse;
       if (!response.ok) throw new Error(payload.error ?? "Could not turn off this price alert");
       setData(payload);
@@ -195,11 +204,13 @@ export default function CardPriceAlertButton({
       <button
         type="button"
         onClick={openDialog}
-        className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/50 ${
+        className={`flex h-11 shrink-0 items-center justify-center gap-2 rounded-xl border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/50 ${
+          triggerLabel ? "w-auto px-3" : "w-11"
+        } ${
           active
             ? "border-violet-300/32 bg-violet-500/18 text-violet-100"
             : "border-white/10 bg-white/[0.045] text-white/66 hover:border-violet-200/24 hover:bg-violet-500/[0.11] hover:text-white"
-        }`}
+        } ${triggerClassName}`}
         aria-label={`${active ? "Edit" : "Set"} price alert for ${cardName}`}
         aria-haspopup="dialog"
         aria-expanded={open}
@@ -213,12 +224,13 @@ export default function CardPriceAlertButton({
         ) : (
           <MailPlus className="h-4.5 w-4.5" aria-hidden="true" />
         )}
+        {triggerLabel ? <span className="text-xs font-black">{triggerLabel}</span> : null}
       </button>
 
       {open && typeof document !== "undefined"
         ? createPortal(
             <div
-              className={`${modalCenteredMobileOverlayClass} z-[360] bg-black/76 backdrop-blur-md`}
+              className={`${modalCenteredMobileOverlayClass} z-[360]`}
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) closeDialog();
               }}
@@ -239,13 +251,13 @@ export default function CardPriceAlertButton({
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-200/58">
-                      Card price alert
+                      {eyebrow}
                     </p>
                     <h2 id={titleId} className="mt-0.5 truncate text-lg font-black text-white">
                       {cardName}
                     </h2>
                     <p id={descriptionId} className="mt-1 text-xs leading-5 text-white/46">
-                      One email when CardMarket EN / Near Mint meets your rule.
+                      One email when {data?.sourceLabel ?? sourceLabel} meets your rule.
                     </p>
                   </div>
                   <button
@@ -268,7 +280,7 @@ export default function CardPriceAlertButton({
                         </p>
                       </div>
                       <p className="pb-1 text-right text-[11px] font-semibold text-white/38">
-                        EN · Near Mint{currentPriceDate ? <><br />{currentPriceDate}</> : null}
+                        {data?.sourceLabel ?? sourceLabel}{currentPriceDate ? <><br />{currentPriceDate}</> : null}
                       </p>
                     </div>
                   </div>

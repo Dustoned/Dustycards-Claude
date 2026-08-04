@@ -152,7 +152,7 @@ export default function FeedbackButton({
       ? createPortal(
           <div
             data-feedback-dialog
-            className="fixed inset-0 z-[220] flex items-end justify-center bg-black/72 p-3 backdrop-blur-sm sm:items-center sm:p-6"
+            className="dc-modal-overlay fixed inset-0 z-[220] flex items-end justify-center p-3 sm:items-center sm:p-6"
             onMouseDown={(event) => {
               if (event.currentTarget === event.target) closeDialog();
             }}

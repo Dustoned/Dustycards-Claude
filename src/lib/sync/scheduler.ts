@@ -4,6 +4,7 @@ import {
   sweepCardPriceAlerts,
   type CardPriceAlertSweepResult,
 } from "@/lib/card-price-alerts";
+import { sweepCollectionPriceAlerts } from "@/lib/collection-price-alerts";
 import { db } from "@/lib/db";
 import { isMailConfigured } from "@/lib/mail";
 import { areScraperRequestsDisabled } from "@/lib/scraper-guard";
@@ -142,16 +143,26 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   const normalizedPriceCheckedAtCards = await reconcilePriceSourceCheckedAtFromSnapshots();
   // Evaluate only prices that are already committed. New background refresh
   // writes are intentionally picked up on the next scheduler tick.
-  const priceAlerts = await sweepCardPriceAlerts().catch(
-    (error: unknown): CardPriceAlertSweepResult => ({
-      configured: isMailConfigured(),
-      checked: 0,
-      triggered: 0,
-      emailsSent: 0,
-      alertsSent: 0,
-      errors: [error instanceof Error ? error.message : String(error)],
-    })
-  );
+  const failedAlertSweep = (error: unknown): CardPriceAlertSweepResult => ({
+    configured: isMailConfigured(),
+    checked: 0,
+    triggered: 0,
+    emailsSent: 0,
+    alertsSent: 0,
+    errors: [error instanceof Error ? error.message : String(error)],
+  });
+  const [cardAlerts, collectionAlerts] = await Promise.all([
+    sweepCardPriceAlerts().catch(failedAlertSweep),
+    sweepCollectionPriceAlerts().catch(failedAlertSweep),
+  ]);
+  const priceAlerts: CardPriceAlertSweepResult = {
+    configured: cardAlerts.configured || collectionAlerts.configured,
+    checked: cardAlerts.checked + collectionAlerts.checked,
+    triggered: cardAlerts.triggered + collectionAlerts.triggered,
+    emailsSent: cardAlerts.emailsSent + collectionAlerts.emailsSent,
+    alertsSent: cardAlerts.alertsSent + collectionAlerts.alertsSent,
+    errors: [...cardAlerts.errors, ...collectionAlerts.errors],
+  };
   const [priceSnapshot, existingPriceJob, quota] = await Promise.all([
     getAutoPriceRefreshSnapshot(),
     getAutoPriceRefreshJobSnapshot(),

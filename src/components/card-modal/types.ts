@@ -145,6 +145,14 @@ export interface ModalCardData {
     grading_company: string | null;
     grading_grade: string | null;
     grading_subgrades?: BgsSubgrades | null;
+    origin_sealed_product_id?: string | null;
+    purchase_price_source?: string | null;
+    origin_sealed_product?: {
+      id: string;
+      name: string;
+      image_url: string | null;
+      price_basis: number | null;
+    } | null;
     read_only?: boolean;
   } | null;
   want_item?: {

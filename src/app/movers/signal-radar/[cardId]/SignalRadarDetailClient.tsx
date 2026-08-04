@@ -248,7 +248,7 @@ function ResearchDialog({
 
   return (
     <div
-      className="fixed inset-0 z-[270] flex items-end justify-center bg-black/78 px-0 pt-12 backdrop-blur-md sm:items-center sm:p-5"
+      className="dc-modal-overlay fixed inset-0 z-[270] flex items-end justify-center px-0 pt-12 sm:items-center sm:p-5"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) onClose();
       }}

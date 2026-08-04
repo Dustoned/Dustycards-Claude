@@ -638,7 +638,7 @@ function expectMobileModeGeometryStable(
 async function expectMobileMarketKpis(shell: Locator, labels: string[]) {
   const marketKpis = shell.locator('[data-card-detail-kpis="market"]');
   await expect(marketKpis).toBeVisible();
-  await expect(marketKpis.locator(".card-detail-kpi")).toHaveCount(4);
+  await expect(marketKpis.locator(".card-detail-kpi")).toHaveCount(6);
   for (const label of labels) {
     await expect(
       marketKpis.locator(".card-detail-kpi-label").filter({ hasText: label })
@@ -1879,7 +1879,9 @@ test.describe("DustyCards smoke", () => {
     await priceAlertTrigger.click();
     const priceAlertDialog = page.locator("[data-card-price-alert-dialog]");
     await expect(priceAlertDialog).toBeVisible();
-    await expect(priceAlertDialog.getByText("CardMarket EN / Near Mint", { exact: false })).toBeVisible();
+    await expect(
+      priceAlertDialog.getByText("One email when CardMarket EN / Near Mint", { exact: false })
+    ).toBeVisible();
     await priceAlertDialog.getByRole("radio", { name: /Target price/ }).click();
     await priceAlertDialog.getByLabel("Your target").fill("149.95");
     if (CARD_DETAIL_SCREENSHOT_DIR) {
@@ -2080,7 +2082,7 @@ test.describe("DustyCards smoke", () => {
     await marketDetails.getByRole("button", { name: "ATH", exact: true }).hover();
     const visibleMarketTooltips = page.locator('[data-readable-info-tooltip]:visible');
     await expect(visibleMarketTooltips).toHaveCount(1);
-    await expect(visibleMarketTooltips).toContainText("Highest saved English NM");
+    await expect(visibleMarketTooltips).toContainText("All-time high");
     await expectReadableTooltipWithinViewport(page);
     await marketSignal.getByText("More market details", { exact: true }).click();
     for (const metric of ["liquidity", "demand"] as const) {
@@ -2191,7 +2193,7 @@ test.describe("DustyCards smoke", () => {
     });
     await mobileMomentumTrigger.click();
     await expect(page.locator("[data-readable-info-tooltip]:visible")).toContainText(
-      "Price direction from saved"
+      "Is the price going up or down?"
     );
     await expectReadableTooltipWithinViewport(page);
     await page.keyboard.press("Escape");

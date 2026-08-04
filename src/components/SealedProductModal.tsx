@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import CardDetailMobileMarketAction from "@/components/card-detail/CardDetailMobileMarketAction";
+import CardPriceAlertButton from "@/components/card-detail/CardPriceAlertButton";
 import CardDetailShell, {
   CardDetailMobileActionPortal,
   type CardDetailTab,
@@ -155,6 +156,14 @@ function SealedDetailActionGroup({
           />
         </div>
       </CardDetailMobileActionPortal>
+
+      <CardPriceAlertButton
+        cardId={product.id}
+        cardName={product.name}
+        endpoint={`/api/price-alerts/sealed/${encodeURIComponent(product.id)}`}
+        eyebrow="Sealed price alert"
+        sourceLabel="CardMarket EU sealed"
+      />
 
       {collectionItem || canManageSealedPrices ? (
         <details
@@ -791,7 +800,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
     <>
       <div
         data-sealed-modal-root
-        className="dc-modal-overlay dc-sidebar-offset-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-hidden bg-[#050507] px-0 py-0 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:block md:overflow-y-auto md:bg-[#08080c] md:p-0"
+        className="dc-modal-overlay dc-sidebar-offset-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-hidden px-0 py-0 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:block md:overflow-y-auto md:p-0"
         style={{ overscrollBehaviorX: "auto", overscrollBehaviorY: "contain" }}
         onClick={onClose}
       >
@@ -805,7 +814,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
             aria-modal="true"
             aria-label={modalProduct.name}
             tabIndex={-1}
-            className="card-modal-frame dc-modal-panel relative h-dvh max-h-dvh w-full max-w-full overflow-hidden rounded-none border border-white/12 bg-[#050506] [scrollbar-gutter:stable] shadow-none outline-none sm:overflow-y-auto md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:bg-[#050505] md:shadow-none"
+            className="card-modal-frame dc-modal-panel relative h-dvh max-h-dvh w-full max-w-full overflow-hidden rounded-none border border-white/12 [scrollbar-gutter:stable] shadow-none outline-none sm:overflow-y-auto md:h-auto md:min-h-dvh md:max-h-none md:overflow-visible md:rounded-none md:border-0 md:shadow-none"
             data-modal-size={displaySettings.modalSize}
             data-mobile-showcase="true"
           >

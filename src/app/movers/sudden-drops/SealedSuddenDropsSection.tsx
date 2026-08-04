@@ -1,12 +1,23 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Image from "next/image";
 import { useState } from "react";
-import { ArrowDownRight, Package } from "lucide-react";
+import { ArrowDownRight, ChevronRight, Package } from "lucide-react";
+import CachedImage from "@/components/CachedImage";
+import {
+  CardListTile,
+  CardListTileAnalysisLink,
+  CardListTileBody,
+  CardListTileFooter,
+  CardListTileGrid,
+  CardListTileHeader,
+  CardListTileInsight,
+  CardListTileMedia,
+} from "@/components/CardListTile";
+import CollectionAddSealedButton from "@/components/CollectionAddSealedButton";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
-import type { FastSealedSuddenDropItem } from "@/lib/home-sudden-drops-server";
 import { formatCurrency } from "@/lib/format";
+import type { FastSealedSuddenDropItem } from "@/lib/home-sudden-drops-server";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
@@ -48,6 +59,10 @@ export default function SealedSuddenDropsSection({
 
   if (items.length === 0) return null;
 
+  function openProduct(item: FastSealedSuddenDropItem) {
+    setSelectedProduct(buildSealedProductData(item));
+  }
+
   return (
     <section id="sealed" className="scroll-mt-24">
       <div className="mb-4 flex flex-wrap items-end justify-between gap-3">
@@ -59,8 +74,7 @@ export default function SealedSuddenDropsSection({
             Sealed products that became cheaper in the last 24 hours
           </h2>
           <p className="mt-1 text-sm font-medium text-gray-500 dark:text-white/48">
-            Kept separate from the single cards above so the two never mix. CardMarket EU
-            price versus the immediately previous snapshot.
+            CardMarket EU price versus the immediately previous snapshot.
           </p>
         </div>
         <span className="inline-flex h-8 shrink-0 items-center gap-1.5 rounded-full border border-amber-400/24 bg-amber-400/[0.08] px-3 text-[12px] font-black tabular-nums text-amber-700 dark:text-amber-200">
@@ -69,57 +83,103 @@ export default function SealedSuddenDropsSection({
         </span>
       </div>
 
-      <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3 xl:grid-cols-3 2xl:grid-cols-4">
+      <CardListTileGrid>
         {items.map((item) => (
-          <button
+          <CardListTile
             key={item.productId}
-            type="button"
-            onClick={() => setSelectedProduct(buildSealedProductData(item))}
-            className="group flex min-w-0 items-center gap-3 rounded-2xl border border-black/8 bg-black/[0.03] p-3 text-left transition-colors hover:border-amber-300/30 hover:bg-amber-400/[0.05] dark:border-white/8 dark:bg-white/[0.04] dark:hover:border-amber-300/24"
+            role="button"
+            tabIndex={0}
+            interactive
+            layout="showcase"
+            onClick={() => openProduct(item)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" && event.key !== " ") return;
+              event.preventDefault();
+              openProduct(item);
+            }}
+            aria-label={`Open details for ${item.name}`}
           >
-            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-black/6 bg-white/70 dark:border-white/8 dark:bg-white/[0.06]">
+            <CardListTileMedia imageUrl={item.imageUrl} kind="product" emptyLabel={item.name}>
               {item.imageUrl ? (
-                <Image
-                  src={item.imageUrl}
+                <CachedImage
+                  sourceUrl={item.imageUrl}
                   alt={item.name}
                   fill
-                  sizes="64px"
-                  className="object-contain p-1"
-                  unoptimized
+                  sizes="(max-width: 640px) 116px, 120px"
+                  className="object-contain p-2"
                 />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-gray-400 dark:text-white/30">
-                  <Package className="h-5 w-5" />
-                </span>
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="line-clamp-2 text-[13px] font-bold leading-tight text-gray-900 transition-colors group-hover:text-black dark:text-white/88 dark:group-hover:text-white">
-                {item.name}
-              </p>
-              <p className="mt-0.5 truncate text-[11px] font-semibold text-gray-500 dark:text-white/42">
-                {item.episodeCode ? `${item.episodeName} (${item.episodeCode})` : item.episodeName}
-              </p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                <span className="inline-flex items-center gap-1 text-[13px] font-black tabular-nums text-rose-600 dark:text-rose-300">
-                  <ArrowDownRight className="h-3.5 w-3.5" />
-                  -{formatCurrency(item.dropAmount, item.currency)}
-                  {item.dropPercent != null ? (
-                    <span className="text-[11px] font-bold text-rose-500/80 dark:text-rose-300/70">
-                      ({item.dropPercent.toFixed(1)}%)
+              ) : undefined}
+            </CardListTileMedia>
+
+            <CardListTileBody>
+              <CardListTileHeader
+                badges={
+                  <>
+                    <span className="inline-flex items-center gap-1 rounded-full border border-amber-300/22 bg-amber-300/[0.09] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.08em] text-amber-100/82">
+                      <Package className="h-3 w-3" />
+                      Sealed
                     </span>
-                  ) : null}
+                    {item.dropPercent != null ? (
+                      <span className="inline-flex rounded-full border border-rose-300/20 bg-rose-300/[0.08] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.08em] text-rose-100/80">
+                        -{Math.abs(item.dropPercent).toFixed(1)}% 24H
+                      </span>
+                    ) : null}
+                  </>
+                }
+                priceLabel="Current"
+                priceValue={formatCurrency(item.currentPrice, item.currency)}
+                title={item.name}
+                meta={
+                  <span className="truncate">
+                    {item.episodeName}
+                    {item.episodeCode ? ` (${item.episodeCode})` : ""}
+                  </span>
+                }
+              />
+
+              <CardListTileInsight>
+                <span
+                  aria-hidden="true"
+                  className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-rose-300/75 shadow-[0_0_10px_rgba(253,164,175,0.38)]"
+                />
+                <span className="min-w-0 truncate tabular-nums">
+                  <strong className="font-bold text-rose-200">
+                    <span className="inline-flex items-center gap-0.5">
+                      <ArrowDownRight className="h-3.5 w-3.5" />
+                      -{formatCurrency(item.dropAmount, item.currency)}
+                    </span>
+                  </strong>
+                  <span className="text-white/42">
+                    {` · Was ${formatCurrency(item.previousPrice, item.currency)}`}
+                  </span>
                 </span>
-                <span className="text-[11px] font-bold tabular-nums text-gray-500 dark:text-white/48">
-                  Now {formatCurrency(item.currentPrice, item.currency)}
-                  <span className="mx-1 text-gray-400 dark:text-white/28">·</span>
-                  Was {formatCurrency(item.previousPrice, item.currency)}
-                </span>
-              </div>
-            </div>
-          </button>
+              </CardListTileInsight>
+
+              <CardListTileFooter>
+                <CardListTileAnalysisLink>
+                  Details
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </CardListTileAnalysisLink>
+                <CollectionAddSealedButton
+                  product={{
+                    id: item.productId,
+                    name: item.name,
+                    image_url: item.imageUrl,
+                    episode: {
+                      id: item.episodeId,
+                      name: item.episodeName,
+                      code: item.episodeCode,
+                    },
+                  }}
+                  mode="icon"
+                  theme="dark"
+                  className="relative z-10"
+                />
+              </CardListTileFooter>
+            </CardListTileBody>
+          </CardListTile>
         ))}
-      </div>
+      </CardListTileGrid>
 
       {selectedProduct ? (
         <SealedProductModal

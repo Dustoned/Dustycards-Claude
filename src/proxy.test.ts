@@ -30,3 +30,13 @@ describe("scheduler-authenticated internal APIs", () => {
     expect(isPublicPath("/api/internal/not-allowed")).toBe(false);
   });
 });
+
+describe("public binder sharing", () => {
+  it("allows public read-only binder links without a session", () => {
+    expect(isPublicPath("/share/binders/public-token")).toBe(true);
+  });
+
+  it("keeps binder management behind authentication", () => {
+    expect(isPublicPath("/api/collection/binders/binder-1/share")).toBe(false);
+  });
+});

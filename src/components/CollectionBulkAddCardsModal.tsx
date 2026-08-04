@@ -12,6 +12,10 @@ import CollectionInlineBinderCreator, {
   type InlineBinderOption,
 } from "@/components/CollectionInlineBinderCreator";
 import CachedImage from "@/components/CachedImage";
+import CollectionSealedOriginPicker, {
+  type CollectionSealedOriginOption,
+} from "@/components/CollectionSealedOriginPicker";
+import { SEALED_ORIGIN_PRICE_SOURCE } from "@/lib/collection-sealed-origin";
 import {
   modalActionRowClass,
   modalBodyClass,
@@ -80,6 +84,8 @@ export default function CollectionBulkAddCardsModal({
   const [tags, setTags] = useState("");
   const [gradingCompany, setGradingCompany] = useState("");
   const [gradingGrade, setGradingGrade] = useState("");
+  const [originSealedProductId, setOriginSealedProductId] = useState("");
+  const [purchasePriceSource, setPurchasePriceSource] = useState<string | null>(null);
   const binderLocked = Boolean(initialBinderId && lockedBinderName);
 
   useEffect(() => {
@@ -189,6 +195,8 @@ export default function CollectionBulkAddCardsModal({
           tags,
           gradingCompany: gradingCompany || null,
           gradingGrade: gradingGrade || null,
+          originSealedProductId: originSealedProductId || null,
+          purchasePriceSource,
         }),
       });
 
@@ -314,6 +322,7 @@ export default function CollectionBulkAddCardsModal({
                       type="button"
                       onClick={() => {
                         setPurchasePriceMode(option.mode);
+                        if (option.mode !== "total") setPurchasePriceSource(null);
                         setSaveError(null);
                       }}
                       disabled={saving}
@@ -393,6 +402,25 @@ export default function CollectionBulkAddCardsModal({
             </label>
           </div>
 
+          <CollectionSealedOriginPicker
+            cardIds={cards.map((card) => card.id)}
+            value={originSealedProductId}
+            usingPriceBasis={purchasePriceSource === SEALED_ORIGIN_PRICE_SOURCE}
+            priceBasisMode={cards.length > 1 ? "selection" : "card"}
+            disabled={saving}
+            onChange={(option) => setOriginSealedProductId(option?.id ?? "")}
+            onUsePriceBasis={(option: CollectionSealedOriginOption) => {
+              if (option.price_basis == null) return;
+              setOriginSealedProductId(option.id);
+              setPurchasePriceMode("total");
+              setTotalPurchasePrice(String(option.price_basis));
+              setPurchasePrices({});
+              setPurchasePriceSource(SEALED_ORIGIN_PRICE_SOURCE);
+              setSaveError(null);
+            }}
+            onClearPriceBasis={() => setPurchasePriceSource(null)}
+          />
+
           {purchasePriceMode === "total" ? (
             <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-3 max-[640px]:rounded-xl">
               <label
@@ -414,6 +442,7 @@ export default function CollectionBulkAddCardsModal({
                   value={totalPurchasePrice}
                   onChange={(event) => {
                     setTotalPurchasePrice(event.target.value);
+                    setPurchasePriceSource(null);
                     setSaveError(null);
                   }}
                   disabled={saving}

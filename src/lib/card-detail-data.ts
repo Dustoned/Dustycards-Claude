@@ -25,6 +25,7 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import { loadRelatedCardPrintings } from "@/lib/card-printings";
 import { getCardCharacters } from "@/lib/card-characters-core";
 import { selectCardDetailSealedProducts } from "@/lib/sealed-products";
+import { getSealedOriginMarketPrice } from "@/lib/collection-sealed-origin";
 
 type CardDetailCollectionItem = {
   id: string;
@@ -240,6 +241,23 @@ export async function getCardDetailPayload(id: string, userId: string) {
           grading_company: true,
           grading_grade: true,
           grading_subgrades_json: true,
+          origin_sealed_product_id: true,
+          purchase_price_source: true,
+          originSealedProduct: {
+            select: {
+              id: true,
+              name: true,
+              image_url: true,
+              cm_lowest: true,
+              cm_lowest_eu: true,
+              cm_lowest_de: true,
+              cm_lowest_fr: true,
+              cm_lowest_es: true,
+              cm_lowest_it: true,
+              cm_avg_7d: true,
+              cm_avg_30d: true,
+            },
+          },
           tags: {
             select: {
               label: true,
@@ -494,6 +512,16 @@ export async function getCardDetailPayload(id: string, userId: string) {
         grading_company: collectionItem.grading_company,
         grading_grade: collectionItem.grading_grade,
         grading_subgrades: parseBgsSubgrades(collectionItem.grading_subgrades_json),
+        origin_sealed_product_id: collectionItem.origin_sealed_product_id,
+        purchase_price_source: collectionItem.purchase_price_source,
+        origin_sealed_product: collectionItem.originSealedProduct
+          ? {
+              id: collectionItem.originSealedProduct.id,
+              name: collectionItem.originSealedProduct.name,
+              image_url: collectionItem.originSealedProduct.image_url,
+              price_basis: getSealedOriginMarketPrice(collectionItem.originSealedProduct),
+            }
+          : null,
       }
     : null;
   const buySignal = buildBuySignal({

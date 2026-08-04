@@ -24,6 +24,7 @@ import {
 } from "@/components/CardListTile";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionCardQuickActions from "@/components/CollectionCardQuickActions";
+import CardPriceAlertButton from "@/components/card-detail/CardPriceAlertButton";
 import EmptyState from "@/components/EmptyState";
 import { SectionHeader } from "@/components/PageHeader";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
@@ -762,6 +763,7 @@ export default function CollectionCardsView({
         collection_item:
           shouldAttachCollectionItem
             ? {
+                ...data.collection_item,
                 id: item.collection_item_id ?? `readonly-${item.card_id}`,
                 binder_id: item.binder_id ?? null,
                 for_sale: item.for_sale ?? false,
@@ -2251,12 +2253,20 @@ export default function CollectionCardsView({
                                   <Minus className="h-3.5 w-3.5" />
                                 </button>
                               ) : allowWantRemoval ? (
-                                <CollectionAddCardButton
-                                  card={getCollectionCardQuickActionData(item).card}
-                                  initialBinderId={bulkAddBinder?.id ?? null}
-                                  lockedBinderName={bulkAddBinder?.name ?? null}
-                                  className="h-11 w-11 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32 md:h-9 md:w-9"
-                                />
+                                <>
+                                  <CardPriceAlertButton
+                                    cardId={item.card_id}
+                                    cardName={item.name}
+                                    lazy
+                                    triggerClassName="!h-11 !w-11 !rounded-lg md:!h-9 md:!w-9"
+                                  />
+                                  <CollectionAddCardButton
+                                    card={getCollectionCardQuickActionData(item).card}
+                                    initialBinderId={bulkAddBinder?.id ?? null}
+                                    lockedBinderName={bulkAddBinder?.name ?? null}
+                                    className="h-11 w-11 shrink-0 rounded-lg border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32 md:h-9 md:w-9"
+                                  />
+                                </>
                               ) : (
                                 <CollectionCardQuickActions
                                   data={getCollectionCardQuickActionData(item)}
@@ -2473,12 +2483,20 @@ export default function CollectionCardsView({
                                   ) : null
                                 ) : (
                                   allowWantRemoval ? (
-                                    <CollectionAddCardButton
-                                      card={getCollectionCardQuickActionData(item).card}
-                                      initialBinderId={bulkAddBinder?.id ?? null}
-                                      lockedBinderName={bulkAddBinder?.name ?? null}
-                                      className="h-[28px] w-[28px] rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
-                                    />
+                                    <>
+                                      <CardPriceAlertButton
+                                        cardId={item.card_id}
+                                        cardName={item.name}
+                                        lazy
+                                        triggerClassName="!h-[28px] !w-[28px] !rounded-md"
+                                      />
+                                      <CollectionAddCardButton
+                                        card={getCollectionCardQuickActionData(item).card}
+                                        initialBinderId={bulkAddBinder?.id ?? null}
+                                        lockedBinderName={bulkAddBinder?.name ?? null}
+                                        className="h-[28px] w-[28px] rounded-md border-violet-300/24 bg-violet-600/22 text-violet-50 hover:border-violet-200/42 hover:bg-violet-500/32"
+                                      />
+                                    </>
                                   ) : (
                                     <CollectionCardQuickActions
                                       data={getCollectionCardQuickActionData(item)}
@@ -2547,13 +2565,21 @@ export default function CollectionCardsView({
                   const tileAction =
                     !activeSelectionMode && !item.owned ? (
                       allowWantRemoval ? (
-                        <CollectionAddCardButton
-                          card={getCollectionCardQuickActionData(item).card}
-                          initialBinderId={bulkAddBinder?.id ?? null}
-                          lockedBinderName={bulkAddBinder?.name ?? null}
-                          className={collectionTileActionButtonClass(displaySettings.cardSize)}
-                          theme="dark"
-                        />
+                        <span className="flex items-center gap-1">
+                          <CardPriceAlertButton
+                            cardId={item.card_id}
+                            cardName={item.name}
+                            lazy
+                            triggerClassName="!h-8 !w-8 !rounded-lg"
+                          />
+                          <CollectionAddCardButton
+                            card={getCollectionCardQuickActionData(item).card}
+                            initialBinderId={bulkAddBinder?.id ?? null}
+                            lockedBinderName={bulkAddBinder?.name ?? null}
+                            className={collectionTileActionButtonClass(displaySettings.cardSize)}
+                            theme="dark"
+                          />
+                        </span>
                       ) : (
                         <CollectionCardQuickActions
                           data={getCollectionCardQuickActionData(item)}

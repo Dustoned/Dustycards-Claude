@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth-constants";
 
-const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password"];
+const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/share"];
 const PUBLIC_METADATA_PATHS = ["/icon", "/apple-icon"];
 const PUBLIC_API_PREFIXES = [
   "/api/app-version",

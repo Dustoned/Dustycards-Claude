@@ -50,7 +50,7 @@ export default function IllustratorSortToggle({
   }
 
   return (
-    <div className="inline-flex max-w-full flex-wrap rounded-2xl border border-white/10 bg-white/[0.04] p-1 shadow-sm shadow-black/20">
+    <div className="grid w-full grid-cols-3 rounded-xl border border-white/9 bg-black/20 p-1 shadow-inner shadow-black/20 sm:w-auto">
       {SORT_OPTIONS.map((option) => {
         const active = activeSort === option.value;
 
@@ -61,10 +61,10 @@ export default function IllustratorSortToggle({
             onClick={() => handleSortChange(option.value)}
             disabled={isPending && !active}
             aria-pressed={active}
-            className={`min-h-9 rounded-xl px-3 py-1.5 text-sm font-semibold transition-colors ${
+            className={`min-h-9 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-bold transition-all sm:px-3 ${
               active
-                ? "bg-violet-600 text-white shadow-[0_10px_24px_rgba(124,92,255,0.24)]"
-                : "text-white/55 hover:bg-white/[0.06] hover:text-white disabled:opacity-60"
+                ? "bg-[linear-gradient(135deg,rgb(var(--dc-primary-rgb)/0.98),rgb(var(--dc-primary-hover-rgb)/0.92))] text-white shadow-[0_8px_22px_rgb(var(--dc-primary-rgb)/0.22)]"
+                : "text-white/48 hover:bg-white/[0.055] hover:text-white disabled:opacity-60"
             }`}
           >
             {option.label}

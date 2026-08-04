@@ -1,6 +1,6 @@
 # DustyCards roadmap
 
-Last updated: 2026-08-03.
+Last updated: 2026-08-04.
 
 This file contains only work that is still useful and not already live. Completed
 work belongs in patch notes and git history. Audit evidence and temporary execution
@@ -10,28 +10,14 @@ waves are not part of the active roadmap.
 
 ### Next
 
-- **Collection import and export** — import CSV or pasted lists with a preview,
-  matching and duplicate detection; export collection, binders, sealed and wants.
+- **eBay watch countdowns** — show time remaining, ended state and the final known
+  result for watched listings.
 
 ### Planned
 
-- **Sealed origin for owned cards** — keep single-card and bulk-add forms compact
-  while allowing an optional sealed-product source per copy. When selected, the
-  source can be used as a price basis and is shown with that copy in the Card
-  Detail owned-copies section.
-- **Price alerts beyond single cards** — card alerts with e-mail sweeps are live;
-  extend targets to sealed products, wants and whole binders.
-- **Binder next-buy guidance** — rank missing cards by price, rarity, completion
-  impact and affordability. (The Wants planner already syncs missing binder cards;
-  this adds the ranking layer.)
-- **eBay watch countdowns** — show time remaining, ended state and the final known
-  result for watched listings.
-- **Shareable binder links** — create revocable read-only links for selected
-  binders without granting collection access. (Friend-to-friend sharing with an
-  account exists via Social; this is for people without an account.)
-- **Consistent blurred fullscreen backdrops** — replace solid-black fullscreen
-  popup overlays with a clean translucent blur while preserving contrast,
-  responsive behavior and accessible focus handling.
+- **Collection import and export** — keep this for later, once a representative
+  Collectr export is available to design and verify CSV/list matching, duplicate
+  review and export around real-world data instead of assumptions.
 
 ## Engineering queue
 

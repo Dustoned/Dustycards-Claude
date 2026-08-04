@@ -1,5 +1,5 @@
 export const modalOverlayClass =
-  "dc-modal-overlay fixed inset-0 flex items-center justify-center bg-[#050507] p-4";
+  "dc-modal-overlay fixed inset-0 flex items-center justify-center p-4";
 
 export const modalBottomSheetOverlayClass =
   `${modalOverlayClass} max-[640px]:items-end max-[640px]:p-0`;
@@ -8,7 +8,7 @@ export const modalCenteredMobileOverlayClass =
   `${modalOverlayClass} max-[640px]:items-center max-[640px]:p-3`;
 
 export const modalPanelBaseClass =
-  "dc-modal-panel relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-3xl border border-white/12 bg-[#07070a] text-white shadow-2xl shadow-black/60";
+  "dc-modal-panel relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-3xl border border-white/12 text-white shadow-2xl shadow-black/60";
 
 export const modalBottomSheetPanelClass =
   `${modalPanelBaseClass} max-[640px]:max-h-[calc(100dvh-0.75rem)] max-[640px]:rounded-b-none max-[640px]:rounded-t-[26px] max-[640px]:border-x-0 max-[640px]:border-b-0`;

@@ -363,6 +363,62 @@ describe("GET /api/cards/[id]", () => {
     expect(JSON.parse(JSON.stringify(payload))).toEqual(payload);
   });
 
+  it("includes the sealed origin and its price reference for an owned copy", async () => {
+    const card = {
+      ...makeCardRecord(),
+      collectionItems: [
+        {
+          id: "copy-1",
+          binder_id: null,
+          for_sale: false,
+          purchase_price: 99,
+          condition: "Near Mint",
+          language: "English",
+          notes: null,
+          grading_company: null,
+          grading_grade: null,
+          grading_subgrades_json: null,
+          origin_sealed_product_id: "sealed-1",
+          purchase_price_source: "sealed_origin",
+          originSealedProduct: {
+            id: "sealed-1",
+            name: "Test Set Elite Trainer Box",
+            image_url: null,
+            cm_lowest: 101,
+            cm_lowest_eu: 99,
+            cm_lowest_de: null,
+            cm_lowest_fr: null,
+            cm_lowest_es: null,
+            cm_lowest_it: null,
+            cm_avg_7d: 102,
+            cm_avg_30d: 104,
+          },
+          tags: [],
+          binder: null,
+        },
+      ],
+    };
+    dbMock.card.findUnique.mockResolvedValue(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
+      new Map([[card.id, card.prices]])
+    );
+
+    const payload = await getCardDetailPayload(card.id, "user-1");
+
+    expect(payload?.collection_item).toEqual(
+      expect.objectContaining({
+        origin_sealed_product_id: "sealed-1",
+        purchase_price_source: "sealed_origin",
+        origin_sealed_product: {
+          id: "sealed-1",
+          name: "Test Set Elite Trainer Box",
+          image_url: null,
+          price_basis: 99,
+        },
+      })
+    );
+  });
+
   it("keeps the existing card detail API key contract", async () => {
     const card = makeCardRecord();
     dbMock.card.findUnique.mockResolvedValue(card);

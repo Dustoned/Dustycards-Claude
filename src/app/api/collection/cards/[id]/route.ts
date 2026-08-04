@@ -5,6 +5,8 @@ import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { serializeBgsSubgrades } from "@/lib/graded-slabs";
 import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
+import { SEALED_ORIGIN_PRICE_SOURCE } from "@/lib/collection-sealed-origin";
+import { isValidCollectionSealedOrigin } from "@/lib/collection-sealed-origin-server";
 
 function toNullableString(value: unknown): string | null {
   if (typeof value !== "string") return null;
@@ -49,12 +51,29 @@ export async function PATCH(
     gradingCompany?: unknown;
     gradingGrade?: unknown;
     gradingSubgrades?: unknown;
+    originSealedProductId?: unknown;
+    purchasePriceSource?: unknown;
     }>(req);
 
   const purchasePrice = toNullableNumber(body.purchasePrice);
   if (purchasePrice != null && purchasePrice < 0) {
     return NextResponse.json(
       { error: "Purchase price cannot be negative" },
+      { status: 400 }
+    );
+  }
+
+  const originSealedProductId = toNullableString(body.originSealedProductId);
+  const rawPurchasePriceSource = toNullableString(body.purchasePriceSource);
+  if (
+    rawPurchasePriceSource != null &&
+    rawPurchasePriceSource !== SEALED_ORIGIN_PRICE_SOURCE
+  ) {
+    return NextResponse.json({ error: "Unsupported purchase price source" }, { status: 400 });
+  }
+  if (rawPurchasePriceSource && (!originSealedProductId || purchasePrice == null)) {
+    return NextResponse.json(
+      { error: "A sealed price basis needs both an origin and a purchase price" },
       { status: 400 }
     );
   }
@@ -67,6 +86,7 @@ export async function PATCH(
       card: {
         select: {
           episode_id: true,
+          game: true,
         },
       },
     },
@@ -74,6 +94,22 @@ export async function PATCH(
 
   if (!collectionItem) {
     return NextResponse.json({ error: "Collection item not found" }, { status: 404 });
+  }
+
+  if (
+    originSealedProductId &&
+    !(await isValidCollectionSealedOrigin(originSealedProductId, [
+      {
+        id: collectionItem.card_id,
+        episode_id: collectionItem.card.episode_id,
+        game: collectionItem.card.game,
+      },
+    ]))
+  ) {
+    return NextResponse.json(
+      { error: "Selected sealed product cannot contain this card" },
+      { status: 400 }
+    );
   }
 
   const forSale = toNullableBoolean(body.forSale) ?? false;
@@ -131,6 +167,8 @@ export async function PATCH(
         grading_company: gradingCompany,
         grading_grade: gradingGrade,
         grading_subgrades_json: gradingSubgradesJson,
+        origin_sealed_product_id: originSealedProductId,
+        purchase_price_source: rawPurchasePriceSource,
       },
     });
 

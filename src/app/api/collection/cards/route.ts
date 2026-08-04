@@ -8,6 +8,8 @@ import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-plan
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { distributeTotalPurchasePrice } from "@/lib/bulk-purchase-prices";
+import { SEALED_ORIGIN_PRICE_SOURCE } from "@/lib/collection-sealed-origin";
+import { isValidCollectionSealedOrigin } from "@/lib/collection-sealed-origin-server";
 
 const COLLECTION_BATCH_LIMIT = 500;
 
@@ -70,6 +72,8 @@ export async function POST(req: NextRequest) {
     gradingCompany?: unknown;
     gradingGrade?: unknown;
     gradingSubgrades?: unknown;
+    originSealedProductId?: unknown;
+    purchasePriceSource?: unknown;
     }>(req);
 
   const cardIds = (() => {
@@ -146,6 +150,21 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  const originSealedProductId = toNullableString(body.originSealedProductId);
+  const rawPurchasePriceSource = toNullableString(body.purchasePriceSource);
+  if (
+    rawPurchasePriceSource != null &&
+    rawPurchasePriceSource !== SEALED_ORIGIN_PRICE_SOURCE
+  ) {
+    return NextResponse.json({ error: "Unsupported purchase price source" }, { status: 400 });
+  }
+  if (rawPurchasePriceSource && (!originSealedProductId || suppliedPriceModes === 0)) {
+    return NextResponse.json(
+      { error: "A sealed price basis needs both an origin and a purchase price" },
+      { status: 400 }
+    );
+  }
+
   const distributedPurchasePrices =
     totalPurchasePrice != null
       ? distributeTotalPurchasePrice(totalPurchasePrice, cardIds.length)
@@ -163,6 +182,16 @@ export async function POST(req: NextRequest) {
 
   if (orderedCards.length !== cardIds.length) {
     return NextResponse.json({ error: "One or more cards were not found" }, { status: 404 });
+  }
+
+  if (
+    originSealedProductId &&
+    !(await isValidCollectionSealedOrigin(originSealedProductId, orderedCards))
+  ) {
+    return NextResponse.json(
+      { error: "Selected sealed product cannot contain all selected cards" },
+      { status: 400 }
+    );
   }
 
   if (orderedCards.some((card) => card.game === ONE_PIECE_GAME)) {
@@ -240,6 +269,8 @@ export async function POST(req: NextRequest) {
             grading_company: gradingCompany,
             grading_grade: gradingGrade,
             grading_subgrades_json: gradingSubgradesJson,
+            origin_sealed_product_id: originSealedProductId,
+            purchase_price_source: rawPurchasePriceSource,
             tags: tags.length > 0 ? { create: tags.map((label) => ({ label })) } : undefined,
           },
           select: {

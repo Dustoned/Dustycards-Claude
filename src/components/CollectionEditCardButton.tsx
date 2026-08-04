@@ -18,7 +18,11 @@ import {
 import CollectionInlineBinderCreator, {
   type InlineBinderOption,
 } from "@/components/CollectionInlineBinderCreator";
+import CollectionSealedOriginPicker, {
+  type CollectionSealedOriginOption,
+} from "@/components/CollectionSealedOriginPicker";
 import type { CollectionCardSavedDetail } from "@/lib/collection-client-events";
+import { SEALED_ORIGIN_PRICE_SOURCE } from "@/lib/collection-sealed-origin";
 import {
   modalActionRowClass,
   modalBodyClass,
@@ -63,6 +67,8 @@ interface CollectionCardItemRef {
   grading_company: string | null;
   grading_grade: string | null;
   grading_subgrades?: BgsSubgrades | null;
+  origin_sealed_product_id?: string | null;
+  purchase_price_source?: string | null;
 }
 
 interface Props {
@@ -126,6 +132,12 @@ export default function CollectionEditCardButton({
   const [gradingCompany, setGradingCompany] = useState(item.grading_company ?? "");
   const [gradingGrade, setGradingGrade] = useState(item.grading_grade ?? "");
   const [bgsSubgrades, setBgsSubgrades] = useState<BgsSubgrades>(item.grading_subgrades ?? {});
+  const [originSealedProductId, setOriginSealedProductId] = useState(
+    item.origin_sealed_product_id ?? ""
+  );
+  const [purchasePriceSource, setPurchasePriceSource] = useState<string | null>(
+    item.purchase_price_source ?? null
+  );
 
   useBodyScrollLock(open);
 
@@ -203,6 +215,8 @@ export default function CollectionEditCardButton({
           gradingGrade: cardKind === "graded" ? gradingGrade || null : null,
           gradingSubgrades:
             cardKind === "graded" && gradingCompany === "BGS" ? bgsSubgrades : null,
+          originSealedProductId: originSealedProductId || null,
+          purchasePriceSource,
         }),
       });
 
@@ -240,6 +254,8 @@ export default function CollectionEditCardButton({
     setGradingCompany(item.grading_company ?? "");
     setGradingGrade(item.grading_grade ?? "");
     setBgsSubgrades(item.grading_subgrades ?? {});
+    setOriginSealedProductId(item.origin_sealed_product_id ?? "");
+    setPurchasePriceSource(item.purchase_price_source ?? null);
     setCardKind(getInitialCardKind(item));
     setShowAdvanced(Boolean(item.notes || item.tags.length > 0));
     setBindersLoading(true);
@@ -377,7 +393,10 @@ export default function CollectionEditCardButton({
                       step="0.01"
                       inputMode="decimal"
                       value={purchasePrice}
-                      onChange={(event) => setPurchasePrice(event.target.value)}
+                      onChange={(event) => {
+                        setPurchasePrice(event.target.value);
+                        setPurchasePriceSource(null);
+                      }}
                       className={modalInputClasses}
                       placeholder="0.00"
                     />
@@ -412,6 +431,23 @@ export default function CollectionEditCardButton({
                       ))}
                     </select>
                   </label>
+                </div>
+
+                <div className="mt-2">
+                  <CollectionSealedOriginPicker
+                    cardIds={[card.id]}
+                    value={originSealedProductId}
+                    usingPriceBasis={purchasePriceSource === SEALED_ORIGIN_PRICE_SOURCE}
+                    disabled={saving}
+                    onChange={(option) => setOriginSealedProductId(option?.id ?? "")}
+                    onUsePriceBasis={(option: CollectionSealedOriginOption) => {
+                      if (option.price_basis == null) return;
+                      setOriginSealedProductId(option.id);
+                      setPurchasePrice(String(option.price_basis));
+                      setPurchasePriceSource(SEALED_ORIGIN_PRICE_SOURCE);
+                    }}
+                    onClearPriceBasis={() => setPurchasePriceSource(null)}
+                  />
                 </div>
 
                 <div className="mt-3 space-y-3 rounded-2xl border border-white/10 bg-white/[0.035] p-3 max-[640px]:rounded-xl max-[640px]:p-2.5">
