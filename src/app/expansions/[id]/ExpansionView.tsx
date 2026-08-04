@@ -721,6 +721,7 @@ export default function ExpansionView({
     initialCount: isMobileViewport ? 28 : INITIAL_RENDERED_CARDS,
     batchSize: isMobileViewport ? 24 : RENDERED_CARD_BATCH_SIZE,
     delayMs: 80,
+    loadMoreOnScroll: true,
   });
   const eagerImageCount = isMobileViewport ? 2 : EAGER_IMAGE_COUNT;
   const hasPendingRenderedCards = renderedCards.length < filtered.length;

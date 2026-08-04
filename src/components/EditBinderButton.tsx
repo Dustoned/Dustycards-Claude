@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Pencil, Trash2, X } from "lucide-react";
+import { notifyRouteProgressStart } from "@/lib/route-progress";
 import { COLLECTION_BINDER_ICONS } from "@/lib/collection";
 import BinderAccentColorPicker from "@/components/BinderAccentColorPicker";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
@@ -118,6 +119,7 @@ export default function EditBinderButton({ binder }: { binder: BinderRef }) {
 
       setOpen(false);
       if (pathname === `/binders/${binder.id}`) {
+        notifyRouteProgressStart("/?tab=binders", "Binders");
         router.push("/?tab=binders");
       } else {
         router.refresh();

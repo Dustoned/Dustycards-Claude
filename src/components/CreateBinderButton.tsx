@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
+import { notifyRouteProgressStart } from "@/lib/route-progress";
 import { COLLECTION_BINDER_ICONS } from "@/lib/collection";
 import BinderAccentColorPicker from "@/components/BinderAccentColorPicker";
 import CollectionBinderIcon from "@/components/CollectionBinderIcon";
@@ -130,7 +131,9 @@ export default function CreateBinderButton({
 
       setOpen(false);
       router.refresh();
-      router.push(`/binders/${data.binder.id}`);
+      const binderHref = `/binders/${data.binder.id}`;
+      notifyRouteProgressStart(binderHref, "Binder");
+      router.push(binderHref);
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : "Binder opslaan mislukt");
     } finally {

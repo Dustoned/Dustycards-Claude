@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { ArrowLeft, ScanLine, Search, X } from "lucide-react";
+import { notifyRouteProgressStart } from "@/lib/route-progress";
 import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import {
   buildSearchHref,
@@ -218,6 +219,7 @@ export default function HeaderSearch() {
       rememberSearchReturnPath(currentHref);
       startedSearchRef.current = true;
       shouldRestoreFocusRef.current = true;
+      notifyRouteProgressStart(href, `Search for ${trimmed}`);
       router.push(href, { scroll: false });
       return;
     }

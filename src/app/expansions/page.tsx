@@ -342,7 +342,10 @@ export default async function ExpansionsPage({
 
       <div className="space-y-5 sm:space-y-6">
         {sortedGroups.map(([era, sets], groupIndex) => (
-          <section key={era}>
+          <section
+            key={era}
+            className="[content-visibility:auto] [contain-intrinsic-size:auto_720px]"
+          >
             <SectionHeader title={era} count={sets.length} compact />
 
             <div

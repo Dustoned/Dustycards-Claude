@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { isRouteProgressNavigation } from "@/components/RouteProgressBar";
+import {
+  isRouteProgressNavigation,
+  normalizeRouteProgressLabel,
+} from "@/components/RouteProgressBar";
 
 describe("isRouteProgressNavigation", () => {
   it("starts only for a different internal route", () => {
@@ -28,5 +31,11 @@ describe("isRouteProgressNavigation", () => {
         "https://dustycards.example"
       )
     ).toBe(false);
+  });
+
+  it("keeps destination labels compact and readable", () => {
+    expect(normalizeRouteProgressLabel("  Perfect   Order  ")).toBe("Perfect Order");
+    expect(normalizeRouteProgressLabel("A".repeat(80))).toBe(`${"A".repeat(41)}…`);
+    expect(normalizeRouteProgressLabel("   ")).toBeNull();
   });
 });

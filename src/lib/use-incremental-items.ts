@@ -6,6 +6,7 @@ interface IncrementalRenderOptions {
   initialCount: number;
   batchSize: number;
   delayMs?: number;
+  loadMoreOnScroll?: boolean;
 }
 
 type IdleCallbackHandle = number;
@@ -26,7 +27,12 @@ interface IncrementalRenderState<T> {
 
 export function useIncrementalItems<T>(
   items: readonly T[],
-  { initialCount, batchSize, delayMs = 24 }: IncrementalRenderOptions
+  {
+    initialCount,
+    batchSize,
+    delayMs = 24,
+    loadMoreOnScroll = false,
+  }: IncrementalRenderOptions
 ): readonly T[] {
   const [renderState, setRenderState] = useState<IncrementalRenderState<T>>(() => ({
     items,
@@ -73,6 +79,32 @@ export function useIncrementalItems<T>(
       });
     };
 
+    if (loadMoreOnScroll) {
+      let frameId: number | null = null;
+      const maybeRevealMore = () => {
+        if (frameId != null) return;
+        frameId = window.requestAnimationFrame(() => {
+          frameId = null;
+          const remaining =
+            document.documentElement.scrollHeight - (window.scrollY + window.innerHeight);
+          if (remaining <= Math.max(window.innerHeight * 1.25, 900)) {
+            revealMore();
+          }
+        });
+      };
+
+      window.addEventListener("scroll", maybeRevealMore, { passive: true });
+      window.addEventListener("resize", maybeRevealMore, { passive: true });
+      maybeRevealMore();
+
+      return () => {
+        cancelled = true;
+        window.removeEventListener("scroll", maybeRevealMore);
+        window.removeEventListener("resize", maybeRevealMore);
+        if (frameId != null) window.cancelAnimationFrame(frameId);
+      };
+    }
+
     if (schedule.requestIdleCallback) {
       idleId = schedule.requestIdleCallback(revealMore, { timeout: 180 });
     } else {
@@ -88,7 +120,7 @@ export function useIncrementalItems<T>(
         schedule.cancelIdleCallback(idleId);
       }
     };
-  }, [batchSize, delayMs, initialCount, items, items.length, renderCount]);
+  }, [batchSize, delayMs, initialCount, items, items.length, loadMoreOnScroll, renderCount]);
 
   return useMemo(() => items.slice(0, renderCount), [items, renderCount]);
 }

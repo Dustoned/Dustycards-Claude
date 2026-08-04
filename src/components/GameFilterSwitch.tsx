@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { notifyRouteProgressStart } from "@/lib/route-progress";
 
 export interface GameFilterSwitchItem {
   href: string;
@@ -98,6 +99,7 @@ export function SegmentedNavLinks({
                 aria-current={item.active ? "page" : undefined}
                 onClick={() => {
                   if (!item.active) {
+                    notifyRouteProgressStart(item.href, item.label);
                     router.push(item.href, { scroll: !preserveScroll });
                   }
                 }}
