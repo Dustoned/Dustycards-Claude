@@ -40,7 +40,6 @@ export default function LiveForecastDataStatus({
   const tracking = forecast?.tracking;
   if (!forecast || !tracking) return null;
 
-  const activePredictions = Math.max(tracking.pending90d, tracking.pending180d);
   const next90d = formatExpectedDate(tracking.next90dMaturesAt);
   const next180d = formatExpectedDate(tracking.next180dMaturesAt);
 
@@ -61,7 +60,7 @@ export default function LiveForecastDataStatus({
             Live data status
           </span>
           <span className="mt-0.5 block truncate text-[10px] tabular-nums text-white/48">
-            {tracking.observations} logged · {tracking.independentPredictions} independent · {activePredictions} active
+            {tracking.observations.toLocaleString("en-US")} measurements · {tracking.independentPredictions.toLocaleString("en-US")} independent calls
           </span>
         </span>
         <span className="shrink-0 text-[9px] font-semibold text-white/32">Details</span>
@@ -69,12 +68,10 @@ export default function LiveForecastDataStatus({
       </summary>
 
       <div className="border-t border-white/7 px-3 pb-3 pt-2.5">
-        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
+        <div className="grid grid-cols-2 gap-1.5">
           {[
-            ["All observations", tracking.observations],
-            ["Independent calls", tracking.independentPredictions],
-            ["90d", `${tracking.complete90d} ready · ${tracking.pending90d} active`],
-            ["180d", `${tracking.complete180d} ready · ${tracking.pending180d} active`],
+            ["90-day horizon", `${tracking.pending90d} active · ${tracking.complete90d} ready`],
+            ["180-day horizon", `${tracking.pending180d} active · ${tracking.complete180d} ready`],
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg border border-white/6 bg-white/[0.025] px-2 py-2">
               <p className="text-[8px] font-bold uppercase tracking-[0.1em] text-white/28">{label}</p>
@@ -90,14 +87,25 @@ export default function LiveForecastDataStatus({
             const hits = targetSummary?.hits ?? 0;
             const misses = Math.max(0, completed - hits);
             const width = Math.min(100, (completed / target.minimum) * 100);
+            const calibrated =
+              targetSummary?.status === "calibrated" && targetSummary.interval != null;
             return (
               <div key={target.key}>
-                <div className="flex items-center justify-between gap-3 text-[9px]">
+                <div className="flex items-start justify-between gap-3 text-[9px]">
                   <span className="font-semibold text-white/52">{target.label}</span>
-                  <span className="tabular-nums text-white/36">
-                    {completed > 0
-                      ? `${hits} correct · ${misses} missed · ${target.minimum} needed`
-                      : `0 completed · ${target.minimum} needed for probability`}
+                  <span className="text-right tabular-nums text-white/36">
+                    <strong className="block font-semibold text-sky-100/62">
+                      {calibrated
+                        ? `${Math.round(targetSummary.interval!.estimate * 100)}% probability`
+                        : completed > 0
+                          ? `Learning · ${completed} of ${target.minimum} complete`
+                          : `Learning · ${target.minimum} outcomes needed`}
+                    </strong>
+                    {completed > 0 ? (
+                      <small className="mt-0.5 block text-[8px] font-medium text-white/28">
+                        {hits} correct · {misses} missed
+                      </small>
+                    ) : null}
                   </span>
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.055]">
@@ -128,7 +136,7 @@ export default function LiveForecastDataStatus({
           </p>
         )}
         <p className="mt-2 text-[9px] leading-4 text-white/28">
-          “Correct” means the full multiplier target was reached, not just a small price move. “Completed” means the full horizon finished with enough price coverage; active predictions cannot be scored yet.
+          Correct means the full multiplier was reached; small moves do not count. Active calls score only after their horizon ends.
         </p>
       </div>
     </details>

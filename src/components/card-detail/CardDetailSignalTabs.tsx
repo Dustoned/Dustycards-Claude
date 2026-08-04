@@ -284,30 +284,30 @@ function buildForecastPanel(
         }
       >
         <LiveForecastDataStatus forecast={signal.forecast} className="mb-3" />
-        <div className="overflow-hidden rounded-2xl border border-white/8">
-          {FORECAST_TARGETS.map((target) => {
-            const summary = signal?.forecast?.targets[target.key];
-            const interval = summary?.status === "calibrated" ? summary.interval : null;
-            return (
-              <div
-                key={target.key}
-                className="grid min-h-16 grid-cols-[0.55fr_0.8fr_1.35fr] items-center gap-3 border-b border-white/7 px-4 text-sm last:border-b-0"
-              >
-                <strong className="text-white/82">{target.label}</strong>
-                <span className="text-white/46">{target.horizon}</span>
-                <span className="text-right font-semibold text-cyan-100/68">
-                  {interval && summary
-                    ? `${Math.round(interval.estimate * 100)}% · ${summary.hits}/${summary.samples} hits`
-                    : (summary?.samples ?? 0) > 0
-                      ? `${summary?.hits ?? 0} correct · ${Math.max(0, (summary?.samples ?? 0) - (summary?.hits ?? 0))} missed`
-                      : signal.forecast?.tracking
-                        ? `${signal.forecast.tracking[target.horizon === "90 days" ? "pending90d" : "pending180d"]} predictions being tracked`
+        {!signal.forecast?.tracking ? (
+          <div className="overflow-hidden rounded-2xl border border-white/8">
+            {FORECAST_TARGETS.map((target) => {
+              const summary = signal?.forecast?.targets[target.key];
+              const interval = summary?.status === "calibrated" ? summary.interval : null;
+              return (
+                <div
+                  key={target.key}
+                  className="grid min-h-16 grid-cols-[0.55fr_0.8fr_1.35fr] items-center gap-3 border-b border-white/7 px-4 text-sm last:border-b-0"
+                >
+                  <strong className="text-white/82">{target.label}</strong>
+                  <span className="text-white/46">{target.horizon}</span>
+                  <span className="text-right font-semibold text-cyan-100/68">
+                    {interval && summary
+                      ? `${Math.round(interval.estimate * 100)}% · ${summary.hits}/${summary.samples} hits`
+                      : (summary?.samples ?? 0) > 0
+                        ? `${summary?.hits ?? 0} correct · ${Math.max(0, (summary?.samples ?? 0) - (summary?.hits ?? 0))} missed`
                         : "Tracking starts after the next model scan"}
-                </span>
-              </div>
-            );
-          })}
-        </div>
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        ) : null}
       </DetailSurface>
     </div>
   );

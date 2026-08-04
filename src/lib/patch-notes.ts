@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.60",
+    releasedAt: "August 4, 2026",
+    title: "Cleaner forecast validation",
+    summary:
+      "DustyCards 3.8.60 removes repeated prediction counts from the Forecast tab and keeps the complete learning status in one compact interactive panel.",
+    tone: "improved",
+    highlights: [
+      "The separate 1.5x, 2x and 3x table disappears when the live data panel already contains those targets, removing three repeated active-prediction rows.",
+      "Logged measurements and independent calls appear once in the panel header; expanded details now focus only on 90/180-day horizons, target gates, maturity dates and material correct-versus-missed outcomes.",
+    ],
+  },
+  {
     version: "3.8.59",
     releasedAt: "August 4, 2026",
     title: "Sealed Radar and transparent live learning",

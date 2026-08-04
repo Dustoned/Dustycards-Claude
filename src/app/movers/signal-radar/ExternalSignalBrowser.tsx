@@ -478,56 +478,56 @@ function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
         </span>
       </div>
       <LiveForecastDataStatus forecast={signal.forecast} className="mt-2" />
-      <div className="mt-2 grid grid-cols-3 gap-1.5">
-        {FORECAST_TARGETS.map((target) => {
-          const summary = signal.forecast?.targets[target.key];
-          const interval = summary?.status === "calibrated" ? summary.interval : null;
-          const calibrated = Boolean(interval);
-          const mainValue = interval
-            ? formatProbability(interval.estimate)
-            : referenceReady
-              ? "Learning"
-              : "Waiting";
-          const progress = summary?.samples ?? 0;
-          return (
-            <div
-              key={target.key}
-              className="min-w-0 rounded-lg border border-white/7 bg-black/20 px-2 py-2"
-              title={
-                referenceReady
-                  ? summary?.reason ?? summary?.cohortLabel ?? "Collecting comparable signals"
-                  : waitingLabel
-              }
-            >
-              <div className="flex items-baseline justify-between gap-1">
-                <span className="text-[11px] font-black text-white/82">{target.label}</span>
-                <span className="text-[8px] font-semibold uppercase text-white/30">
-                  {target.horizon}
-                </span>
-              </div>
-              <p
-                className={cx(
-                  "mt-1 truncate text-[11px] font-bold",
-                  calibrated ? "text-emerald-200" : "text-sky-100/72"
-                )}
+      {!signal.forecast?.tracking ? (
+        <div className="mt-2 grid grid-cols-3 gap-1.5">
+          {FORECAST_TARGETS.map((target) => {
+            const summary = signal.forecast?.targets[target.key];
+            const interval = summary?.status === "calibrated" ? summary.interval : null;
+            const calibrated = Boolean(interval);
+            const mainValue = interval
+              ? formatProbability(interval.estimate)
+              : referenceReady
+                ? "Learning"
+                : "Waiting";
+            const progress = summary?.samples ?? 0;
+            return (
+              <div
+                key={target.key}
+                className="min-w-0 rounded-lg border border-white/7 bg-black/20 px-2 py-2"
+                title={
+                  referenceReady
+                    ? summary?.reason ?? summary?.cohortLabel ?? "Collecting comparable signals"
+                    : waitingLabel
+                }
               >
-                {mainValue}
-              </p>
-              <p className="mt-0.5 truncate text-[8px] tabular-nums text-white/32">
-                {interval && summary
-                  ? `${summary.hits}/${summary.samples} hits · ${formatProbability(interval.lower)}–${formatProbability(interval.upper)}`
-                  : referenceReady
-                    ? progress > 0
-                      ? `${summary?.hits ?? 0} correct · ${Math.max(0, progress - (summary?.hits ?? 0))} missed`
-                      : signal.forecast?.tracking
-                        ? `${signal.forecast.tracking[target.horizon === "90 days" ? "pending90d" : "pending180d"]} predictions being tracked`
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-[11px] font-black text-white/82">{target.label}</span>
+                  <span className="text-[8px] font-semibold uppercase text-white/30">
+                    {target.horizon}
+                  </span>
+                </div>
+                <p
+                  className={cx(
+                    "mt-1 truncate text-[11px] font-bold",
+                    calibrated ? "text-emerald-200" : "text-sky-100/72"
+                  )}
+                >
+                  {mainValue}
+                </p>
+                <p className="mt-0.5 truncate text-[8px] tabular-nums text-white/32">
+                  {interval && summary
+                    ? `${summary.hits}/${summary.samples} hits · ${formatProbability(interval.lower)}–${formatProbability(interval.upper)}`
+                    : referenceReady
+                      ? progress > 0
+                        ? `${summary?.hits ?? 0} correct · ${Math.max(0, progress - (summary?.hits ?? 0))} missed`
                         : "Tracking starts after the next model scan"
-                    : waitingLabel}
-              </p>
-            </div>
-          );
-        })}
-      </div>
+                      : waitingLabel}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }

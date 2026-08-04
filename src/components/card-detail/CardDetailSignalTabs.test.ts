@@ -125,9 +125,11 @@ describe("CardDetailSignalTabs", () => {
       onResearch: vi.fn(),
     });
 
-    expect(markup).toContain("80 logged · 46 independent · 46 active");
+    expect(markup).toContain("80 measurements · 46 independent calls");
+    expect(markup).toContain("46 active · 0 ready");
     expect(markup).toContain("3 correct · 1 missed");
-    expect(markup).toContain("0 completed · 100 needed for probability");
+    expect(markup).toContain("Learning · 100 outcomes needed");
+    expect(markup).not.toContain("predictions being tracked");
     expect(markup).not.toContain("0/50");
   });
 
