@@ -10,6 +10,8 @@ import {
 } from "@/lib/auth-crypto";
 
 export type UserRole = "admin" | "user";
+const SESSION_ACTIVITY_WRITE_INTERVAL_MS = 60_000;
+const recentlyTouchedSessions = new Map<string, number>();
 
 export interface AuthUser {
   id: string;
@@ -111,6 +113,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Aut
     select: {
       id: true,
       expires_at: true,
+      last_seen_at: true,
       user: {
         select: {
           id: true,
@@ -130,6 +133,24 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Aut
   if (isSessionExpired(session.expires_at) || session.user.disabled || !session.user.email_verified_at) {
     await db.session.deleteMany({ where: { id: session.id } });
     return null;
+  }
+
+  const now = Date.now();
+  const lastTouchedAt = recentlyTouchedSessions.get(session.id) ?? 0;
+  if (
+    now - session.last_seen_at.getTime() >= SESSION_ACTIVITY_WRITE_INTERVAL_MS &&
+    now - lastTouchedAt >= SESSION_ACTIVITY_WRITE_INTERVAL_MS
+  ) {
+    recentlyTouchedSessions.set(session.id, now);
+    await db.session.updateMany({
+      where: {
+        id: session.id,
+        last_seen_at: { lte: new Date(now - SESSION_ACTIVITY_WRITE_INTERVAL_MS) },
+      },
+      data: { last_seen_at: new Date(now) },
+    }).catch(() => {
+      recentlyTouchedSessions.delete(session.id);
+    });
   }
 
   return toAuthUser(session.user);

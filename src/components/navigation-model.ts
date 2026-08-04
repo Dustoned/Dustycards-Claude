@@ -31,6 +31,7 @@ export interface NavigationSummary {
   email: string;
   role: "admin" | "user";
   attentionCount?: number;
+  activeUserCount?: number;
 }
 
 export type NavigationBadge = "cards" | "forSale" | "wants" | null;

@@ -24,6 +24,7 @@ import {
   resolveAppearancePalette,
 } from "@/lib/appearance-themes";
 import { getCurrentUser } from "@/lib/auth";
+import { getAdminActiveUsersSnapshot } from "@/lib/admin-active-users";
 import { buildVersion } from "@/lib/app-version";
 import { db } from "@/lib/db";
 import { initSettingsScript } from "@/lib/user-settings";
@@ -89,7 +90,7 @@ async function getDesktopSidebarSummary(
   email: string,
   role: DesktopSidebarSummary["role"]
 ): Promise<DesktopSidebarSummary> {
-  const [cards, forSaleCards, binders, wants, sealed, attentionCount] = await Promise.all([
+  const [cards, forSaleCards, binders, wants, sealed, attentionCount, activeUsers] = await Promise.all([
     db.collectionCard.count({ where: { user_id: userId, for_sale: false, sold_at: null } }),
     db.collectionCard.count({ where: { user_id: userId, for_sale: true, sold_at: null } }),
     db.collectionBinder.count({ where: { user_id: userId } }),
@@ -99,6 +100,7 @@ async function getDesktopSidebarSummary(
       _sum: { quantity: true },
     }),
     role === "admin" ? db.feedback.count({ where: { status: "new" } }) : Promise.resolve(0),
+    role === "admin" ? getAdminActiveUsersSnapshot() : Promise.resolve(null),
   ]);
 
   return {
@@ -110,6 +112,7 @@ async function getDesktopSidebarSummary(
     email,
     role,
     attentionCount,
+    activeUserCount: activeUsers?.count ?? 0,
   };
 }
 

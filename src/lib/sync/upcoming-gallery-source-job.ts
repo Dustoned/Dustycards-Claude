@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
+import { warmUpcomingImages } from "@/lib/sync/image-warmer";
 import {
   getArtworkHashSimilarity,
   loadArtworkHash,
@@ -633,6 +634,7 @@ async function matchStoredUpcomingRevealBacklog(now: Date): Promise<void> {
 }
 
 let activeRefresh: Promise<UpcomingGalleryRefreshResult> | null = null;
+let warmStoredImagesAfterStartup = true;
 
 export function maybeRunUpcomingGallerySourceJob(
   options: { now?: Date; skip?: boolean } = {}
@@ -641,6 +643,10 @@ export function maybeRunUpcomingGallerySourceJob(
   activeRefresh = refreshUpcomingGallerySources({ now: options.now })
     .then(async (result) => {
       await matchStoredUpcomingRevealBacklog(options.now ?? new Date());
+      if (warmStoredImagesAfterStartup || result.refreshed > 0) {
+        warmStoredImagesAfterStartup = false;
+        await warmUpcomingImages();
+      }
       return result;
     })
     .catch((error: unknown) => ({

@@ -15,6 +15,9 @@ vi.mock("@/lib/scrapedo", () => ({
   getScrapeDoConfigSnapshot: () => ({ configured: false }),
   scrapeScrapeDoPage: vi.fn(),
 }));
+vi.mock("@/lib/sync/image-warmer", () => ({
+  warmUpcomingImages: vi.fn(),
+}));
 
 import {
   extractOfficialPokemonPortraitReveals,

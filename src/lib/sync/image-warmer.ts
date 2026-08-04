@@ -5,6 +5,7 @@ import {
   type WarmCardImagesProgress,
   type WarmCardImagesResult,
 } from "@/lib/image-cache-server";
+import { readStoredUpcomingReveals } from "@/lib/upcoming-source-reveals";
 
 interface WarmStats {
   cards: WarmCardImagesResult | null;
@@ -12,6 +13,37 @@ interface WarmStats {
 }
 
 const inFlightEpisodeWarms = new Map<string, Promise<WarmStats>>();
+let inFlightUpcomingWarm: Promise<WarmCardImagesResult> | null = null;
+
+async function collectUpcomingImageUrls(): Promise<string[]> {
+  const sources = await db.externalCatalystSource.findMany({
+    where: {
+      game: "pokemon",
+      metadata_json: { not: null },
+    },
+    select: { metadata_json: true },
+  });
+
+  return [...new Set(sources.flatMap((source) =>
+    readStoredUpcomingReveals(source.metadata_json).map((reveal) => reveal.imageUrl)
+  ))];
+}
+
+/** Warms source-only leak and reveal artwork that does not exist in Card yet. */
+export function warmUpcomingImages(): Promise<WarmCardImagesResult> {
+  if (inFlightUpcomingWarm) return inFlightUpcomingWarm;
+
+  inFlightUpcomingWarm = collectUpcomingImageUrls()
+    .then((urls) => warmCardImages(urls, { concurrency: 2 }))
+    .then((result) => {
+      logResult("upcoming singles", result);
+      return result;
+    })
+    .finally(() => {
+      inFlightUpcomingWarm = null;
+    });
+  return inFlightUpcomingWarm;
+}
 
 async function collectEpisodeImageUrls(
   episodeId: string
@@ -97,8 +129,12 @@ export function warmEpisodeImages(episodeId: string): Promise<WarmStats> {
  * Used by the backfill script.
  */
 export async function warmAllImages(options?: {
-  onProgress?: (state: { phase: "cards" | "sealed"; progress: WarmCardImagesProgress }) => void;
-}): Promise<{ cards: WarmCardImagesResult; sealed: WarmCardImagesResult }> {
+  onProgress?: (state: { phase: "cards" | "sealed" | "upcoming"; progress: WarmCardImagesProgress }) => void;
+}): Promise<{
+  cards: WarmCardImagesResult;
+  sealed: WarmCardImagesResult;
+  upcoming: WarmCardImagesResult;
+}> {
   const [cardRows, sealedRows] = await Promise.all([
     db.card.findMany({
       where: { image_url: { not: null } },
@@ -123,6 +159,13 @@ export async function warmAllImages(options?: {
       ? (progress) => options.onProgress?.({ phase: "sealed", progress })
       : undefined,
   });
+  const upcomingUrls = await collectUpcomingImageUrls();
+  const upcoming = await warmCardImages(upcomingUrls, {
+    concurrency: 2,
+    onProgress: options?.onProgress
+      ? (progress) => options.onProgress?.({ phase: "upcoming", progress })
+      : undefined,
+  });
 
-  return { cards, sealed };
+  return { cards, sealed, upcoming };
 }

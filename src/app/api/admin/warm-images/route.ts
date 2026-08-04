@@ -12,7 +12,11 @@ export const runtime = "nodejs";
 let running = false;
 let startedAt: string | null = null;
 let lastFinishedAt: string | null = null;
-let lastResult: { cards: WarmCardImagesResult; sealed: WarmCardImagesResult } | null = null;
+let lastResult: {
+  cards: WarmCardImagesResult;
+  sealed: WarmCardImagesResult;
+  upcoming: WarmCardImagesResult;
+} | null = null;
 let lastError: string | null = null;
 
 function snapshot() {
@@ -35,6 +39,12 @@ function snapshot() {
             downloaded: lastResult.sealed.downloaded,
             hits: lastResult.sealed.hits,
             failed: lastResult.sealed.failed,
+          },
+          upcoming: {
+            total: lastResult.upcoming.total,
+            downloaded: lastResult.upcoming.downloaded,
+            hits: lastResult.upcoming.hits,
+            failed: lastResult.upcoming.failed,
           },
         }
       : null,

@@ -616,36 +616,6 @@ export default function SealedProductModal({ product, onClose }: Props) {
             <dd>{activeSealedHistorySeriesLabel}</dd>
           </div>
         </dl>
-        <div className="card-detail-market-links mt-4">
-          {cardMarketUrl ? (
-            <a
-              href={cardMarketUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="card-detail-market-link"
-            >
-              CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-          ) : null}
-          <a
-            href={ebayUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="card-detail-market-link"
-          >
-            eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
-          </a>
-          {modalProduct.tcggo_url ? (
-            <a
-              href={modalProduct.tcggo_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="card-detail-market-link"
-            >
-              TCGGO <ArrowUpRight className="h-3.5 w-3.5" />
-            </a>
-          ) : null}
-        </div>
       </section>
     </div>
   );

@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.9.6",
+    releasedAt: "August 4, 2026",
+    title: "Warm reveals and live admin presence",
+    summary:
+      "DustyCards keeps Upcoming artwork local, gives admins a small live-presence view and removes repeated shopping links from Sealed Market.",
+    tone: "improved",
+    highlights: [
+      "Upcoming & Leaks artwork now joins cards and sealed products in the server image cache. Stored reveals are warmed after startup and refreshed source imports, while the manual cache action reports their own totals, hits and failures.",
+      "Admins get a compact active-user counter beside the profile controls. Its blurred popup shows distinct users seen in the last five minutes and refreshes automatically without exposing the control to regular accounts.",
+      "Session activity is updated at a throttled cadence, so the active-user count reflects recent app use instead of every unexpired login session.",
+      "Sealed Market no longer repeats CardMarket, eBay Deals and TCGGO buttons beneath price context; the primary product actions remain available once in the detail header.",
+    ],
+  },
+  {
     version: "3.9.5",
     releasedAt: "August 4, 2026",
     title: "Background work stays in the background",

@@ -12,6 +12,7 @@ import {
 import { useSettings } from "@/components/SettingsProvider";
 import FeedbackButton from "@/components/FeedbackButton";
 import ActionCenterButton from "@/components/ActionCenterButton";
+import AdminActiveUsersButton from "@/components/AdminActiveUsersButton";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import {
   COLLECTION_CARD_ADDED_EVENT,
@@ -298,6 +299,12 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
             initialCount={summary.attentionCount ?? 0}
             desktopPlacement="above-left"
           />
+          {summary.role === "admin" ? (
+            <AdminActiveUsersButton
+              initialCount={summary.activeUserCount ?? 0}
+              placement="above-left"
+            />
+          ) : null}
           <button
             type="button"
             data-sidebar-account-toggle

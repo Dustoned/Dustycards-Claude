@@ -14,6 +14,18 @@ const CACHEABLE_IMAGE_HOSTS = new Set([
   "images.tcggo.com",
   "pokemoncardimages.pokedata.io",
   "product-images.tcgplayer.com",
+  "www.cardmarket.com",
+  "static.cardmarket.com",
+  "img.cardmarket.com",
+  "images.cardmarket.com",
+  "product-images.cardmarket.com",
+  "product-images.s3.cardmarket.com",
+  "www.pokebeach.com",
+  "www.pokemon.com",
+  "mcdn.pokemon.com",
+  "icv2.com",
+  "billsarchive.com",
+  "bills-archive.nyc3.cdn.digitaloceanspaces.com",
 ]);
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const CONCURRENCY = 8;
@@ -104,11 +116,28 @@ function loadImageUrls() {
       `
       )
       .all();
+    const sourceRows = db
+      .prepare(
+        `SELECT metadata_json FROM "ExternalCatalystSource"
+         WHERE game = 'pokemon' AND metadata_json IS NOT NULL`
+      )
+      .all();
+    const upcomingUrls = sourceRows.flatMap((row) => {
+      try {
+        const payload = JSON.parse(row.metadata_json);
+        if (!Array.isArray(payload?.upcomingReveals)) return [];
+        return payload.upcomingReveals.flatMap((reveal) =>
+          typeof reveal?.imageUrl === "string" ? [reveal.imageUrl] : []
+        );
+      } catch {
+        return [];
+      }
+    });
 
     return [
       ...new Set(
-        rows
-          .map((row) => parseSourceUrl(row.url)?.href)
+        [...rows.map((row) => row.url), ...upcomingUrls]
+          .map((url) => parseSourceUrl(url)?.href)
           .filter((url) => typeof url === "string")
       ),
     ];

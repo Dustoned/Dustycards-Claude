@@ -7,6 +7,7 @@ import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import FeedbackButton from "@/components/FeedbackButton";
 import ActionCenterButton from "@/components/ActionCenterButton";
+import AdminActiveUsersButton from "@/components/AdminActiveUsersButton";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import {
   ALL_NAVIGATION_ITEMS,
@@ -558,6 +559,9 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
         }}
       >
         <ActionCenterButton initialCount={summary.attentionCount ?? 0} />
+        {summary.role === "admin" ? (
+          <AdminActiveUsersButton initialCount={summary.activeUserCount ?? 0} />
+        ) : null}
         <button
           type="button"
           data-top-navigation-account

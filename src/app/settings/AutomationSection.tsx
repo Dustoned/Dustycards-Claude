@@ -142,9 +142,9 @@ function WarmImageCacheButton() {
           if (data.lastError) {
             setStatus(`Warm pass stopped: ${data.lastError}`);
           } else if (data.lastResult) {
-            const { cards, sealed } = data.lastResult;
+            const { cards, sealed, upcoming } = data.lastResult;
             setStatus(
-              `Done - cards ${cards.downloaded} new / ${cards.hits} cached / ${cards.failed} failed; sealed ${sealed.downloaded} new / ${sealed.hits} cached / ${sealed.failed} failed.`
+              `Done - cards ${cards.downloaded} new / ${cards.hits} cached / ${cards.failed} failed; sealed ${sealed.downloaded} new / ${sealed.hits} cached / ${sealed.failed} failed; upcoming ${upcoming.downloaded} new / ${upcoming.hits} cached / ${upcoming.failed} failed.`
             );
           } else {
             setStatus("Warm pass finished.");
@@ -181,7 +181,7 @@ function WarmImageCacheButton() {
       }
       setStatus(
         data.started
-          ? "Warming all card and sealed images in the background."
+          ? "Warming all card, sealed and Upcoming & Leaks images in the background."
           : "A warm pass is already running."
       );
     } catch {
@@ -201,8 +201,8 @@ function WarmImageCacheButton() {
         {loading ? "Warming images..." : "Warm Image Cache"}
       </button>
       <p className="max-w-sm text-xs text-gray-400">
-        Downloads every card and sealed image into the server cache so first
-        visits are instant. Uses no TCGGO quota; safe to re-run any time.
+        Downloads every card, sealed and Upcoming &amp; Leaks image into the
+        server cache so first visits are instant. Uses no TCGGO quota; safe to re-run any time.
       </p>
       {status && <p className="max-w-sm break-words text-xs text-gray-400">{status}</p>}
     </div>
