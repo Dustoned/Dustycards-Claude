@@ -22,6 +22,10 @@ import {
 } from "@/lib/sync/card-history-auto-drain";
 import { maybeStartExternalSignalRadarJob } from "@/lib/sync/external-signal-radar-job";
 import {
+  captureOpenExternalSignalOutcomePrices,
+  evaluatePendingExternalSignalOutcomes,
+} from "@/lib/external-signal-forecast-store";
+import {
   maybeStartNewReleaseChasePriceJob,
   type NewReleaseChasePriceJobSnapshot,
 } from "@/lib/sync/new-release-chase-price-job";
@@ -87,6 +91,20 @@ export interface SyncSchedulerTickResult {
   };
   maintenance: {
     normalizedPriceCheckedAtCards: number;
+    signalOutcomePrices: {
+      trackedCards: number;
+      captured: number;
+      unavailable: number;
+      observedDay: string;
+    };
+    signalOutcomes: {
+      matured: number;
+      evaluated: number;
+      complete: number;
+      insufficient: number;
+      truncated: boolean;
+    };
+    signalOutcomeError: string | null;
   };
 }
 
@@ -141,6 +159,35 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     now: checkedAt,
   });
   const normalizedPriceCheckedAtCards = await reconcilePriceSourceCheckedAtFromSnapshots();
+  // Forecast maintenance only reads already stored marketplace data. It must
+  // continue while external scrapers are paused or a Radar refresh fails.
+  let signalOutcomeError: string | null = null;
+  const signalOutcomePrices = await captureOpenExternalSignalOutcomePrices(checkedAt).catch(
+    (error: unknown) => {
+      signalOutcomeError = error instanceof Error ? error.message : String(error);
+      return {
+        trackedCards: 0,
+        captured: 0,
+        unavailable: 0,
+        observedDay: checkedAt.toISOString().slice(0, 10),
+      };
+    }
+  );
+  const signalOutcomes = await evaluatePendingExternalSignalOutcomes(checkedAt).catch(
+    (error: unknown) => {
+      signalOutcomeError = [
+        signalOutcomeError,
+        error instanceof Error ? error.message : String(error),
+      ].filter(Boolean).join(" | ");
+      return {
+        matured: 0,
+        evaluated: 0,
+        complete: 0,
+        insufficient: 0,
+        truncated: false,
+      };
+    }
+  );
   // Evaluate only prices that are already committed. New background refresh
   // writes are intentionally picked up on the next scheduler tick.
   const failedAlertSweep = (error: unknown): CardPriceAlertSweepResult => ({
@@ -284,6 +331,9 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     },
     maintenance: {
       normalizedPriceCheckedAtCards,
+      signalOutcomePrices,
+      signalOutcomes,
+      signalOutcomeError,
     },
   };
 

@@ -9,14 +9,14 @@ import type {
 
 export const EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS = 6 * 60 * 60_000;
 export const EXTERNAL_CATALYST_REFRESH_INTERVAL_MS = 24 * 60 * 60_000;
-export const EXTERNAL_SIGNAL_MODEL_VERSION = "v9-calibrated-inputs";
+export const EXTERNAL_SIGNAL_MODEL_VERSION = "v10-consistent-live-prices";
 export const EXTERNAL_SIGNAL_OUTCOME_HORIZONS = [30, 90, 180] as const;
 const INDEPENDENT_ENTRY_GAP_MS = 14 * 24 * 60 * 60_000;
 const REFERENCE_PRICE_MAX_AGE_MS = 72 * 60 * 60_000;
 
 interface CardmarketReference {
   price: number;
-  source: "cardmarket:avg7d";
+  source: "cardmarket:en-nm";
   fetchedAt: Date;
 }
 
@@ -94,17 +94,17 @@ async function loadFreshCardmarketReferences(
       { fetchedAtGte: oldestAllowed }
     );
     for (const card of cards) {
-      // New episodes anchor on the avg-7d family; previously opened episodes
-      // keep the reference_source stored on their entry row.
+      // The displayed raw scenario starts on English Near Mint, so outcome
+      // tracking must anchor on that exact same family as well.
       const latest = [...(historyByCardId.get(card.id) ?? [])]
         .reverse()
-        .find((row) => getSameSourceCardmarketValue("cardmarket:avg7d", row) != null);
+        .find((row) => getSameSourceCardmarketValue("cardmarket:en-nm", row) != null);
       if (!latest) continue;
-      const average7d = getSameSourceCardmarketValue("cardmarket:avg7d", latest);
-      if (average7d != null) {
+      const englishNearMint = getSameSourceCardmarketValue("cardmarket:en-nm", latest);
+      if (englishNearMint != null) {
         references.set(card.id, {
-          price: average7d,
-          source: "cardmarket:avg7d",
+          price: englishNearMint,
+          source: "cardmarket:en-nm",
           fetchedAt: latest.fetched_at,
         });
       }
@@ -123,6 +123,7 @@ async function loadPreviousEpisodeEntries(
       where: {
         card_id: { in: cardIds.slice(index, index + 50) },
         is_episode_entry: true,
+        model_version: EXTERNAL_SIGNAL_MODEL_VERSION,
       },
       orderBy: [{ card_id: "asc" }, { observed_at: "desc" }],
       select: { card_id: true, observed_at: true, pressure_label: true },
@@ -193,7 +194,7 @@ function isIndependentEpisodeEntry(
  * Stores every six-hour scan, but opens outcome horizons only for independent
  * episode entries: first sighting, a 14-day gap, or a higher signal tier. This
  * avoids treating repeated observations of the same run-up as independent
- * evidence. Forecast references are fresh CardMarket EUR avg-7d values only;
+ * evidence. Forecast references are fresh CardMarket English-NM values only;
  * the displayed scenario is frozen on the row so outcomes score the exact
  * prediction the user saw.
  */
@@ -250,6 +251,29 @@ export async function persistExternalCompetitiveScan(
       )
       .map((signal) => signal.cardId)
   );
+  const observedDay = generatedAt.toISOString().slice(0, 10);
+  const existingDailyPrices = await db.externalSignalPriceObservation.findMany({
+    where: {
+      card_id: { in: persistableSignals.map((signal) => signal.cardId) },
+      reference_source: "cardmarket:en-nm",
+      observed_day: observedDay,
+    },
+    select: { card_id: true },
+  });
+  const existingDailyCardIds = new Set(existingDailyPrices.map((row) => row.card_id));
+  const dailyPriceRows = persistableSignals.flatMap((signal) => {
+    const reference = references.get(signal.cardId);
+    if (!reference || existingDailyCardIds.has(signal.cardId)) return [];
+    return [{
+      card_id: signal.cardId,
+      reference_source: reference.source,
+      reference_price: reference.price,
+      source_price_at: reference.fetchedAt,
+      observed_at: generatedAt,
+      observed_day: observedDay,
+      provenance: "signal-scan",
+    }];
+  });
 
   return db.$transaction(async (tx) => {
     const run = await tx.externalSignalRun.create({
@@ -319,6 +343,9 @@ export async function persistExternalCompetitiveScan(
             : undefined,
         },
       });
+    }
+    if (dailyPriceRows.length > 0) {
+      await tx.externalSignalPriceObservation.createMany({ data: dailyPriceRows });
     }
 
     return {

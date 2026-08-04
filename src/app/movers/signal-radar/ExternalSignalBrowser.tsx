@@ -442,10 +442,10 @@ function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
         <div>
           <div className="flex items-center gap-1.5 text-[9px] font-semibold uppercase tracking-[0.13em] text-sky-200/68">
             <BrainCircuit className="h-3 w-3" />
-            Historical growth model
+            Live outcome learning
           </div>
           <p className="mt-1 text-[10px] leading-4 text-white/42">
-            Comparable radar signals are followed forward; a target only counts after two separate price days.
+            Every hit and miss is followed on the same price source; finished cohorts can improve future ranking.
           </p>
         </div>
         <span className="shrink-0 rounded-full border border-sky-300/12 bg-sky-400/[0.06] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.11em] text-sky-100/62">
@@ -491,7 +491,7 @@ function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
                 {interval && summary
                   ? `${summary.hits}/${summary.samples} hits · ${formatProbability(interval.lower)}–${formatProbability(interval.upper)}`
                   : referenceReady
-                    ? `${progress}/${target.minimum} completed signals`
+                    ? `${progress}/${target.minimum} completed live signals`
                     : waitingLabel}
               </p>
             </div>

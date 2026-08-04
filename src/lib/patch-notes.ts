@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.58",
+    releasedAt: "August 4, 2026",
+    title: "Signal Radar learns from comparable live outcomes",
+    summary:
+      "DustyCards 3.8.58 repairs the full prediction-feedback chain so finished Signal Radar calls can safely improve future ordering over time.",
+    tone: "system",
+    highlights: [
+      "New predictions and their outcomes now use the exact same CardMarket English Near Mint price family, removing false wins or misses caused by comparing unlike prices.",
+      "Open predictions receive one append-only daily price observation, even when the marketplace quote is unchanged, so 30, 90 and 180 day evidence is no longer lost during refreshes.",
+      "Outcome capture and evaluation run independently from the external scraper; later historical imports can also re-evaluate previously insufficient outcomes.",
+      "Every verifiable historic six-hour Signal Radar quote is backfilled without selecting only winners, while unverifiable calls are never fabricated.",
+      "Only fully calibrated live cohorts can adjust future ranking, with capped influence and strict sample, unique-card, hit and holdout gates so one breakout cannot distort the model.",
+    ],
+  },
+  {
     version: "3.8.57",
     releasedAt: "August 4, 2026",
     title: "Owned card images keep their natural shape",

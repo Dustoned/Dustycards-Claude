@@ -1118,6 +1118,26 @@ model ExternalSignalOutcome {
   @@index([entry_observation_id])
 }
 
+// Append-only daily evidence for Signal Radar outcomes. This is intentionally
+// separate from Price: an unchanged marketplace quote refreshes Price.fetched_at
+// in place, while forecast coverage must remember that the same value was
+// independently observed on every UTC day.
+model ExternalSignalPriceObservation {
+  id                  String   @id @default(cuid())
+  card_id             String
+  reference_source    String
+  reference_price     Float
+  source_price_at     DateTime?
+  observed_at         DateTime @default(now())
+  observed_day        String
+  provenance          String
+  created_at          DateTime @default(now())
+
+  @@unique([card_id, reference_source, observed_day])
+  @@index([card_id, reference_source, observed_at])
+  @@index([observed_at])
+}
+
 // Search results are canonicalized before insert. A source can therefore be
 // discovered every day for free without being scraped twice.
 model ExternalCatalystSource {

@@ -26,16 +26,13 @@ vi.mock("@/lib/external-signal-radar", () => ({
 vi.mock("@/lib/external-signal-intelligence", () => ({
   enrichExternalSignalRadarData: vi.fn(),
 }));
-vi.mock("@/lib/external-signal-forecast-store", () => ({
-  evaluatePendingExternalSignalOutcomes: vi.fn(),
-}));
 vi.mock("@/lib/sync/signal-radar-ebay-demand", () => ({
   refreshSignalRadarEbayDemand: vi.fn(),
 }));
 vi.mock("@/lib/sync/external-signal-persistence", () => ({
   EXTERNAL_CATALYST_REFRESH_INTERVAL_MS: 72 * 60 * 60_000,
   EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS: 6 * 60 * 60_000,
-  EXTERNAL_SIGNAL_MODEL_VERSION: "v8-expanded-coverage",
+  EXTERNAL_SIGNAL_MODEL_VERSION: "v10-consistent-live-prices",
   getCompleteExternalSignalGames: vi.fn(),
   isExternalRefreshDue: vi.fn(),
   persistExternalCompetitiveScan: vi.fn(),
@@ -98,7 +95,8 @@ describe("external signal scheduler lease", () => {
 
   it("forces a refresh after the signal pricing model changes", () => {
     expect(isCurrentExternalSignalModel("v6-price-sanity")).toBe(false);
-    expect(isCurrentExternalSignalModel("v8-expanded-coverage")).toBe(true);
+    expect(isCurrentExternalSignalModel("v8-expanded-coverage")).toBe(false);
+    expect(isCurrentExternalSignalModel("v10-consistent-live-prices")).toBe(true);
     expect(isCurrentExternalSignalModel(null)).toBe(false);
   });
 });

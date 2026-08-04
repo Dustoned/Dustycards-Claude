@@ -5,6 +5,7 @@ vi.mock("server-only", () => ({}));
 import {
   calculateExternalEventScore,
   catalystAgeDecayFactor,
+  getSignalRadarCalibrationRankingAdjustment,
   getSignalRadarRankingScore,
   getStructuralSignalEras,
   selectActionableRadarCohort,
@@ -253,6 +254,64 @@ describe("actionable radar cohort", () => {
 
     expect(selected.filter((candidate) => candidate.cardId.startsWith("premium-"))).toHaveLength(6);
     expect(selected.filter((candidate) => candidate.cardId.startsWith("accessible-"))).toHaveLength(10);
+  });
+});
+
+describe("live forecast feedback", () => {
+  function calibratedSignal(input: {
+    directionAccuracy: number;
+    bandCoverage: number;
+    usingPreviousModelCohort?: boolean;
+  }): ExternalCardSignal {
+    const candidate = signal({ cardId: "calibrated", externalScore: 70 });
+    const summary = {
+      key: "1.5x-90d",
+      targetMultiplier: 1.5,
+      horizonDays: 90,
+      status: "calibrated",
+      hits: 20,
+      samples: 100,
+      uniqueCards: 80,
+      interval: { estimate: 0.2, lower: 0.15, upper: 0.26, width: 0.11 },
+      upperBound95: null,
+      reason: null,
+      cohortScope: "game-tier",
+      cohortLabel: "Pokemon Strong",
+      holdoutSamples: 30,
+      holdoutCalibrationError: 0.05,
+      directionAccuracy: input.directionAccuracy,
+      bandCoverage: input.bandCoverage,
+      usingPreviousModelCohort: input.usingPreviousModelCohort,
+    };
+    candidate.forecast = {
+      cardId: candidate.cardId,
+      game: candidate.game,
+      modelVersion: "v10-consistent-live-prices",
+      signalTier: candidate.pressureLabel,
+      priceBand: "EUR 25-100",
+      observedAt: "2026-08-04T00:00:00.000Z",
+      targets: {
+        "1.5x-90d": summary,
+        "2x-90d": { ...summary, key: "2x-90d", targetMultiplier: 2 },
+        "3x-180d": { ...summary, key: "3x-180d", targetMultiplier: 3, horizonDays: 180 },
+      },
+    } as ExternalCardSignal["forecast"];
+    return candidate;
+  }
+
+  it("uses only fully calibrated outcomes and caps their ranking influence", () => {
+    const strong = calibratedSignal({ directionAccuracy: 0.9, bandCoverage: 0.9 });
+    expect(getSignalRadarCalibrationRankingAdjustment(strong)).toBe(3.6);
+    expect(getSignalRadarRankingScore(strong)).toBe(73.6);
+  });
+
+  it("halves borrowed previous-model evidence", () => {
+    const borrowed = calibratedSignal({
+      directionAccuracy: 0.9,
+      bandCoverage: 0.9,
+      usingPreviousModelCohort: true,
+    });
+    expect(getSignalRadarCalibrationRankingAdjustment(borrowed)).toBe(1.8);
   });
 });
 

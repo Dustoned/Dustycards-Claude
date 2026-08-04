@@ -20,7 +20,6 @@ import {
   isExternalRefreshDue,
   persistExternalCompetitiveScan,
 } from "@/lib/sync/external-signal-persistence";
-import { evaluatePendingExternalSignalOutcomes } from "@/lib/external-signal-forecast-store";
 import { sendHighPotentialSignalAlerts } from "@/lib/signal-radar-email-alerts";
 import {
   refreshSignalRadarEbayDemand,
@@ -224,7 +223,6 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
         written: false,
         error: error instanceof Error ? error.message : String(error),
       }));
-    const outcomes = await evaluatePendingExternalSignalOutcomes(new Date());
     const emailAlerts = await sendHighPotentialSignalAlerts(radarData, requestedAt).catch(
       (error: unknown) => ({
         configured: true,
@@ -249,11 +247,10 @@ async function runPersistedExternalSignalJob(jobId: string): Promise<void> {
             ? "partial"
             : "success",
         details_json: JSON.stringify({
-          version: 2,
+          version: 3,
           kind: EXTERNAL_SIGNAL_JOB_TYPE,
           competitive,
           snapshot,
-          outcomes,
           emailAlerts,
           ebayDemand: ebayDemand ?? {
             configured: false,

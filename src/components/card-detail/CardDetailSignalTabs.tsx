@@ -275,11 +275,11 @@ function buildForecastPanel(
       </DetailSurface>
 
       <DetailSurface
-        eyebrow="Historical calibration"
-        title="Growth probability tracker"
+        eyebrow="Live model validation"
+        title="Learning from finished predictions"
         copy={
           signal?.forecast?.modelVersion ??
-          "The model keeps learning as comparable signals complete their horizon."
+          "Hits and misses improve the model after comparable signals finish their horizon."
         }
       >
         <div className="overflow-hidden rounded-2xl border border-white/8">
@@ -296,7 +296,7 @@ function buildForecastPanel(
                 <span className="text-right font-semibold text-cyan-100/68">
                   {interval && summary
                     ? `${Math.round(interval.estimate * 100)}% · ${summary.hits}/${summary.samples} hits`
-                    : `Learning · ${summary?.samples ?? 0}/${target.minimum}`}
+                    : `${summary?.samples ?? 0}/${target.minimum} completed live`}
                 </span>
               </div>
             );

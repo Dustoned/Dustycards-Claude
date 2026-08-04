@@ -218,6 +218,27 @@ describe("external signal forecast store helpers", () => {
     expect(summary.samples).toBe(200);
   });
 
+  it("starts the consistent-price model on a clean cohort", () => {
+    expect(FORECAST_MODEL_VERSION_FALLBACKS["v10-consistent-live-prices"]).toBeUndefined();
+    const rows = Array.from({ length: 200 }, (_, index) =>
+      sample({
+        index,
+        modelVersion: "v9-calibrated-inputs",
+        hit: true,
+      })
+    );
+
+    const summary = selectForecastCohort({
+      current: { ...current, modelVersion: "v10-consistent-live-prices" },
+      rows,
+      target: EXTERNAL_FORECAST_TARGETS[0],
+    });
+
+    expect(summary.status).toBe("learning");
+    expect(summary.samples).toBe(0);
+    expect(summary.usingPreviousModelCohort).not.toBe(true);
+  });
+
   it("keeps the current cohort once it clears the minimum sample gate", () => {
     const rows = [
       ...Array.from({ length: 60 }, (_, index) =>

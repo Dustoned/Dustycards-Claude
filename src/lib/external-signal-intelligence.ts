@@ -875,7 +875,39 @@ export function getPostLaunchRadarRankingBoost(signal: ExternalCardSignal): numb
 export function getSignalRadarRankingScore(signal: ExternalCardSignal): number {
   const base =
     signal.marketIntelligence?.rawOpportunityScore ?? signal.externalScore;
-  return Math.min(100, base + getPostLaunchRadarRankingBoost(signal));
+  return clamp(
+    base +
+      getPostLaunchRadarRankingBoost(signal) +
+      getSignalRadarCalibrationRankingAdjustment(signal),
+    0,
+    100
+  );
+}
+
+/**
+ * Lets finished live cohorts improve future ordering without self-training on
+ * noise. Only cohorts that passed every publish gate participate, the effect
+ * is capped at four points, and borrowed previous-model evidence is halved.
+ */
+export function getSignalRadarCalibrationRankingAdjustment(
+  signal: ExternalCardSignal
+): number {
+  const summaries = Object.values(signal.forecast?.targets ?? {}).filter(
+    (summary) => summary.status === "calibrated"
+  );
+  if (summaries.length === 0) return 0;
+  const adjustments = summaries.flatMap((summary) => {
+    const direction = summary.directionAccuracy;
+    const coverage = summary.bandCoverage;
+    if (direction == null && coverage == null) return [];
+    const directionPart = direction == null ? 0 : (direction - 0.5) * 8;
+    const coveragePart = coverage == null ? 0 : (coverage - 0.8) * 4;
+    const modelWeight = summary.usingPreviousModelCohort ? 0.5 : 1;
+    return [(directionPart + coveragePart) * modelWeight];
+  });
+  if (adjustments.length === 0) return 0;
+  const average = adjustments.reduce((sum, value) => sum + value, 0) / adjustments.length;
+  return Math.round(clamp(average, -4, 4) * 10) / 10;
 }
 
 export async function enrichExternalSignalRadarData(

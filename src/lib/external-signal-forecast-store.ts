@@ -15,6 +15,7 @@ import {
 import { normalizeCardMarketListingValue } from "@/lib/price-history";
 
 const DAY_MS = 24 * 60 * 60_000;
+const REFERENCE_PRICE_MAX_AGE_MS = 72 * 60 * 60_000;
 const OUTCOME_EVALUATION_BATCH_SIZE = 500;
 const SQLITE_SAFE_CARD_CHUNK_SIZE = 50;
 const OUTCOME_WRITE_CHUNK_SIZE = 50;
@@ -94,6 +95,13 @@ export interface ExternalOutcomeEvaluationResult {
   truncated: boolean;
 }
 
+export interface ExternalOutcomePriceCaptureResult {
+  trackedCards: number;
+  captured: number;
+  unavailable: number;
+  observedDay: string;
+}
+
 interface CardmarketPriceRow {
   card_id: string;
   fetched_at: Date;
@@ -103,6 +111,13 @@ interface CardmarketPriceRow {
   cm_fr_lowest_nm: number | null;
   cm_es_lowest_nm: number | null;
   cm_it_lowest_nm: number | null;
+}
+
+interface DailyOutcomePriceRow {
+  cardId: string;
+  referenceSource: string;
+  observedAt: Date;
+  value: number;
 }
 
 export interface ForecastCohortOutcomeSample {
@@ -157,6 +172,123 @@ function horizonCutoff(now: Date, horizonDays: number): Date {
   return new Date(now.getTime() - horizonDays * DAY_MS);
 }
 
+function dailyPriceKey(cardId: string, referenceSource: string): string {
+  return `${cardId}\u0000${referenceSource}`;
+}
+
+/**
+ * Persists one append-only quote per UTC day for every card that still has an
+ * open forecast horizon. A source quote may be carried forward for at most 72
+ * hours, and its original fetched timestamp remains attached for provenance.
+ * Unlike Price.fetched_at, these rows never lose an unchanged observation day.
+ */
+export async function captureOpenExternalSignalOutcomePrices(
+  now = new Date()
+): Promise<ExternalOutcomePriceCaptureResult> {
+  const observedDay = now.toISOString().slice(0, 10);
+  const open = await db.externalSignalOutcome.findMany({
+    where: { status: "pending" },
+    select: {
+      entry_observation: {
+        select: {
+          card_id: true,
+          reference_source: true,
+        },
+      },
+    },
+  });
+  const pairs = new Map<string, { cardId: string; referenceSource: string }>();
+  for (const outcome of open) {
+    const cardId = outcome.entry_observation.card_id;
+    const referenceSource = outcome.entry_observation.reference_source;
+    if (!referenceSource) continue;
+    pairs.set(dailyPriceKey(cardId, referenceSource), { cardId, referenceSource });
+  }
+  if (pairs.size === 0) {
+    return { trackedCards: 0, captured: 0, unavailable: 0, observedDay };
+  }
+
+  const cardIds = [...new Set([...pairs.values()].map((pair) => pair.cardId))];
+  const existing = await db.externalSignalPriceObservation.findMany({
+    where: {
+      card_id: { in: cardIds },
+      observed_day: observedDay,
+    },
+    select: { card_id: true, reference_source: true },
+  });
+  const existingKeys = new Set(
+    existing.map((row) => dailyPriceKey(row.card_id, row.reference_source))
+  );
+  const missingPairs = [...pairs.values()].filter(
+    (pair) => !existingKeys.has(dailyPriceKey(pair.cardId, pair.referenceSource))
+  );
+  if (missingPairs.length === 0) {
+    return { trackedCards: pairs.size, captured: 0, unavailable: 0, observedDay };
+  }
+
+  const cards = await db.card.findMany({
+    where: { id: { in: [...new Set(missingPairs.map((pair) => pair.cardId))] } },
+    select: {
+      id: true,
+      game: true,
+      episode_id: true,
+      name: true,
+      card_number: true,
+      printed_card_number: true,
+      cardmarket_id: true,
+      cardmarket_url: true,
+    },
+  });
+  const historyByCardId = await loadSafeCardMarketHistoryRows(
+    cards.map((card) => ({
+      id: card.id,
+      game: card.game,
+      episodeId: card.episode_id,
+      name: card.name,
+      cardNumber: card.card_number,
+      printedCardNumber: card.printed_card_number,
+      cardmarketId: card.cardmarket_id,
+      cardmarketUrl: card.cardmarket_url,
+    })),
+    { fetchedAtGte: new Date(now.getTime() - REFERENCE_PRICE_MAX_AGE_MS) }
+  );
+  const creates: Array<{
+    card_id: string;
+    reference_source: string;
+    reference_price: number;
+    source_price_at: Date;
+    observed_at: Date;
+    observed_day: string;
+    provenance: string;
+  }> = [];
+  for (const pair of missingPairs) {
+    const row = [...(historyByCardId.get(pair.cardId) ?? [])]
+      .reverse()
+      .find((candidate) => getSameSourceCardmarketValue(pair.referenceSource, candidate) != null);
+    if (!row) continue;
+    const value = getSameSourceCardmarketValue(pair.referenceSource, row);
+    if (value == null) continue;
+    creates.push({
+      card_id: pair.cardId,
+      reference_source: pair.referenceSource,
+      reference_price: value,
+      source_price_at: row.fetched_at,
+      observed_at: now,
+      observed_day: observedDay,
+      provenance: "scheduler-carry-forward",
+    });
+  }
+  if (creates.length > 0) {
+    await db.externalSignalPriceObservation.createMany({ data: creates });
+  }
+  return {
+    trackedCards: pairs.size,
+    captured: creates.length,
+    unavailable: missingPairs.length - creates.length,
+    observedDay,
+  };
+}
+
 async function loadMaturedPendingOutcomes(now: Date) {
   return db.externalSignalOutcome.findMany({
     where: {
@@ -188,10 +320,61 @@ async function loadMaturedPendingOutcomes(now: Date) {
   });
 }
 
-async function loadPriceRowsForMaturedOutcomes(
-  outcomes: Awaited<ReturnType<typeof loadMaturedPendingOutcomes>>
-): Promise<Map<string, CardmarketPriceRow[]>> {
-  const rowsByCardId = new Map<string, CardmarketPriceRow[]>();
+async function loadMaturedOutcomes(now: Date) {
+  const pending = await loadMaturedPendingOutcomes(now);
+  const remaining = OUTCOME_EVALUATION_BATCH_SIZE - pending.length;
+  if (remaining <= 0) return pending;
+
+  // An insufficient result is normally final, but a later history import may
+  // add evidence inside its original horizon. Only those rows are retried;
+  // unchanged insufficient outcomes never churn on every scheduler tick.
+  const retryIds = await db.$queryRaw<Array<{ id: string }>>`
+    SELECT outcome.id
+    FROM "ExternalSignalOutcome" outcome
+    INNER JOIN "ExternalSignalObservation" entry
+      ON entry.id = outcome.entry_observation_id
+    WHERE outcome.status = 'insufficient'
+      AND outcome.evaluated_at IS NOT NULL
+      AND EXISTS (
+        SELECT 1
+        FROM "ExternalSignalPriceObservation" price
+        WHERE price.card_id = entry.card_id
+          AND price.reference_source = entry.reference_source
+          AND julianday(price.created_at) > julianday(outcome.evaluated_at)
+          AND julianday(price.observed_at) > julianday(entry.observed_at)
+          AND julianday(price.observed_at) <=
+              julianday(entry.observed_at, '+' || outcome.horizon_days || ' days')
+      )
+    ORDER BY outcome.evaluated_at ASC
+    LIMIT ${remaining}
+  `;
+  if (retryIds.length === 0) return pending;
+  const retries = await db.externalSignalOutcome.findMany({
+    where: { id: { in: retryIds.map((row) => row.id) } },
+    orderBy: [{ entry_observation: { observed_at: "asc" } }, { horizon_days: "asc" }],
+    select: {
+      id: true,
+      horizon_days: true,
+      entry_observation: {
+        select: {
+          card_id: true,
+          observed_at: true,
+          reference_source: true,
+          reference_price: true,
+          entry_outlook: true,
+          entry_expected_return_pct_180: true,
+          entry_scenario_json: true,
+        },
+      },
+    },
+  });
+  return [...pending, ...retries];
+}
+
+async function loadDailyPriceRowsForMaturedOutcomes(
+  outcomes: Awaited<ReturnType<typeof loadMaturedOutcomes>>
+): Promise<Map<string, DailyOutcomePriceRow[]>> {
+  const rowsByPair = new Map<string, DailyOutcomePriceRow[]>();
   const cardIds = [...new Set(outcomes.map((outcome) => outcome.entry_observation.card_id))];
 
   for (let index = 0; index < cardIds.length; index += SQLITE_SAFE_CARD_CHUNK_SIZE) {
@@ -208,53 +391,36 @@ async function loadPriceRowsForMaturedOutcomes(
           outcome.entry_observation.observed_at.getTime() + outcome.horizon_days * DAY_MS
       )
     );
-    const cards = await db.card.findMany({
-      where: { id: { in: chunk } },
+    const rows = await db.externalSignalPriceObservation.findMany({
+      where: {
+        card_id: { in: chunk },
+        observed_at: {
+          gt: new Date(earliestEntryMs),
+          lte: new Date(latestHorizonMs),
+        },
+      },
+      orderBy: [{ observed_at: "asc" }, { id: "asc" }],
       select: {
-        id: true,
-        game: true,
-        episode_id: true,
-        name: true,
-        card_number: true,
-        printed_card_number: true,
-        cardmarket_id: true,
-        cardmarket_url: true,
+        card_id: true,
+        reference_source: true,
+        reference_price: true,
+        observed_at: true,
       },
     });
-    const historyByCardId = await loadSafeCardMarketHistoryRows(
-      cards.map((card) => ({
-        id: card.id,
-        game: card.game,
-        episodeId: card.episode_id,
-        name: card.name,
-        cardNumber: card.card_number,
-        printedCardNumber: card.printed_card_number,
-        cardmarketId: card.cardmarket_id,
-        cardmarketUrl: card.cardmarket_url,
-      })),
-      {
-        fetchedAtGte: new Date(earliestEntryMs + 1),
-        fetchedAtLte: new Date(latestHorizonMs),
-      }
-    );
-    for (const card of cards) {
-      rowsByCardId.set(
-        card.id,
-        (historyByCardId.get(card.id) ?? []).map((row) => ({
-          card_id: card.id,
-          fetched_at: row.fetched_at,
-          cm_en_avg_7d: row.cm_en_avg_7d,
-          cm_en_lowest_nm: row.cm_en_lowest_nm,
-          cm_de_lowest_nm: row.cm_de_lowest_nm,
-          cm_fr_lowest_nm: row.cm_fr_lowest_nm,
-          cm_es_lowest_nm: row.cm_es_lowest_nm,
-          cm_it_lowest_nm: row.cm_it_lowest_nm,
-        }))
-      );
+    for (const row of rows) {
+      const key = dailyPriceKey(row.card_id, row.reference_source);
+      const bucket = rowsByPair.get(key) ?? [];
+      bucket.push({
+        cardId: row.card_id,
+        referenceSource: row.reference_source,
+        observedAt: row.observed_at,
+        value: row.reference_price,
+      });
+      rowsByPair.set(key, bucket);
     }
   }
 
-  return rowsByCardId;
+  return rowsByPair;
 }
 
 /**
@@ -265,7 +431,7 @@ async function loadPriceRowsForMaturedOutcomes(
 export async function evaluatePendingExternalSignalOutcomes(
   now = new Date()
 ): Promise<ExternalOutcomeEvaluationResult> {
-  const outcomes = await loadMaturedPendingOutcomes(now);
+  const outcomes = await loadMaturedOutcomes(now);
   if (outcomes.length === 0) {
     return {
       matured: 0,
@@ -276,7 +442,7 @@ export async function evaluatePendingExternalSignalOutcomes(
     };
   }
 
-  const pricesByCardId = await loadPriceRowsForMaturedOutcomes(outcomes);
+  const pricesByPair = await loadDailyPriceRowsForMaturedOutcomes(outcomes);
   const writes: Array<{
     id: string;
     data: {
@@ -300,17 +466,19 @@ export async function evaluatePendingExternalSignalOutcomes(
 
   for (const outcome of outcomes) {
     const entry = outcome.entry_observation;
-    const rawRows = pricesByCardId.get(entry.card_id) ?? [];
+    const rawRows = entry.reference_source
+      ? (pricesByPair.get(dailyPriceKey(entry.card_id, entry.reference_source)) ?? [])
+      : [];
     const priceRows = rawRows
       .filter(
         (row) =>
-          row.fetched_at > entry.observed_at &&
-          row.fetched_at.getTime() <=
+          row.observedAt > entry.observed_at &&
+          row.observedAt.getTime() <=
             entry.observed_at.getTime() + outcome.horizon_days * DAY_MS
       )
       .map((row) => ({
-        observedAt: row.fetched_at,
-        value: getSameSourceCardmarketValue(entry.reference_source, row),
+        observedAt: row.observedAt,
+        value: row.value,
       }));
     const entryPrice =
       entry.reference_price != null && entry.reference_price >= 1

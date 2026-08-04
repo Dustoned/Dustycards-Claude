@@ -205,6 +205,13 @@ const REQUIRED_RUNTIME_FIELDS = {
     "coverage_ratio",
     "max_multiplier",
   ],
+  ExternalSignalPriceObservation: [
+    "card_id",
+    "reference_source",
+    "reference_price",
+    "observed_day",
+    "provenance",
+  ],
   ExternalCatalystSource: ["canonical_url", "url_hash", "scrape_status", "last_seen_at"],
   ExternalCardCatalyst: ["source_id", "entity_key", "catalyst_type", "direction"],
 } as const;
