@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import FeedbackButton from "@/components/FeedbackButton";
+import MobileNavigationEditor from "@/components/MobileNavigationEditor";
 import type { DesktopSidebarSummary } from "@/components/DesktopSidebar";
 import {
   buildNavigationMarketHref,
@@ -259,8 +260,9 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const searchParams = useSearchParams();
   const router = useRouter();
   const collectionTab = useLiveCollectionTab();
-  const { settings } = useSettings();
+  const { settings, set } = useSettings();
   const [moreOpen, setMoreOpen] = useState(false);
+  const [navigationEditorOpen, setNavigationEditorOpen] = useState(false);
   const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [cardsCount, setCardsCount] = useState(summary?.cards ?? 0);
@@ -352,6 +354,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
 
   const closeMoreMenu = useCallback(() => {
     closingForNavigationRef.current = false;
+    setNavigationEditorOpen(false);
     setMoreOpen(false);
     setLogoutConfirmOpen(false);
   }, []);
@@ -414,12 +417,17 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
         return;
       }
 
+      if (navigationEditorOpen) {
+        setNavigationEditorOpen(false);
+        return;
+      }
+
       closeMoreMenu();
     }
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [closeMoreMenu, logoutConfirmOpen, moreOpen]);
+  }, [closeMoreMenu, logoutConfirmOpen, moreOpen, navigationEditorOpen]);
 
   useEffect(() => {
     if (moreOpen) {
@@ -470,12 +478,16 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
 
     function handleMobileEdgeBack(event: Event) {
       event.preventDefault();
+      if (navigationEditorOpen) {
+        setNavigationEditorOpen(false);
+        return;
+      }
       closeMoreMenu();
     }
 
     window.addEventListener(MOBILE_EDGE_BACK_EVENT, handleMobileEdgeBack);
     return () => window.removeEventListener(MOBILE_EDGE_BACK_EVENT, handleMobileEdgeBack);
-  }, [closeMoreMenu, moreOpen]);
+  }, [closeMoreMenu, moreOpen, navigationEditorOpen]);
 
   return (
     <div
@@ -483,7 +495,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
       data-mobile-navigation-root
       role={moreOpen ? "dialog" : undefined}
       aria-modal={moreOpen ? "true" : undefined}
-      aria-labelledby={moreOpen ? "mobile-more-title" : undefined}
+      aria-labelledby={moreOpen ? (navigationEditorOpen ? "mobile-navigation-editor-title" : "mobile-more-title") : undefined}
       className={moreOpen ? "pointer-events-none fixed inset-0 z-[54] md:hidden" : undefined}
     >
       {moreOpen ? (
@@ -498,6 +510,20 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
             aria-label="Close More navigation"
           />
 
+          {navigationEditorOpen ? (
+            <MobileNavigationEditor
+              initialBottomKeys={settings.mobileBottomNavKeys}
+              initialMoreKeys={settings.mobileMorePinnedKeys}
+              onePieceEnabled={settings.onePieceLibraryEnabled}
+              onBack={() => setNavigationEditorOpen(false)}
+              onDismiss={closeMoreMenu}
+              onSave={(bottomKeys, moreKeys) => {
+                set("mobileBottomNavKeys", bottomKeys);
+                set("mobileMorePinnedKeys", moreKeys);
+                setNavigationEditorOpen(false);
+              }}
+            />
+          ) : (
           <section
             id="mobile-more-panel"
             data-mobile-more-sheet
@@ -632,7 +658,6 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                   />
                 </section>
 
-                {pinnedNavItems.length > 0 ? (
                 <section aria-labelledby="mobile-more-quick-title">
                   <div className="mb-1.5 flex items-center justify-between px-1">
                     <h2
@@ -641,15 +666,15 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     >
                       Your quick access
                     </h2>
-                    <Link
-                      href="/settings?section=preferences#navigation"
-                      prefetch={false}
-                      onClick={navigateFromMoreMenu}
+                    <button
+                      type="button"
+                      onClick={() => setNavigationEditorOpen(true)}
                       className="text-[10px] font-black text-[var(--dc-primary-soft)]"
                     >
                       Edit
-                    </Link>
+                    </button>
                   </div>
+                  {pinnedNavItems.length > 0 ? (
                   <div className="grid grid-cols-2 gap-2">
                     {pinnedNavItems.map((item) => {
                       const active = itemActive(item);
@@ -666,11 +691,11 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                           aria-current={active ? "page" : undefined}
                           className={`grid min-h-[4.7rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[20px] border p-2 transition-colors ${
                             active
-                              ? "border-[rgb(var(--dc-primary-soft-rgb)/0.35)] bg-[rgb(var(--dc-primary-rgb)/0.15)]"
-                              : "border-[rgb(var(--dc-border-rgb)/0.84)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.62)] hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.78)]"
+                              ? "border-[rgb(var(--dc-primary-soft-rgb)/0.48)] bg-[linear-gradient(135deg,rgb(var(--dc-primary-rgb)/0.24),rgb(var(--dc-primary-soft-rgb)/0.1))] shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.08)]"
+                              : "border-[rgb(var(--dc-primary-soft-rgb)/0.18)] bg-[linear-gradient(135deg,rgb(var(--dc-primary-rgb)/0.105),rgb(var(--dc-surface-elevated-rgb)/0.62))] shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.045)] hover:border-[rgb(var(--dc-primary-soft-rgb)/0.3)] hover:bg-[linear-gradient(135deg,rgb(var(--dc-primary-rgb)/0.16),rgb(var(--dc-surface-hover-rgb)/0.76))]"
                           }`}
                         >
-                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] ${active ? "bg-[rgb(var(--dc-primary-rgb)/0.2)] text-[var(--dc-primary-soft)]" : "bg-[rgb(var(--dc-surface-hover-rgb)/0.72)] text-[var(--dc-text-muted)]"}`}>
+                          <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[14px] ${active ? "bg-[rgb(var(--dc-primary-rgb)/0.28)] text-[var(--dc-primary-soft)]" : "border border-[rgb(var(--dc-primary-soft-rgb)/0.1)] bg-[rgb(var(--dc-primary-rgb)/0.13)] text-[rgb(var(--dc-primary-soft-rgb)/0.78)]"}`}>
                             <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
                           </span>
                           <span className="min-w-0">
@@ -692,8 +717,16 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                       );
                     })}
                   </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setNavigationEditorOpen(true)}
+                      className="flex min-h-14 w-full items-center justify-center rounded-[20px] border border-dashed border-[rgb(var(--dc-border-rgb)/0.8)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.28)] px-4 text-[11px] font-bold text-[var(--dc-text-muted)]"
+                    >
+                      Choose shortcuts for this space
+                    </button>
+                  )}
                 </section>
-                ) : null}
 
                 {moreSections.map((section) => (
                   <section key={section.label} aria-labelledby={`mobile-more-${section.label.replace(/\s+/g, "-").toLowerCase()}`}>
@@ -795,6 +828,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
               </div>
             </div>
           </section>
+          )}
         </>
       ) : null}
 

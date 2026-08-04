@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.9.4",
+    releasedAt: "August 4, 2026",
+    title: "Smarter release matching and faster mobile navigation",
+    summary:
+      "DustyCards connects Upcoming reveals to released cards automatically, simplifies expansion pull-rate browsing and makes mobile shortcuts and notifications behave like durable app workflows.",
+    tone: "improved",
+    highlights: [
+      "Upcoming reveal galleries now match released database cards in the background through set numbers and the existing artwork-fingerprint system, so Japanese, English and promo names can differ without losing the connection. Strong matches open Card Detail directly while careful name-only matches remain clearly labelled search links.",
+      "Expansion rarity distribution uses a calmer coordinated palette, keeps the complete segmented set overview and moves rarity counts, percentages, per-box estimates and pull odds into compact hover, keyboard-focus and tap details.",
+      "Phone More no longer sends Edit through the full Settings page. A focused blurred navigation editor now changes the four bottom-bar buttons and up to six ordered More shortcuts with icon tiles, category filters, reset controls and one account-synced save action.",
+      "Quick Access tiles now have their own subtle violet-blue treatment, making pinned favorites visually distinct from the complete More directories.",
+      "Action Center now stores a read receipt when a notification is opened. The item disappears immediately from every mounted bell and stays read after refresh, while a later trigger for the same price alert still creates a fresh notification.",
+    ],
+  },
+  {
     version: "3.9.3",
     releasedAt: "August 4, 2026",
     title: "Upcoming intelligence and cleaner collector details",

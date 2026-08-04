@@ -23,46 +23,14 @@ interface RarityDistributionPanelProps {
 }
 
 const RARITY_TONES = [
-  {
-    segment: "bg-slate-400",
-    chip: "border-slate-300/16 bg-slate-300/[0.055]",
-    dot: "bg-slate-300",
-  },
-  {
-    segment: "bg-sky-300",
-    chip: "border-sky-300/16 bg-sky-300/[0.055]",
-    dot: "bg-sky-300",
-  },
-  {
-    segment: "bg-white/70",
-    chip: "border-white/12 bg-white/[0.045]",
-    dot: "bg-white/70",
-  },
-  {
-    segment: "bg-violet-400",
-    chip: "border-violet-300/18 bg-violet-400/[0.06]",
-    dot: "bg-violet-300",
-  },
-  {
-    segment: "bg-amber-300",
-    chip: "border-amber-300/18 bg-amber-300/[0.06]",
-    dot: "bg-amber-300",
-  },
-  {
-    segment: "bg-pink-400",
-    chip: "border-pink-300/18 bg-pink-400/[0.06]",
-    dot: "bg-pink-300",
-  },
-  {
-    segment: "bg-emerald-400",
-    chip: "border-emerald-300/18 bg-emerald-400/[0.06]",
-    dot: "bg-emerald-300",
-  },
-  {
-    segment: "bg-orange-400",
-    chip: "border-orange-300/18 bg-orange-400/[0.06]",
-    dot: "bg-orange-300",
-  },
+  { segment: "from-slate-300 to-slate-500", dot: "bg-slate-300" },
+  { segment: "from-cyan-300 to-sky-500", dot: "bg-cyan-300" },
+  { segment: "from-blue-300 to-indigo-500", dot: "bg-blue-300" },
+  { segment: "from-violet-300 to-violet-600", dot: "bg-violet-300" },
+  { segment: "from-fuchsia-300 to-fuchsia-600", dot: "bg-fuchsia-300" },
+  { segment: "from-rose-300 to-rose-500", dot: "bg-rose-300" },
+  { segment: "from-emerald-300 to-teal-500", dot: "bg-emerald-300" },
+  { segment: "from-amber-200 to-amber-500", dot: "bg-amber-200" },
 ] as const;
 
 function formatOdds(value: number | null): string | null {
@@ -103,7 +71,7 @@ export default function RarityDistributionPanel({
   const sourceLabel = profile.source === "pricedex" ? "ThePriceDex" : "Collectrics";
 
   return (
-    <section className="mb-5 overflow-hidden rounded-2xl border border-white/9 bg-[linear-gradient(145deg,rgba(20,20,29,0.88),rgba(9,9,14,0.92))] p-4 shadow-[inset_0_1px_rgba(255,255,255,0.035)] sm:p-5">
+    <section className="mb-5 overflow-visible rounded-2xl border border-white/9 bg-[linear-gradient(145deg,rgba(18,18,27,0.9),rgba(8,8,13,0.94))] p-4 shadow-[inset_0_1px_rgba(255,255,255,0.035)] sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-200/55">
@@ -116,69 +84,70 @@ export default function RarityDistributionPanel({
             See how {expansionName} is divided across its rarity tiers.
           </p>
         </div>
-        <div className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-amber-300/22 bg-amber-300/[0.07] px-3 text-xs font-extrabold tabular-nums text-amber-200">
+        <div className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-3 text-xs font-extrabold tabular-nums text-violet-100">
           <Layers3 className="h-4 w-4" aria-hidden="true" />
           {total.toLocaleString("en-US")} cards
         </div>
       </div>
 
-      <div
-        className="mt-4 flex h-8 w-full overflow-hidden rounded-xl border border-white/10 bg-white/[0.035] shadow-[inset_0_1px_8px_rgba(0,0,0,0.22)] sm:h-10"
-        aria-label={`${expansionName} rarity distribution`}
-      >
-        {rarities.map((rarity, index) => {
-          const count = rarity.card_count;
-          const tone = RARITY_TONES[index % RARITY_TONES.length];
-          return (
-            <span
-              key={rarity.id}
-              className={`${tone.segment} min-w-[2px] border-r border-black/20 last:border-r-0`}
-              style={{ width: `${(count / total) * 100}%` }}
-              title={`${rarity.rarity_name}: ${count} cards`}
-            />
-          );
-        })}
-      </div>
+      <div className="relative mt-5">
+        <div
+          className="flex h-12 w-full gap-1 rounded-2xl border border-white/9 bg-black/20 p-1 shadow-[inset_0_1px_10px_rgba(0,0,0,0.28)] sm:h-14"
+          aria-label={`${expansionName} rarity distribution`}
+        >
+          {rarities.map((rarity, index) => {
+            const count = rarity.card_count;
+            const share = (count / total) * 100;
+            const tone = RARITY_TONES[index % RARITY_TONES.length];
+            const rarityOdds = formatOdds(rarity.pull_rate_denominator);
+            const specificOdds = formatOdds(rarity.specific_pull_denominator);
+            const perBox =
+              rarity.per_booster_box != null && rarity.per_booster_box > 0
+                ? `${Number(rarity.per_booster_box.toFixed(2))}/box`
+                : null;
+            const tooltipPosition = index === 0
+              ? "left-0"
+              : index === rarities.length - 1
+                ? "right-0"
+                : "left-1/2 -translate-x-1/2";
 
-      <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
-        {rarities.map((rarity, index) => {
-          const count = rarity.card_count;
-          const tone = RARITY_TONES[index % RARITY_TONES.length];
-          const rarityOdds = formatOdds(rarity.pull_rate_denominator);
-          const specificOdds = formatOdds(rarity.specific_pull_denominator);
-          const oddsLabel = specificOdds ?? rarityOdds;
-          const secondaryLabel =
-            rarity.per_booster_box != null && rarity.per_booster_box > 0
-              ? `${Number(rarity.per_booster_box.toFixed(2))}/box`
-              : oddsLabel;
-
-          return (
-            <div
-              key={rarity.id}
-              className={`flex min-w-0 items-center gap-2.5 rounded-xl border px-3 py-2.5 ${tone.chip}`}
-              title={[
-                `${rarity.rarity_name}: ${count} cards`,
-                rarityOdds ? `Rarity odds ${rarityOdds}` : null,
-                specificOdds ? `Specific card odds ${specificOdds}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            >
-              <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${tone.dot}`} />
-              <span className="min-w-0 flex-1 truncate text-xs font-bold text-white/82">
-                {rarity.rarity_name}
-              </span>
-              {secondaryLabel ? (
-                <span className="shrink-0 text-[10px] font-semibold tabular-nums text-white/38">
-                  {secondaryLabel}
+            return (
+              <button
+                key={rarity.id}
+                type="button"
+                className="group/rarity relative min-w-[5px] rounded-xl outline-none transition-[filter,transform] hover:z-20 hover:brightness-110 focus-visible:z-20 focus-visible:brightness-110 active:scale-[0.98]"
+                style={{ flexGrow: count, flexBasis: 0 }}
+                aria-label={`${rarity.rarity_name}: ${count} cards, ${share.toFixed(1)} percent${perBox ? `, ${perBox}` : ""}${rarityOdds ? `, rarity odds ${rarityOdds}` : ""}${specificOdds ? `, specific card odds ${specificOdds}` : ""}`}
+              >
+                <span className={`absolute inset-0 rounded-xl bg-gradient-to-b ${tone.segment} opacity-80 shadow-[inset_0_1px_rgba(255,255,255,0.22)] transition-opacity group-hover/rarity:opacity-100 group-focus-visible/rarity:opacity-100`} />
+                {share >= 7 ? (
+                  <span className="relative z-10 text-[9px] font-black tabular-nums text-black/58 sm:text-[10px]">
+                    {count}
+                  </span>
+                ) : null}
+                <span
+                  className={`pointer-events-none absolute bottom-[calc(100%+0.65rem)] ${tooltipPosition} z-30 w-max max-w-[15rem] rounded-xl border border-white/12 bg-[#101017]/96 px-3 py-2.5 text-left opacity-0 shadow-[0_18px_45px_rgba(0,0,0,0.48)] backdrop-blur-xl transition duration-150 group-hover/rarity:opacity-100 group-focus-visible/rarity:opacity-100`}
+                >
+                  <span className="flex items-center gap-2 text-xs font-extrabold text-white">
+                    <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
+                    {rarity.rarity_name}
+                  </span>
+                  <span className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-semibold text-white/46">
+                    <span>{count} cards</span>
+                    <span>{share.toFixed(1)}% of set</span>
+                    {perBox ? <span>{perBox}</span> : null}
+                    {rarityOdds ? <span>Tier {rarityOdds}</span> : null}
+                    {specificOdds ? <span className="col-span-2">Specific card {specificOdds}</span> : null}
+                  </span>
                 </span>
-              ) : null}
-              <span className="inline-flex min-w-7 shrink-0 items-center justify-center rounded-md bg-white/[0.08] px-1.5 py-0.5 text-[10px] font-black tabular-nums text-white/68">
-                {count}
-              </span>
-            </div>
-          );
-        })}
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-2.5 flex items-center justify-between gap-3 text-[9px] font-semibold text-white/28 sm:text-[10px]">
+          <span>Hover or tap a segment for rarity and pull-rate details.</span>
+          <span className="shrink-0 tabular-nums">{rarities.length} rarity tiers</span>
+        </div>
       </div>
 
       <div className="mt-3 flex items-center gap-2 border-t border-white/7 pt-3 text-[10px] font-medium text-white/28">

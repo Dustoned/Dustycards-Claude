@@ -511,7 +511,7 @@ async function createArtworkHash(imageUrl: string): Promise<ArtworkHash | null> 
   }
 }
 
-function loadArtworkHash(imageUrl: string | null): Promise<ArtworkHash | null> {
+export function loadArtworkHash(imageUrl: string | null): Promise<ArtworkHash | null> {
   if (!imageUrl) return Promise.resolve(null);
   const cacheKey = getComparableArtworkUrl(imageUrl);
   const cached = artworkHashCache.get(cacheKey);

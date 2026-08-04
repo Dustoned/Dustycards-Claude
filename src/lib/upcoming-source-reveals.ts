@@ -8,6 +8,17 @@ export interface StoredUpcomingReveal {
   episodeName: string | null;
   releaseDate: string | null;
   status: "confirmed" | "reveal" | "leak";
+  libraryMatch: StoredUpcomingLibraryMatch | null;
+  libraryMatchCheckedAt: string | null;
+}
+
+export interface StoredUpcomingLibraryMatch {
+  cardId: string;
+  episodeId: string;
+  episodeName: string;
+  episodeCode: string | null;
+  method: "set-number" | "artwork";
+  confidence: number;
 }
 
 const PRODUCT_IMAGE_PATTERN =
@@ -109,6 +120,8 @@ function revealFromImage(altValue: string, urlValue: string): StoredUpcomingReve
     episodeName,
     releaseDate: null,
     status: /\b(?:leak(?:ed)?|rumou?r)\b/i.test(alt) ? "leak" : "reveal",
+    libraryMatch: null,
+    libraryMatchCheckedAt: null,
   };
 }
 
@@ -144,6 +157,23 @@ export function readStoredUpcomingReveals(metadataJson: string | null): StoredUp
       const imageUrl = typeof row.imageUrl === "string" ? normalizeImageUrl(row.imageUrl) : null;
       if (!name || !imageUrl) return [];
       const status = row.status === "confirmed" || row.status === "leak" ? row.status : "reveal";
+      const rawMatch = row.libraryMatch && typeof row.libraryMatch === "object"
+        ? row.libraryMatch as Record<string, unknown>
+        : null;
+      const libraryMatch = rawMatch
+        && typeof rawMatch.cardId === "string"
+        && typeof rawMatch.episodeId === "string"
+        && typeof rawMatch.episodeName === "string"
+        && (rawMatch.method === "set-number" || rawMatch.method === "artwork")
+        ? {
+            cardId: rawMatch.cardId,
+            episodeId: rawMatch.episodeId,
+            episodeName: rawMatch.episodeName,
+            episodeCode: typeof rawMatch.episodeCode === "string" ? rawMatch.episodeCode : null,
+            method: rawMatch.method,
+            confidence: typeof rawMatch.confidence === "number" ? rawMatch.confidence : 1,
+          } satisfies StoredUpcomingLibraryMatch
+        : null;
       return [{
         name,
         imageUrl,
@@ -152,6 +182,10 @@ export function readStoredUpcomingReveals(metadataJson: string | null): StoredUp
         episodeName: typeof row.episodeName === "string" && row.episodeName.trim() ? row.episodeName.trim() : null,
         releaseDate: typeof row.releaseDate === "string" && row.releaseDate.trim() ? row.releaseDate.trim() : null,
         status,
+        libraryMatch,
+        libraryMatchCheckedAt: typeof row.libraryMatchCheckedAt === "string" && row.libraryMatchCheckedAt.trim()
+          ? row.libraryMatchCheckedAt.trim()
+          : null,
       } satisfies StoredUpcomingReveal];
     });
   } catch {

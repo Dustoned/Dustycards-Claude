@@ -5,6 +5,13 @@ import { groupUpcomingSingles } from "@/lib/upcoming-single-groups";
 export type UpcomingSingleStatus = "confirmed" | "reveal" | "leak" | "upcoming";
 export type UpcomingStoryStatus = "confirmed" | "reveal" | "rumour" | "release";
 
+export interface UpcomingLibraryReference {
+  kind: "artwork" | "set-number" | "name";
+  count: number;
+  href: string;
+  label: string;
+}
+
 export interface UpcomingSingleItem {
   id: string;
   cardId: string | null;
@@ -22,6 +29,7 @@ export interface UpcomingSingleItem {
   sourceName: string | null;
   sourceUrl: string | null;
   observedAt: string | null;
+  libraryReference?: UpcomingLibraryReference | null;
 }
 
 export interface UpcomingSourceStory {
@@ -208,6 +216,31 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
   ]);
 
   const catalystCardIds = [...new Set(catalysts.flatMap((row) => (row.card_id ? [row.card_id] : [])))];
+  const storedSourceRows = sourceRows.map((source) => ({
+    source,
+    reveals: readStoredUpcomingReveals(source.metadata_json),
+  }));
+  const revealNames = [...new Set(storedSourceRows.flatMap(({ reveals }) =>
+    reveals.map((reveal) => reveal.name)
+  ))];
+  const releasedNameCards = revealNames.length
+    ? await db.card.findMany({
+        where: { game: "pokemon", name: { in: revealNames } },
+        select: {
+          id: true,
+          name: true,
+          episode: { select: { id: true, name: true, code: true, release_date: true } },
+        },
+      })
+    : [];
+  const releasedCardsByName = new Map<string, typeof releasedNameCards>();
+  for (const card of releasedNameCards) {
+    if (!card.episode.release_date || card.episode.release_date > releaseCutoff) continue;
+    const key = card.name.trim().toLowerCase();
+    const cards = releasedCardsByName.get(key) ?? [];
+    cards.push(card);
+    releasedCardsByName.set(key, cards);
+  }
   const catalystCards = catalystCardIds.length
     ? await db.card.findMany({
         where: { id: { in: catalystCardIds } },
@@ -289,23 +322,42 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
     )
   );
   const sourceSingles: UpcomingSingleItem[] = [];
-  for (const source of sourceRows) {
+  for (const { source, reveals } of storedSourceRows) {
     const sourceText = [source.title, source.description, source.content_excerpt]
       .filter(Boolean)
       .join(" ");
-    for (const [index, reveal] of readStoredUpcomingReveals(source.metadata_json).entries()) {
+    for (const [index, reveal] of reveals.entries()) {
       const revealKey = `${reveal.name.trim().toLowerCase()}\u0000${reveal.cardNumber?.trim().toLowerCase() ?? ""}`;
       if (matchedSingleKeys.has(revealKey)) continue;
       matchedSingleKeys.add(revealKey);
+      const storedMatch = reveal.libraryMatch;
+      const releasedNameMatches = releasedCardsByName.get(reveal.name.trim().toLowerCase()) ?? [];
+      const libraryReference: UpcomingLibraryReference | null = storedMatch
+        ? {
+            kind: storedMatch.method,
+            count: Math.max(1, releasedNameMatches.length),
+            href: `/expansions/${storedMatch.episodeId}?card=${storedMatch.cardId}`,
+            label: storedMatch.method === "artwork"
+              ? `Artwork matched to ${storedMatch.episodeName}`
+              : `Released in ${storedMatch.episodeName}`,
+          }
+        : releasedNameMatches.length
+          ? {
+              kind: "name",
+              count: releasedNameMatches.length,
+              href: `/search?q=${encodeURIComponent(reveal.name)}`,
+              label: `${releasedNameMatches.length} released ${releasedNameMatches.length === 1 ? "printing" : "printings"} found`,
+            }
+          : null;
       sourceSingles.push({
         id: `source:${source.id}:${index}`,
-        cardId: null,
+        cardId: storedMatch?.cardId ?? null,
         name: reveal.name,
         imageUrl: reveal.imageUrl,
         cardNumber: reveal.cardNumber,
         rarity: reveal.rarity,
         version: null,
-        episodeId: null,
+        episodeId: storedMatch?.episodeId ?? null,
         episodeName: reveal.episodeName ?? source.title?.trim() ?? "Source reveal",
         episodeCode: null,
         releaseDate: reveal.releaseDate,
@@ -319,6 +371,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
         sourceName: sourceLabel(source.domain),
         sourceUrl: source.canonical_url,
         observedAt: toIso(source.published_at ?? source.last_seen_at),
+        libraryReference,
       });
     }
   }

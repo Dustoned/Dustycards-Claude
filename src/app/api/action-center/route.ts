@@ -1,8 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 
 export const dynamic = "force-dynamic";
+
+const MAX_ITEM_KEY_LENGTH = 240;
 
 type ActionItem = {
   id: string;
@@ -58,7 +60,7 @@ export async function GET() {
 
     const items: ActionItem[] = [
       ...cardAlerts.map((alert) => ({
-        id: `card-alert-${alert.id}`,
+        id: `card-alert-${alert.id}-${(alert.triggered_at ?? alert.updated_at).getTime()}`,
         kind: "alert" as const,
         title: `${alert.card.name} price alert`,
         detail:
@@ -70,7 +72,7 @@ export async function GET() {
         tone: "positive" as const,
       })),
       ...collectionAlerts.map((alert) => ({
-        id: `collection-alert-${alert.id}`,
+        id: `collection-alert-${alert.id}-${(alert.triggered_at ?? alert.updated_at).getTime()}`,
         kind: "alert" as const,
         title: `${alert.target_type === "sealed" ? "Sealed" : "Collection"} price alert`,
         detail:
@@ -84,7 +86,7 @@ export async function GET() {
       ...watched.map((listing) => {
         const ended = Boolean(listing.item_end_date && listing.item_end_date <= now);
         return {
-          id: `ebay-${listing.id}`,
+          id: `ebay-${listing.id}-${ended ? "ended" : "ending"}`,
           kind: "ebay" as const,
           title: ended ? "Watched eBay listing ended" : "eBay listing ending soon",
           detail: listing.title,
@@ -113,8 +115,52 @@ export async function GET() {
       })),
     ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 24);
 
-    return NextResponse.json({ ok: true, count: items.length, items });
+    const readReceipts = items.length
+      ? await db.actionCenterReceipt.findMany({
+          where: {
+            user_id: user.id,
+            item_key: { in: items.map((item) => item.id) },
+          },
+          select: { item_key: true },
+        })
+      : [];
+    const readItemKeys = new Set(readReceipts.map((receipt) => receipt.item_key));
+    const unreadItems = items.filter((item) => !readItemKeys.has(item.id));
+
+    return NextResponse.json({ ok: true, count: unreadItems.length, items: unreadItems });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Could not load actions" }, { status: 500 });
+  }
+}
+
+export async function POST(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    const body = (await req.json().catch(() => ({}))) as { itemId?: unknown };
+    const itemId = typeof body.itemId === "string" ? body.itemId.trim() : "";
+
+    if (!itemId || itemId.length > MAX_ITEM_KEY_LENGTH) {
+      return NextResponse.json({ error: "A valid action item is required" }, { status: 400 });
+    }
+
+    await db.actionCenterReceipt.upsert({
+      where: {
+        user_id_item_key: {
+          user_id: user.id,
+          item_key: itemId,
+        },
+      },
+      create: {
+        user_id: user.id,
+        item_key: itemId,
+      },
+      update: {
+        read_at: new Date(),
+      },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Could not mark action as read" }, { status: 500 });
   }
 }

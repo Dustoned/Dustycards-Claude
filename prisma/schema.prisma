@@ -70,6 +70,7 @@ model User {
   ebayWatchedListings      EbayWatchedListing[]
   cardPriceAlerts          CardPriceAlert[]
   collectionPriceAlerts    CollectionPriceAlert[]
+  actionCenterReceipts     ActionCenterReceipt[]
   binderShareLinks         BinderShareLink[]
   cardSubmissions          CardSubmission[]
   feedback                 Feedback[]
@@ -81,6 +82,20 @@ model User {
   @@index([role])
   @@index([disabled])
   @@index([email_verified_at])
+}
+
+model ActionCenterReceipt {
+  id         String   @id @default(cuid())
+  user_id    String
+  item_key   String
+  read_at    DateTime @default(now())
+  created_at DateTime @default(now())
+
+  user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([user_id, item_key])
+  @@index([user_id, read_at])
+  @@index([created_at])
 }
 
 model SocialConnection {

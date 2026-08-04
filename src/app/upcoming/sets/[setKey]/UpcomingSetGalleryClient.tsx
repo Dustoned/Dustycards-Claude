@@ -38,9 +38,9 @@ function compareNumber(left: UpcomingSingleItem, right: UpcomingSingleItem, dire
 }
 
 function GalleryCard({ item }: { item: UpcomingSingleItem }) {
-  const cardHref = item.episodeId && item.cardId
+  const cardHref = item.libraryReference?.href ?? (item.episodeId && item.cardId
     ? `/expansions/${item.episodeId}?card=${item.cardId}`
-    : null;
+    : null);
   const artwork = (
     <div className="relative aspect-[63/88] overflow-hidden rounded-[5%] bg-black/22 shadow-[0_16px_34px_rgba(0,0,0,0.3)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_20px_42px_rgba(0,0,0,0.42)]">
       {item.imageUrl ? (
@@ -57,6 +57,16 @@ function GalleryCard({ item }: { item: UpcomingSingleItem }) {
       <span className={`absolute left-1.5 top-1.5 rounded-full border px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] backdrop-blur-md sm:left-2 sm:top-2 sm:text-[8px] ${statusStyle(item.status)}`}>
         {titleStatus(item.status)}
       </span>
+      {item.libraryReference ? (
+        <span
+          className="absolute bottom-1.5 right-1.5 rounded-full border border-emerald-300/22 bg-[#09150f]/88 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-200 backdrop-blur-md sm:bottom-2 sm:right-2 sm:text-[8px]"
+          title={item.libraryReference.label}
+        >
+          {item.libraryReference.kind === "name"
+            ? `${item.libraryReference.count} ${item.libraryReference.count === 1 ? "print" : "prints"}`
+            : "DB match"}
+        </span>
+      ) : null}
     </div>
   );
 
@@ -92,7 +102,7 @@ export default function UpcomingSetGalleryClient({ group }: { group: UpcomingSin
   const visible = useMemo(() => group.items
     .filter((item) => {
       if (!query) return true;
-      const haystack = [item.name, item.cardNumber, item.rarity, item.version, item.status, item.sourceName]
+      const haystack = [item.name, item.cardNumber, item.rarity, item.version, item.status, item.sourceName, item.libraryReference?.label]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();

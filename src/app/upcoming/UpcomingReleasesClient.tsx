@@ -161,9 +161,9 @@ function SealedReleaseTile({ release }: { release: UpcomingSealedRelease }) {
 }
 
 function BinderSingleTile({ item, interactive = true }: { item: UpcomingSingleItem; interactive?: boolean }) {
-  const cardHref = item.episodeId && item.cardId
+  const cardHref = item.libraryReference?.href ?? (item.episodeId && item.cardId
     ? `/expansions/${item.episodeId}?card=${item.cardId}`
-    : null;
+    : null);
   const image = (
     <div className="relative aspect-[63/88] w-full overflow-hidden rounded-[5%] bg-black/22 shadow-[0_16px_32px_rgba(0,0,0,0.28)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_20px_38px_rgba(0,0,0,0.38)]">
       {item.imageUrl ? (
@@ -180,6 +180,16 @@ function BinderSingleTile({ item, interactive = true }: { item: UpcomingSingleIt
       <span className={`absolute left-1.5 top-1.5 rounded-full border px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.1em] backdrop-blur-md sm:left-2 sm:top-2 sm:text-[8px] ${singleStatusStyle(item.status)}`}>
         {titleStatus(item.status)}
       </span>
+      {item.libraryReference ? (
+        <span
+          className="absolute bottom-1.5 right-1.5 rounded-full border border-emerald-300/22 bg-[#09150f]/88 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-200 backdrop-blur-md sm:bottom-2 sm:right-2 sm:text-[8px]"
+          title={item.libraryReference.label}
+        >
+          {item.libraryReference.kind === "name"
+            ? `${item.libraryReference.count} ${item.libraryReference.count === 1 ? "print" : "prints"}`
+            : "DB match"}
+        </span>
+      ) : null}
     </div>
   );
 
@@ -211,6 +221,9 @@ function SingleSetSection({ group }: { group: UpcomingSingleGroup }) {
     group.statuses.confirmed ? `${group.statuses.confirmed} confirmed` : null,
     group.statuses.reveal ? `${group.statuses.reveal} revealed` : null,
     group.statuses.leak ? `${group.statuses.leak} early` : null,
+    group.items.some((item) => item.libraryReference)
+      ? `${group.items.filter((item) => item.libraryReference).length} database-linked`
+      : null,
   ].filter(Boolean).join(" · ");
 
   return (
@@ -318,7 +331,7 @@ export default function UpcomingReleasesClient({
   const query = useDeferredValue(search).trim().toLowerCase();
   const filtered = useMemo(() => ({
     sealed: sealed.filter((item) => matchesQuery(query, [item.name, item.episodeName, item.episodeCode, item.sourceName])),
-    singles: singles.filter((item) => matchesQuery(query, [item.name, item.episodeName, item.episodeCode, item.cardNumber, item.rarity, item.headline, item.sourceName])),
+    singles: singles.filter((item) => matchesQuery(query, [item.name, item.episodeName, item.episodeCode, item.cardNumber, item.rarity, item.headline, item.sourceName, item.libraryReference?.label])),
     stories: stories.filter((item) => matchesQuery(query, [item.title, item.description, item.sourceName, item.status])),
   }), [query, sealed, singles, stories]);
   const singleGroups = useMemo(() => groupUpcomingSingles(filtered.singles), [filtered.singles]);

@@ -4,6 +4,8 @@ import Link from "next/link";
 import { Bell, CheckCircle2, Clock3, Radar, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
+const ACTION_CENTER_ITEM_READ_EVENT = "dustycards:action-center-item-read";
+
 type ActionItem = {
   id: string;
   kind: "alert" | "ebay" | "signal" | "feedback";
@@ -36,6 +38,7 @@ export default function ActionCenterButton({
   const [count, setCount] = useState(initialCount);
   const [loading, setLoading] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
+  const locallyReadItemIdsRef = useRef(new Set<string>());
 
   useEffect(() => {
     let active = true;
@@ -45,8 +48,11 @@ export default function ActionCenterButton({
         const response = await fetch("/api/action-center", { cache: "no-store" });
         const payload = (await response.json().catch(() => ({}))) as { count?: number; items?: ActionItem[] };
         if (!active || !response.ok) return;
-        setItems(payload.items ?? []);
-        setCount(payload.count ?? 0);
+        const nextItems = (payload.items ?? []).filter(
+          (item) => !locallyReadItemIdsRef.current.has(item.id)
+        );
+        setItems(nextItems);
+        setCount(nextItems.length);
       } finally {
         if (active) setLoading(false);
       }
@@ -58,6 +64,33 @@ export default function ActionCenterButton({
       window.clearInterval(timer);
     };
   }, []);
+
+  useEffect(() => {
+    function handleItemRead(event: Event) {
+      const itemId = (event as CustomEvent<{ itemId?: string }>).detail?.itemId;
+      if (!itemId) return;
+
+      locallyReadItemIdsRef.current.add(itemId);
+      setItems((current) => current.filter((item) => item.id !== itemId));
+      setCount((current) => Math.max(0, current - 1));
+    }
+
+    window.addEventListener(ACTION_CENTER_ITEM_READ_EVENT, handleItemRead);
+    return () => window.removeEventListener(ACTION_CENTER_ITEM_READ_EVENT, handleItemRead);
+  }, []);
+
+  function markItemRead(itemId: string) {
+    window.dispatchEvent(
+      new CustomEvent(ACTION_CENTER_ITEM_READ_EVENT, { detail: { itemId } })
+    );
+    void fetch("/api/action-center", {
+      method: "POST",
+      credentials: "same-origin",
+      keepalive: true,
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ itemId }),
+    });
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -117,7 +150,7 @@ export default function ActionCenterButton({
               {items.length ? items.map((item) => {
                 const Icon = item.kind === "signal" ? Radar : item.kind === "ebay" ? Clock3 : CheckCircle2;
                 return (
-                  <Link key={item.id} href={item.href} onClick={() => setOpen(false)} target={item.kind === "ebay" ? "_blank" : undefined} rel={item.kind === "ebay" ? "noopener noreferrer" : undefined} className="flex gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.055]">
+                  <Link key={item.id} href={item.href} onClick={() => { markItemRead(item.id); setOpen(false); }} target={item.kind === "ebay" ? "_blank" : undefined} rel={item.kind === "ebay" ? "noopener noreferrer" : undefined} className="flex gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.055]">
                     <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${item.tone === "positive" ? "border-emerald-300/16 bg-emerald-500/[0.08] text-emerald-200" : item.tone === "warning" ? "border-amber-300/16 bg-amber-500/[0.08] text-amber-200" : "border-white/8 bg-white/[0.035] text-white/52"}`}>
                       <Icon className="h-3.5 w-3.5" />
                     </span>

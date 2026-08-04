@@ -1,5 +1,10 @@
 import { createHash } from "node:crypto";
 import { db } from "@/lib/db";
+import {
+  getArtworkHashSimilarity,
+  loadArtworkHash,
+  type ArtworkHash,
+} from "@/lib/card-printings";
 import type { FirecrawlPageScrapeResult } from "@/lib/firecrawl";
 import {
   getScrapeDoConfigSnapshot,
@@ -7,12 +12,17 @@ import {
 } from "@/lib/scrapedo";
 import {
   extractUpcomingRevealsFromScrape,
+  readStoredUpcomingReveals,
+  type StoredUpcomingLibraryMatch,
   type StoredUpcomingReveal,
 } from "@/lib/upcoming-source-reveals";
 
 const REFRESH_INTERVAL_MS = 12 * 60 * 60_000;
 const DIRECT_TIMEOUT_MS = 18_000;
 const DIRECT_MINIMUM_HTML_LENGTH = 12_000;
+const LIBRARY_MATCH_BATCH_SIZE = 3;
+const LIBRARY_MATCH_RECHECK_MS = 14 * 24 * 60 * 60_000;
+const STRONG_UPCOMING_ARTWORK_SIMILARITY = 0.8;
 
 interface UpcomingGallerySourceDefinition {
   url: string;
@@ -124,6 +134,166 @@ export interface UpcomingGalleryRefreshResult {
 
 function hash(value: string): string {
   return createHash("sha256").update(value).digest("hex");
+}
+
+function normalizedCardNumber(value: string | null): number | null {
+  const matched = value?.match(/\d{1,3}/)?.[0];
+  if (!matched) return null;
+  const parsed = Number(matched);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : null;
+}
+
+function episodeAliases(value: string | null): string[] {
+  if (!value) return [];
+  return value
+    .split(/\s*\/\s*/)
+    .map((part) => part.trim())
+    .filter((part) => part.length >= 3);
+}
+
+function asLibraryMatch(
+  card: {
+    id: string;
+    episode: { id: string; name: string; code: string | null };
+  },
+  method: StoredUpcomingLibraryMatch["method"],
+  confidence: number
+): StoredUpcomingLibraryMatch {
+  return {
+    cardId: card.id,
+    episodeId: card.episode.id,
+    episodeName: card.episode.name,
+    episodeCode: card.episode.code,
+    method,
+    confidence,
+  };
+}
+
+type UpcomingLibraryCandidate = {
+  id: string;
+  name: string;
+  card_number: string | null;
+  episode: {
+    id: string;
+    name: string;
+    code: string | null;
+    release_date: string | null;
+  };
+  printingEvidence: {
+    artwork_hash_full: string | null;
+    artwork_hash_illustration: string | null;
+  } | null;
+};
+
+function storedArtworkHash(card: UpcomingLibraryCandidate): ArtworkHash | null {
+  const full = card.printingEvidence?.artwork_hash_full;
+  const illustration = card.printingEvidence?.artwork_hash_illustration;
+  return full && illustration ? { full, illustration } : null;
+}
+
+function isReleasedCandidate(card: UpcomingLibraryCandidate, today: string): boolean {
+  return Boolean(card.episode.release_date && card.episode.release_date <= today);
+}
+
+async function findUpcomingLibraryMatch(
+  reveal: StoredUpcomingReveal,
+  now: Date
+): Promise<StoredUpcomingLibraryMatch | null> {
+  const today = now.toISOString().slice(0, 10);
+  const aliases = episodeAliases(reveal.episodeName);
+  const [sameNameCards, matchingEpisodes] = await Promise.all([
+    db.card.findMany({
+      where: { game: "pokemon", name: reveal.name },
+      select: {
+        id: true,
+        name: true,
+        card_number: true,
+        episode: { select: { id: true, name: true, code: true, release_date: true } },
+        printingEvidence: {
+          select: { artwork_hash_full: true, artwork_hash_illustration: true },
+        },
+      },
+    }),
+    aliases.length
+      ? db.episode.findMany({
+          where: { game: "pokemon", name: { in: aliases } },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            release_date: true,
+            cards: {
+              select: {
+                id: true,
+                name: true,
+                card_number: true,
+                printingEvidence: {
+                  select: { artwork_hash_full: true, artwork_hash_illustration: true },
+                },
+              },
+            },
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+  const episodeCards: UpcomingLibraryCandidate[] = matchingEpisodes.flatMap((episode) =>
+    episode.cards.map((card) => ({ ...card, episode: {
+      id: episode.id,
+      name: episode.name,
+      code: episode.code,
+      release_date: episode.release_date,
+    } }))
+  );
+  const revealNumber = normalizedCardNumber(reveal.cardNumber);
+  const direct = revealNumber == null
+    ? null
+    : episodeCards.find((card) =>
+        isReleasedCandidate(card, today)
+        && normalizedCardNumber(card.card_number) === revealNumber
+      ) ?? null;
+  if (direct) return asLibraryMatch(direct, "set-number", 1);
+
+  const revealHash = await loadArtworkHash(reveal.imageUrl);
+  if (!revealHash) return null;
+
+  const exactEvidence = await db.cardPrintingEvidence.findMany({
+    where: {
+      OR: [
+        { artwork_hash_full: revealHash.full },
+        { artwork_hash_illustration: revealHash.illustration },
+      ],
+    },
+    take: 12,
+    select: {
+      artwork_hash_full: true,
+      artwork_hash_illustration: true,
+      card: {
+        select: {
+          id: true,
+          name: true,
+          card_number: true,
+          episode: { select: { id: true, name: true, code: true, release_date: true } },
+          printingEvidence: {
+            select: { artwork_hash_full: true, artwork_hash_illustration: true },
+          },
+        },
+      },
+    },
+  });
+  const exactArtwork = exactEvidence
+    .map((evidence) => evidence.card)
+    .filter((card) => isReleasedCandidate(card, today))
+    .sort((left, right) => (right.episode.release_date ?? "").localeCompare(left.episode.release_date ?? ""))[0];
+  if (exactArtwork) return asLibraryMatch(exactArtwork, "artwork", 1);
+
+  const strongestNamedMatch = sameNameCards
+    .filter((card) => isReleasedCandidate(card, today))
+    .map((card) => ({ card, similarity: getArtworkHashSimilarity(revealHash, storedArtworkHash(card)) }))
+    .filter((candidate) => candidate.similarity >= STRONG_UPCOMING_ARTWORK_SIMILARITY)
+    .sort((left, right) => right.similarity - left.similarity)[0];
+  return strongestNamedMatch
+    ? asLibraryMatch(strongestNamedMatch.card, "artwork", strongestNamedMatch.similarity)
+    : null;
 }
 
 function compactText(value: string, maximum: number): string {
@@ -245,6 +415,8 @@ export function extractOfficialPokemonPortraitReveals(
       episodeName: definition.episodeName,
       releaseDate: definition.releaseDate,
       status: "confirmed",
+      libraryMatch: null,
+      libraryMatchCheckedAt: null,
     });
   }
   return [...reveals.values()];
@@ -252,7 +424,8 @@ export function extractOfficialPokemonPortraitReveals(
 
 function normalizeReveals(
   scrape: FirecrawlPageScrapeResult,
-  definition: UpcomingGallerySourceDefinition
+  definition: UpcomingGallerySourceDefinition,
+  existingReveals: StoredUpcomingReveal[] = []
 ): StoredUpcomingReveal[] {
   const extracted = definition.extractOfficialPortraits
     ? extractOfficialPokemonPortraitReveals(scrape, definition)
@@ -261,12 +434,16 @@ function normalizeReveals(
     ? extracted.filter((reveal) => definition.imagePathPattern!.test(reveal.imageUrl))
     : extracted;
   const reveals = new Map<string, StoredUpcomingReveal>();
+  const previousByImage = new Map(existingReveals.map((reveal) => [reveal.imageUrl, reveal]));
   for (const reveal of combined) {
+    const previous = previousByImage.get(reveal.imageUrl);
     const normalized = {
       ...reveal,
       episodeName: definition.episodeName || reveal.episodeName,
       releaseDate: definition.releaseDate ?? reveal.releaseDate,
       status: definition.sourceType === "official" ? "confirmed" as const : reveal.status,
+      libraryMatch: previous?.libraryMatch ?? reveal.libraryMatch,
+      libraryMatchCheckedAt: previous?.libraryMatchCheckedAt ?? reveal.libraryMatchCheckedAt,
     };
     const key = `${normalized.name.toLowerCase()}\u0000${normalized.cardNumber ?? ""}\u0000${normalized.imageUrl}`;
     reveals.set(key, normalized);
@@ -349,7 +526,11 @@ async function refreshSource(
   }
 
   if (scrape) {
-    const reveals = normalizeReveals(scrape, definition);
+    const reveals = normalizeReveals(
+      scrape,
+      definition,
+      readStoredUpcomingReveals(existing?.metadata_json ?? null)
+    );
     if (reveals.length >= definition.minimumReveals) {
       await storeSuccessfulSource({ definition, scrape, reveals, provider, now });
       return { provider, reveals: reveals.length, error: null };
@@ -409,6 +590,48 @@ export async function refreshUpcomingGallerySources(
   return result;
 }
 
+async function matchStoredUpcomingRevealBacklog(now: Date): Promise<void> {
+  const staleBefore = new Date(now.getTime() - LIBRARY_MATCH_RECHECK_MS).getTime();
+  const sources = await db.externalCatalystSource.findMany({
+    where: { canonical_url: { in: UPCOMING_GALLERY_SOURCES.map((source) => source.url) } },
+    orderBy: [{ updated_at: "asc" }],
+    select: { id: true, metadata_json: true },
+  });
+  let checked = 0;
+
+  for (const source of sources) {
+    if (checked >= LIBRARY_MATCH_BATCH_SIZE || !source.metadata_json) break;
+    let payload: Record<string, unknown>;
+    try {
+      const parsed = JSON.parse(source.metadata_json) as unknown;
+      if (!parsed || typeof parsed !== "object") continue;
+      payload = parsed as Record<string, unknown>;
+    } catch {
+      continue;
+    }
+    const reveals = readStoredUpcomingReveals(source.metadata_json);
+    let changed = false;
+    for (const reveal of reveals) {
+      if (checked >= LIBRARY_MATCH_BATCH_SIZE) break;
+      const checkedAt = reveal.libraryMatchCheckedAt
+        ? new Date(reveal.libraryMatchCheckedAt).getTime()
+        : 0;
+      if (reveal.libraryMatch || (Number.isFinite(checkedAt) && checkedAt >= staleBefore)) continue;
+      reveal.libraryMatch = await findUpcomingLibraryMatch(reveal, now);
+      reveal.libraryMatchCheckedAt = now.toISOString();
+      checked += 1;
+      changed = true;
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
+    if (!changed) continue;
+    payload.upcomingReveals = reveals;
+    await db.externalCatalystSource.update({
+      where: { id: source.id },
+      data: { metadata_json: JSON.stringify(payload) },
+    });
+  }
+}
+
 let activeRefresh: Promise<UpcomingGalleryRefreshResult> | null = null;
 
 export function maybeRunUpcomingGallerySourceJob(
@@ -416,6 +639,10 @@ export function maybeRunUpcomingGallerySourceJob(
 ): void {
   if (options.skip || activeRefresh) return;
   activeRefresh = refreshUpcomingGallerySources({ now: options.now })
+    .then(async (result) => {
+      await matchStoredUpcomingRevealBacklog(options.now ?? new Date());
+      return result;
+    })
     .catch((error: unknown) => ({
       due: 0,
       refreshed: 0,
