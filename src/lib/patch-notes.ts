@@ -25,6 +25,7 @@ export const patchNotes: PatchNoteEntry[] = [
     tone: "improved",
     highlights: [
       "Upcoming & Leaks artwork now joins cards and sealed products in the server image cache. Stored reveals are warmed after startup and refreshed source imports, while the manual cache action reports their own totals, hits and failures.",
+      "Upcoming & Leaks now rejects archive catalyst matches from old released sets. Only future releases and sets released within the last 45 days can enter the singles gallery, with future galleries ordered before recent releases.",
       "Admins get a compact active-user counter beside the profile controls. Its blurred popup shows distinct users seen in the last five minutes and refreshes automatically without exposing the control to regular accounts.",
       "Session activity is updated at a throttled cadence, so the active-user count reflects recent app use instead of every unexpired login session.",
       "Sealed Market no longer repeats CardMarket, eBay Deals and TCGGO buttons beneath price context; the primary product actions remain available once in the detail header.",

@@ -120,7 +120,8 @@ export function groupUpcomingSingles(items: UpcomingSingleItem[]): UpcomingSingl
       } satisfies UpcomingSingleGroup;
     })
     .sort((left, right) =>
-      Number(right.nearComplete) - Number(left.nearComplete)
+      (right.releaseDate ?? "").localeCompare(left.releaseDate ?? "")
+      || Number(right.nearComplete) - Number(left.nearComplete)
       || right.items.length - left.items.length
       || left.name.localeCompare(right.name, "en", { sensitivity: "base" })
     );

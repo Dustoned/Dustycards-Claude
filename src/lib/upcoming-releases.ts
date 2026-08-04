@@ -1,4 +1,8 @@
 import { db } from "@/lib/db";
+import {
+  isRelevantUpcomingReleaseDate,
+  upcomingRecentReleaseFloor,
+} from "@/lib/upcoming-release-policy";
 import { readStoredUpcomingReveals } from "@/lib/upcoming-source-reveals";
 import { groupUpcomingSingles } from "@/lib/upcoming-single-groups";
 
@@ -139,9 +143,10 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
       return parts;
     }, {});
   const releaseCutoff = `${todayKey.year}-${todayKey.month}-${todayKey.day}`;
+  const recentReleaseFloor = upcomingRecentReleaseFloor(now);
   const sourceCutoff = new Date(now.getTime() - 180 * 24 * 60 * 60_000);
 
-  const [upcomingEpisodes, catalysts, sourceRows] = await Promise.all([
+  const [upcomingEpisodes, eligibleCatalystCards, sourceRows] = await Promise.all([
     db.episode.findMany({
       where: {
         game: "pokemon",
@@ -169,25 +174,23 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
         },
       },
     }),
-    db.externalCardCatalyst.findMany({
+    db.card.findMany({
       where: {
         game: "pokemon",
-        card_id: { not: null },
-        catalyst_type: { in: ["reveal", "product", "localization"] },
-        observed_at: { gte: sourceCutoff },
+        image_url: { not: null },
+        episode: {
+          release_date: { not: null, gte: recentReleaseFloor },
+        },
       },
-      orderBy: [{ observed_at: "desc" }, { strength: "desc" }],
-      take: 120,
-      include: {
-        source: {
-          select: {
-            canonical_url: true,
-            domain: true,
-            source_type: true,
-            title: true,
-            description: true,
-            published_at: true,
-          },
+      select: {
+        id: true,
+        name: true,
+        card_number: true,
+        rarity: true,
+        version: true,
+        image_url: true,
+        episode: {
+          select: { id: true, name: true, code: true, release_date: true },
         },
       },
     }),
@@ -215,7 +218,31 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
     }),
   ]);
 
-  const catalystCardIds = [...new Set(catalysts.flatMap((row) => (row.card_id ? [row.card_id] : [])))];
+  const eligibleCatalystCardIds = eligibleCatalystCards.map((card) => card.id);
+  const catalysts = eligibleCatalystCardIds.length
+    ? await db.externalCardCatalyst.findMany({
+        where: {
+          game: "pokemon",
+          card_id: { in: eligibleCatalystCardIds },
+          catalyst_type: { in: ["reveal", "product", "localization"] },
+          observed_at: { gte: sourceCutoff },
+        },
+        orderBy: [{ observed_at: "desc" }, { strength: "desc" }],
+        take: 120,
+        include: {
+          source: {
+            select: {
+              canonical_url: true,
+              domain: true,
+              source_type: true,
+              title: true,
+              description: true,
+              published_at: true,
+            },
+          },
+        },
+      })
+    : [];
   const storedSourceRows = sourceRows.map((source) => ({
     source,
     reveals: readStoredUpcomingReveals(source.metadata_json),
@@ -241,23 +268,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
     cards.push(card);
     releasedCardsByName.set(key, cards);
   }
-  const catalystCards = catalystCardIds.length
-    ? await db.card.findMany({
-        where: { id: { in: catalystCardIds } },
-        select: {
-          id: true,
-          name: true,
-          card_number: true,
-          rarity: true,
-          version: true,
-          image_url: true,
-          episode: {
-            select: { id: true, name: true, code: true, release_date: true },
-          },
-        },
-      })
-    : [];
-  const cardsById = new Map(catalystCards.map((card) => [card.id, card]));
+  const cardsById = new Map(eligibleCatalystCards.map((card) => [card.id, card]));
   const singlesByCard = new Map<string, UpcomingSingleItem>();
 
   for (const catalyst of catalysts) {
@@ -327,6 +338,12 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
       .filter(Boolean)
       .join(" ");
     for (const [index, reveal] of reveals.entries()) {
+      if (
+        reveal.releaseDate
+        && !isRelevantUpcomingReleaseDate(reveal.releaseDate, recentReleaseFloor)
+      ) {
+        continue;
+      }
       const revealKey = `${reveal.name.trim().toLowerCase()}\u0000${reveal.cardNumber?.trim().toLowerCase() ?? ""}`;
       if (matchedSingleKeys.has(revealKey)) continue;
       matchedSingleKeys.add(revealKey);
@@ -378,6 +395,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
 
   const stories: UpcomingSourceStory[] = sourceRows
     .flatMap((source) => {
+      if (source.published_at && source.published_at < sourceCutoff) return [];
       const title = source.title?.trim();
       if (!title) return [];
       const text = [title, source.description, source.content_excerpt].filter(Boolean).join(" ");

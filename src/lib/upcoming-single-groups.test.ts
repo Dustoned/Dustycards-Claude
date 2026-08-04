@@ -56,4 +56,13 @@ describe("upcoming single groups", () => {
     expect(group.items).toHaveLength(1);
     expect(group.items[0]).toMatchObject({ name: "Espeon ex", status: "confirmed" });
   });
+
+  it("places future galleries before recently released galleries", () => {
+    const recent = { ...single("Recent Set", 1), releaseDate: "2026-07-17" };
+    const future = { ...single("Future Set", 1), releaseDate: "2026-11-06" };
+
+    const groups = groupUpcomingSingles([recent, future]);
+
+    expect(groups.map((group) => group.name)).toEqual(["Future Set", "Recent Set"]);
+  });
 });
