@@ -13,8 +13,9 @@ import {
   type TcgDexCardIdentity,
 } from "@/lib/card-printings";
 
-const GROUPS_PER_RUN = 24;
-const EVIDENCE_CONCURRENCY = 6;
+const GROUPS_PER_RUN = 6;
+const EVIDENCE_CONCURRENCY = 2;
+const EVENT_LOOP_YIELD_INTERVAL = 128;
 const EVIDENCE_REFRESH_MS = 90 * 24 * 60 * 60_000;
 const PARTIAL_RETRY_MS = 6 * 60 * 60_000;
 
@@ -59,6 +60,10 @@ let lastError: string | null = null;
 let lastGroupsProcessed = 0;
 let lastCardsProcessed = 0;
 let lastRelationsWritten = 0;
+
+function yieldToWebTraffic(): Promise<void> {
+  return new Promise((resolve) => setImmediate(resolve));
+}
 
 export function getCardReprintJobSnapshot(): CardReprintJobSnapshot {
   return {
@@ -274,6 +279,7 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
       cards.slice(offset, offset + EVIDENCE_CONCURRENCY)
         .map((card) => prepareEvidence(card, now))
     ));
+    await yieldToWebTraffic();
   }
   const groups = new DisjointSet(cards.length);
   const directMatches = new Map<string, {
@@ -297,8 +303,13 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
     ])
   );
 
+  let comparisons = 0;
   for (let left = 0; left < cards.length; left += 1) {
     for (let right = left + 1; right < cards.length; right += 1) {
+      comparisons += 1;
+      if (comparisons % EVENT_LOOP_YIELD_INTERVAL === 0) {
+        await yieldToWebTraffic();
+      }
       const override = overrideByPair.get([cards[left].id, cards[right].id].sort().join("\u0000"));
       if (override === "exclude") continue;
       if (override === "include") {
@@ -357,10 +368,15 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
     model_version: string;
     matched_at: Date;
   }> = [];
+  let relationCandidates = 0;
   for (const component of components.values()) {
     if (component.length < 2) continue;
     for (const source of component) {
       for (const target of component) {
+        relationCandidates += 1;
+        if (relationCandidates % EVENT_LOOP_YIELD_INTERVAL === 0) {
+          await yieldToWebTraffic();
+        }
         if (source === target) continue;
         const [left, right] = source < target ? [source, target] : [target, source];
         if (
@@ -437,6 +453,7 @@ async function runCardReprintBacklog(now: Date) {
     groupsProcessed += 1;
     cardsProcessed += result.cards;
     relationsWritten += result.relations;
+    await yieldToWebTraffic();
   }
 
   return { groupsProcessed, cardsProcessed, relationsWritten };

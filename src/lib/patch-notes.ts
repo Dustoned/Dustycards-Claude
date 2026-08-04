@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.9.1",
+    releasedAt: "August 4, 2026",
+    title: "Responsive background reprint processing",
+    summary:
+      "DustyCards keeps the new automatic reprint backlog from competing with normal browsing while it audits the existing catalog.",
+    tone: "fixed",
+    highlights: [
+      "Reprint evidence now processes in smaller low-concurrency batches and explicitly yields between image work, comparisons and candidate groups, keeping Card Detail, Settings and the homepage responsive during the initial catalog audit.",
+      "The durable backlog still resumes automatically on later scheduler ticks, so matching coverage continues to grow without recalculating every time a card is opened.",
+    ],
+  },
+  {
     version: "3.9.0",
     releasedAt: "August 4, 2026",
     title: "Navigation, collection intelligence and connected workflows",
