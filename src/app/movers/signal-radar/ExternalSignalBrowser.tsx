@@ -1,7 +1,15 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
-import { useCallback, useDeferredValue, useEffect, useMemo, useState } from "react";
+import {
+  type KeyboardEvent,
+  useCallback,
+  useDeferredValue,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import {
   ArrowUpRight,
   BarChart3,
@@ -28,12 +36,15 @@ import {
   CardListTileInsight,
   CardListTileLink,
   CardListTileMedia,
+  CardListTileMetrics,
 } from "@/components/CardListTile";
 import CollectionCardQuickActions, {
   CollectionCardQuickActionsPlaceholder,
 } from "@/components/CollectionCardQuickActions";
 import EmptyState from "@/components/EmptyState";
+import LiveForecastDataStatus from "@/components/LiveForecastDataStatus";
 import { SectionHeader } from "@/components/PageHeader";
+import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import NewReleaseChasePanel from "@/app/movers/signal-radar/NewReleaseChasePanel";
 import type {
   CardQuickActionData,
@@ -50,6 +61,10 @@ import type {
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
+import type {
+  SealedSignalRadarData,
+  SealedSignalRadarItem,
+} from "@/lib/sealed-signal-radar";
 import {
   cacheSignalRadarFeed,
   CHASE_WATCH_RETRY_DELAY_MS,
@@ -64,7 +79,13 @@ import {
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
+type SealedHistoryFilter = "all" | "established" | "building";
 type SortKey = "opportunity" | "price_asc" | "price_desc" | "confluence" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
+
+const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
+  ssr: false,
+  loading: () => null,
+});
 
 interface Props {
   signals: ExternalCardSignal[];
@@ -122,21 +143,21 @@ function getConfidenceClasses(confidence: ExternalSignalConfidence): string {
   return "border-amber-300/20 bg-amber-400/[0.09] text-amber-200";
 }
 
-function getScenarioOutlookBadge(scenario: ExternalPriceScenario | null | undefined) {
-  if (!scenario?.outlook) return null;
-  if (scenario.outlook === "strong_up") {
+function getOutlookBadge(outlook: ExternalPriceScenario["outlook"] | null | undefined) {
+  if (!outlook) return null;
+  if (outlook === "strong_up") {
     return {
       label: "Strong upside",
       classes: "border-emerald-300/20 bg-emerald-400/[0.09] text-emerald-200",
     };
   }
-  if (scenario.outlook === "modest_up") {
+  if (outlook === "modest_up") {
     return {
       label: "Mild upside",
       classes: "border-sky-300/20 bg-sky-400/[0.08] text-sky-200",
     };
   }
-  if (scenario.outlook === "down") {
+  if (outlook === "down") {
     return {
       label: "Downside risk",
       classes: "border-rose-300/20 bg-rose-400/[0.08] text-rose-200",
@@ -146,6 +167,10 @@ function getScenarioOutlookBadge(scenario: ExternalPriceScenario | null | undefi
     label: "Mostly flat",
     classes: "border-amber-300/20 bg-amber-400/[0.08] text-amber-200",
   };
+}
+
+function getScenarioOutlookBadge(scenario: ExternalPriceScenario | null | undefined) {
+  return getOutlookBadge(scenario?.outlook);
 }
 
 export function getSignalExplanations(signal: ExternalCardSignal) {
@@ -452,6 +477,7 @@ function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
           {signal.forecast?.modelVersion ?? "learning"}
         </span>
       </div>
+      <LiveForecastDataStatus forecast={signal.forecast} className="mt-2" />
       <div className="mt-2 grid grid-cols-3 gap-1.5">
         {FORECAST_TARGETS.map((target) => {
           const summary = signal.forecast?.targets[target.key];
@@ -491,7 +517,11 @@ function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
                 {interval && summary
                   ? `${summary.hits}/${summary.samples} hits · ${formatProbability(interval.lower)}–${formatProbability(interval.upper)}`
                   : referenceReady
-                    ? `${progress}/${target.minimum} completed live signals`
+                    ? progress > 0
+                      ? `${summary?.hits ?? 0} correct · ${Math.max(0, progress - (summary?.hits ?? 0))} missed`
+                      : signal.forecast?.tracking
+                        ? `${signal.forecast.tracking[target.horizon === "90 days" ? "pending90d" : "pending180d"]} predictions being tracked`
+                        : "Tracking starts after the next model scan"
                     : waitingLabel}
               </p>
             </div>
@@ -743,6 +773,304 @@ function CompactSignalCard({
   );
 }
 
+function formatSealedTrend(value: number | null): string {
+  if (value == null) return "Learning";
+  return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
+}
+
+function sealedTrendClass(value: number | null): string {
+  if (value == null || Math.abs(value) < 0.1) return "text-white/42";
+  return value > 0 ? "text-emerald-200" : "text-rose-200";
+}
+
+function sealedHistoryLabel(item: SealedSignalRadarItem): string {
+  if (item.historyStatus === "established") return "90d ready";
+  if (item.historyStatus === "building") return "30d ready";
+  return "Learning";
+}
+
+function SealedSignalCard({
+  item,
+  onOpen,
+}: {
+  item: SealedSignalRadarItem;
+  onOpen: (product: SealedModalProductData) => void;
+}) {
+  const openProduct = () => onOpen(item.modalProduct);
+  const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.target !== event.currentTarget) return;
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openProduct();
+    }
+  };
+  const outlook = getOutlookBadge(item.outlook);
+
+  return (
+    <CardListTile
+      interactive
+      accent="radar"
+      layout="showcase"
+      role="button"
+      tabIndex={0}
+      aria-label={`Open sealed analysis for ${item.name}`}
+      onClick={openProduct}
+      onKeyDown={onKeyDown}
+      data-sealed-signal-id={item.productId}
+    >
+      <CardListTileMedia
+        imageUrl={item.imageUrl}
+        kind="product"
+        className="pointer-events-none relative z-[1]"
+      >
+        {item.imageUrl ? (
+          <CachedImage
+            sourceUrl={item.imageUrl}
+            alt={item.name}
+            fill
+            sizes="(max-width: 640px) 116px, 120px"
+            className="object-contain p-2"
+            unoptimized
+          />
+        ) : (
+          <span className="absolute inset-0 flex items-center justify-center text-white/25">
+            <PackageSearch className="h-8 w-8" />
+          </span>
+        )}
+        <span className="absolute left-1.5 top-1.5 inline-flex min-h-6 min-w-6 items-center justify-center rounded-full border border-white/15 bg-black/75 px-1.5 text-[10px] font-black text-white">
+          #{item.rank}
+        </span>
+      </CardListTileMedia>
+
+      <CardListTileBody className="pointer-events-none relative z-[1]">
+        <CardListTileHeader
+          badges={
+            <>
+              <span
+                className={cx(
+                  "rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]",
+                  getConfidenceClasses(item.confidence)
+                )}
+              >
+                {item.confidence}
+              </span>
+              <span className="rounded-full border border-violet-300/15 bg-violet-400/[0.07] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-violet-100/72">
+                Sealed
+              </span>
+              <span
+                className={cx(
+                  "rounded-full border px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em]",
+                  item.historyStatus === "established"
+                    ? "border-emerald-300/16 bg-emerald-400/[0.07] text-emerald-100/70"
+                    : item.historyStatus === "building"
+                      ? "border-sky-300/16 bg-sky-400/[0.07] text-sky-100/70"
+                      : "border-amber-300/16 bg-amber-400/[0.07] text-amber-100/70"
+                )}
+              >
+                {sealedHistoryLabel(item)}
+              </span>
+              {outlook ? (
+                <span
+                  className={cx(
+                    "hidden rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em] sm:inline-flex",
+                    outlook.classes
+                  )}
+                >
+                  {outlook.label}
+                </span>
+              ) : null}
+            </>
+          }
+          priceLabel="EU market"
+          priceValue={formatCurrency(item.currentPrice, item.currency)}
+          title={item.name}
+          meta={
+            <span className="truncate">
+              {item.episodeName}
+              {item.episodeCode ? ` · ${item.episodeCode}` : ""}
+              {` · ${item.categoryLabel}`}
+            </span>
+          }
+        />
+
+        <CardListTileMetrics
+          className="grid-cols-3 sm:grid-cols-3"
+          style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}
+        >
+          <div className="min-w-0">
+            <p className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/30">Score</p>
+            <p className="mt-0.5 text-[12px] font-bold tabular-nums text-violet-100/82">
+              {item.score}/100
+            </p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/30">30d</p>
+            <p className={cx("mt-0.5 truncate text-[12px] font-bold tabular-nums", sealedTrendClass(item.trend30dPct))}>
+              {formatSealedTrend(item.trend30dPct)}
+            </p>
+          </div>
+          <div className="min-w-0">
+            <p className="text-[8px] font-bold uppercase tracking-[0.12em] text-white/30">90d</p>
+            <p className={cx("mt-0.5 truncate text-[12px] font-bold tabular-nums", sealedTrendClass(item.trend90dPct))}>
+              {formatSealedTrend(item.trend90dPct)}
+            </p>
+          </div>
+        </CardListTileMetrics>
+
+        <CardListTileInsight>
+          {item.riskLabel ? (
+            <ShieldAlert className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-300/68" />
+          ) : (
+            <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-300/62" />
+          )}
+          <span className="line-clamp-2">
+            <strong className="font-bold text-violet-100/76">{item.pressureLabel}</strong>
+            {` · ${item.riskLabel ?? item.reasons[0]}`}
+          </span>
+        </CardListTileInsight>
+
+        <CardListTileFooter>
+          <CardListTileAnalysisLink>
+            Sealed analysis
+            <ChevronRight className="h-3.5 w-3.5" />
+          </CardListTileAnalysisLink>
+          <span className="text-right text-[9px] font-semibold tabular-nums text-white/35">
+            {item.historyDays} price days
+          </span>
+        </CardListTileFooter>
+      </CardListTileBody>
+    </CardListTile>
+  );
+}
+
+function SealedRadarSection({
+  data,
+  state,
+  onRetry,
+}: {
+  data: SealedSignalRadarData | null;
+  state: "loading" | "ready" | "error";
+  onRetry: () => void;
+}) {
+  const [historyFilter, setHistoryFilter] = useState<SealedHistoryFilter>("all");
+  const [visibleLimit, setVisibleLimit] = useState(6);
+  const [selectedProduct, setSelectedProduct] = useState<SealedModalProductData | null>(null);
+  const visibleItems = useMemo(() => {
+    const items = data?.items ?? [];
+    if (historyFilter === "established") {
+      return items.filter((item) => item.historyStatus === "established");
+    }
+    if (historyFilter === "building") {
+      return items.filter((item) => item.historyStatus !== "established");
+    }
+    return items;
+  }, [data?.items, historyFilter]);
+
+  if (state === "loading" && !data) {
+    return (
+      <section className="binder-panel rounded-[1.25rem] p-3 sm:p-4" aria-busy="true">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-violet-300/[0.09] motion-safe:animate-pulse" />
+          <div className="min-w-0 flex-1 space-y-2">
+            <div className="h-3 w-24 rounded-full bg-white/[0.07] motion-safe:animate-pulse" />
+            <div className="h-4 max-w-sm rounded-full bg-white/[0.05] motion-safe:animate-pulse" />
+          </div>
+        </div>
+        <span className="sr-only">Building sealed Signal Radar</span>
+      </section>
+    );
+  }
+  if (state === "error" && !data) {
+    return (
+      <section className="binder-panel flex flex-wrap items-center justify-between gap-3 rounded-[1.25rem] p-3 sm:p-4">
+        <div>
+          <p className="text-xs font-semibold text-white/72">Sealed Radar could not be loaded</p>
+          <p className="mt-1 text-[10px] text-white/38">The singles Radar is still available.</p>
+        </div>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="min-h-11 rounded-xl border border-amber-300/15 px-3 text-xs font-semibold text-amber-100/72 transition hover:bg-amber-300/[0.07]"
+        >
+          Retry
+        </button>
+      </section>
+    );
+  }
+  if (!data || data.items.length === 0) return null;
+
+  return (
+    <section className="space-y-2.5">
+      <SectionHeader
+        title="Sealed radar"
+        count={visibleItems.length}
+        actions={
+          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {([
+              ["all", "Best"],
+              ["established", "90d ready"],
+              ["building", "Building"],
+            ] as const).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  setHistoryFilter(value);
+                  setVisibleLimit(6);
+                }}
+                className={cx(
+                  "min-h-9 shrink-0 rounded-lg px-2.5 text-[10px] font-semibold transition",
+                  historyFilter === value
+                    ? "bg-violet-500 text-white"
+                    : "text-white/45 hover:bg-white/[0.06] hover:text-white"
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        }
+      />
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[9px] font-medium text-white/34">
+        <span>{data.ready90dProducts.toLocaleString("en-US")} products with 90d evidence</span>
+        <span>{data.buildingProducts.toLocaleString("en-US")} building 30d history</span>
+        <span>{data.learningProducts.toLocaleString("en-US")} still learning</span>
+      </div>
+      {visibleItems.length > 0 ? (
+        <CardListTileGrid>
+          {visibleItems.slice(0, visibleLimit).map((item) => (
+            <SealedSignalCard key={item.productId} item={item} onOpen={setSelectedProduct} />
+          ))}
+        </CardListTileGrid>
+      ) : (
+        <EmptyState
+          icon={PackageSearch}
+          title="No sealed products in this history stage"
+          description="History collection continues automatically."
+          actionHref={null}
+        />
+      )}
+      {visibleItems.length > visibleLimit ? (
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={() => setVisibleLimit((current) => current + 6)}
+            className="min-h-11 rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-5 py-2.5 text-xs font-semibold text-violet-100/78 transition hover:border-violet-300/28 hover:bg-violet-400/[0.12]"
+          >
+            Show more sealed ({visibleItems.length - visibleLimit})
+          </button>
+        </div>
+      ) : null}
+      {selectedProduct ? (
+        <SealedProductModal
+          product={selectedProduct}
+          onClose={() => setSelectedProduct(null)}
+        />
+      ) : null}
+    </section>
+  );
+}
+
 export function ExternalSignalDetailCard({
   signal,
   marketMode,
@@ -982,6 +1310,7 @@ export default function ExternalSignalBrowser({
   totalSignalCount = initialSignals.length,
 }: Props) {
   const [signals, setSignals] = useState(initialSignals);
+  const [sealedRadar, setSealedRadar] = useState<SealedSignalRadarData | null>(null);
   const [cardQuickActions, setCardQuickActions] = useState(initialCardQuickActions);
   const [newReleaseChases, setNewReleaseChases] = useState(initialNewReleaseChases);
   const [chaseState, setChaseState] = useState<"loading" | "ready" | "error">(
@@ -1018,6 +1347,7 @@ export default function ExternalSignalBrowser({
       queueMicrotask(() => {
         if (!active) return;
         setSignals(cached.signals);
+        setSealedRadar(cached.sealedRadar);
         setProgressiveState("ready");
       });
     }
@@ -1034,6 +1364,7 @@ export default function ExternalSignalBrowser({
         commitSignalRadarFeedResult(signal, () => {
           cacheSignalRadarFeed(href, payload);
           setSignals(payload.signals);
+          setSealedRadar(payload.sealedRadar);
           setCardQuickActions((current) => ({ ...payload.cardQuickActions, ...current }));
           if (payload.newReleaseChases) setNewReleaseChases(payload.newReleaseChases);
           setProgressiveState("ready");
@@ -1302,6 +1633,12 @@ export default function ExternalSignalBrowser({
           </div>
         </section>
       ) : null}
+
+      <SealedRadarSection
+        data={sealedRadar}
+        state={progressiveState}
+        onRetry={retryProgressiveLoad}
+      />
 
       <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3">
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto] lg:items-center">

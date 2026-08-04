@@ -4,6 +4,7 @@ import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 import { compressedJsonResponse } from "@/lib/compressed-json-response";
 import { parseVisibleGameFilter } from "@/lib/games";
 import { getSharedSignalRadarSignals } from "@/lib/signal-radar-feed-server";
+import { getSharedSealedSignalRadarData } from "@/lib/sealed-signal-radar-server";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export async function GET(request: NextRequest) {
@@ -13,7 +14,10 @@ export async function GET(request: NextRequest) {
     const game = parseVisibleGameFilter(request.nextUrl.searchParams.get("game"), {
       onePieceEnabled: settings.onePieceLibraryEnabled,
     });
-    const signals = await getSharedSignalRadarSignals(game);
+    const [signals, sealedRadar] = await Promise.all([
+      getSharedSignalRadarSignals(game),
+      getSharedSealedSignalRadarData(game),
+    ]);
     const cardQuickActions = await getCardQuickActionMap(
       user.id,
       signals.map((signal) => signal.cardId)
@@ -23,6 +27,7 @@ export async function GET(request: NextRequest) {
       request,
       {
         signals,
+        sealedRadar,
         cardQuickActions,
         newReleaseChases: null,
       },

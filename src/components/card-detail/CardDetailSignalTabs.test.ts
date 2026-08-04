@@ -79,6 +79,58 @@ describe("CardDetailSignalTabs", () => {
     expect(markup).toContain("current graded model covers PSA 10");
   });
 
+  it("explains active forecast data without the ambiguous zero-over-gate label", () => {
+    const target = (key: string, samples: number, hits: number) => ({
+      key,
+      status: "learning",
+      samples,
+      hits,
+      interval: null,
+    });
+    const signal = {
+      currentPrice: 100,
+      horizon: "Long-term collector signal",
+      reasons: [],
+      evidence: [],
+      catalysts: [],
+      forecast: {
+        cardId: "tracked-card",
+        game: "pokemon",
+        modelVersion: "v10-consistent-live-prices",
+        signalTier: "Strong",
+        priceBand: "100-plus",
+        observedAt: "2026-08-04T00:00:00.000Z",
+        tracking: {
+          observations: 80,
+          independentPredictions: 46,
+          pending90d: 46,
+          complete90d: 0,
+          insufficient90d: 0,
+          pending180d: 46,
+          complete180d: 0,
+          insufficient180d: 0,
+          next90dMaturesAt: "2026-11-02T00:00:00.000Z",
+          next180dMaturesAt: "2027-01-31T00:00:00.000Z",
+        },
+        targets: {
+          "1.5x-90d": target("1.5x-90d", 4, 3),
+          "2x-90d": target("2x-90d", 0, 0),
+          "3x-180d": target("3x-180d", 0, 0),
+        },
+      },
+    } as unknown as ExternalCardSignal;
+    const markup = renderTab("forecast", {
+      signal,
+      marketMode: "raw",
+      onResearch: vi.fn(),
+    });
+
+    expect(markup).toContain("80 logged · 46 independent · 46 active");
+    expect(markup).toContain("3 correct · 1 missed");
+    expect(markup).toContain("0 completed · 100 needed for probability");
+    expect(markup).not.toContain("0/50");
+  });
+
   it("keeps research in one Evidence action and renders errors inline once", () => {
     const markup = renderTab("evidence", {
       signal: null,

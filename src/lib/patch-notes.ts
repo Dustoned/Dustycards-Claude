@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.8.59",
+    releasedAt: "August 4, 2026",
+    title: "Sealed Radar and transparent live learning",
+    summary:
+      "DustyCards 3.8.59 brings sealed products into Signal Radar and replaces the cryptic completed-sample fraction with an expandable view of every active and finished prediction.",
+    tone: "new",
+    highlights: [
+      "Signal Radar now has a separate sealed section ranked from EU market history, 30/90-day movement, volatility, product type and trusted set-lifecycle evidence, with the existing sealed detail view one tap away.",
+      "Products with short price histories remain visible as Learning candidates, but their score is capped so they cannot outrank products backed by reliable 30/90-day evidence.",
+      "Forecast validation now shows logged observations, independent calls, active and completed 90/180-day measurements, excluded low-coverage outcomes and the next expected maturity date in one compact expandable status.",
+      "The ambiguous 0/50 display is replaced with plain progress language; finished targets show correct versus missed calls, and only a full 1.5x, 2x or 3x move counts as correct—not a small price change.",
+    ],
+  },
+  {
     version: "3.8.58",
     releasedAt: "August 4, 2026",
     title: "Signal Radar learns from comparable live outcomes",

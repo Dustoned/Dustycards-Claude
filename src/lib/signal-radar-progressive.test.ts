@@ -23,6 +23,7 @@ describe("selectInitialSignalRadarCards", () => {
   it("reuses the last complete feed briefly when navigating back", () => {
     const payload = {
       signals: [{ cardId: "card-1" }] as ExternalCardSignal[],
+      sealedRadar: null,
       cardQuickActions: {},
       newReleaseChases: null,
     };
@@ -30,6 +31,7 @@ describe("selectInitialSignalRadarCards", () => {
 
     expect(getCachedSignalRadarFeed("/feed?game=pokemon", 2_000)).toEqual({
       signals: payload.signals,
+      sealedRadar: null,
     });
     expect(
       getCachedSignalRadarFeed(

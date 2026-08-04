@@ -1,6 +1,7 @@
 import type { CardQuickActionMap } from "@/lib/card-quick-actions";
 import type { ExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
+import type { SealedSignalRadarData } from "@/lib/sealed-signal-radar";
 
 export const INITIAL_SIGNAL_RADAR_CARD_COUNT = 12;
 export const INITIAL_SIGNAL_RADAR_FEED_DELAY_MS = 150;
@@ -11,7 +12,7 @@ export const CHASE_WATCH_RETRY_DELAY_MS = 5 * 60_000;
 
 interface CachedSignalRadarFeed {
   cachedAt: number;
-  payload: Pick<SignalRadarProgressivePayload, "signals">;
+  payload: Pick<SignalRadarProgressivePayload, "signals" | "sealedRadar">;
 }
 
 const clientFeedCache = new Map<string, CachedSignalRadarFeed>();
@@ -45,6 +46,7 @@ export function cacheSignalRadarFeed(
     cachedAt: nowMs,
     payload: {
       signals: payload.signals,
+      sealedRadar: payload.sealedRadar,
     },
   });
   while (clientFeedCache.size > SIGNAL_RADAR_CLIENT_CACHE_MAX_ENTRIES) {
@@ -108,6 +110,7 @@ export function commitSignalRadarFeedResult(
 
 export interface SignalRadarProgressivePayload {
   signals: ExternalCardSignal[];
+  sealedRadar: SealedSignalRadarData | null;
   cardQuickActions: CardQuickActionMap;
   newReleaseChases: ExpansionChaseRadarData | null;
 }

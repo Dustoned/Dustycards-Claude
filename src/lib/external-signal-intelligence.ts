@@ -731,7 +731,7 @@ export async function buildOnDemandExternalCardSignal(
 ): Promise<ExternalCardSignal> {
   const now = options.now ?? new Date();
   const observationRunId = options.observationRunId ?? null;
-  const cacheKey = `${card.id}:${card.currentPrice ?? "none"}:${observationRunId ?? "latest-success"}`;
+  const cacheKey = `forecast-live-data-v1:${card.id}:${card.currentPrice ?? "none"}:${observationRunId ?? "latest-success"}`;
   return onDemandSignalCache.get(cacheKey, () =>
     buildOnDemandExternalCardSignalUncached(card, now, observationRunId)
   );

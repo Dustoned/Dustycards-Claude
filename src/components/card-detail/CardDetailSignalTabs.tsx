@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import type { ReactNode } from "react";
 import type { CardDetailTab } from "@/components/card-detail/CardDetailShell";
+import LiveForecastDataStatus from "@/components/LiveForecastDataStatus";
 import type {
   ExternalCardSignal,
   ExternalMarketMode,
@@ -282,6 +283,7 @@ function buildForecastPanel(
           "Hits and misses improve the model after comparable signals finish their horizon."
         }
       >
+        <LiveForecastDataStatus forecast={signal.forecast} className="mb-3" />
         <div className="overflow-hidden rounded-2xl border border-white/8">
           {FORECAST_TARGETS.map((target) => {
             const summary = signal?.forecast?.targets[target.key];
@@ -296,7 +298,11 @@ function buildForecastPanel(
                 <span className="text-right font-semibold text-cyan-100/68">
                   {interval && summary
                     ? `${Math.round(interval.estimate * 100)}% · ${summary.hits}/${summary.samples} hits`
-                    : `${summary?.samples ?? 0}/${target.minimum} completed live`}
+                    : (summary?.samples ?? 0) > 0
+                      ? `${summary?.hits ?? 0} correct · ${Math.max(0, (summary?.samples ?? 0) - (summary?.hits ?? 0))} missed`
+                      : signal.forecast?.tracking
+                        ? `${signal.forecast.tracking[target.horizon === "90 days" ? "pending90d" : "pending180d"]} predictions being tracked`
+                        : "Tracking starts after the next model scan"}
                 </span>
               </div>
             );

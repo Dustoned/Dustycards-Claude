@@ -77,6 +77,19 @@ export interface ExternalForecastTargetSummary {
   usingPreviousModelCohort?: boolean;
 }
 
+export interface ExternalForecastTrackingStatus {
+  observations: number;
+  independentPredictions: number;
+  pending90d: number;
+  complete90d: number;
+  insufficient90d: number;
+  pending180d: number;
+  complete180d: number;
+  insufficient180d: number;
+  next90dMaturesAt: string | null;
+  next180dMaturesAt: string | null;
+}
+
 export interface ExternalCardForecastSummary {
   cardId: string;
   game: string;
@@ -85,6 +98,7 @@ export interface ExternalCardForecastSummary {
   priceBand: string | null;
   observedAt: string;
   targets: Record<ExternalForecastTargetKey, ExternalForecastTargetSummary>;
+  tracking?: ExternalForecastTrackingStatus;
 }
 
 export interface ExternalOutcomeEvaluationResult {
@@ -645,6 +659,72 @@ async function loadCompletedCohortOutcomes(
   return rowsByPair;
 }
 
+function getNextMaturityDate(
+  rows: readonly {
+    horizon_days: number;
+    status: string;
+    entry_observation: { observed_at: Date };
+  }[],
+  horizonDays: 90 | 180
+): string | null {
+  const oldestPending = rows
+    .filter((row) => row.horizon_days === horizonDays && row.status === "pending")
+    .reduce<Date | null>((oldest, row) => {
+      const observedAt = row.entry_observation.observed_at;
+      return !oldest || observedAt < oldest ? observedAt : oldest;
+    }, null);
+  if (!oldestPending) return null;
+  return new Date(oldestPending.getTime() + horizonDays * DAY_MS).toISOString();
+}
+
+async function loadForecastTrackingStatuses(
+  pairs: readonly { game: string; modelVersion: string }[]
+): Promise<Map<string, ExternalForecastTrackingStatus>> {
+  const statuses = new Map<string, ExternalForecastTrackingStatus>();
+  await Promise.all(
+    pairs.map(async ({ game, modelVersion }) => {
+      const observationFilter = { game, model_version: modelVersion };
+      const [observations, independentPredictions, outcomeRows] = await Promise.all([
+        db.externalSignalObservation.count({ where: observationFilter }),
+        db.externalSignalObservation.count({
+          where: { ...observationFilter, is_episode_entry: true },
+        }),
+        db.externalSignalOutcome.findMany({
+          where: {
+            horizon_days: { in: [90, 180] },
+            entry_observation: {
+              ...observationFilter,
+              is_episode_entry: true,
+            },
+          },
+          select: {
+            horizon_days: true,
+            status: true,
+            entry_observation: { select: { observed_at: true } },
+          },
+        }),
+      ]);
+      const count = (horizonDays: 90 | 180, status: string) =>
+        outcomeRows.filter(
+          (row) => row.horizon_days === horizonDays && row.status === status
+        ).length;
+      statuses.set(pairKey(game, modelVersion), {
+        observations,
+        independentPredictions,
+        pending90d: count(90, "pending"),
+        complete90d: count(90, "complete"),
+        insufficient90d: count(90, "insufficient"),
+        pending180d: count(180, "pending"),
+        complete180d: count(180, "complete"),
+        insufficient180d: count(180, "insufficient"),
+        next90dMaturesAt: getNextMaturityDate(outcomeRows, 90),
+        next180dMaturesAt: getNextMaturityDate(outcomeRows, 180),
+      });
+    })
+  );
+  return statuses;
+}
+
 /** Ensures one card cannot contribute overlapping outcomes to one horizon. */
 export function dedupeCohortRowsByHorizon(
   rows: readonly ForecastCohortOutcomeSample[],
@@ -873,6 +953,15 @@ export async function getExternalForecastSummaries(
     });
   }
   const cohortRowsByPair = await loadCompletedCohortOutcomes([...pairsByKey.values()]);
+  const currentPairs = [
+    ...new Map(
+      [...currentByCardId.values()].map((current) => [
+        pairKey(current.game, current.modelVersion),
+        { game: current.game, modelVersion: current.modelVersion },
+      ])
+    ).values(),
+  ];
+  const trackingByPair = await loadForecastTrackingStatuses(currentPairs);
   const summaries = new Map<string, ExternalCardForecastSummary>();
 
   for (const current of currentByCardId.values()) {
@@ -894,6 +983,7 @@ export async function getExternalForecastSummaries(
       signalTier: current.signalTier,
       priceBand: current.priceBand,
       observedAt: current.observedAt.toISOString(),
+      tracking: trackingByPair.get(pairKey(current.game, current.modelVersion)),
       targets: Object.fromEntries(targetEntries) as Record<
         ExternalForecastTargetKey,
         ExternalForecastTargetSummary

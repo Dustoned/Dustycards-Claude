@@ -1,10 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { authMock, feedMock, quickActionsMock, settingsMock } =
+const { authMock, feedMock, sealedRadarMock, quickActionsMock, settingsMock } =
   vi.hoisted(() => ({
     authMock: { requireUser: vi.fn(), authErrorResponse: vi.fn() },
     feedMock: { getSharedSignalRadarSignals: vi.fn() },
+    sealedRadarMock: { getSharedSealedSignalRadarData: vi.fn() },
     quickActionsMock: { getCardQuickActionMap: vi.fn() },
     settingsMock: { getServerUserSettings: vi.fn() },
   }));
@@ -12,6 +13,7 @@ const { authMock, feedMock, quickActionsMock, settingsMock } =
 vi.mock("@/lib/auth", () => authMock);
 vi.mock("@/lib/card-quick-actions-server", () => quickActionsMock);
 vi.mock("@/lib/signal-radar-feed-server", () => feedMock);
+vi.mock("@/lib/sealed-signal-radar-server", () => sealedRadarMock);
 vi.mock("@/lib/user-settings-server", () => settingsMock);
 
 import { GET } from "@/app/api/movers/signal-radar/feed/route";
@@ -25,6 +27,9 @@ describe("progressive Signal Radar feed", () => {
     feedMock.getSharedSignalRadarSignals.mockResolvedValue([
       { cardId: "signal-card" },
     ]);
+    sealedRadarMock.getSharedSealedSignalRadarData.mockResolvedValue({
+      items: [{ productId: "sealed-1" }],
+    });
     quickActionsMock.getCardQuickActionMap.mockResolvedValue({});
   });
 
@@ -43,10 +48,12 @@ describe("progressive Signal Radar feed", () => {
     expect(response.headers.get("Vary")).toContain("Cookie");
     expect(response.headers.get("Vary")).toContain("Accept-Encoding");
     expect(feedMock.getSharedSignalRadarSignals).toHaveBeenCalledWith("one-piece");
+    expect(sealedRadarMock.getSharedSealedSignalRadarData).toHaveBeenCalledWith("one-piece");
     expect(quickActionsMock.getCardQuickActionMap).toHaveBeenCalledWith("user-1", [
       "signal-card",
     ]);
     expect(body.newReleaseChases).toBeNull();
+    expect(body.sealedRadar.items).toEqual([{ productId: "sealed-1" }]);
   });
 
   it("returns the authentication response before loading the feed", async () => {
@@ -61,5 +68,6 @@ describe("progressive Signal Radar feed", () => {
 
     expect(response.status).toBe(401);
     expect(feedMock.getSharedSignalRadarSignals).not.toHaveBeenCalled();
+    expect(sealedRadarMock.getSharedSealedSignalRadarData).not.toHaveBeenCalled();
   });
 });
