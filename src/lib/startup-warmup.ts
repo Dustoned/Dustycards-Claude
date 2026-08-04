@@ -13,12 +13,13 @@ import { POKEMON_GAME } from "@/lib/games";
 // stale-while-revalidate caches permanently populated. Nobody ever waits for
 // a cold Targets/Graded build again.
 const WARMUP_USER_LIMIT = 3;
-const REWARM_INTERVAL_MS = 4 * 60_000;
+const INITIAL_WARMUP_DELAY_MS = 2 * 60_000;
+const REWARM_INTERVAL_MS = 30 * 60_000;
 // Market scopes to keep warm; undefined = the default raw view.
 const MARKET_SCOPES: Array<string | undefined> = [undefined, "graded", "grading", "sealed"];
 
 let running = false;
-let lastStartedAt = 0;
+let nextEligibleAt = Date.now() + INITIAL_WARMUP_DELAY_MS;
 let lastFinishedAt: string | null = null;
 let lastError: string | null = null;
 
@@ -61,9 +62,8 @@ async function runCacheWarmup(): Promise<void> {
 
 export function maybeRunCacheWarmer(): void {
   const now = Date.now();
-  if (running || now - lastStartedAt < REWARM_INTERVAL_MS) return;
+  if (running || now < nextEligibleAt) return;
   running = true;
-  lastStartedAt = now;
 
   void runCacheWarmup()
     .then(() => {
@@ -75,6 +75,7 @@ export function maybeRunCacheWarmer(): void {
     .finally(() => {
       running = false;
       lastFinishedAt = new Date().toISOString();
+      nextEligibleAt = Date.now() + REWARM_INTERVAL_MS;
     });
 }
 

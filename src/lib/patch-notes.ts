@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.9.5",
+    releasedAt: "August 4, 2026",
+    title: "Background work stays in the background",
+    summary:
+      "DustyCards removes the database bottleneck that could pin a production CPU during the reprint audit and prevents routine market updates from re-queuing finished cards.",
+    tone: "fixed",
+    highlights: [
+      "The reprint backlog now uses a dedicated card-family database index instead of repeatedly scanning the full Pokémon catalog. The formerly blocking anchor lookup completes in milliseconds and leaves the request thread available for normal browsing.",
+      "A price, score or other routine Card update no longer marks completed reprint evidence as stale. Only new cards, changed artwork, an upgraded matching model, incomplete evidence or the low-frequency quality refresh enter the queue.",
+      "Reprint evidence runs one family at a time with single-item image work, explicit web-traffic pauses, a short startup delay and cooldowns between batches, so the initial catalog audit can continue without monopolizing the app.",
+      "Startup cache warming waits until the app is serving traffic and schedules the next pass after the previous pass finishes, with a calmer 30-minute interval that cannot loop continuously after a slow build.",
+    ],
+  },
+  {
     version: "3.9.4",
     releasedAt: "August 4, 2026",
     title: "Smarter release matching and faster mobile navigation",

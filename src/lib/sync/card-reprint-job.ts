@@ -13,14 +13,16 @@ import {
   type TcgDexCardIdentity,
 } from "@/lib/card-printings";
 
-const GROUPS_PER_RUN = 6;
-const EVIDENCE_CONCURRENCY = 2;
+const GROUPS_PER_RUN = 1;
+const EVIDENCE_CONCURRENCY = 1;
 const EVENT_LOOP_YIELD_INTERVAL = 128;
+const WEB_TRAFFIC_YIELD_MS = 25;
+const INITIAL_RUN_DELAY_MS = 2 * 60_000;
+const RUN_COOLDOWN_MS = 5 * 60_000;
 const EVIDENCE_REFRESH_MS = 90 * 24 * 60 * 60_000;
 const PARTIAL_RETRY_MS = 6 * 60 * 60_000;
 
 type ReprintCandidateCard = PrintingLookupCard & {
-  updated_at: Date;
   printingEvidence: {
     image_url: string;
     identity_json: string | null;
@@ -60,9 +62,10 @@ let lastError: string | null = null;
 let lastGroupsProcessed = 0;
 let lastCardsProcessed = 0;
 let lastRelationsWritten = 0;
+let nextEligibleAt = Date.now() + INITIAL_RUN_DELAY_MS;
 
 function yieldToWebTraffic(): Promise<void> {
-  return new Promise((resolve) => setImmediate(resolve));
+  return new Promise((resolve) => setTimeout(resolve, WEB_TRAFFIC_YIELD_MS));
 }
 
 export function getCardReprintJobSnapshot(): CardReprintJobSnapshot {
@@ -128,14 +131,13 @@ async function findPendingAnchor(now: Date): Promise<PendingAnchor | null> {
         OR evidence.match_version <> ?
         OR evidence.matched_at IS NULL
         OR evidence.image_url <> c.image_url
-        OR evidence.matched_at < c.updated_at
         OR evidence.source_checked_at < ?
         OR (evidence.match_status = 'partial' AND evidence.source_checked_at < ?)
       )
     ORDER BY
       evidence.card_id IS NOT NULL,
       coalesce(c.market_score, 0) DESC,
-      c.updated_at DESC,
+      c.created_at DESC,
       c.id ASC
     LIMIT 1
     `,
@@ -174,7 +176,6 @@ async function loadCandidateGroup(anchorId: string): Promise<ReprintCandidateCar
       image_url: true,
       tcgid: true,
       supertype: true,
-      updated_at: true,
       episode: {
         select: { id: true, name: true, code: true, release_date: true },
       },
@@ -460,7 +461,7 @@ async function runCardReprintBacklog(now: Date) {
 }
 
 export function maybeRunCardReprintJob(now: Date = new Date()): CardReprintJobSnapshot {
-  if (running) return getCardReprintJobSnapshot();
+  if (running || now.getTime() < nextEligibleAt) return getCardReprintJobSnapshot();
   running = true;
 
   void runCardReprintBacklog(now)
@@ -477,6 +478,7 @@ export function maybeRunCardReprintJob(now: Date = new Date()): CardReprintJobSn
     .finally(() => {
       running = false;
       lastFinishedAt = new Date().toISOString();
+      nextEligibleAt = Date.now() + RUN_COOLDOWN_MS;
     });
 
   return getCardReprintJobSnapshot();

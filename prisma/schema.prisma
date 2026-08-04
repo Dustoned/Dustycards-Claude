@@ -459,6 +459,7 @@ model Card {
   @@index([game, episode_id])
   @@index([episode_id, card_number])
   @@index([artist])
+  @@index([game, name, supertype])
   @@index([game, rarity])
   @@index([printed_card_number])
   @@index([price_source_status, price_source_checked_at])
