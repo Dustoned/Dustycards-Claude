@@ -2069,7 +2069,13 @@ export async function getCollectionOverviewData(
   const game = options.game ?? POKEMON_GAME;
   const loadDetailedCards = !options.deferDetailedRows && shouldLoadDetailedCards(activeTab);
   const loadDetailedSealed = !options.deferDetailedRows && shouldLoadDetailedSealed(activeTab);
-  const loadDetailedBinders = !options.deferDetailedRows && shouldLoadDetailedBinders(activeTab);
+  // Binder metadata is tiny and keeps completion/progress accurate in the
+  // first Home response. Expensive binder history still waits for the richer
+  // follow-up payload when detailed rows are deferred.
+  const loadDetailedBinders =
+    shouldLoadDetailedBinders(activeTab) &&
+    (!options.deferDetailedRows || activeTab === "overview");
+  const loadSaleRows = activeTab === "selling";
   // The portfolio chart only exists on Overview. Other collection tabs use
   // current-value metrics and should not pay for tens of thousands of history
   // rows before their visible grid can render.
@@ -2095,8 +2101,12 @@ export async function getCollectionOverviewData(
       ? getCollectionSealedItems(options.userId, true, game)
       : getCollectionSealedMetrics(options.userId, game),
     getCollectionBinders(options.userId, loadDetailedBinders, game),
-    getForSaleCollectionCards({ userId: options.userId, game }),
-    getSoldCollectionCards({ userId: options.userId, game }),
+    loadSaleRows
+      ? getForSaleCollectionCards({ userId: options.userId, game })
+      : Promise.resolve([]),
+    loadSaleRows
+      ? getSoldCollectionCards({ userId: options.userId, game })
+      : Promise.resolve([]),
   ]);
   baseQueryTimer.finish();
 
@@ -2181,7 +2191,7 @@ export async function getCollectionOverviewData(
   const binderCardIds = loadDetailedBinders
     ? [...new Set(metricCards.filter((record) => record.binder_id).map((record) => record.card.id))]
     : [];
-  const binderHistoryRows = loadDetailedBinders
+  const binderHistoryRows = loadDetailedBinders && !options.deferDetailedRows
     ? loadCollectionHistory
       ? cardHistory
       : await getCardHistoryRows(binderCardIds, getHistoryCutoffDate(45))

@@ -283,6 +283,10 @@ const prepaintThemeStyles = `
     font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   }
 
+  body:has(> [data-app-runtime]) > [data-app-launch-shell] {
+    display: none;
+  }
+
   [data-app-launch-header] {
     position: fixed;
     inset: 0 0 auto;
@@ -409,7 +413,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
       </head>
       <body className="min-h-full flex flex-col bg-transparent text-white">
-        <Suspense fallback={<AppLaunchShell />}>
+        <AppLaunchShell />
+        <Suspense fallback={null}>
           <RuntimeAppFrame>{children}</RuntimeAppFrame>
         </Suspense>
       </body>

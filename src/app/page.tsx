@@ -16,7 +16,7 @@ import {
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
 import CollectionInstantTabs from "@/components/CollectionInstantTabs";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
-import HomeSuddenDropsPanel from "@/components/HomeSuddenDropsPanel";
+import ProgressiveHomeOverviewInsights from "@/components/ProgressiveHomeOverviewInsights";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
 import { formatCollectionCurrency } from "@/lib/collection";
 import type {
@@ -39,10 +39,6 @@ import { FAST_SUDDEN_DROP_MIN_AMOUNT } from "@/lib/home-sudden-drops-server";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import EmptyState from "@/components/EmptyState";
 import HomePageLoading from "@/components/HomePageLoading";
-import {
-  getHomeFeaturedCards,
-  getHomeValueDriversPreview,
-} from "@/lib/home-page-payload";
 import { getSocialTradeOpportunities } from "@/lib/social";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
@@ -51,8 +47,6 @@ const ProgressiveCollectionOverviewSections = nextDynamic(
 );
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
 const BinderOverviewGrid = nextDynamic(() => import("@/components/BinderOverviewGrid"));
-const HomeFeaturedCardsPanel = nextDynamic(() => import("@/components/HomeFeaturedCardsPanel"));
-const HomeValueDriversPanel = nextDynamic(() => import("@/components/HomeValueDriversPanel"));
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"));
 const TradeOpportunitiesPanel = nextDynamic(
   () => import("@/components/TradeOpportunitiesPanel")
@@ -118,14 +112,6 @@ function sumCardViewValue(items: CollectionOverviewData["cards"]): number {
   );
 }
 
-function sumSealedViewValue(items: CollectionOverviewData["sealed"]): number {
-  return Number(
-    items
-      .reduce((total, item) => total + (item.current_value_per_item ?? 0) * item.quantity, 0)
-      .toFixed(2)
-  );
-}
-
 function formatSignedCurrency(value: number | null | undefined): string {
   if (value == null) return "--";
   if (value === 0) return formatCollectionCurrency(0);
@@ -140,123 +126,6 @@ function formatPlainPercent(value: number | null | undefined): string {
 function ratioPercent(numerator: number, denominator: number): number | null {
   if (denominator <= 0) return null;
   return Number(((numerator / denominator) * 100).toFixed(1));
-}
-
-function safeShare(value: number, total: number): number {
-  return total > 0 ? (value / total) * 100 : 0;
-}
-
-function CollectionAllocationPanel({
-  rawLooseSingles,
-  gradedLooseSingles,
-  binderCards,
-  sealed,
-}: {
-  rawLooseSingles: CollectionOverviewData["looseSingles"];
-  gradedLooseSingles: CollectionOverviewData["looseSingles"];
-  binderCards: CollectionOverviewData["binderCards"];
-  sealed: CollectionOverviewData["sealed"];
-}) {
-  const sealedUnits = sealed.reduce((total, item) => total + item.quantity, 0);
-  const rawBinderCards = binderCards.filter((item) => !isGradedCollectionCard(item));
-  const gradedBinderCards = binderCards.filter(isGradedCollectionCard);
-  const rawLooseCards = rawLooseSingles.filter((item) => !isGradedCollectionCard(item));
-  const gradedCards = [...gradedLooseSingles, ...gradedBinderCards];
-  const segments = [
-    {
-      label: "Loose Raw",
-      itemCount: rawLooseCards.length,
-      value: sumCardViewValue(rawLooseCards),
-      dotClassName: "bg-sky-400",
-      fillClassName: "bg-sky-400",
-    },
-    {
-      label: "Binder Raw",
-      itemCount: rawBinderCards.length,
-      value: sumCardViewValue(rawBinderCards),
-      dotClassName: "bg-emerald-400",
-      fillClassName: "bg-emerald-400",
-    },
-    {
-      label: "Graded",
-      itemCount: gradedCards.length,
-      value: sumCardViewValue(gradedCards),
-      dotClassName: "bg-amber-300",
-      fillClassName: "bg-amber-300",
-    },
-    {
-      label: "Sealed",
-      itemCount: sealedUnits,
-      value: sumSealedViewValue(sealed),
-      dotClassName: "bg-rose-400",
-      fillClassName: "bg-rose-400",
-    },
-  ].filter((segment) => segment.value > 0 || segment.itemCount > 0);
-  const totalValue = segments.reduce((total, segment) => total + segment.value, 0);
-
-  return (
-    <section className="binder-panel relative overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
-      <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
-      <h2 className="text-base font-black tracking-tight text-white">
-        Collection Allocation
-      </h2>
-
-      <div className="mt-2.5 flex h-3 gap-1 rounded-full border border-white/8 bg-black/18 p-0.5">
-        {segments.map((segment) => {
-          const share = safeShare(segment.value, totalValue);
-          const flexGrow = totalValue > 0
-            ? Math.max(segment.value, totalValue * 0.012)
-            : 1;
-          return (
-            <div
-              key={segment.label}
-              className={`${segment.fillClassName} h-full min-w-2 rounded-full shadow-[inset_0_1px_0_rgba(255,255,255,0.28),0_0_10px_rgba(255,255,255,0.04)]`}
-              style={{
-                flexBasis: 0,
-                flexGrow,
-              }}
-              title={`${segment.label}: ${share.toFixed(1)}%`}
-            />
-          );
-        })}
-      </div>
-
-      <div className="mt-2.5 grid gap-1.5">
-        {segments.map((segment) => {
-          const share = safeShare(segment.value, totalValue);
-          return (
-            <div
-              key={segment.label}
-              className="flex items-center gap-2.5 text-[12px]"
-            >
-              <span className={`h-2 w-2 shrink-0 rounded-full ${segment.dotClassName}`} />
-              <span className="min-w-0 flex-1 truncate font-semibold text-white/78">
-                {segment.label}
-              </span>
-              <span className="shrink-0 text-[11px] font-bold tabular-nums text-white/48">
-                {share.toFixed(0)}%
-              </span>
-              <span className="w-[4.75rem] shrink-0 text-right font-black tabular-nums text-white">
-                {formatCollectionCurrency(segment.value)}
-              </span>
-            </div>
-          );
-        })}
-        <div className="mt-1 flex items-center gap-2.5 border-t border-white/8 pt-2 text-[12px]">
-          <span className="h-2 w-2 shrink-0 rounded-full bg-white/0" />
-          <span className="min-w-0 flex-1 truncate font-black uppercase tracking-[0.12em] text-white/56">
-            Total
-          </span>
-          <span className="shrink-0 text-[11px] font-bold tabular-nums text-white/56">
-            100%
-          </span>
-          <span className="w-[4.75rem] shrink-0 text-right font-black tabular-nums text-white">
-            {formatCollectionCurrency(totalValue)}
-          </span>
-        </div>
-      </div>
-    </section>
-  );
 }
 
 function TopSetsProgressPanel({
@@ -312,7 +181,14 @@ function TopSetsProgressPanel({
               >
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoUrl} alt={binder.name} className="h-full w-full object-contain" />
+                  <img
+                    src={logoUrl}
+                    alt={binder.name}
+                    loading="lazy"
+                    decoding="async"
+                    fetchPriority="low"
+                    className="h-full w-full object-contain"
+                  />
                 ) : (
                   <span className="text-[9px] font-black text-white/62">
                     {binder.name.slice(0, 2).toUpperCase()}
@@ -343,20 +219,6 @@ function TopSetsProgressPanel({
       </div>
     </section>
   );
-}
-
-function FeaturedCardsPanel({
-  cards,
-  viewAllHref,
-}: {
-  cards: CollectionOverviewData["cards"];
-  viewAllHref: string;
-}) {
-  const featured = getHomeFeaturedCards(cards);
-
-  if (featured.length === 0) return null;
-
-  return <HomeFeaturedCardsPanel cards={featured} viewAllHref={viewAllHref} />;
 }
 
 function HomeCollectionLinks({
@@ -498,7 +360,7 @@ async function HomePageContent({
       userId: user.id,
       activeTab,
       game: activeGame,
-      deferDetailedRows: activeTab === "complete",
+      deferDetailedRows: activeTab === "complete" || activeTab === "overview",
     }),
     activeTab === "selling"
       ? getSocialTradeOpportunities(user.id, activeGame)
@@ -507,21 +369,6 @@ async function HomePageContent({
   const totalTrackedItems = data.overview.totalCards + data.overview.totalSealedUnits;
   const collectionRoi =
     data.overview.investment > 0 ? (data.overview.pnl / data.overview.investment) * 100 : null;
-  const costBasisCoveredValue =
-    data.cards.reduce(
-      (total, item) =>
-        total + (item.cost_basis_value != null ? item.current_value ?? 0 : 0),
-      0
-    ) +
-    data.sealed.reduce(
-      (total, item) =>
-        total +
-        (item.purchase_price_per_item != null
-          ? (item.current_value_per_item ?? 0) * item.quantity
-          : 0),
-      0
-    );
-  const costBasisCoverage = ratioPercent(costBasisCoveredValue, data.overview.currentValue);
   const averageTrackedValue =
     totalTrackedItems > 0 ? data.overview.currentValue / totalTrackedItems : null;
 
@@ -552,10 +399,7 @@ async function HomePageContent({
     {
       label: "Overall Spend",
       value: formatCollectionCurrency(data.overview.investment),
-      hint:
-        costBasisCoverage == null
-          ? "No cost basis yet"
-          : `Cost basis on ${formatPlainPercent(costBasisCoverage)} of value`,
+      hint: data.overview.investment > 0 ? "Across saved items" : "No cost basis yet",
       Icon: WalletCards,
       tone: "amber",
     },
@@ -597,7 +441,6 @@ async function HomePageContent({
     data.overview.totalSealedUnits > 0 ||
     data.overview.totalBinders > 0;
   const gradedCards = data.cards.filter(isGradedCollectionCard);
-  const gradedLooseSingles = data.looseSingles.filter(isGradedCollectionCard);
   const rawLooseSingles = data.looseSingles.filter((item) => !isGradedCollectionCard(item));
   const forSaleValue = sumCardViewValue(data.forSaleCards);
   const forSaleInvestment = Number(
@@ -671,6 +514,13 @@ async function HomePageContent({
 
     const query = params.toString();
     return query ? `/api/movers/sudden-drops?${query}` : "/api/movers/sudden-drops";
+  }
+
+  function buildHomeInsightsApiHref() {
+    const gameValue = getGameFilterSearchParamValue(activeGame);
+    return gameValue
+      ? `/api/collection/home-insights?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameValue)}`
+      : "/api/collection/home-insights";
   }
 
   const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
@@ -828,38 +678,19 @@ async function HomePageContent({
           </section>
 
           {hasCollection && (
-            <div className="home-insight-panels">
-              <HomeValueDriversPanel
-                data={getHomeValueDriversPreview(data.valueDrivers)}
-                viewAllHref={buildValueDriversHref()}
-              />
-              <HomeSuddenDropsPanel
-                apiHref={buildSuddenDropsApiHref()}
-                viewAllHref={buildSuddenDropsHref()}
-              />
-            </div>
-          )}
-
-          {hasCollection && (
-            <FeaturedCardsPanel
-              cards={data.cards}
-              viewAllHref={buildCollectionHref("complete")}
+            <ProgressiveHomeOverviewInsights
+              endpoint={buildHomeInsightsApiHref()}
+              valueDriversHref={buildValueDriversHref()}
+              suddenDropsApiHref={buildSuddenDropsApiHref()}
+              suddenDropsHref={buildSuddenDropsHref()}
+              collectionHref={buildCollectionHref("complete")}
+              topSetsSlot={
+                <TopSetsProgressPanel
+                  binders={data.binders}
+                  viewAllHref={buildCollectionHref("binders")}
+                />
+              }
             />
-          )}
-
-          {hasCollection && (
-            <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-2 [&>section]:h-full">
-              <CollectionAllocationPanel
-                rawLooseSingles={rawLooseSingles}
-                gradedLooseSingles={gradedLooseSingles}
-                binderCards={data.binderCards}
-                sealed={data.sealed}
-              />
-              <TopSetsProgressPanel
-                binders={data.binders}
-                viewAllHref={buildCollectionHref("binders")}
-              />
-            </div>
           )}
 
           <HomeCollectionLinks

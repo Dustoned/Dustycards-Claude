@@ -1,5 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { convertUsdToEur, parseUsdToEurRateResponse } from "@/lib/exchange-rates";
+import { describe, expect, it, vi } from "vitest";
+import {
+  __resetExchangeRateCacheForTests,
+  convertUsdToEur,
+  getUsdToEurRate,
+  parseUsdToEurRateResponse,
+} from "@/lib/exchange-rates";
 
 describe("exchange rates", () => {
   it("parses Frankfurter v2 USD to EUR rates", () => {
@@ -31,5 +36,28 @@ describe("exchange rates", () => {
         source: "frankfurter",
       })
     ).toBe(1026.24);
+  });
+
+  it("stops an unavailable rate provider from blocking a cold request", async () => {
+    vi.useFakeTimers();
+    __resetExchangeRateCacheForTests();
+    const fetchMock = vi.fn(
+      (_url: string | URL | Request, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const ratePromise = getUsdToEurRate();
+    await vi.advanceTimersByTimeAsync(801);
+
+    await expect(ratePromise).resolves.toBeNull();
+    await expect(getUsdToEurRate()).resolves.toBeNull();
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+    __resetExchangeRateCacheForTests();
   });
 });

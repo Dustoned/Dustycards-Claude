@@ -80,7 +80,33 @@ function loadServiceWorker(cache: {
     return { background, responsePromise: responsePromise as Promise<Response> };
   }
 
-  return { dispatchImageRequest, fetchMock };
+  function dispatchPageRequest(preloadResponse?: Promise<Response | undefined>) {
+    const background: Promise<unknown>[] = [];
+    let responsePromise: Promise<Response> | null = null;
+    const request = {
+      method: "GET",
+      url: "https://dustycards.test/",
+      mode: "navigate",
+      destination: "document",
+      cache: "default",
+    } as Request;
+
+    handleFetch({
+      request,
+      preloadResponse,
+      respondWith(response) {
+        responsePromise = Promise.resolve(response);
+      },
+      waitUntil(promise) {
+        background.push(promise);
+      },
+    } as WorkerFetchEvent & { preloadResponse?: Promise<Response | undefined> });
+
+    if (!responsePromise) throw new Error("Service worker did not respond to page request");
+    return { background, responsePromise: responsePromise as Promise<Response> };
+  }
+
+  return { dispatchImageRequest, dispatchPageRequest, fetchMock };
 }
 
 describe("DustyCards service-worker image cache", () => {
@@ -153,5 +179,62 @@ describe("DustyCards service-worker image cache", () => {
     await thresholdRequest.responsePromise;
     await Promise.all(thresholdRequest.background);
     expect(cache.keys).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("DustyCards service-worker page cache", () => {
+  it("falls back to the cached app document when navigation is immediately offline", async () => {
+    const cachedPage = new Response("<html>cached offline app</html>", {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+    const cache = {
+      match: vi.fn(async () => cachedPage.clone()),
+      put: vi.fn(async () => undefined),
+      keys: vi.fn(async () => [] as Request[]),
+      delete: vi.fn(async () => true),
+    };
+    const { dispatchPageRequest, fetchMock } = loadServiceWorker(cache);
+    fetchMock.mockImplementation(async () => {
+      throw new Error("offline");
+    });
+
+    const response = await dispatchPageRequest().responsePromise;
+
+    expect(await response.text()).toContain("cached offline app");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("uses the cached app document when mobile navigation stays slow", async () => {
+    vi.useFakeTimers();
+    let finishNetwork: ((response: Response) => void) | undefined;
+    const networkGate = new Promise<Response>((resolve) => {
+      finishNetwork = resolve;
+    });
+    const cachedPage = new Response("<html>cached app</html>", {
+      headers: { "Content-Type": "text/html; charset=utf-8" },
+    });
+    const cache = {
+      match: vi.fn(async () => cachedPage.clone()),
+      put: vi.fn(async () => undefined),
+      keys: vi.fn(async () => [] as Request[]),
+      delete: vi.fn(async () => true),
+    };
+    const { dispatchPageRequest, fetchMock } = loadServiceWorker(cache);
+    fetchMock.mockImplementation(() => networkGate);
+    const request = dispatchPageRequest();
+
+    await vi.advanceTimersByTimeAsync(901);
+    const response = await request.responsePromise;
+
+    expect(await response.text()).toContain("cached app");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+
+    finishNetwork?.(
+      new Response("<html>fresh app</html>", {
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      })
+    );
+    await Promise.resolve();
+    vi.useRealTimers();
   });
 });

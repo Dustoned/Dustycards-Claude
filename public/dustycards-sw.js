@@ -1,4 +1,4 @@
-const CACHE_VERSION = "3.2.31";
+const CACHE_VERSION = "3.10.1";
 const STATIC_CACHE = `dustycards-static-${CACHE_VERSION}`;
 const PAGE_CACHE = "dustycards-pages-v1";
 const IMAGE_CACHE = "dustycards-images-v1";
@@ -9,6 +9,7 @@ const MAX_IMAGE_ENTRIES = 1400;
 const CACHE_TRIM_WRITE_THRESHOLD = 32;
 const CACHE_TRIM_INTERVAL_MS = 2 * 60 * 1000;
 const CACHE_TRIM_BATCH_SIZE = 96;
+const PAGE_NETWORK_GRACE_MS = 900;
 const cacheMaintenance = new Map();
 
 const OFFLINE_IMAGE_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="420" height="588" viewBox="0 0 420 588" role="img" aria-label="Image unavailable offline"><rect width="420" height="588" rx="24" fill="#101116"/><rect x="26" y="26" width="368" height="536" rx="18" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="3"/><text x="210" y="286" fill="rgba(255,255,255,0.72)" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="26" font-weight="700" text-anchor="middle">Offline</text><text x="210" y="326" fill="rgba(255,255,255,0.46)" font-family="system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" font-size="18" font-weight="600" text-anchor="middle">Image not cached yet</text></svg>`;
@@ -139,13 +140,52 @@ async function cacheFirst(schedule, request, cacheName, maxEntries, expectedKind
   }
 }
 
-async function networkFirst(schedule, request, cacheName, maxEntries, expectedKind) {
-  const cache = await caches.open(cacheName);
+async function pageNetworkFirst(schedule, request, preloadResponse) {
+  const cache = await caches.open(PAGE_CACHE);
+  const networkPromise = Promise.resolve(preloadResponse)
+    .then((preloaded) => preloaded || fetch(request));
+  const networkResult = networkPromise.then(
+    (response) => ({ type: "network", response }),
+    (error) => ({ type: "network-error", error })
+  );
+  const cachedResult = new Promise((resolve) => {
+    setTimeout(() => {
+      resolve(cache.match(request).then((response) => ({ type: "cache", response })));
+    }, PAGE_NETWORK_GRACE_MS);
+  });
+  const first = await Promise.race([networkResult, cachedResult]);
+
+  if (first.type === "network") {
+    if (shouldCacheResponse(first.response, "page")) {
+      rememberInBackground(schedule, cache, request, first.response, PAGE_CACHE, MAX_PAGE_ENTRIES);
+    }
+    return first.response;
+  }
+
+  if (first.type === "network-error") {
+    const cached = await cache.match(request);
+    if (cached) return cached;
+    throw first.error;
+  }
+
+  if (first.response) {
+    // The cached document paints immediately on a slow mobile connection. The
+    // already-running request refreshes that private device cache for the next
+    // launch without delaying this response.
+    schedule(
+      networkPromise.then((response) =>
+        shouldCacheResponse(response, "page")
+          ? remember(cache, request, response, PAGE_CACHE, MAX_PAGE_ENTRIES)
+          : undefined
+      ).catch(() => undefined)
+    );
+    return first.response;
+  }
 
   try {
-    const response = await fetch(request);
-    if (shouldCacheResponse(response, expectedKind)) {
-      rememberInBackground(schedule, cache, request, response, cacheName, maxEntries);
+    const response = await networkPromise;
+    if (shouldCacheResponse(response, "page")) {
+      rememberInBackground(schedule, cache, request, response, PAGE_CACHE, MAX_PAGE_ENTRIES);
     }
     return response;
   } catch {
@@ -186,6 +226,9 @@ self.addEventListener("activate", (event) => {
           )
           .map((key) => caches.delete(key))
       );
+      if (self.registration.navigationPreload) {
+        await self.registration.navigationPreload.enable();
+      }
       await self.clients.claim();
     })()
   );
@@ -227,7 +270,7 @@ self.addEventListener("fetch", (event) => {
 
   if (isPageRequest(request, url)) {
     respondWithBackground(event, (schedule) =>
-      networkFirst(schedule, request, PAGE_CACHE, MAX_PAGE_ENTRIES, "page")
+      pageNetworkFirst(schedule, request, event.preloadResponse)
     );
   }
 });

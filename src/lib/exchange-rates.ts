@@ -1,7 +1,8 @@
 const FRANKFURTER_USD_EUR_URL =
   "https://api.frankfurter.dev/v2/rates?base=USD&quotes=EUR";
-const EXCHANGE_RATE_TIMEOUT_MS = 5_000;
+const EXCHANGE_RATE_TIMEOUT_MS = 800;
 const EXCHANGE_RATE_CACHE_TTL_MS = 1000 * 60 * 60 * 12;
+const EXCHANGE_RATE_FAILURE_BACKOFF_MS = 1000 * 60 * 10;
 
 export interface CurrencyExchangeRate {
   from: "USD";
@@ -16,6 +17,7 @@ let usdToEurCache: {
   rate: CurrencyExchangeRate;
 } | null = null;
 let usdToEurInflight: Promise<CurrencyExchangeRate | null> | null = null;
+let usdToEurLastAttemptAt: number | null = null;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -95,30 +97,52 @@ async function fetchUsdToEurRate(): Promise<CurrencyExchangeRate | null> {
   }
 }
 
+function refreshUsdToEurRate(): Promise<CurrencyExchangeRate | null> {
+  if (usdToEurInflight) return usdToEurInflight;
+
+  usdToEurLastAttemptAt = Date.now();
+  usdToEurInflight = fetchUsdToEurRate()
+    .then((rate) => {
+      if (rate) {
+        usdToEurCache = {
+          fetchedAt: Date.now(),
+          rate,
+        };
+      }
+
+      return rate ?? usdToEurCache?.rate ?? null;
+    })
+    .finally(() => {
+      usdToEurInflight = null;
+    });
+
+  return usdToEurInflight;
+}
+
 export async function getUsdToEurRate(): Promise<CurrencyExchangeRate | null> {
   const now = Date.now();
   if (usdToEurCache && now - usdToEurCache.fetchedAt < EXCHANGE_RATE_CACHE_TTL_MS) {
     return usdToEurCache.rate;
   }
 
-  if (!usdToEurInflight) {
-    usdToEurInflight = fetchUsdToEurRate()
-      .then((rate) => {
-        if (rate) {
-          usdToEurCache = {
-            fetchedAt: Date.now(),
-            rate,
-          };
-        }
+  const retryAllowed =
+    usdToEurLastAttemptAt == null ||
+    now - usdToEurLastAttemptAt >= EXCHANGE_RATE_FAILURE_BACKOFF_MS;
 
-        return rate ?? usdToEurCache?.rate ?? null;
-      })
-      .finally(() => {
-        usdToEurInflight = null;
-      });
+  // A slightly stale FX rate is far safer for the UI than blocking a mobile
+  // launch on an external API. Refresh it in the background and keep using the
+  // last successful value until the new response arrives.
+  if (usdToEurCache) {
+    if (retryAllowed && !usdToEurInflight) {
+      void refreshUsdToEurRate();
+    }
+    return usdToEurCache.rate;
   }
 
-  return usdToEurInflight;
+  if (usdToEurInflight) return usdToEurInflight;
+  if (!retryAllowed) return null;
+
+  return refreshUsdToEurRate();
 }
 
 export function convertUsdToEur(
@@ -133,4 +157,5 @@ export function convertUsdToEur(
 export function __resetExchangeRateCacheForTests() {
   usdToEurCache = null;
   usdToEurInflight = null;
+  usdToEurLastAttemptAt = null;
 }

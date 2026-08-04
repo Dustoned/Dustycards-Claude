@@ -346,7 +346,7 @@ export default function HomeFeaturedCardsPanel({
           justifyContent: "stretch",
         }}
       >
-        {visibleCards.map((item, index) => {
+        {visibleCards.map((item) => {
           const key = getOpeningItemKey(item);
           return (
             <FeaturedCardTile
@@ -355,7 +355,10 @@ export default function HomeFeaturedCardsPanel({
               opening={openingItemKey === key}
               onOpen={(target) => void openCard(target)}
               imageSizes={imageSizes}
-              priority={index < 4}
+              // This rail sits below the first mobile viewport and now loads
+              // after the lightweight Home shell. Eager images here competed
+              // with the navigation and chart bundles during cold starts.
+              priority={false}
             />
           );
         })}

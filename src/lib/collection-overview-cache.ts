@@ -8,60 +8,60 @@ import {
 } from "@/lib/collection-data";
 import { POKEMON_GAME, type TradingCardGameFilter } from "@/lib/games";
 
-// The home page rebuilt the full collection overview on every request
-// (~1s of queries). The build is only reused when a cheap fingerprint proves
-// the inputs are unchanged: any collection edit, settings change, or new
-// price snapshot produces a different fingerprint and forces a fresh build,
-// so users never see stale data after their own actions.
-const MAX_ENTRY_AGE_MS = 5 * 60_000;
+// Collection edits invalidate immediately. Market values may be refreshed by
+// background jobs without touching the collection rows, so cached overviews
+// also expire on a short fixed window. This avoids scanning the large history
+// tables during every page request while still making new prices visible soon.
 const MAX_ENTRIES = 40;
+const OVERVIEW_CACHE_TTL_MS = 60_000;
 
 interface CachedOverviewEntry {
   fingerprint: string;
-  cachedAt: number;
+  createdAt: number;
+  lastAccessAt: number;
   promise: Promise<CollectionOverviewData>;
 }
 
 const overviewCache = new Map<string, CachedOverviewEntry>();
 
-interface UserTableStatsRow {
-  total: number | bigint;
-  latest: string | null;
+interface OverviewFingerprintRow {
+  card_total: number | bigint;
+  card_latest: string | null;
+  sealed_total: number | bigint;
+  sealed_latest: string | null;
+  binder_total: number | bigint;
+  binder_latest: string | null;
+  user_latest: string | null;
 }
 
 async function computeOverviewFingerprint(userId: string): Promise<string> {
-  const [cards, sealed, binders, user, priceRows, sealedRows] = await Promise.all([
-    db.$queryRawUnsafe<UserTableStatsRow[]>(
-      `SELECT COUNT(*) AS total, MAX(updated_at) AS latest FROM "CollectionCard" WHERE user_id = ?`,
-      userId
-    ),
-    db.$queryRawUnsafe<UserTableStatsRow[]>(
-      `SELECT COUNT(*) AS total, MAX(updated_at) AS latest FROM "CollectionSealed" WHERE user_id = ?`,
-      userId
-    ),
-    db.$queryRawUnsafe<UserTableStatsRow[]>(
-      `SELECT COUNT(*) AS total, MAX(updated_at) AS latest FROM "CollectionBinder" WHERE user_id = ?`,
-      userId
-    ),
-    db.user.findUnique({ where: { id: userId }, select: { updated_at: true } }),
-    db.$queryRawUnsafe<Array<{ latest: string | null }>>(
-      `SELECT MAX(fetched_at) AS latest FROM "Price"`
-    ),
-    db.$queryRawUnsafe<Array<{ latest: string | null }>>(
-      `SELECT MAX(synced_at) AS latest FROM "SealedProduct"`
-    ),
-  ]);
+  const rows = await db.$queryRawUnsafe<OverviewFingerprintRow[]>(
+    `SELECT
+       (SELECT COUNT(*) FROM "CollectionCard" WHERE user_id = ?) AS card_total,
+       (SELECT MAX(updated_at) FROM "CollectionCard" WHERE user_id = ?) AS card_latest,
+       (SELECT COUNT(*) FROM "CollectionSealed" WHERE user_id = ?) AS sealed_total,
+       (SELECT MAX(updated_at) FROM "CollectionSealed" WHERE user_id = ?) AS sealed_latest,
+       (SELECT COUNT(*) FROM "CollectionBinder" WHERE user_id = ?) AS binder_total,
+       (SELECT MAX(updated_at) FROM "CollectionBinder" WHERE user_id = ?) AS binder_latest,
+       (SELECT updated_at FROM "User" WHERE id = ?) AS user_latest`,
+    userId,
+    userId,
+    userId,
+    userId,
+    userId,
+    userId,
+    userId
+  );
+  const stats = rows[0];
 
   return [
-    cards[0]?.total,
-    cards[0]?.latest,
-    sealed[0]?.total,
-    sealed[0]?.latest,
-    binders[0]?.total,
-    binders[0]?.latest,
-    user?.updated_at?.toISOString(),
-    priceRows[0]?.latest,
-    sealedRows[0]?.latest,
+    stats?.card_total,
+    stats?.card_latest,
+    stats?.sealed_total,
+    stats?.sealed_latest,
+    stats?.binder_total,
+    stats?.binder_latest,
+    stats?.user_latest,
   ].join("|");
 }
 
@@ -78,12 +78,22 @@ export async function getCachedCollectionOverviewData(options: {
   const now = Date.now();
   const cached = overviewCache.get(key);
 
-  if (cached && cached.fingerprint === fingerprint && now - cached.cachedAt < MAX_ENTRY_AGE_MS) {
+  if (
+    cached &&
+    cached.fingerprint === fingerprint &&
+    now - cached.createdAt < OVERVIEW_CACHE_TTL_MS
+  ) {
+    cached.lastAccessAt = now;
     return cached.promise;
   }
 
   const promise = getCollectionOverviewData(options);
-  overviewCache.set(key, { fingerprint, cachedAt: now, promise });
+  overviewCache.set(key, {
+    fingerprint,
+    createdAt: now,
+    lastAccessAt: now,
+    promise,
+  });
   promise.catch(() => {
     if (overviewCache.get(key)?.promise === promise) {
       overviewCache.delete(key);
@@ -92,7 +102,7 @@ export async function getCachedCollectionOverviewData(options: {
 
   if (overviewCache.size > MAX_ENTRIES) {
     const oldestKey = [...overviewCache.entries()].sort(
-      (a, b) => a[1].cachedAt - b[1].cachedAt
+      (a, b) => a[1].lastAccessAt - b[1].lastAccessAt
     )[0]?.[0];
     if (oldestKey) overviewCache.delete(oldestKey);
   }
