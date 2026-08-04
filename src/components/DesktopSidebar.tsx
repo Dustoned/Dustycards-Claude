@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import FeedbackButton from "@/components/FeedbackButton";
+import ActionCenterButton from "@/components/ActionCenterButton";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import {
   COLLECTION_CARD_ADDED_EVENT,
@@ -64,7 +65,7 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
       fallbackKeys: DEFAULT_DESKTOP_PINNED_NAV_KEYS,
       limit: DESKTOP_PIN_LIMIT,
     }
-  ).filter((item) => item.key !== "home");
+  ).filter((item) => item.key !== "home" && item.key !== "openings");
   const pinnedKeys = new Set(pinnedItems.map((item) => item.key));
   const sidebarSections = [
     ...(pinnedItems.length > 0 ? [{ label: "Pinned", items: pinnedItems }] : []),
@@ -292,14 +293,19 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
           </div>
         ) : null}
 
-        <button
-          type="button"
-          data-sidebar-account-toggle
-          aria-expanded={accountOpen}
-          aria-controls="desktop-account-panel"
-          onClick={() => setAccountOpen((current) => !current)}
-          className="flex w-full items-center gap-2 rounded-2xl border px-2 py-1.5 text-left backdrop-blur-xl transition-colors"
-        >
+        <div className="flex items-center gap-2">
+          <ActionCenterButton
+            initialCount={summary.attentionCount ?? 0}
+            desktopPlacement="above-left"
+          />
+          <button
+            type="button"
+            data-sidebar-account-toggle
+            aria-expanded={accountOpen}
+            aria-controls="desktop-account-panel"
+            onClick={() => setAccountOpen((current) => !current)}
+            className="flex min-w-0 flex-1 items-center gap-2 rounded-2xl border px-2 py-1.5 text-left backdrop-blur-xl transition-colors"
+          >
           <span
             data-sidebar-avatar
             className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-black text-violet-100 shadow-[0_0_18px_rgb(var(--dc-primary-rgb)/0.22)]"
@@ -325,7 +331,8 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.045] text-white/58">
             {accountOpen ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronUp className="h-3.5 w-3.5" />}
           </span>
-        </button>
+          </button>
+        </div>
       </div>
     </aside>
   );

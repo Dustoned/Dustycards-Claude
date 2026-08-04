@@ -67,6 +67,13 @@ export const TRUSTED_CATALYST_DOMAINS: readonly TrustedCatalystDomain[] = [
     credibility: 0.8,
   },
   {
+    domain: "billsarchive.com",
+    sourceKind: "community",
+    games: ["pokemon"],
+    // Strong editorial/release-calendar source, but independent rather than official.
+    credibility: 0.8,
+  },
+  {
     domain: "vice.com",
     sourceKind: "community",
     games: ["pokemon"],

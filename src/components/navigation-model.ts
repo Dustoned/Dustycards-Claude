@@ -3,6 +3,7 @@ import {
   BarChart3,
   Boxes,
   Brush,
+  CalendarDays,
   FolderOpen,
   Heart,
   Home,
@@ -45,7 +46,7 @@ export interface NavigationItem {
 }
 
 export interface NavigationSection {
-  label: "Collection" | "Browse" | "Market";
+  label: "Collection" | "Browse" | "Market" | "More";
   items: readonly NavigationItem[];
 }
 
@@ -64,10 +65,8 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
       { href: "/?tab=singles", label: "Loose Singles", icon: Sparkles, badge: null, key: "singles" },
       { href: "/?tab=binders", label: "Binders", icon: Boxes, badge: null, key: "binders" },
       { href: "/?tab=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "sealed" },
-      { href: "/openings", label: "Openings", icon: PackageOpen, badge: null, key: "openings" },
       { href: "/?tab=graded", label: "Graded", icon: LibraryBig, badge: null, key: "graded" },
       { href: "/wants", label: "Wants", icon: Heart, badge: "wants", key: "wants" },
-      { href: "/social", label: "Social", icon: UsersRound, badge: null, key: "social" },
     ],
   },
   {
@@ -95,7 +94,6 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
             } satisfies NavigationItem,
           ]
         : []),
-      { href: "/submit-card", label: "Submit Card", icon: Search, badge: null, key: "submit-card" },
     ],
   },
   {
@@ -107,6 +105,21 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
       { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
       { href: "/movers/signal-radar", label: "Signal Radar", icon: Radar, badge: null, key: "market-radar" },
       { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
+    ],
+  },
+  {
+    label: "More",
+    items: [
+      {
+        href: "/upcoming",
+        label: "Upcoming & Leaks",
+        icon: CalendarDays,
+        badge: null,
+        key: "upcoming",
+      },
+      { href: "/openings", label: "Openings", icon: PackageOpen, badge: null, key: "openings" },
+      { href: "/social", label: "Social", icon: UsersRound, badge: null, key: "social" },
+      { href: "/submit-card", label: "Submit Card", icon: Search, badge: null, key: "submit-card" },
     ],
   },
 ];

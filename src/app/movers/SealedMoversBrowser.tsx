@@ -11,7 +11,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { CalendarDays, Clock3, ExternalLink, Package, Search, X } from "lucide-react";
+import { ExternalLink, Package, Search, X } from "lucide-react";
 import {
   CardListTile,
   CardListTileBody,
@@ -25,11 +25,7 @@ import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import { buildSealedEbaySearchUrl } from "@/lib/ebay-search-url";
 import { formatCurrency } from "@/lib/format";
-import type {
-  SealedMoverItem,
-  SealedMoversData,
-  UpcomingSealedRelease,
-} from "@/lib/sealed-movers";
+import type { SealedMoverItem, SealedMoversData } from "@/lib/sealed-movers";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
@@ -60,13 +56,6 @@ interface FilterChipOption {
 }
 
 const SELECT_OPTION_CLASS = "bg-white text-gray-950 dark:bg-gray-950 dark:text-white";
-const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "short",
-  year: "numeric",
-  timeZone: "UTC",
-});
-
 function formatPercent(value: number | null | undefined): string {
   if (value == null) return "--";
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
@@ -204,80 +193,6 @@ function buildSealedProductData(item: SealedMoverItem): SealedModalProductData {
 const INITIAL_SEALED_RENDER_COUNT = 12;
 const SEALED_RENDER_BATCH_SIZE = 24;
 
-function UpcomingReleaseCard({
-  release,
-  matchedMover,
-  onOpen,
-}: {
-  release: UpcomingSealedRelease;
-  matchedMover: SealedMoverItem | null;
-  onOpen: (item: SealedMoverItem) => void;
-}) {
-  return (
-    <article className="group flex min-w-0 items-center gap-3.5 rounded-2xl border border-white/8 bg-white/[0.035] p-3.5 transition-colors hover:border-violet-400/22 hover:bg-violet-400/[0.045] sm:gap-4 sm:p-4">
-      <div className="relative h-[5.5rem] w-[5.5rem] shrink-0 overflow-hidden rounded-xl border border-white/8 bg-black/20 sm:h-24 sm:w-24">
-        {release.imageUrl ? (
-          <CachedImage
-            sourceUrl={release.imageUrl}
-            alt={release.name}
-            fill
-            sizes="(max-width: 640px) 88px, 96px"
-            className="object-contain p-2"
-            unoptimized
-          />
-        ) : (
-          <span className="flex h-full w-full items-center justify-center text-white/28">
-            <Package className="h-7 w-7" />
-          </span>
-        )}
-      </div>
-
-      <div className="min-w-0 flex-1">
-        <div className="mb-1.5 flex items-center gap-1.5">
-          <span className="rounded-full border border-violet-400/18 bg-violet-400/[0.09] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.14em] text-violet-200">
-            Product
-          </span>
-          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-white/42">
-            <Clock3 className="h-3 w-3" />
-            {release.daysUntil === 0 ? "Today" : `${release.daysUntil} days`}
-          </span>
-        </div>
-        <h3 className="line-clamp-2 text-sm font-semibold leading-[1.2rem] text-white sm:text-[15px] sm:leading-5">
-          {release.name}
-        </h3>
-        <p className="mt-1 text-[11.5px] font-semibold text-violet-200/78 sm:text-xs">
-          {RELEASE_DATE_FORMATTER.format(new Date(release.releaseDate))}
-        </p>
-
-        <div className="mt-2 flex items-center gap-2">
-          {matchedMover ? (
-            <button
-              type="button"
-              onClick={() => onOpen(matchedMover)}
-              className="text-[10px] font-semibold text-white/55 transition-colors hover:text-white"
-            >
-              View product
-            </button>
-          ) : null}
-          {release.sourceUrl ? (
-            <a
-              href={release.sourceUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-[10px] font-semibold text-white/38 transition-colors hover:text-white/75"
-            >
-              {release.sourceName}
-              <ExternalLink className="h-2.5 w-2.5" />
-            </a>
-          ) : (
-            <span className="text-[10px] font-medium text-white/30">{release.sourceName}</span>
-          )}
-        </div>
-      </div>
-    </article>
-  );
-}
-
 const SealedMoverTile = memo(function SealedMoverTile({
   item,
   onOpen,
@@ -411,15 +326,10 @@ export default function SealedMoversBrowser({ data }: Props) {
   const [direction, setDirection] = useState<DirectionFilter>("all");
   const [focusFilter, setFocusFilter] = useState<SealedFocusFilter>("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-  const [showAllUpcoming, setShowAllUpcoming] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<SealedModalProductData | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
-  const upcomingReleases = data.upcomingReleases ?? [];
-  const visibleUpcomingReleases = showAllUpcoming
-    ? upcomingReleases
-    : upcomingReleases.slice(0, 12);
 
   const categoryOptions = useMemo<FilterChipOption[]>(() => {
     const counts = new Map<string, { label: string; count: number }>();
@@ -504,11 +414,6 @@ export default function SealedMoversBrowser({ data }: Props) {
   const handleOpenSealedProduct = useCallback((item: SealedMoverItem) => {
     setSelectedProduct(buildSealedProductData(item));
   }, []);
-  const moverByProductId = useMemo(
-    () => new Map(data.movers.map((item) => [item.productId, item])),
-    [data.movers]
-  );
-
   const hasActiveControls =
     search.trim().length > 0 ||
     direction !== "all" ||
@@ -534,60 +439,6 @@ export default function SealedMoversBrowser({ data }: Props) {
 
   return (
     <div className="space-y-4 sm:space-y-6">
-      <section aria-label="Upcoming sealed releases">
-        <SectionHeader
-          eyebrow="Release watch"
-          title="Upcoming sealed products"
-          description="Confirmed upcoming ETBs, boxes, collections, tins, bundles and other sealed products, ordered by their own product release date."
-          actions={
-            upcomingReleases.length > 0 ? (
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/16 bg-violet-400/[0.08] px-2.5 py-1 text-xs font-semibold text-violet-200">
-                <CalendarDays className="h-3.5 w-3.5" />
-                {upcomingReleases.length} scheduled
-              </span>
-            ) : null
-          }
-        />
-
-        {upcomingReleases.length > 0 ? (
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4 min-[2500px]:grid-cols-5 min-[3800px]:grid-cols-6">
-            {visibleUpcomingReleases.map((release) => (
-              <UpcomingReleaseCard
-                key={release.id}
-                release={release}
-                matchedMover={
-                  release.productId ? moverByProductId.get(release.productId) ?? null : null
-                }
-                onOpen={handleOpenSealedProduct}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="flex items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/[0.025] px-4 py-3.5 sm:px-5">
-            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-400/14 bg-violet-400/[0.07] text-violet-200/70">
-              <CalendarDays className="h-5 w-5" />
-            </span>
-            <div className="min-w-0">
-              <p className="text-sm font-semibold text-white/78">No confirmed upcoming products yet</p>
-              <p className="mt-0.5 text-xs leading-5 text-white/38">
-                New sealed products appear here after the scheduled source check confirms their product date.
-              </p>
-            </div>
-          </div>
-        )}
-        {upcomingReleases.length > 12 ? (
-          <div className="mt-3 flex justify-center">
-            <button
-              type="button"
-              onClick={() => setShowAllUpcoming((current) => !current)}
-              className="rounded-xl border border-white/10 bg-white/[0.035] px-4 py-2 text-xs font-semibold text-white/58 transition-colors hover:border-violet-400/24 hover:bg-violet-400/[0.06] hover:text-white"
-            >
-              {showAllUpcoming ? "Show fewer products" : `Show all ${upcomingReleases.length} products`}
-            </button>
-          </div>
-        ) : null}
-      </section>
-
       <section>
         <SectionHeader
           eyebrow="Sealed Market"

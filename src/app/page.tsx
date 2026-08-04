@@ -6,10 +6,10 @@ import {
   BarChart3,
   Box,
   CheckCircle2,
+  Euro,
   Layers3,
   PackageCheck,
   Sparkles,
-  TrendingDown,
   TrendingUp,
   WalletCards,
 } from "lucide-react";
@@ -563,8 +563,8 @@ async function HomePageContent({
       label: "Total Profit",
       value: formatSignedCurrency(data.overview.pnl),
       hint: "Current value minus overall spend",
-      Icon: data.overview.pnl >= 0 ? TrendingUp : TrendingDown,
-      tone: data.overview.pnl >= 0 ? "emerald" : "rose",
+      Icon: Euro,
+      tone: data.overview.pnl >= 0 ? "sky" : "rose",
     },
     {
       label: "Avg Item Value",

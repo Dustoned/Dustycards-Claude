@@ -22,7 +22,15 @@ function timeAgo(value: string): string {
   return `${Math.floor(elapsed / 86_400_000)}d`;
 }
 
-export default function ActionCenterButton({ initialCount = 0 }: { initialCount?: number }) {
+export default function ActionCenterButton({
+  initialCount = 0,
+  className = "",
+  desktopPlacement = "below-right",
+}: {
+  initialCount?: number;
+  className?: string;
+  desktopPlacement?: "below-right" | "above-left";
+}) {
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<ActionItem[]>([]);
   const [count, setCount] = useState(initialCount);
@@ -68,7 +76,7 @@ export default function ActionCenterButton({ initialCount = 0 }: { initialCount?
   }, [open]);
 
   return (
-    <div ref={rootRef} className="relative shrink-0" data-action-center>
+    <div ref={rootRef} className={`relative shrink-0 ${className}`} data-action-center>
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
@@ -85,8 +93,17 @@ export default function ActionCenterButton({ initialCount = 0 }: { initialCount?
       </button>
 
       {open ? (
-        <div className="fixed inset-0 z-[160] bg-black/30 backdrop-blur-sm sm:absolute sm:inset-auto sm:right-0 sm:top-[calc(100%+0.55rem)] sm:w-[24rem] sm:bg-transparent sm:backdrop-blur-0">
-          <div className="absolute bottom-0 left-0 right-0 max-h-[78dvh] overflow-hidden rounded-t-3xl border border-white/10 bg-zinc-950/94 shadow-2xl backdrop-blur-2xl sm:relative sm:max-h-[32rem] sm:rounded-2xl">
+        <div
+          onPointerDown={(event) => {
+            if (event.target === event.currentTarget) setOpen(false);
+          }}
+          className={`fixed inset-0 z-[160] bg-black/30 backdrop-blur-sm sm:absolute sm:inset-auto sm:w-[24rem] sm:bg-transparent sm:backdrop-blur-0 ${
+            desktopPlacement === "above-left"
+              ? "sm:bottom-[calc(100%+0.55rem)] sm:left-0"
+              : "sm:right-0 sm:top-[calc(100%+0.55rem)]"
+          }`}
+        >
+          <div className="absolute left-3 right-3 top-[calc(var(--ui-app-header-height)+env(safe-area-inset-top,0px)+0.5rem)] max-h-[calc(100dvh-var(--ui-app-header-height)-env(safe-area-inset-top,0px)-1rem)] overflow-hidden rounded-2xl border border-white/10 bg-zinc-950/94 shadow-2xl backdrop-blur-2xl sm:relative sm:left-auto sm:right-auto sm:top-auto sm:max-h-[32rem]">
             <div className="flex items-center justify-between border-b border-white/8 px-4 py-3">
               <div>
                 <p className="text-sm font-black text-white">Action Center</p>
@@ -96,7 +113,7 @@ export default function ActionCenterButton({ initialCount = 0 }: { initialCount?
                 <X className="h-3.5 w-3.5" />
               </button>
             </div>
-            <div className="max-h-[calc(78dvh-4rem)] overflow-y-auto p-2 sm:max-h-[27rem]">
+            <div className="max-h-[calc(100dvh-var(--ui-app-header-height)-env(safe-area-inset-top,0px)-5rem)] overscroll-contain overflow-y-auto p-2 sm:max-h-[27rem]">
               {items.length ? items.map((item) => {
                 const Icon = item.kind === "signal" ? Radar : item.kind === "ebay" ? Clock3 : CheckCircle2;
                 return (

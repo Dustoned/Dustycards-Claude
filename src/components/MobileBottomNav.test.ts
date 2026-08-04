@@ -107,6 +107,7 @@ describe("mobile navigation model", () => {
       {
         label: "Discover",
         routes: [
+          "/upcoming",
           "/expansions",
           "/one-piece/expansions",
           "/categories",

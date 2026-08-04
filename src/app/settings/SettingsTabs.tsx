@@ -40,15 +40,26 @@ export default function SettingsTabs({
   const selected = tabs.find((tab) => tab.key === selectedKey) ?? tabs[0] ?? null;
 
   useEffect(() => {
-    const activeButton = document.getElementById(
-      `settings-tab-button-${selectedKey}`
-    );
-    activeButton?.scrollIntoView({
-      behavior: "auto",
-      block: "nearest",
-      inline: "center",
+    const frame = window.requestAnimationFrame(() => {
+      setSelectedKey(initialKey);
+      const activeButton = document.getElementById(
+        `settings-tab-button-${initialKey}`
+      );
+      activeButton?.scrollIntoView({
+        behavior: "auto",
+        block: "nearest",
+        inline: "center",
+      });
+      const targetId = window.location.hash.slice(1);
+      if (targetId) {
+        document.getElementById(targetId)?.scrollIntoView({
+          behavior: "auto",
+          block: "start",
+        });
+      }
     });
-  }, [selectedKey]);
+    return () => window.cancelAnimationFrame(frame);
+  }, [initialKey]);
 
   function selectFromKeyboard(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let nextIndex: number | null = null;

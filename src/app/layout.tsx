@@ -182,7 +182,9 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
                 <HeaderMobileMenu />
                 <div className="flex-1 lg:hidden" />
                 <HeaderSearch />
-                <ActionCenterButton initialCount={sidebarSummary?.attentionCount ?? 0} />
+                <div className="xl:hidden">
+                  <ActionCenterButton initialCount={sidebarSummary?.attentionCount ?? 0} />
+                </div>
               </>
             ) : (
               <div className="flex-1" />

@@ -35,6 +35,7 @@ import type { CardData } from "@/types/card-data";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import ExpansionCardsSection from "./ExpansionCardsSection";
 import PullRateHoverTable from "./PullRateHoverTable";
+import RarityDistributionPanel from "./RarityDistributionPanel";
 import SealedProductsGrid from "./SealedProductsGrid";
 import SyncEpisodeButton from "./SyncEpisodeButton";
 
@@ -436,6 +437,12 @@ export default async function ExpansionDetailPage({
           "en-US"
         )} cards in the set metadata, but none are imported locally yet. Run Sync this set to load them.`
       : "Use refresh to fetch this set.";
+  const rarityCountMap = new Map<string, number>();
+  for (const card of cards) {
+    const rarity = normalizeRarityLabel(card.rarity) ?? "Unknown";
+    rarityCountMap.set(rarity, (rarityCountMap.get(rarity) ?? 0) + 1);
+  }
+  const rarityCounts = [...rarityCountMap].map(([name, count]) => ({ name, count }));
 
   return (
     <div className="page-container mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
@@ -586,6 +593,14 @@ export default async function ExpansionDetailPage({
           </Link>
         )}
       </div>
+
+      {activeTab === "cards" && pullRateProfile ? (
+        <RarityDistributionPanel
+          expansionName={episode.name}
+          rarityCounts={rarityCounts}
+          profile={pullRateProfile}
+        />
+      ) : null}
 
       {activeTab === "cards" ? (
         cards.length === 0 ? (

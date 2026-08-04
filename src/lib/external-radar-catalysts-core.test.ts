@@ -38,6 +38,16 @@ describe("trusted catalyst sources", () => {
       sourceKind: "community",
       credibility: 0.78,
     });
+    expect(
+      getTrustedCatalystSource(
+        "https://billsarchive.com/articles/upcoming-releases.html",
+        "pokemon"
+      )
+    ).toMatchObject({
+      domain: "billsarchive.com",
+      sourceKind: "community",
+      credibility: 0.8,
+    });
   });
 
   it("rejects lookalike, credentialed, non-web and wrong-game sources", () => {
@@ -345,6 +355,7 @@ describe("bounded external query planning", () => {
     expect(queries[0]?.query).toContain('Pokemon TCG "30th Celebration" "30C"');
     expect(queries[0]?.query).toContain("leaked booklet card list cards revealed chase");
     expect(queries[0]?.query).toContain("July 2026");
+    expect(queries[0]?.allowedDomains).toContain("billsarchive.com");
     expect(queries[1]?.cardId).toBe("set-intelligence:pokemon:releases");
     expect(queries.every((query) => query.query.length <= MAX_CATALYST_SEARCH_QUERY_LENGTH)).toBe(
       true

@@ -946,7 +946,10 @@ export default function PriceHistoryPanel({
   }
 
   const rangeButtonsJsx = showRangeControls ? (
-    <div className={`flex flex-wrap items-center ${isMobileHeroLayout ? "gap-1" : isHeroLayout ? "gap-[var(--ui-chip-gap)]" : "gap-1"}`}>
+    <div
+      className={`flex flex-wrap items-center justify-center ${isMobileHeroLayout ? "gap-1" : isHeroLayout ? "gap-[var(--ui-chip-gap)]" : "gap-1"}`}
+      data-price-history-range-controls
+    >
       {RANGE_PRESETS.map((range) => (
         <button
           key={range.key}

@@ -32,6 +32,7 @@ import {
   searchScrapeDoWeb,
 } from "@/lib/scrapedo";
 import { getTavilyConfigSnapshot, searchTavilyWeb } from "@/lib/tavily";
+import { extractUpcomingRevealsFromScrape } from "@/lib/upcoming-source-reveals";
 
 export const EXTERNAL_CATALYST_DISCOVERY_INTERVAL_MS = 24 * 60 * 60_000;
 export const EXTERNAL_CATALYST_QUERY_VERSION = 5;
@@ -376,7 +377,8 @@ const prismaCatalystStore: ExternalCatalystDiscoveryStore = {
       queryMode: input.source.query.mode,
       sourceUrl: input.scrape.sourceUrl,
       metadata: input.scrape.metadata,
-    }).slice(0, 8_000);
+      upcomingReveals: extractUpcomingRevealsFromScrape(input.scrape),
+    }).slice(0, 240_000);
 
     return db.$transaction(async (tx) => {
       await tx.externalCatalystSource.update({

@@ -64,7 +64,10 @@ describe("image cache", () => {
   it.each([
     "https://www.pokebeach.com/news/2026/06/product.jpg",
     "https://www.pokemon.com/static-assets/product.png",
+    "https://mcdn.pokemon.com/pokemon-prod/image/upload/card.png",
     "https://icv2.com/images/product.jpg",
+    "https://billsarchive.com/assets/articles/reveal.webp",
+    "https://bills-archive.nyc3.cdn.digitaloceanspaces.com/cards/reveal.webp",
   ])("proxies release-watch artwork from %s through the local cache", (sourceUrl) => {
     expect(getCachedImageUrl(sourceUrl)).toBe(
       `/api/image-cache?url=${encodeURIComponent(sourceUrl)}`

@@ -11,7 +11,10 @@ export const CACHEABLE_IMAGE_HOSTS = new Set([
   "product-images.s3.cardmarket.com",
   "www.pokebeach.com",
   "www.pokemon.com",
+  "mcdn.pokemon.com",
   "icv2.com",
+  "billsarchive.com",
+  "bills-archive.nyc3.cdn.digitaloceanspaces.com",
 ]);
 
 // These hosts are already optimized card-image CDNs. Sending them through the

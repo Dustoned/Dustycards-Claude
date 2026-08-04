@@ -6,6 +6,7 @@ import { Camera, Check, ChevronDown, Loader2, PackageOpen, Plus, Search } from "
 import { useEffect, useMemo, useState } from "react";
 import CachedImage from "@/components/CachedImage";
 import { formatCollectionCurrency } from "@/lib/collection";
+import OwnedSealedPickerDialog from "./OwnedSealedPickerDialog";
 
 export type OwnedSealedChoice = {
   id: string;
@@ -57,8 +58,9 @@ function productImage(imageUrl: string | null, name: string, size = "64px") {
 export default function OpeningSessionsClient({ owned, sessions }: { owned: OwnedSealedChoice[]; sessions: OpeningSessionView[] }) {
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(sessions.length === 0);
-  const [selectedOwnedId, setSelectedOwnedId] = useState(owned[0]?.id ?? "");
-  const [cost, setCost] = useState(owned[0]?.purchasePricePerItem?.toFixed(2) ?? "");
+  const [sealedPickerOpen, setSealedPickerOpen] = useState(false);
+  const [selectedOwnedId, setSelectedOwnedId] = useState("");
+  const [cost, setCost] = useState("");
   const [packs, setPacks] = useState("1");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -143,13 +145,61 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
       </header>
 
       {createOpen ? <section className="mt-3 rounded-2xl border border-violet-300/14 bg-violet-500/[0.04] p-4">
+        <div className="mb-3">
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-200/52">New opening</p>
+          <p className="mt-1 text-xs text-white/38">Choose one product you own, then confirm the actual opening cost and pack count.</p>
+        </div>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] lg:items-end">
-          <label className="min-w-0 text-[10px] font-black uppercase tracking-[0.1em] text-white/36">Owned sealed<select value={selectedOwnedId} onChange={(event) => selectOwned(event.target.value)} className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm text-white"><option value="">Choose product</option>{owned.map((item) => <option key={item.id} value={item.id}>{item.name} · x{item.quantity}</option>)}</select></label>
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white/36">Owned sealed</p>
+            <button
+              type="button"
+              onClick={() => setSealedPickerOpen(true)}
+              aria-haspopup="dialog"
+              className="mt-1.5 flex min-h-16 w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/18 p-2.5 text-left transition-colors hover:border-violet-300/24 hover:bg-violet-500/[0.06]"
+            >
+              {selectedOwned ? (
+                <>
+                  {productImage(selectedOwned.imageUrl, selectedOwned.name)}
+                  <span className="min-w-0 flex-1">
+                    <strong className="block truncate text-sm text-white/84">{selectedOwned.name}</strong>
+                    <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[9px] font-bold text-white/38">
+                      <span>{selectedOwned.quantity} owned</span>
+                      <span aria-hidden="true">·</span>
+                      <span>{selectedOwned.purchasePricePerItem == null ? "No cost saved" : `${formatCollectionCurrency(selectedOwned.purchasePricePerItem)} paid`}</span>
+                    </span>
+                  </span>
+                  <span className="shrink-0 rounded-xl border border-violet-300/14 bg-violet-500/[0.08] px-2.5 py-1.5 text-[10px] font-black text-violet-100/68">Change</span>
+                </>
+              ) : (
+                <>
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-violet-300/14 bg-violet-500/[0.08] text-violet-100/55">
+                    <Search className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <strong className="block text-sm text-white/72">Choose from your sealed collection</strong>
+                    <span className="mt-1 block text-[10px] text-white/32">Search all products you currently own.</span>
+                  </span>
+                </>
+              )}
+            </button>
+          </div>
           <label className="text-[10px] font-black uppercase tracking-[0.1em] text-white/36">Cost EUR<input value={cost} onChange={(event) => setCost(event.target.value)} inputMode="decimal" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm text-white" /></label>
           <label className="text-[10px] font-black uppercase tracking-[0.1em] text-white/36">Packs<input value={packs} onChange={(event) => setPacks(event.target.value)} inputMode="numeric" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm text-white" /></label>
           <button type="button" onClick={() => void createSession()} disabled={!selectedOwned || creating} className="h-11 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:opacity-45">{creating ? "Starting..." : "Start opening"}</button>
         </div>
       </section> : null}
+      {sealedPickerOpen ? (
+        <OwnedSealedPickerDialog
+          items={owned}
+          selectedId={selectedOwnedId || null}
+          onClose={() => setSealedPickerOpen(false)}
+          onSelect={(item) => {
+            selectOwned(item.id);
+            setSealedPickerOpen(false);
+          }}
+        />
+      ) : null}
       {error ? <p className="mt-3 rounded-xl border border-rose-300/14 bg-rose-500/[0.07] px-3 py-2 text-sm text-rose-100">{error}</p> : null}
 
       <section className="mt-4 grid gap-3">

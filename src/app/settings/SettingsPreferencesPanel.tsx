@@ -649,7 +649,9 @@ function OrderedShortcutEditor({
 function NavigationPreferencesSection() {
   const { settings, set } = useSettings();
   const options = getNavigationCustomizationOptions(settings.onePieceLibraryEnabled);
-  const desktopOptions = options.filter((option) => option.key !== "home");
+  const desktopOptions = options.filter(
+    (option) => option.key !== "home" && option.key !== "openings"
+  );
   const mobileBottomKeys = resolveNavigationItems(
     settings.mobileBottomNavKeys,
     settings.onePieceLibraryEnabled,

@@ -62,6 +62,7 @@ const MOBILE_NAV_DESCRIPTIONS: Record<string, string> = {
   binders: "Sets and progress",
   sealed: "Owned products and boxes",
   openings: "Pulls and opening results",
+  upcoming: "Upcoming products, sets and card reveals",
   graded: "Slabs and graded prices",
   wants: "Cards and binders to buy",
   social: "Friends, trades and activity",
@@ -194,6 +195,7 @@ export function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNa
     {
       label: "Discover",
       items: [
+        mobileMoreItem("upcoming"),
         ...expansionItems,
         mobileMoreItem("categories"),
         mobileMoreItem("illustrators", {
@@ -640,7 +642,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                       Your quick access
                     </h2>
                     <Link
-                      href="/settings#navigation"
+                      href="/settings?section=preferences#navigation"
                       prefetch={false}
                       onClick={navigateFromMoreMenu}
                       className="text-[10px] font-black text-[var(--dc-primary-soft)]"

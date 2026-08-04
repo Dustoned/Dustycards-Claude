@@ -5,6 +5,7 @@ export const NAVIGATION_SHORTCUT_KEYS = [
   "binders",
   "sealed",
   "openings",
+  "upcoming",
   "graded",
   "wants",
   "social",

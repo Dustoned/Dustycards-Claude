@@ -2463,18 +2463,11 @@ html.widescreen .settings-page {
   align-items: start;
 }
 
-.card-detail-profile-overview-grid {
-  display: grid;
-  min-width: 0;
-  gap: 1rem;
-}
-
 .card-detail-collector-snapshot {
   min-width: 0;
-  border: 1px solid rgba(167, 139, 250, 0.12);
-  border-radius: 1rem;
-  background: linear-gradient(145deg, rgba(139, 92, 246, 0.055), rgba(5, 5, 9, 0.24));
-  padding: 1rem;
+  align-self: start;
+  border-color: rgba(167, 139, 250, 0.12);
+  background: linear-gradient(145deg, rgba(139, 92, 246, 0.055), rgba(10, 10, 14, 0.88));
 }
 
 .card-detail-collector-snapshot .card-detail-info-grid {
@@ -2784,15 +2777,6 @@ html.widescreen .settings-page {
 
   .card-detail-section-grid.card-detail-overview-grid[data-columns="2"] {
     grid-template-columns: minmax(0, 1fr) minmax(19rem, 31rem);
-  }
-
-  .card-detail-profile-overview-grid {
-    grid-template-columns: minmax(0, 1fr) minmax(19rem, 24rem);
-    align-items: stretch;
-  }
-
-  .card-detail-collector-snapshot {
-    height: 100%;
   }
 
   .card-detail-printing-rail {
@@ -3118,40 +3102,11 @@ html.widescreen .settings-page {
   }
 
   .card-detail-chart {
-    height: 100%;
-    align-self: stretch;
-  }
-
-  .card-detail-chart > section > div {
-    height: 100%;
-  }
-
-  .card-detail-chart > section > div > div {
-    min-height: 0;
-    flex: 1 1 auto;
-  }
-
-  .card-detail-chart [data-price-history-panel] {
-    display: flex;
-    height: 100%;
-    min-height: 0;
-    flex-direction: column;
-  }
-
-  .card-detail-chart [data-price-history-panel] > :last-child {
-    display: flex;
-    min-height: 0;
-    flex: 1 1 auto;
-    flex-direction: column;
-  }
-
-  .card-detail-chart [data-price-history-panel] > :last-child > :last-child {
-    min-height: 11.75rem;
-    flex: 1 1 auto;
+    height: auto;
+    align-self: start;
   }
 
   .card-detail-chart [data-price-history-panel] [data-chart-interaction-surface] {
-    height: 100% !important;
     min-height: 11.75rem;
   }
 

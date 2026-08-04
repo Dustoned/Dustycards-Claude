@@ -17,6 +17,25 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.9.3",
+    releasedAt: "August 4, 2026",
+    title: "Upcoming intelligence and cleaner collector details",
+    summary:
+      "DustyCards adds a dedicated release-intelligence workflow and removes the remaining stretched or page-growing sections from Card Detail.",
+    tone: "new",
+    highlights: [
+      "Upcoming & Leaks is now a dedicated More page for scheduled sealed products, revealed singles and source reports, with search and separate Sealed, Singles and Source Watch views. Source artwork can appear before a local card match exists and links into Card Detail as soon as matching finishes.",
+      "Complete Bill's Archive and official Pokémon reveal galleries are stored in the background and loaded 24 cards at a time. Every refresh uses direct ingestion first, Scrape.do when a source blocks it, and the last successful stored gallery as a hard fallback so temporary provider failures never empty Upcoming.",
+      "Upcoming singles are grouped into one large, highest-number-first card row per set. Every row opens a focused binder-style gallery with search plus number high–low, number low–high and alphabetical sorting; future source sets inherit the same workflow automatically.",
+      "Bill's Archive joins Pokémon, PokeBeach and ICv2 in the trusted background source pipeline used by Upcoming and Signal Radar; reports are ingested, classified, matched and shown as native DustyCards items instead of promoted as external link blocks.",
+      "Openings moves out of the primary Collection navigation and its sealed selector becomes a clean searchable popup containing only products from the collector's owned sealed inventory.",
+      "Card Detail centers its date ranges, removes the unused stretched chart area, separates Collector Snapshot from Card Profile and keeps expanded eBay listings inside their own bounded scroll area.",
+      "Expansion pages gain a compact full-set rarity distribution with all card counts plus stored rarity and specific-card pull odds where available.",
+      "The desktop notification bell now sits beside the profile control, mobile navigation editing opens the correct Navigation settings, and Total Profit uses its own blue euro icon instead of repeating the ROI arrow.",
+      "On phones the notification panel now opens as a fixed sheet directly below the safe-area header, stays independent of page scroll and closes cleanly from its blurred backdrop.",
+    ],
+  },
+  {
     version: "3.9.2",
     releasedAt: "August 4, 2026",
     title: "Clearer trade search and richer reprint previews",

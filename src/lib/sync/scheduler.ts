@@ -46,6 +46,7 @@ import {
   maybeRunCardReprintJob,
   type CardReprintJobSnapshot,
 } from "@/lib/sync/card-reprint-job";
+import { maybeRunUpcomingGallerySourceJob } from "@/lib/sync/upcoming-gallery-source-job";
 
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
 
@@ -157,6 +158,10 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   // Fire-and-forget: persist DustyCards market scores in small batches so
   // search can rank on real market interest.
   maybeRunMarketScoreJob(checkedAt);
+  // Complete release galleries use a zero-credit direct fetch first, then
+  // Scrape.do, and finally their last successful stored snapshot. The job is
+  // fire-and-forget so a slow publisher never delays the main scheduler tick.
+  maybeRunUpcomingGallerySourceJob({ now: checkedAt, skip: scraperDisabled });
   // Reprint relationships are precomputed in resumable batches. Card-detail
   // requests only read stored matches and never wait for TCGdex or image work.
   const reprints = maybeRunCardReprintJob(checkedAt);

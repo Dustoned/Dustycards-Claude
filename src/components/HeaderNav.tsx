@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { ChevronDown, LogOut, Menu, X } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import FeedbackButton from "@/components/FeedbackButton";
+import ActionCenterButton from "@/components/ActionCenterButton";
 import { useLiveCollectionTab } from "@/components/useLiveCollectionTab";
 import {
   ALL_NAVIGATION_ITEMS,
@@ -82,6 +83,12 @@ const COLLECTION_OPENINGS_ITEM: NavItem = {
   href: "/openings",
   label: "Openings",
   matches: ["/openings"],
+};
+
+const UPCOMING_ITEM: NavItem = {
+  href: "/upcoming",
+  label: "Upcoming & Leaks",
+  matches: ["/upcoming"],
 };
 
 const COLLECTION_GRADED_ITEM: NavItem = {
@@ -214,7 +221,6 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         COLLECTION_SINGLES_ITEM,
         COLLECTION_BINDERS_ITEM,
         COLLECTION_SEALED_ITEM,
-        COLLECTION_OPENINGS_ITEM,
         COLLECTION_GRADED_ITEM,
         WANTS_ITEM,
       ],
@@ -226,10 +232,10 @@ function getMobileSections(onePieceEnabled: boolean): ReadonlyArray<{
         ...(CARD_SCANNER_ENABLED ? [SCANNER_ITEM] : []),
         ...BASE_BROWSE_ITEMS,
         ...(onePieceEnabled ? [ONE_PIECE_BROWSE_ITEM] : []),
-        SUBMIT_CARD_ITEM,
       ],
     },
     { label: "Market", items: [MARKET_ITEM, SIGNAL_RADAR_ITEM, COLLECTION_SELLING_ITEM] },
+    { label: "More", items: [UPCOMING_ITEM, COLLECTION_OPENINGS_ITEM, SUBMIT_CARD_ITEM] },
     { label: "Account", items: [ACCOUNT_ITEM, SETTINGS_ITEM] },
   ];
 }
@@ -249,7 +255,7 @@ function getDesktopMenuGroups(
   onePieceEnabled: boolean,
   pinnedKeys: ReadonlySet<string> = new Set()
 ): readonly DesktopMenuGroup[] {
-  const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "openings", "graded", "wants"]);
+  const collectionKeys = new Set(["complete", "singles", "binders", "sealed", "graded", "wants"]);
   const browseKeys = new Set([
     "expansions",
     "search",
@@ -265,7 +271,7 @@ function getDesktopMenuGroups(
     "market-sealed",
     "selling",
   ]);
-  const moreKeys = new Set(["social", "submit-card"]);
+  const moreKeys = new Set(["upcoming", "openings", "social", "submit-card"]);
   const visibleItems = ALL_NAVIGATION_ITEMS.filter(
     (item) => (item.key !== "one-piece" || onePieceEnabled) && !pinnedKeys.has(item.key)
   );
@@ -321,7 +327,7 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
       fallbackKeys: DEFAULT_DESKTOP_PINNED_NAV_KEYS,
       limit: DESKTOP_PIN_LIMIT,
     }
-  ).filter((item) => item.key !== "home");
+  ).filter((item) => item.key !== "home" && item.key !== "openings");
   const menuGroups = getDesktopMenuGroups(
     settings.onePieceLibraryEnabled,
     new Set(pinnedItems.map((item) => item.key))
@@ -542,7 +548,7 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
 
       <div
         data-desktop-top-navigation-account
-        className="absolute right-0 top-1/2 flex shrink-0 -translate-y-1/2 items-center"
+        className="absolute right-0 top-1/2 flex shrink-0 -translate-y-1/2 items-center gap-2"
         onBlur={(event) => {
           const nextTarget = event.relatedTarget;
           if (isFeedbackDialogTarget(nextTarget)) return;
@@ -551,6 +557,7 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
           }
         }}
       >
+        <ActionCenterButton initialCount={summary.attentionCount ?? 0} />
         <button
           type="button"
           data-top-navigation-account
@@ -672,7 +679,7 @@ export function HeaderMobileMenu() {
       limit: DESKTOP_PIN_LIMIT,
     }
   )
-    .filter((item) => item.key !== "home")
+    .filter((item) => item.key !== "home" && item.key !== "openings")
     .map((item) => ({ href: item.href, label: item.label, key: item.key, matches: [] }));
   const mobileSections = [
     ...(pinnedItems.length > 0 ? [{ label: "Pinned", items: pinnedItems }] : []),

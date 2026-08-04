@@ -804,7 +804,14 @@ export default function EbayCardDemandPanel({
                 </div>
               </div>
               {latestListings.length ? (
-                <div className={`grid gap-2 ${compact ? "" : showAllListings ? "sm:grid-cols-2 2xl:grid-cols-3" : "sm:grid-cols-2"} ${rail && showAllListings ? "max-h-[55dvh] overflow-y-auto overscroll-contain pr-1" : ""}`}>
+                <div
+                  className={`grid gap-2 ${compact ? "" : showAllListings ? "sm:grid-cols-2 2xl:grid-cols-3" : "sm:grid-cols-2"} ${
+                    showAllListings
+                      ? "max-h-[min(55dvh,34rem)] overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(167,139,250,0.32)_transparent] [scrollbar-width:thin]"
+                      : ""
+                  }`}
+                  data-ebay-listings-scroll={showAllListings ? "contained" : undefined}
+                >
                   {latestListings.map((listing) => <LatestListing key={listing.itemId} listing={listing} />)}
                 </div>
               ) : (

@@ -382,7 +382,7 @@ function combineSealedMoversData(results: SealedMoversData[]): SealedMoversData 
   };
 }
 
-async function getUpcomingSealedReleases(
+export async function getUpcomingSealedReleases(
   game: Exclude<TradingCardGameFilter, typeof ALL_GAMES>
 ): Promise<UpcomingSealedRelease[]> {
   const today = new Date();

@@ -890,80 +890,76 @@ export default function CardModal({
   const overviewPanel = (
     <div
       className="card-detail-section-grid card-detail-overview-grid"
-      data-columns="1"
+      data-columns="2"
     >
       <section className="card-detail-surface card-detail-profile-overview">
-        <div className="card-detail-profile-overview-grid">
-          <div className="min-w-0">
-            <h2 className="card-detail-surface-title">Card profile</h2>
-            <p className="card-detail-surface-copy">
-              The essential printing details, kept in one predictable place.
-            </p>
-            <dl
-              className="card-detail-info-grid mt-4"
-              data-has-character-subject={
-                hasCharacterSubjects
-                  ? hasWideCharacterSubjects
-                    ? "wide"
-                    : "single"
-                  : undefined
-              }
-            >
-              {detailFacts.map(([label, value]) => (
-                <div
-                  key={label}
-                  className={`card-detail-info-cell${
-                    isCardCharacterFactLabel(label)
-                      ? ` card-detail-info-cell--character-subject${
-                          hasWideCharacterSubjects
-                            ? " card-detail-info-cell--character-subject-wide"
-                            : ""
-                        }`
-                      : label === "Pull odds" && hasWideCharacterSubjects
-                        ? " card-detail-info-cell--subject-pull-odds"
+        <h2 className="card-detail-surface-title">Card profile</h2>
+        <p className="card-detail-surface-copy">
+          The essential printing details, kept in one predictable place.
+        </p>
+        <dl
+          className="card-detail-info-grid mt-4"
+          data-has-character-subject={
+            hasCharacterSubjects
+              ? hasWideCharacterSubjects
+                ? "wide"
+                : "single"
+              : undefined
+          }
+        >
+          {detailFacts.map(([label, value]) => (
+            <div
+              key={label}
+              className={`card-detail-info-cell${
+                isCardCharacterFactLabel(label)
+                  ? ` card-detail-info-cell--character-subject${
+                      hasWideCharacterSubjects
+                        ? " card-detail-info-cell--character-subject-wide"
                         : ""
-                  }`}
-                >
-                  <dt>{label}</dt>
-                  <dd>{value}</dd>
-                </div>
-              ))}
-            </dl>
-          </div>
-
-          <aside className="card-detail-collector-snapshot">
-            <div className="flex items-start justify-between gap-4">
-              <div className="min-w-0">
-                <p className="card-detail-eyebrow">Collector snapshot</p>
-                <h2 className="mt-2 text-lg font-extrabold text-white/92">
-                  {collectionItem ? "A saved copy with context" : "Ready for your collection"}
-                </h2>
-              </div>
-              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.07] text-violet-100/76">
-                <Sparkles className="h-4 w-4" />
-              </span>
+                    }`
+                  : label === "Pull odds" && hasWideCharacterSubjects
+                    ? " card-detail-info-cell--subject-pull-odds"
+                    : ""
+              }`}
+            >
+              <dt>{label}</dt>
+              <dd>{value}</dd>
             </div>
-            <dl className="card-detail-info-grid mt-4">
-              <div className="card-detail-info-cell">
-                <dt>Status</dt>
-                <dd>{collectionItem ? (collectionItem.read_only ? "Shared" : "Owned") : "Not owned"}</dd>
-              </div>
-              <div className="card-detail-info-cell">
-                <dt>Condition</dt>
-                <dd>{collectionItem?.condition ?? "--"}</dd>
-              </div>
-              <div className="card-detail-info-cell">
-                <dt>Language</dt>
-                <dd>{collectionItem?.language ?? "--"}</dd>
-              </div>
-              <div className="card-detail-info-cell">
-                <dt>Location</dt>
-                <dd>{collectionItem?.for_sale ? "For sale" : collectionItem?.binder_name ?? "Singles"}</dd>
-              </div>
-            </dl>
-          </aside>
-        </div>
+          ))}
+        </dl>
       </section>
+
+      <aside className="card-detail-surface card-detail-collector-snapshot">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="card-detail-eyebrow">Collector snapshot</p>
+            <h2 className="mt-2 text-lg font-extrabold text-white/92">
+              {collectionItem ? "A saved copy with context" : "Ready for your collection"}
+            </h2>
+          </div>
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.07] text-violet-100/76">
+            <Sparkles className="h-4 w-4" />
+          </span>
+        </div>
+        <dl className="card-detail-info-grid mt-4">
+          <div className="card-detail-info-cell">
+            <dt>Status</dt>
+            <dd>{collectionItem ? (collectionItem.read_only ? "Shared" : "Owned") : "Not owned"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Condition</dt>
+            <dd>{collectionItem?.condition ?? "--"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Language</dt>
+            <dd>{collectionItem?.language ?? "--"}</dd>
+          </div>
+          <div className="card-detail-info-cell">
+            <dt>Location</dt>
+            <dd>{collectionItem?.for_sale ? "For sale" : collectionItem?.binder_name ?? "Singles"}</dd>
+          </div>
+        </dl>
+      </aside>
       <CardModalRelatedPrintingsPanel card={modalCard} onNavigate={onClose} />
     </div>
   );
