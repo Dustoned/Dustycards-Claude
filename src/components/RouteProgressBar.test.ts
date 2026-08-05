@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasRouteProgressReachedDestination,
   isRouteProgressNavigation,
   normalizeRouteProgressLabel,
 } from "@/components/RouteProgressBar";
@@ -37,5 +38,22 @@ describe("isRouteProgressNavigation", () => {
     expect(normalizeRouteProgressLabel("  Perfect   Order  ")).toBe("Perfect Order");
     expect(normalizeRouteProgressLabel("A".repeat(80))).toBe(`${"A".repeat(41)}…`);
     expect(normalizeRouteProgressLabel("   ")).toBeNull();
+  });
+
+  it("recognizes a committed destination without treating a hash as pending", () => {
+    expect(
+      hasRouteProgressReachedDestination(
+        "https://dustycards.example/expansions/399?card=31735#market",
+        "https://dustycards.example/expansions/399?card=31735",
+        "https://dustycards.example"
+      )
+    ).toBe(true);
+    expect(
+      hasRouteProgressReachedDestination(
+        "https://dustycards.example/expansions/399?card=31735",
+        "https://dustycards.example/expansions/399",
+        "https://dustycards.example"
+      )
+    ).toBe(false);
   });
 });

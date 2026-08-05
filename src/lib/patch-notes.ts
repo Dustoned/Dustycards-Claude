@@ -26,7 +26,7 @@ export const patchNotes: PatchNoteEntry[] = [
     highlights: [
       "The launch shell paints immediately and yields to the real app frame without leaving phones on an unexplained black screen.",
       "Home returns the essential collection overview first and progressively loads featured cards, value drivers and sudden drops afterwards.",
-      "Internal navigation now shows destination-aware progress, retries a stalled App Router transition automatically and uses a full-page fallback only when the route remains stuck.",
+      "Internal navigation now shows destination-aware progress without restarting or cancelling a valid in-flight page request. A direct-open action appears only when a transition is genuinely slow.",
       "Search, game switches and binder create/edit flows join the same route progress lifecycle.",
       "Expansion overview sections defer off-screen layout work and large set pages reveal card batches near the viewport instead of mounting the complete set immediately.",
       "The isolated reprint worker is installed as a persistent low-priority service so unfinished evidence safely resumes after a server reboot.",

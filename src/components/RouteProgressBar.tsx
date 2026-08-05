@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   ROUTE_PROGRESS_START_EVENT,
   type RouteProgressStartDetail,
@@ -9,8 +9,7 @@ import {
 
 const STATUS_DELAY_MS = 550;
 const SLOW_NAVIGATION_MS = 3_500;
-const SOFT_NAVIGATION_RETRY_MS = 5_000;
-const HARD_NAVIGATION_FALLBACK_MS = 11_000;
+const RECOVERY_ACTION_MS = 8_000;
 
 export function isRouteProgressNavigation(
   href: string,
@@ -35,16 +34,34 @@ export function normalizeRouteProgressLabel(value?: string | null): string | nul
   return normalized.length > 44 ? `${normalized.slice(0, 41).trimEnd()}…` : normalized;
 }
 
+export function hasRouteProgressReachedDestination(
+  pendingHref: string | null,
+  currentHref: string,
+  origin: string
+): boolean {
+  if (!pendingHref) return false;
+  try {
+    const target = new URL(pendingHref, origin);
+    const current = new URL(currentHref, origin);
+    return (
+      target.origin === current.origin &&
+      `${target.pathname}${target.search}` === `${current.pathname}${current.search}`
+    );
+  } catch {
+    return false;
+  }
+}
+
 // Gives every internal navigation one consistent lifecycle: immediate visual
-// feedback, a clear slow-route message, and a reliable full-page fallback when
-// an App Router request has genuinely stalled. The fallback intentionally only
-// applies to a known link/programmatic destination, never to refreshes.
+// feedback and a clear slow-route message. It deliberately observes the App
+// Router instead of starting a second navigation: retrying the same destination
+// cancels a still-valid React Server Component response on slower phones.
 export default function RouteProgressBar() {
-  const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [visible, setVisible] = useState(false);
   const [showStatus, setShowStatus] = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
   const [width, setWidth] = useState(0);
   const [message, setMessage] = useState("Opening page…");
   const loadingRef = useRef(false);
@@ -67,6 +84,7 @@ export default function RouteProgressBar() {
       navigationSequenceRef.current += 1;
       clearTimers();
       setShowStatus(false);
+      setShowRecovery(false);
       setWidth(100);
       timersRef.current.push(window.setTimeout(() => setVisible(false), 220));
       timersRef.current.push(window.setTimeout(() => setWidth(0), 480));
@@ -97,11 +115,22 @@ export default function RouteProgressBar() {
       clearTimers();
       setVisible(true);
       setShowStatus(false);
+      setShowRecovery(false);
       setWidth(7);
       setMessage(label ? `Opening ${label}…` : "Opening page…");
 
       const trickle = () => {
         if (!loadingRef.current || navigationSequenceRef.current !== sequence) return;
+        if (
+          hasRouteProgressReachedDestination(
+            pendingHrefRef.current,
+            window.location.href,
+            window.location.origin
+          )
+        ) {
+          finish();
+          return;
+        }
         setWidth((current) =>
           current >= 93 ? current : current + Math.max(0.5, (93 - current) * 0.075)
         );
@@ -132,35 +161,10 @@ export default function RouteProgressBar() {
             return;
           }
 
-          const target = new URL(pendingHrefRef.current);
           setShowStatus(true);
-          setWidth((current) => Math.max(current, 90));
-          setMessage(label ? `Retrying ${label}…` : "Retrying navigation…");
-          router.push(`${target.pathname}${target.search}${target.hash}`);
-        }, SOFT_NAVIGATION_RETRY_MS)
-      );
-      timersRef.current.push(
-        window.setTimeout(() => {
-          if (
-            !loadingRef.current ||
-            navigationSequenceRef.current !== sequence ||
-            !pendingHrefRef.current
-          ) {
-            return;
-          }
-
-          const fallbackHref = pendingHrefRef.current;
-          setShowStatus(true);
-          setWidth(96);
-          setMessage("Restoring navigation…");
-          timersRef.current.push(
-            window.setTimeout(() => {
-              if (loadingRef.current && navigationSequenceRef.current === sequence) {
-                window.location.assign(fallbackHref);
-              }
-            }, 280)
-          );
-        }, HARD_NAVIGATION_FALLBACK_MS)
+          setShowRecovery(true);
+          setMessage(label ? `${label} is still loading` : "This page is still loading");
+        }, RECOVERY_ACTION_MS)
       );
     };
 
@@ -215,7 +219,7 @@ export default function RouteProgressBar() {
       window.removeEventListener("pagehide", finish);
       clearTimers();
     };
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     if (!loadingRef.current) return;
@@ -225,6 +229,7 @@ export default function RouteProgressBar() {
     timersRef.current.forEach((timer) => window.clearTimeout(timer));
     timersRef.current = [];
     setShowStatus(false);
+    setShowRecovery(false);
     setWidth(100);
     const hideTimer = window.setTimeout(() => setVisible(false), 220);
     const resetTimer = window.setTimeout(() => setWidth(0), 480);
@@ -256,13 +261,25 @@ export default function RouteProgressBar() {
         <div
           role="status"
           aria-live="polite"
-          className="pointer-events-none fixed left-1/2 top-[calc(env(safe-area-inset-top,0px)+10px)] z-[239] flex max-w-[min(88vw,24rem)] -translate-x-1/2 items-center gap-2 rounded-full border border-white/12 bg-[#101118]/92 px-3 py-2 text-xs font-semibold text-white/82 shadow-2xl shadow-black/35 backdrop-blur-xl"
+          className={`${showRecovery ? "pointer-events-auto" : "pointer-events-none"} fixed left-1/2 top-[calc(env(safe-area-inset-top,0px)+10px)] z-[239] flex max-w-[min(92vw,26rem)] -translate-x-1/2 items-center gap-2 rounded-full border border-white/12 bg-[#101118]/92 px-3 py-2 text-xs font-semibold text-white/82 shadow-2xl shadow-black/35 backdrop-blur-xl`}
         >
           <span
             aria-hidden="true"
             className="h-3.5 w-3.5 shrink-0 animate-spin rounded-full border-2 border-white/20 border-t-[rgb(var(--dc-primary-rgb))] motion-reduce:animate-none"
           />
           <span className="truncate">{message}</span>
+          {showRecovery ? (
+            <button
+              type="button"
+              onClick={() => {
+                const href = pendingHrefRef.current;
+                if (href) window.location.assign(href);
+              }}
+              className="shrink-0 rounded-full border border-white/14 bg-white/10 px-2.5 py-1 text-[11px] font-bold text-white transition-colors hover:bg-white/16"
+            >
+              Open direct
+            </button>
+          ) : null}
         </div>
       ) : null}
     </>

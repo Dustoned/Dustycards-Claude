@@ -1317,6 +1317,46 @@ test.describe("DustyCards smoke", () => {
     }
   });
 
+  test("mobile route progress never restarts or cancels an in-flight destination", async ({ page }) => {
+    test.setTimeout(30_000);
+    const episodeId = findPokemonEpisodeWithImageCards();
+    if (!episodeId) {
+      test.skip(true, "No expansion is available in this local database.");
+      return;
+    }
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/");
+    await expect(page.locator("[data-app-header]")).toBeVisible();
+    await page.waitForTimeout(250);
+    const destination = `/expansions/${episodeId}`;
+    let destinationRequests = 0;
+    page.on("request", (request) => {
+      if (new URL(request.url()).pathname === destination) destinationRequests += 1;
+    });
+
+    await page.evaluate((href) => {
+      window.dispatchEvent(
+        new CustomEvent("dustycards:route-progress-start", {
+          detail: { href, label: "Expansion" },
+        })
+      );
+    }, destination);
+    await expect(page.getByText("Opening Expansion…")).toBeVisible({ timeout: 2_000 });
+
+    await page.waitForTimeout(5_300);
+    expect(destinationRequests).toBe(0);
+    await expect(page).toHaveURL(/\/$/);
+    await expect(page.getByText("Retrying navigation…")).toHaveCount(0);
+    await expect(page.getByText("Restoring navigation…")).toHaveCount(0);
+
+    await expect(page.getByRole("button", { name: "Open direct" })).toBeVisible({
+      timeout: 4_000,
+    });
+    expect(destinationRequests).toBe(0);
+    await expect(page).toHaveURL(/\/$/);
+  });
+
   test("touch card detail actions keep equal contained widths", async ({ browser }) => {
     test.setTimeout(60_000);
     const touchContext = await browser.newContext({

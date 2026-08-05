@@ -39,7 +39,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         title: "One tap stays one tap",
         highlights: [
           "Every internal route gets immediate progress feedback plus a compact destination label when loading takes longer than expected.",
-          "A stalled transition automatically retries after five seconds and restores the destination with a full navigation only when the App Router remains stuck.",
+          "Navigation progress observes one in-flight transition without cancelling it; genuinely slow routes offer an explicit direct-open action instead of silently starting duplicate requests.",
           "Search, game switches and binder create/edit flows now join the same progress lifecycle instead of navigating silently.",
         ],
       },
