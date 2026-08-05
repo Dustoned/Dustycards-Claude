@@ -70,7 +70,7 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
+    statusBarStyle: "black",
     title: "DustyCards",
   },
   formatDetection: {
@@ -86,8 +86,8 @@ export const metadata: Metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  maximumScale: 5,
-  userScalable: true,
+  maximumScale: 1,
+  userScalable: false,
   viewportFit: "cover",
   themeColor: "#07080B",
   colorScheme: "dark light",
@@ -216,15 +216,15 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
               <>
                 <HeaderMobileMenu />
                 <div className="flex-1 lg:hidden" />
-                <HeaderSearch />
+                <div className="xl:hidden">
+                  <ActionCenterButton initialCount={sidebarSummary?.attentionCount ?? 0} />
+                </div>
                 {sidebarSummary?.role === "admin" ? (
                   <div className="xl:hidden">
                     <AdminActiveUsersButton initialCount={sidebarSummary.activeUserCount ?? 0} />
                   </div>
                 ) : null}
-                <div className="xl:hidden">
-                  <ActionCenterButton initialCount={sidebarSummary?.attentionCount ?? 0} />
-                </div>
+                <HeaderSearch />
               </>
             ) : (
               <div className="flex-1" />

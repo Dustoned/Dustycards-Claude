@@ -4,6 +4,8 @@ import Link from "next/link";
 import { ExternalLink, Search, Sparkles } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import CachedImage from "@/components/CachedImage";
+import { useSettings } from "@/components/SettingsProvider";
+import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import type { UpcomingSingleGroup } from "@/lib/upcoming-single-groups";
 import { getUpcomingCardNumber } from "@/lib/upcoming-single-groups";
 import type { UpcomingSingleItem, UpcomingSingleStatus } from "@/lib/upcoming-releases";
@@ -37,7 +39,7 @@ function compareNumber(left: UpcomingSingleItem, right: UpcomingSingleItem, dire
   return direction === "desc" ? rightNumber - leftNumber : leftNumber - rightNumber;
 }
 
-function GalleryCard({ item }: { item: UpcomingSingleItem }) {
+function GalleryCard({ item, imageSizes }: { item: UpcomingSingleItem; imageSizes: string }) {
   const cardHref = item.libraryReference?.href ?? (item.episodeId && item.cardId
     ? `/expansions/${item.episodeId}?card=${item.cardId}`
     : null);
@@ -48,7 +50,7 @@ function GalleryCard({ item }: { item: UpcomingSingleItem }) {
           sourceUrl={item.imageUrl}
           alt={item.name}
           fill
-          sizes="(max-width: 640px) 30vw, (max-width: 1024px) 20vw, 180px"
+          sizes={imageSizes}
           className="object-contain"
         />
       ) : (
@@ -96,6 +98,7 @@ function GalleryCard({ item }: { item: UpcomingSingleItem }) {
 }
 
 export default function UpcomingSetGalleryClient({ group }: { group: UpcomingSingleGroup }) {
+  const { displaySettings, isMobileViewport } = useSettings();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<GallerySort>("number-desc");
   const query = useDeferredValue(search).trim().toLowerCase();
@@ -114,6 +117,16 @@ export default function UpcomingSetGalleryClient({ group }: { group: UpcomingSin
       const compared = left.name.localeCompare(right.name, "en", { sensitivity: "base" });
       return sort === "name-desc" ? -compared : compared;
     }), [group.items, query, sort]);
+  const gridTemplateColumns = getCardGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const imageSizes = getCardGridImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
 
   return (
     <div className="space-y-4">
@@ -148,8 +161,13 @@ export default function UpcomingSetGalleryClient({ group }: { group: UpcomingSin
 
       {visible.length ? (
         <section className="rounded-[1.6rem] border border-white/8 bg-[radial-gradient(circle_at_50%_0%,rgba(124,92,255,0.11),transparent_42%)] p-3 sm:p-5">
-          <div className="grid grid-cols-3 gap-x-3 gap-y-5 sm:grid-cols-4 sm:gap-x-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
-            {visible.map((item) => <GalleryCard key={item.id} item={item} />)}
+          <div
+            className="grid gap-x-3 gap-y-5 sm:gap-x-4"
+            style={{ gridTemplateColumns }}
+          >
+            {visible.map((item) => (
+              <GalleryCard key={item.id} item={item} imageSizes={imageSizes} />
+            ))}
           </div>
         </section>
       ) : (

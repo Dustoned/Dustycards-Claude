@@ -81,14 +81,6 @@ export default function SignalRadarDetailLoading() {
               </section>
             </div>
 
-            <div className="card-detail-mobile-actions-host">
-              <div className="card-detail-primary-actions">
-                {Array.from({ length: 3 }, (_, index) => (
-                  <Skeleton key={index} className="h-11 min-w-0 flex-1" rounded="lg" />
-                ))}
-              </div>
-            </div>
-
             <nav className="card-detail-tabs-shell" aria-hidden="true">
               <div className="card-detail-tabs">
                 {Array.from({ length: 6 }, (_, index) => (

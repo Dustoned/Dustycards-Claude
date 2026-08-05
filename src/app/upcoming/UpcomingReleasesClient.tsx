@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState } from "react";
+import { useDeferredValue, useMemo, useState, type CSSProperties } from "react";
 import {
   ArrowRight,
   CalendarDays,
@@ -16,6 +16,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
+import { useSettings } from "@/components/SettingsProvider";
+import {
+  getCardGridImageSizes,
+  getCardGridTrackWidth,
+  getSealedProductGridTemplateColumns,
+  getSealedProductImageSizes,
+} from "@/lib/display-scale";
 import type { UpcomingSealedRelease } from "@/lib/sealed-movers";
 import type {
   UpcomingSingleItem,
@@ -106,7 +113,13 @@ function SectionTitle({
   );
 }
 
-function SealedReleaseTile({ release }: { release: UpcomingSealedRelease }) {
+function SealedReleaseTile({
+  release,
+  imageSizes,
+}: {
+  release: UpcomingSealedRelease;
+  imageSizes: string;
+}) {
   const mainHref = release.episodeId ? `/expansions/${release.episodeId}` : release.sourceUrl;
   const external = !release.episodeId && Boolean(release.sourceUrl);
   const content = (
@@ -117,7 +130,7 @@ function SealedReleaseTile({ release }: { release: UpcomingSealedRelease }) {
             sourceUrl={release.imageUrl}
             alt={release.name}
             fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1280px) 33vw, 25vw"
+            sizes={imageSizes}
             className="object-contain p-4 transition-transform duration-300 group-hover:scale-[1.025]"
           />
         ) : (
@@ -160,7 +173,15 @@ function SealedReleaseTile({ release }: { release: UpcomingSealedRelease }) {
   );
 }
 
-function BinderSingleTile({ item, interactive = true }: { item: UpcomingSingleItem; interactive?: boolean }) {
+function BinderSingleTile({
+  item,
+  interactive = true,
+  imageSizes,
+}: {
+  item: UpcomingSingleItem;
+  interactive?: boolean;
+  imageSizes: string;
+}) {
   const cardHref = item.libraryReference?.href ?? (item.episodeId && item.cardId
     ? `/expansions/${item.episodeId}?card=${item.cardId}`
     : null);
@@ -171,7 +192,7 @@ function BinderSingleTile({ item, interactive = true }: { item: UpcomingSingleIt
           sourceUrl={item.imageUrl}
           alt={item.name}
           fill
-          sizes="(max-width: 640px) 30vw, (max-width: 1024px) 20vw, 160px"
+          sizes={imageSizes}
           className="object-contain"
         />
       ) : (
@@ -213,7 +234,15 @@ function BinderSingleTile({ item, interactive = true }: { item: UpcomingSingleIt
   );
 }
 
-function SingleSetSection({ group }: { group: UpcomingSingleGroup }) {
+function SingleSetSection({
+  group,
+  tileTrackWidth,
+  imageSizes,
+}: {
+  group: UpcomingSingleGroup;
+  tileTrackWidth: string;
+  imageSizes: string;
+}) {
   const visibleItems = group.items.slice(0, 8);
   const setHref = `/upcoming/sets/${encodeURIComponent(group.key)}`;
   const progress = group.coverage == null ? null : Math.round(group.coverage * 100);
@@ -271,13 +300,16 @@ function SingleSetSection({ group }: { group: UpcomingSingleGroup }) {
         aria-label={`View all ${group.items.length} ${group.items.length === 1 ? "card" : "cards"} from ${group.name}`}
         className="group/row block bg-[radial-gradient(circle_at_50%_0%,rgba(124,92,255,0.11),transparent_46%)] p-3 transition hover:bg-violet-400/[0.025] sm:p-5"
       >
-        <div className="grid grid-cols-3 gap-x-3 sm:grid-cols-4 sm:gap-x-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 2xl:grid-cols-8">
-          {visibleItems.map((item, index) => (
+        <div
+          className="grid overflow-hidden gap-x-3 sm:gap-x-4"
+          style={{ gridAutoFlow: "column", gridAutoColumns: tileTrackWidth } as CSSProperties}
+        >
+          {visibleItems.map((item) => (
             <div
               key={item.id}
-              className={index === 3 ? "hidden sm:block" : index === 4 ? "hidden md:block" : index === 5 ? "hidden lg:block" : index === 6 ? "hidden xl:block" : index === 7 ? "hidden 2xl:block" : ""}
+              className="min-w-0"
             >
-              <BinderSingleTile item={item} interactive={false} />
+              <BinderSingleTile item={item} interactive={false} imageSizes={imageSizes} />
             </div>
           ))}
         </div>
@@ -326,6 +358,7 @@ export default function UpcomingReleasesClient({
   singles: UpcomingSingleItem[];
   stories: UpcomingSourceStory[];
 }) {
+  const { displaySettings, isMobileViewport } = useSettings();
   const [view, setView] = useState<ReleaseView>("all");
   const [search, setSearch] = useState("");
   const [visibleSingleGroupCount, setVisibleSingleGroupCount] = useState(4);
@@ -341,6 +374,24 @@ export default function UpcomingReleasesClient({
     : singleGroups.slice(0, visibleSingleGroupCount);
   const visibleSealed = view === "sealed" || query ? filtered.sealed : filtered.sealed.slice(0, 10);
   const visibleStories = view === "sources" || query ? filtered.stories : filtered.stories.slice(0, 6);
+  const sealedGridTemplateColumns = getSealedProductGridTemplateColumns(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const sealedImageSizes = getSealedProductImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const singleImageSizes = getCardGridImageSizes(
+    displaySettings.cardSize,
+    displaySettings.widescreen,
+    isMobileViewport
+  );
+  const singleTileTrackWidth = isMobileViewport
+    ? singleImageSizes
+    : getCardGridTrackWidth(displaySettings.cardSize, displaySettings.widescreen);
 
   const tabs: Array<{ key: ReleaseView; label: string; count: number }> = [
     { key: "all", label: "All", count: sealed.length + singles.length + stories.length },
@@ -380,8 +431,10 @@ export default function UpcomingReleasesClient({
         <section>
           <SectionTitle Icon={Package} eyebrow="Release calendar" title="Upcoming sealed" description="Confirmed products ordered by their own release date, not only by the set launch." count={filtered.sealed.length} />
           {filtered.sealed.length ? (
-            <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {visibleSealed.map((release) => <SealedReleaseTile key={release.id} release={release} />)}
+            <div className="grid gap-3" style={{ gridTemplateColumns: sealedGridTemplateColumns }}>
+              {visibleSealed.map((release) => (
+                <SealedReleaseTile key={release.id} release={release} imageSizes={sealedImageSizes} />
+              ))}
             </div>
           ) : <EmptyState>No sealed releases match this search.</EmptyState>}
         </section>
@@ -393,7 +446,14 @@ export default function UpcomingReleasesClient({
           {filtered.singles.length ? (
             <>
               <div className="space-y-4 sm:space-y-5">
-                {visibleSingleGroups.map((group) => <SingleSetSection key={group.key} group={group} />)}
+                {visibleSingleGroups.map((group) => (
+                  <SingleSetSection
+                    key={group.key}
+                    group={group}
+                    tileTrackWidth={singleTileTrackWidth}
+                    imageSizes={singleImageSizes}
+                  />
+                ))}
               </div>
               {!query && visibleSingleGroups.length < singleGroups.length ? (
                 <button

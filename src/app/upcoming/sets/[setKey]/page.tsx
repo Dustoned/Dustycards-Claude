@@ -30,7 +30,7 @@ export default async function UpcomingSetPage({
   const coverage = group.coverage == null ? null : Math.round(group.coverage * 100);
 
   return (
-    <main className="page-container mx-auto max-w-[1760px] px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
+    <main className="page-container page-readable mx-auto max-w-7xl px-4 py-5 sm:px-6 sm:py-7 lg:px-8">
       <div className="flex flex-col gap-5 sm:gap-6">
         <PageHeroHeader
           eyebrow="Upcoming set gallery"

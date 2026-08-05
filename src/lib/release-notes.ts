@@ -51,7 +51,10 @@ export const releaseNotes: ReleaseNoteChapter[] = [
       {
         title: "Stable card details, trades and sales",
         highlights: [
-          "Signal Radar details no longer reserve the mobile header twice. The loading skeleton follows the same grid as the finished card and primary actions remain in normal page flow instead of covering the price or profile.",
+          "Card Detail respects the iPhone safe area, keeps its loading shell aligned with the finished card and restores a persistent bottom action bar with enough reserved space to avoid covering the price or profile.",
+          "Desktop detail panels keep their own natural height when another section expands, eliminating the large empty bars beneath shorter content.",
+          "Phone price charts capture chart gestures instead of scrolling the page while a collector inspects a data point.",
+          "The installed phone app keeps its viewport fixed instead of pinch-zooming the complete interface by accident.",
           "Friend Trade suggestions are selectable on both sides and are never presented as though two cards were already chosen; the value balance appears only after an explicit pair is selected.",
           "For Sale and Sold ledger are separate views. A sold record can be corrected card by card or returned to For Sale without mixing completed and active inventory.",
           "When a large batch shares one divided sale price, the ledger explains what happened instead of presenting the repeated amount without context.",
@@ -62,6 +65,14 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "Expansion overview sections skip off-screen layout work until they approach the viewport.",
           "Large set pages render cards progressively as the collector scrolls instead of mounting an entire set immediately; the tested mobile set dropped from roughly 250 initial images to 58.",
+        ],
+      },
+      {
+        title: "Cleaner release intelligence",
+        highlights: [
+          "Upcoming & Leaks follows the account card-size setting and the same readable maximum workspace width as the rest of DustyCards.",
+          "Set previews remain one compact row, while the complete gallery keeps its search and sort tools without stretching artwork on ultrawide screens.",
+          "Cards already matched to released printings and known released promo reprints are removed from the upcoming feed.",
         ],
       },
       {

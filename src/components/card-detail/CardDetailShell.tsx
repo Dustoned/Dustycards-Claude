@@ -453,13 +453,6 @@ export default function CardDetailShell({
           </section>
         </div>
 
-        <div
-          ref={setMobileActionHost}
-          className="card-detail-mobile-actions-host"
-          data-card-detail-mobile-actions-host
-          aria-hidden={!useMobileActionPortal || !actions ? "true" : undefined}
-        />
-
         <nav
           ref={tabsShellRef}
           className="card-detail-tabs-shell"
@@ -533,6 +526,12 @@ export default function CardDetailShell({
             </div>
           </div>
         </div>
+        <div
+          ref={setMobileActionHost}
+          className="card-detail-mobile-actions-host"
+          data-card-detail-mobile-actions-host
+          aria-hidden={!useMobileActionPortal || !actions ? "true" : undefined}
+        />
       </article>
     </MobileActionPortalContext.Provider>
   );

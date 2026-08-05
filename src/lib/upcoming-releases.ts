@@ -5,6 +5,7 @@ import {
 } from "@/lib/upcoming-release-policy";
 import { readStoredUpcomingReveals } from "@/lib/upcoming-source-reveals";
 import { groupUpcomingSingles } from "@/lib/upcoming-single-groups";
+import { shouldShowUpcomingSourceReveal } from "@/lib/upcoming-reveal-policy";
 
 export type UpcomingSingleStatus = "confirmed" | "reveal" | "leak" | "upcoming";
 export type UpcomingStoryStatus = "confirmed" | "reveal" | "rumour" | "release";
@@ -349,6 +350,13 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
       matchedSingleKeys.add(revealKey);
       const storedMatch = reveal.libraryMatch;
       const releasedNameMatches = releasedCardsByName.get(reveal.name.trim().toLowerCase()) ?? [];
+      if (!shouldShowUpcomingSourceReveal({
+        hasExactLibraryMatch: Boolean(storedMatch),
+        releasedNameMatchCount: releasedNameMatches.length,
+        episodeName: reveal.episodeName,
+      })) {
+        continue;
+      }
       const libraryReference: UpcomingLibraryReference | null = storedMatch
         ? {
             kind: storedMatch.method,
