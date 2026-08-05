@@ -13,12 +13,16 @@ export interface BackupFileInfo {
 const MANUAL_BACKUP_PREFIX = "dustycards-manual-";
 const MANUAL_BACKUPS_TO_KEEP = 5;
 const DAILY_BACKUP_PREFIX = "dustycards-daily-";
-const DAILY_BACKUPS_TO_KEEP = 7;
+// The production VPS has a 38 GB disk while one compacted database backup is
+// already more than 3 GB. Keep one current nightly restore point locally; the
+// separately configured off-site directory retains the longer seven-day run.
+const LOCAL_DAILY_BACKUPS_TO_KEEP = 1;
+const OFFSITE_DAILY_BACKUPS_TO_KEEP = 7;
 // Pre-deploy backups are written by the deploy pipeline (~3 GB each) and were
 // never pruned; keep the newest few. Named milestone backups (migrations,
 // repairs) are left alone.
 const PREDEPLOY_BACKUP_PREFIX = "dustycards-predeploy-";
-const PREDEPLOY_BACKUPS_TO_KEEP = 4;
+const PREDEPLOY_BACKUPS_TO_KEEP = 2;
 
 function joinRuntimeFile(dir: string, fileName: string): string {
   const normalizedDir = dir.replace(/[\\/]+$/, "");
@@ -150,7 +154,7 @@ async function copyDailyBackupOffServer(source: string, name: string): Promise<v
     .map((entry) => entry.name)
     .sort((left, right) => right.localeCompare(left));
   await Promise.all(
-    dailyFiles.slice(DAILY_BACKUPS_TO_KEEP).map((fileName) =>
+    dailyFiles.slice(OFFSITE_DAILY_BACKUPS_TO_KEEP).map((fileName) =>
       fs.rm(/*turbopackIgnore: true*/ joinRuntimeFile(offsiteDir, fileName), { force: true })
     )
   );
@@ -193,8 +197,9 @@ export async function getLatestDailyBackupAt(): Promise<string | null> {
 }
 
 /**
- * Creates the nightly automatic backup via `VACUUM INTO` and prunes the
- * rotating sets: 7 dailies and 4 pre-deploy backups are kept.
+ * Creates the nightly automatic backup via `VACUUM INTO` and prunes the local
+ * rotating sets to one nightly and two pre-deploy restore points. The off-site
+ * directory keeps seven nightly copies when configured.
  */
 export async function createDailyBackup(): Promise<BackupFileInfo> {
   const dir = await resolveBackupDir({ create: true });
@@ -206,11 +211,21 @@ export async function createDailyBackup(): Promise<BackupFileInfo> {
   const target = joinRuntimeFile(dir, name);
   await fs.rm(/*turbopackIgnore: true*/ target, { force: true });
 
+  // Reserve room before VACUUM INTO starts. Pruning only after the copy made
+  // retention useless once the disk was already full. Two verified pre-deploy
+  // restore points remain available if the new nightly copy were to fail.
+  await prunePrefixedBackups(
+    dir,
+    DAILY_BACKUP_PREFIX,
+    LOCAL_DAILY_BACKUPS_TO_KEEP - 1
+  );
+  await prunePrefixedBackups(dir, PREDEPLOY_BACKUP_PREFIX, PREDEPLOY_BACKUPS_TO_KEEP);
+
   const escapedTarget = target.replaceAll("'", "''");
   await db.$executeRawUnsafe(`VACUUM INTO '${escapedTarget}'`);
 
   const stat = await fs.stat(/*turbopackIgnore: true*/ target);
-  await prunePrefixedBackups(dir, DAILY_BACKUP_PREFIX, DAILY_BACKUPS_TO_KEEP);
+  await prunePrefixedBackups(dir, DAILY_BACKUP_PREFIX, LOCAL_DAILY_BACKUPS_TO_KEEP);
   await prunePrefixedBackups(dir, PREDEPLOY_BACKUP_PREFIX, PREDEPLOY_BACKUPS_TO_KEEP);
   await copyDailyBackupOffServer(target, name);
 

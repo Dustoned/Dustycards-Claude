@@ -30,6 +30,7 @@ export const patchNotes: PatchNoteEntry[] = [
       "Search, game switches and binder create/edit flows join the same route progress lifecycle.",
       "Expansion overview sections defer off-screen layout work and large set pages reveal card batches near the viewport instead of mounting the complete set immediately.",
       "The isolated reprint worker is installed as a persistent low-priority service so unfinished evidence safely resumes after a server reboot.",
+      "Database retention now reserves disk space before writing: production keeps one local nightly and two pre-deploy restore points, while a configured off-site location retains seven nightly copies.",
       "The in-app update history now groups repeated hotfixes into complete feature chapters with clear section headings, version ranges and reusable copy for a future What’s New popup.",
     ],
   },

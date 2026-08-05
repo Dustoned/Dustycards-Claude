@@ -108,16 +108,17 @@ fi
 
 prune_predeploy_backups() {
   backup_dir="/opt/dustycards/backups"
+  keep_count="${1:-2}"
   mapfile -t backup_files < <(
     find "$backup_dir" -maxdepth 1 -type f -name 'dustycards-predeploy-*.db' -printf '%T@ %p\n' |
       sort -nr | cut -d' ' -f2-
   )
 
-  # A compacted backup is currently more than 2 GB on a 38 GB VPS. Keep the
-  # two newest verified pre-deploy restore points and leave manually named
-  # migration/repair backups untouched. Daily/weekly retention previously
-  # consumed 16 GB and eventually took both journald and SSH offline.
-  for ((index=2; index<${#backup_files[@]}; index++)); do
+  # A compacted backup is currently more than 3 GB on a 38 GB VPS. Before a
+  # new copy, keep one verified restore point so VACUUM INTO has room; after
+  # it succeeds, keep the two newest. Manually named migration/repair backups
+  # remain untouched.
+  for ((index=keep_count; index<${#backup_files[@]}; index++)); do
     file="${backup_files[$index]}"
     case "$file" in
       "$backup_dir"/dustycards-predeploy-*.db) rm -f -- "$file" ;;
@@ -125,10 +126,10 @@ prune_predeploy_backups() {
     esac
   done
 
-  # Failed VACUUM INTO runs can leave multi-gigabyte temporary files behind.
-  # Only remove stale files matching the exact predeploy temp naming contract.
+  # The deploy lock guarantees there is no other active backup writer here, so
+  # every exact predeploy temp file belongs to an interrupted earlier attempt.
   find "$backup_dir" -maxdepth 1 -type f \
-    -name 'dustycards-predeploy-*.db.tmp*' -mmin +10 -delete
+    -name 'dustycards-predeploy-*.db.tmp*' -delete
 
 }
 
@@ -167,10 +168,11 @@ try {
 NODE
 
   mv "$tmp_file" "$backup_file"
-  prune_predeploy_backups
+  prune_predeploy_backups 2
 }
 
-prune_predeploy_backups
+# Make headroom before VACUUM INTO instead of waiting until after it succeeds.
+prune_predeploy_backups 1
 
 cleanup_remote_junk() {
   [ -d "$RemoteAppPath" ] || return 0
