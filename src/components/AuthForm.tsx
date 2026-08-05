@@ -2,17 +2,21 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { FormEvent, useState } from "react";
-import { Eye, EyeOff, LoaderCircle } from "lucide-react";
+import { FormEvent, useRef, useState } from "react";
+import { Eye, EyeOff, LoaderCircle, ShieldCheck, X } from "lucide-react";
+import { ACCOUNT_APPROVAL_ERROR_CODE } from "@/lib/auth-constants";
+import useModalA11y from "@/lib/useModalA11y";
 
 export default function AuthForm({
   initialError = null,
+  initialApprovalPending = false,
   initialVerificationEmail = "",
   mode,
   nextPath = "/",
   showVerificationRecovery = false,
 }: {
   initialError?: string | null;
+  initialApprovalPending?: boolean;
   initialVerificationEmail?: string;
   mode: "login" | "register";
   nextPath?: string;
@@ -25,15 +29,23 @@ export default function AuthForm({
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [error, setError] = useState<string | null>(initialError);
+  const [approvalPending, setApprovalPending] = useState(initialApprovalPending);
   const [notice, setNotice] = useState<string | null>(null);
   const [verificationEmail, setVerificationEmail] = useState(initialVerificationEmail);
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const isRegister = mode === "register";
+  const approvalDialogRef = useRef<HTMLDivElement | null>(null);
+  useModalA11y({
+    dialogRef: approvalDialogRef,
+    enabled: approvalPending,
+    onClose: () => setApprovalPending(false),
+  });
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setError(null);
+    setApprovalPending(false);
     setLoading(true);
 
     try {
@@ -70,6 +82,12 @@ export default function AuthForm({
       };
 
       if (!response.ok) {
+        if (data.code === ACCOUNT_APPROVAL_ERROR_CODE) {
+          setApprovalPending(true);
+          setError(null);
+          setLoading(false);
+          return;
+        }
         setError(data.error ?? "Authentication failed");
         if (data.code === "unverified" && data.email) {
           setVerificationEmail(data.email);
@@ -126,7 +144,8 @@ export default function AuthForm({
   }
 
   return (
-    <form
+    <>
+      <form
       action={`/api/auth/${mode}`}
       method="post"
       onSubmit={handleSubmit}
@@ -272,6 +291,50 @@ export default function AuthForm({
           Forgot password?
         </Link>
       )}
-    </form>
+      </form>
+
+      {approvalPending ? (
+        <div className="dc-modal-overlay fixed inset-0 z-[260] flex items-center justify-center p-4">
+          <div
+            ref={approvalDialogRef}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="account-approval-title"
+            aria-describedby="account-approval-description"
+            tabIndex={-1}
+            className="dc-modal-panel relative w-full max-w-md rounded-3xl border p-5 sm:p-6"
+          >
+            <button
+              type="button"
+              onClick={() => setApprovalPending(false)}
+              aria-label="Close approval message"
+              className="absolute right-4 top-4 inline-flex size-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.05] text-white/52 transition hover:bg-white/[0.1] hover:text-white"
+            >
+              <X className="size-4" />
+            </button>
+
+            <div className="inline-flex size-12 items-center justify-center rounded-2xl border border-violet-300/20 bg-violet-500/12 text-violet-200">
+              <ShieldCheck className="size-6" />
+            </div>
+            <p className="mt-5 text-[11px] font-bold uppercase tracking-[0.16em] text-violet-300/75">
+              Account access
+            </p>
+            <h2 id="account-approval-title" className="mt-1 pr-10 text-xl font-semibold tracking-tight text-white">
+              Waiting for admin approval
+            </h2>
+            <p id="account-approval-description" className="mt-3 text-sm leading-6 text-white/58">
+              Your account exists, but an admin must approve it before you can use DustyCards. You can try logging in again after approval.
+            </p>
+            <button
+              type="button"
+              onClick={() => setApprovalPending(false)}
+              className="mt-6 inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white transition hover:bg-violet-500"
+            >
+              Got it
+            </button>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }

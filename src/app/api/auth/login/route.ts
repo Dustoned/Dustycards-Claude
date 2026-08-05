@@ -4,6 +4,10 @@ import {
   setSessionCookie,
 } from "@/lib/auth";
 import { normalizeEmail, verifyPassword } from "@/lib/auth-crypto";
+import {
+  ACCOUNT_APPROVAL_ERROR_CODE,
+  ACCOUNT_APPROVAL_MESSAGE,
+} from "@/lib/auth-constants";
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
 import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
@@ -65,7 +69,7 @@ export async function POST(req: NextRequest) {
       })
     : null;
 
-  if (!user || user.disabled || !(await verifyPassword(password, user.password_hash))) {
+  if (!user || !(await verifyPassword(password, user.password_hash))) {
     recordRateLimitHit(ipKey);
     if (emailKey) recordRateLimitHit(emailKey);
     if (isFormPost) {
@@ -76,6 +80,23 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+  }
+
+  if (user.disabled) {
+    if (isFormPost) {
+      const redirectUrl = new URL("/login", getPublicOrigin(req));
+      redirectUrl.searchParams.set("error", "pending");
+      redirectUrl.searchParams.set("next", next);
+      return NextResponse.redirect(redirectUrl, { status: 303 });
+    }
+
+    return NextResponse.json(
+      {
+        code: ACCOUNT_APPROVAL_ERROR_CODE,
+        error: ACCOUNT_APPROVAL_MESSAGE,
+      },
+      { status: 403 }
+    );
   }
 
   if (!user.email_verified_at) {

@@ -76,7 +76,9 @@ export default function AdminUsersPanel({
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
-  const [selectedUserId, setSelectedUserId] = useState(users[0]?.id ?? "");
+  const [selectedUserId, setSelectedUserId] = useState(
+    users.find((user) => user.disabled)?.id ?? users[0]?.id ?? ""
+  );
   const [passwordEditorUserId, setPasswordEditorUserId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);
   const confirmationRef = useRef<HTMLDivElement | null>(null);
@@ -92,9 +94,9 @@ export default function AdminUsersPanel({
   const selectedUser =
     filteredUsers.find((user) => user.id === selectedUserId) ?? filteredUsers[0] ?? null;
   const activeUsers = users.filter((user) => !user.disabled).length;
+  const awaitingApprovalUsers = users.filter((user) => user.disabled).length;
   const adminUsers = users.filter((user) => user.role === "admin").length;
   const verifiedUsers = users.filter((user) => Boolean(user.emailVerifiedAt)).length;
-  const activeSessions = users.reduce((total, user) => total + user.counts.sessions, 0);
 
   async function updateUser(
     userId: string,
@@ -121,7 +123,13 @@ export default function AdminUsersPanel({
       if (action === "password") {
         setPasswords((current) => ({ ...current, [userId]: { first: "", second: "" } }));
       }
-      setMessage("User updated.");
+      setMessage(
+        action === "disabled"
+          ? body.disabled
+            ? "Account locked. Active sessions have ended."
+            : "Account approved. The user can sign in after email verification."
+          : "User updated."
+      );
       router.refresh();
     } catch {
       setError("Could not update this user. Check your connection and try again.");
@@ -137,11 +145,11 @@ export default function AdminUsersPanel({
           <div className="flex items-center gap-2">
             <UsersRound className="h-4 w-4 text-white/40" />
             <h2 className="text-base font-semibold text-white">
-              User Management
+              Account approvals
             </h2>
           </div>
           <p className="mt-1 text-sm text-white/45">
-            Manage accounts, roles, access, and password resets.
+            Approve new accounts and manage roles, access, and password resets.
           </p>
         </div>
         <label className="relative block min-w-0 lg:w-80">
@@ -176,21 +184,21 @@ export default function AdminUsersPanel({
 
       <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Users</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Accounts</p>
           <p className="mt-1 text-sm font-bold text-white">{formatCount(users.length)}</p>
           <p className="mt-0.5 text-[11px] text-gray-400">{formatCount(verifiedUsers)} verified</p>
         </div>
         <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Active</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Approved</p>
           <p className="mt-1 text-sm font-bold text-emerald-700 dark:text-emerald-300">{formatCount(activeUsers)}</p>
+        </div>
+        <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Waiting</p>
+          <p className="mt-1 text-sm font-bold text-amber-700 dark:text-amber-300">{formatCount(awaitingApprovalUsers)}</p>
         </div>
         <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
           <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Admins</p>
           <p className="mt-1 text-sm font-bold text-white">{formatCount(adminUsers)}</p>
-        </div>
-        <div className="rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2">
-          <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">Sessions</p>
-          <p className="mt-1 text-sm font-bold text-white">{formatCount(activeSessions)}</p>
         </div>
       </div>
 
@@ -222,7 +230,7 @@ export default function AdminUsersPanel({
                   <span className="block truncate text-sm font-semibold">{user.email}</span>
                   <span className="mt-1 flex items-center gap-2 text-[11px] font-medium text-white/38">
                     <span className={user.disabled ? "text-rose-300" : "text-emerald-300"}>
-                      {user.disabled ? "Disabled" : "Active"}
+                      {user.disabled ? "Awaiting approval" : "Approved"}
                     </span>
                     <span>{user.role}</span>
                     <span>{formatCount(user.counts.cards)} cards</span>
@@ -259,7 +267,7 @@ export default function AdminUsersPanel({
                       : "bg-emerald-500/10 text-emerald-700 dark:text-emerald-200"
                   }`}>
                     {user.disabled ? <ShieldOff className="h-3.5 w-3.5" /> : <ShieldCheck className="h-3.5 w-3.5" />}
-                    {user.disabled ? "Disabled" : "Active"}
+                    {user.disabled ? "Awaiting approval" : "Approved"}
                   </span>
                   <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-semibold ${
                     user.emailVerifiedAt
@@ -330,7 +338,7 @@ export default function AdminUsersPanel({
                       body: { verifyEmail: true },
                       confirmLabel: "Mark verified",
                       description:
-                        "Manually mark this email address as verified. Use this when the verification email did not arrive; the user can sign in immediately afterwards.",
+                        "Manually mark this email address as verified. The account still needs approval before the user can sign in.",
                       email: user.email,
                       title: "Confirm manual verification",
                       userId: user.id,
@@ -348,18 +356,18 @@ export default function AdminUsersPanel({
                   onClick={() => setConfirmAction({
                     action: "disabled",
                     body: { disabled: !user.disabled },
-                    confirmLabel: user.disabled ? "Enable user" : "Disable user",
+                    confirmLabel: user.disabled ? "Approve account" : "Lock account",
                     description: user.disabled
-                      ? "Restore account access. The user can sign in again immediately."
-                      : "Block account access and end all active sessions for this user.",
+                      ? "Approve this account. The user can sign in once the email address is verified."
+                      : "Lock this account and end all active sessions for this user.",
                     email: user.email,
-                    title: user.disabled ? "Confirm account enable" : "Confirm account disable",
+                    title: user.disabled ? "Approve this account?" : "Lock this account?",
                     userId: user.id,
                   })}
                   className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-gray-900 transition hover:border-black/20 hover:bg-black/5 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:border-white/20 dark:hover:bg-white/12"
                 >
                   {busy && pending?.action === "disabled" && <LoaderCircle className="h-4 w-4 animate-spin" />}
-                  {user.disabled ? "Enable user" : "Disable user"}
+                  {user.disabled ? "Approve account" : "Lock account"}
                 </button>
 
                 {passwordEditorUserId === user.id ? (

@@ -226,7 +226,7 @@ export default async function AccountPage() {
     user.role === "admin"
       ? (
           await db.user.findMany({
-            orderBy: [{ role: "asc" }, { email: "asc" }],
+            orderBy: [{ role: "asc" }, { disabled: "desc" }, { email: "asc" }],
             select: {
               id: true,
               email: true,

@@ -57,6 +57,14 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Patch notes are now grouped by completed feature, with clear headings and version ranges while the detailed build archive stays preserved.",
         ],
       },
+      {
+        title: "Controlled account access",
+        highlights: [
+          "New accounts now enter an admin approval queue after registration instead of receiving collection access immediately.",
+          "A pending account receives a clear approval popup at login, while admins can approve or lock accounts from the account management panel.",
+          "Locking an account ends its active sessions, and the owner admin account cannot be locked from the interface.",
+        ],
+      },
     ],
   },
   {

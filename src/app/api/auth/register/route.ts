@@ -77,6 +77,7 @@ export async function POST(req: NextRequest) {
 
   const user = await db.user.create({
     data: {
+      disabled: true,
       email,
       password_hash: await hashPassword(password),
       role: "user",
@@ -109,5 +110,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.redirect(redirectUrl, { status: 303 });
   }
 
-  return NextResponse.json({ ok: true, user, verifyEmail: true, verificationSent });
+  return NextResponse.json({
+    ok: true,
+    approvalRequired: true,
+    user,
+    verifyEmail: true,
+    verificationSent,
+  });
 }

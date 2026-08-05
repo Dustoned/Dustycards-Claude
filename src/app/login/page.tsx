@@ -33,12 +33,13 @@ export default async function LoginPage({
           : verify === "failed"
             ? "Account created, but the verification email could not be sent. Use resend below."
           : null;
+  const initialApprovalPending = error === "pending";
   const resetMessage = reset === "1" ? "Password updated. You can log in now." : null;
   const verifyMessage =
     verified === "1"
-      ? "Email verified. You can log in now."
+      ? "Email verified. An admin still needs to approve your account before you can log in."
       : verify === "sent"
-        ? "Account created. Check your email to verify your account."
+        ? "Account created. Verify your email; an admin will then approve your account."
         : null;
   const verificationEmail =
     email && email.includes("@") && !email.includes("\n") ? email : "";
@@ -59,6 +60,7 @@ export default async function LoginPage({
           mode="login"
           nextPath={nextPath}
           initialError={initialError}
+          initialApprovalPending={initialApprovalPending}
           initialVerificationEmail={verificationEmail}
           showVerificationRecovery={verify === "invalid" || verify === "failed" || error === "unverified"}
         />
