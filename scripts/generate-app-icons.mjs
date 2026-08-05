@@ -91,6 +91,10 @@ const faviconImages = await Promise.all(
   }))
 );
 
-await writeFile(path.join(rootDirectory, "src", "app", "favicon.ico"), buildIco(faviconImages));
+const favicon = buildIco(faviconImages);
+await Promise.all([
+  writeFile(path.join(rootDirectory, "src", "app", "favicon.ico"), favicon),
+  writeFile(path.join(outputDirectory, "dustycards-pokeball.ico"), favicon),
+]);
 
 console.log("Generated DustyCards browser and install icons.");

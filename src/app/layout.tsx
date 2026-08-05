@@ -44,6 +44,11 @@ export const metadata: Metadata = {
   icons: {
     icon: [
       {
+        url: "/icons/dustycards-pokeball.ico?v=2",
+        sizes: "any",
+        type: "image/x-icon",
+      },
+      {
         url: "/icons/dustycards-pokeball-192.png",
         sizes: "192x192",
         type: "image/png",
@@ -54,7 +59,7 @@ export const metadata: Metadata = {
         type: "image/png",
       },
     ],
-    shortcut: "/favicon.ico",
+    shortcut: "/icons/dustycards-pokeball.ico?v=2",
     apple: [
       {
         url: "/icons/dustycards-pokeball-apple-180.png",

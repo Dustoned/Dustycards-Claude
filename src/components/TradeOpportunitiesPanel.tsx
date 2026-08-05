@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ArrowLeftRight, Search, UsersRound, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { ArrowLeftRight, Check, Search, UsersRound, X } from "lucide-react";
+import { useState } from "react";
 import CachedImage from "@/components/CachedImage";
 import CardSearchPickerDialog, {
   type CardSearchPickerResult,
@@ -226,38 +226,60 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
 
 function TradeColumn({
   title,
-  value,
   cards,
+  selectedCardId,
+  onSelect,
 }: {
   title: string;
-  value: number;
   cards: SocialTradeMatchCard[];
+  selectedCardId: string | null;
+  onSelect: (cardId: string) => void;
 }) {
+  const selectedCard = cards.find((card) => card.id === selectedCardId) ?? null;
+
   return (
     <div className="min-w-0 rounded-2xl border border-white/8 bg-black/14 p-2.5">
       <div className="flex items-center justify-between gap-2 px-1 pb-2">
         <h3 className="truncate text-[11px] font-black text-white/72">{title}</h3>
         <span className="shrink-0 text-[10px] font-black tabular-nums text-violet-100/66">
-          {formatCollectionCurrency(value)}
+          {selectedCard?.value == null
+            ? "Choose a card"
+            : formatCollectionCurrency(selectedCard.value)}
         </span>
       </div>
       {cards.length > 0 ? (
         <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-          {cards.slice(0, 6).map((card) => (
-            <div key={card.id} className="flex min-w-0 items-center gap-2 rounded-xl border border-white/6 bg-white/[0.025] p-1.5">
-              <span className="relative aspect-[63/88] w-8 shrink-0 overflow-hidden rounded-md">
-                {card.imageUrl ? <CachedImage sourceUrl={card.imageUrl} alt="" fill sizes="32px" className="object-contain" unoptimized /> : null}
-              </span>
-              <span className="min-w-0 flex-1">
-                <strong className="block truncate text-[10px] text-white/76">{card.name}</strong>
-                <small className="block truncate text-[8px] text-white/32">{card.episodeName} {card.cardNumber ? `#${card.cardNumber}` : ""}</small>
-              </span>
-              <span className="shrink-0 text-right text-[9px] font-black tabular-nums text-white/54">
-                {card.value == null ? "--" : formatCollectionCurrency(card.value)}
-                {card.availableCopies > 1 ? <small className="block text-[8px] text-white/30">x{card.availableCopies}</small> : null}
-              </span>
-            </div>
-          ))}
+          {cards.slice(0, 12).map((card) => {
+            const selected = card.id === selectedCardId;
+            return (
+              <button
+                key={card.id}
+                type="button"
+                aria-pressed={selected}
+                onClick={() => onSelect(card.id)}
+                className={`flex min-w-0 items-center gap-2 rounded-xl border p-1.5 text-left transition-colors ${
+                  selected
+                    ? "border-violet-300/36 bg-violet-500/[0.14] ring-1 ring-violet-300/18"
+                    : "border-white/6 bg-white/[0.025] hover:border-white/14 hover:bg-white/[0.05]"
+                }`}
+              >
+                <span className="relative aspect-[63/88] w-8 shrink-0 overflow-hidden rounded-md">
+                  {card.imageUrl ? <CachedImage sourceUrl={card.imageUrl} alt="" fill sizes="32px" className="object-contain" unoptimized /> : null}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <strong className="block truncate text-[10px] text-white/76">{card.name}</strong>
+                  <small className="block truncate text-[8px] text-white/32">{card.episodeName} {card.cardNumber ? `#${card.cardNumber}` : ""}</small>
+                </span>
+                <span className="shrink-0 text-right text-[9px] font-black tabular-nums text-white/54">
+                  {card.value == null ? "--" : formatCollectionCurrency(card.value)}
+                  {card.availableCopies > 1 ? <small className="block text-[8px] text-white/30">x{card.availableCopies}</small> : null}
+                </span>
+                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? "border-violet-200/50 bg-violet-500 text-white" : "border-white/10 text-transparent"}`}>
+                  <Check className="h-3 w-3" aria-hidden="true" />
+                </span>
+              </button>
+            );
+          })}
         </div>
       ) : (
         <p className="rounded-xl border border-dashed border-white/8 px-3 py-5 text-center text-[10px] text-white/32">No current match.</p>
@@ -269,7 +291,14 @@ function TradeColumn({
 function FriendTradeMatches({ opportunities }: { opportunities: SocialTradeOpportunity[] }) {
   const initialId = opportunities.find((opportunity) => matchCount(opportunity) > 0)?.friend.id ?? opportunities[0]?.friend.id ?? null;
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(initialId);
+  const [selectedYourCardId, setSelectedYourCardId] = useState<string | null>(null);
+  const [selectedTheirCardId, setSelectedTheirCardId] = useState<string | null>(null);
   const selected = opportunities.find((opportunity) => opportunity.friend.id === selectedFriendId) ?? opportunities[0] ?? null;
+  const yourCard = selected?.matches.yourCardsTheyWant.find((card) => card.id === selectedYourCardId) ?? null;
+  const theirCard = selected?.matches.theirCardsYouWant.find((card) => card.id === selectedTheirCardId) ?? null;
+  const balance = yourCard?.value != null && theirCard?.value != null
+    ? Number((yourCard.value - theirCard.value).toFixed(2))
+    : null;
 
   if (opportunities.length === 0) {
     return (
@@ -289,21 +318,52 @@ function FriendTradeMatches({ opportunities }: { opportunities: SocialTradeOppor
             <button
               key={opportunity.friend.id}
               type="button"
-              onClick={() => setSelectedFriendId(opportunity.friend.id)}
+              onClick={() => {
+                setSelectedFriendId(opportunity.friend.id);
+                setSelectedYourCardId(null);
+                setSelectedTheirCardId(null);
+              }}
               className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-black transition-colors ${active ? "border-violet-300/28 bg-violet-500/[0.16] text-violet-50" : "border-white/8 bg-white/[0.025] text-white/42 hover:text-white/70"}`}
             >
               {opportunity.friend.displayName}
-              <span className="text-[8px] opacity-55">{matchCount(opportunity)}</span>
+              <span className="text-[8px] opacity-55">{matchCount(opportunity)} candidates</span>
             </button>
           );
         })}
       </div>
       {selected ? (
-        <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
-          <TradeColumn title="You can offer" value={selected.matches.yourOfferValue} cards={selected.matches.yourCardsTheyWant} />
-          <ArrowLeftRight className="mx-auto hidden h-4 w-4 text-violet-200/36 lg:block" />
-          <TradeColumn title={`${selected.friend.displayName} can offer`} value={selected.matches.theirOfferValue} cards={selected.matches.theirCardsYouWant} />
-        </div>
+        <>
+          <p className="mt-2 rounded-xl border border-violet-300/10 bg-violet-500/[0.04] px-3 py-2 text-[10px] leading-4 text-white/42">
+            These are suggestions, not preselected cards. Choose one card on each side to inspect the trade.
+          </p>
+          <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
+            <TradeColumn
+              title="You can offer"
+              cards={selected.matches.yourCardsTheyWant}
+              selectedCardId={selectedYourCardId}
+              onSelect={(cardId) => setSelectedYourCardId((current) => current === cardId ? null : cardId)}
+            />
+            <ArrowLeftRight className="mx-auto hidden h-4 w-4 text-violet-200/36 lg:block" />
+            <TradeColumn
+              title={`${selected.friend.displayName} can offer`}
+              cards={selected.matches.theirCardsYouWant}
+              selectedCardId={selectedTheirCardId}
+              onSelect={(cardId) => setSelectedTheirCardId((current) => current === cardId ? null : cardId)}
+            />
+          </div>
+          <div className={`mt-2 rounded-xl border px-3 py-2.5 ${balance == null ? "border-white/8 bg-white/[0.02]" : Math.abs(balance) <= 1 ? "border-emerald-300/16 bg-emerald-500/[0.055]" : "border-amber-300/14 bg-amber-500/[0.045]"}`}>
+            <p className="text-[9px] font-black uppercase tracking-[0.11em] text-white/34">Selected trade</p>
+            <p className="mt-1 text-xs font-bold text-white/70">
+              {balance == null
+                ? "Choose one suggestion on both sides."
+                : Math.abs(balance) <= 1
+                  ? "Values are closely balanced."
+                  : balance > 0
+                    ? `${selected.friend.displayName} would add about ${formatCollectionCurrency(Math.abs(balance))}.`
+                    : `You would add about ${formatCollectionCurrency(Math.abs(balance))}.`}
+            </p>
+          </div>
+        </>
       ) : null}
     </>
   );
@@ -317,7 +377,6 @@ export default function TradeOpportunitiesPanel({
   game: TradingCardGameFilter;
 }) {
   const [mode, setMode] = useState<PanelMode>("compare");
-  const totalMatches = useMemo(() => opportunities.reduce((total, opportunity) => total + matchCount(opportunity), 0), [opportunities]);
 
   return (
     <section className="binder-panel overflow-visible rounded-[var(--ui-page-header-radius)] p-3 sm:p-4">
@@ -335,7 +394,7 @@ export default function TradeOpportunitiesPanel({
 
       <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-black/12 p-1">
         <button type="button" onClick={() => setMode("compare")} className={`h-8 rounded-lg text-[10px] font-black transition-colors ${mode === "compare" ? "bg-violet-500/[0.2] text-violet-50" : "text-white/38 hover:text-white/64"}`}>Compare two cards</button>
-        <button type="button" onClick={() => setMode("friends")} className={`h-8 rounded-lg text-[10px] font-black transition-colors ${mode === "friends" ? "bg-violet-500/[0.2] text-violet-50" : "text-white/38 hover:text-white/64"}`}>Friend matches · {totalMatches}</button>
+        <button type="button" onClick={() => setMode("friends")} className={`h-8 rounded-lg text-[10px] font-black transition-colors ${mode === "friends" ? "bg-violet-500/[0.2] text-violet-50" : "text-white/38 hover:text-white/64"}`}>Friend trades</button>
       </div>
 
       {mode === "compare" ? (

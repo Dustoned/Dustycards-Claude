@@ -51,6 +51,9 @@ const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderBu
 const TradeOpportunitiesPanel = nextDynamic(
   () => import("@/components/TradeOpportunitiesPanel")
 );
+const SellingInventoryTabs = nextDynamic(
+  () => import("@/components/SellingInventoryTabs")
+);
 
 export const dynamic = "force-dynamic";
 
@@ -452,6 +455,24 @@ async function HomePageContent({
   const soldFees = data.saleSummary.soldFees;
   const soldNet = data.saleSummary.soldNet;
   const soldPnl = data.saleSummary.soldNetPnl;
+  const soldPriceCounts = new Map<number, number>();
+  for (const item of data.soldCards) {
+    if (item.sale_price == null) continue;
+    const cents = Math.round(item.sale_price * 100);
+    soldPriceCounts.set(cents, (soldPriceCounts.get(cents) ?? 0) + 1);
+  }
+  const repeatedSoldPriceEntry = [...soldPriceCounts.entries()].sort(
+    (left, right) => right[1] - left[1]
+  )[0];
+  const repeatedSoldPrice =
+    repeatedSoldPriceEntry &&
+    repeatedSoldPriceEntry[1] >= 8 &&
+    repeatedSoldPriceEntry[1] / Math.max(1, data.soldCards.length) >= 0.6
+      ? {
+          amount: formatCollectionCurrency(repeatedSoldPriceEntry[0] / 100),
+          count: repeatedSoldPriceEntry[1],
+        }
+      : null;
 
   function buildCollectionHref(tabValue: CollectionPageTab) {
     const params = new URLSearchParams();
@@ -830,40 +851,40 @@ async function HomePageContent({
               </p>
             </div>
           </section>
-          {data.forSaleCards.length > 0 ? (
-            <CollectionCardsView
-              items={data.forSaleCards}
-              allowCollectionRemoval
-              allowSoldMarking
-              showGradedSlabPreview
-              emptyTitle="No cards marked for sale"
-              emptyText="Cards you save to For Sale will appear here."
-              showFilters
-              forcedSortBy="cm_en"
-              forcedSortDir="desc"
-              hideSortControls
-              collectionRemovalLabel="For Sale"
-              collectionRemovalWarning="This removes the saved For Sale entry entirely."
-            />
-          ) : null}
-          {data.soldCards.length > 0 ? (
-            <section className="mt-5 border-t border-white/8 pt-4">
-              <div className="mb-3 flex items-end justify-between gap-3">
-                <div><p className="text-[10px] font-black uppercase tracking-[0.12em] text-white/34">Sales ledger</p><h2 className="mt-1 text-lg font-black text-white">Sold history</h2></div>
-                <span className="text-xs font-bold tabular-nums text-white/42">{data.soldCards.length.toLocaleString("en-US")} cards</span>
-              </div>
+          <SellingInventoryTabs
+            activeCount={data.forSaleCards.length}
+            soldCount={data.soldCards.length}
+            repeatedSoldPrice={repeatedSoldPrice}
+            activeContent={
+              <CollectionCardsView
+                items={data.forSaleCards}
+                allowCollectionRemoval
+                allowSoldMarking
+                showGradedSlabPreview
+                emptyTitle="No cards marked for sale"
+                emptyText="Cards you save to For Sale will appear here."
+                showFilters
+                forcedSortBy="cm_en"
+                forcedSortDir="desc"
+                hideSortControls
+                collectionRemovalLabel="For Sale"
+                collectionRemovalWarning="This removes the saved For Sale entry entirely."
+              />
+            }
+            soldContent={
               <CollectionCardsView
                 items={data.soldCards}
                 readOnlyCollectionItems
                 salesLedger
+                allowSaleRecordEditing
                 showGradedSlabPreview
                 showFilters
                 hideSortControls
-                emptyTitle="No sold cards"
-                emptyText="Completed sales will appear here."
+                emptyTitle="No completed sales"
+                emptyText="Cards only move here after you explicitly mark them sold."
               />
-            </section>
-          ) : null}
+            }
+          />
         </div>
         )
         ) : null

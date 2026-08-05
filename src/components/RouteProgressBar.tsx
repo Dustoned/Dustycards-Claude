@@ -29,9 +29,29 @@ export function isRouteProgressNavigation(
 }
 
 export function normalizeRouteProgressLabel(value?: string | null): string | null {
-  const normalized = value?.replace(/\s+/g, " ").trim();
+  const normalized = value
+    ?.replace(/\s+/g, " ")
+    .trim()
+    .replace(/^open full chase analysis for\s+/i, "")
+    .replace(/^open full analysis for\s+/i, "")
+    .replace(/^open card details? for\s+/i, "")
+    .replace(/^open\s+/i, "")
+    .replace(/^back to\s+/i, "");
   if (!normalized) return null;
-  return normalized.length > 44 ? `${normalized.slice(0, 41).trimEnd()}…` : normalized;
+  return normalized.length > 24 ? normalized.slice(0, 24).trimEnd() : normalized;
+}
+
+function getAnchorProgressLabel(anchor: HTMLAnchorElement): string | null {
+  const explicitLabel =
+    anchor.getAttribute("data-route-progress-label") ??
+    anchor.getAttribute("aria-label") ??
+    anchor.getAttribute("title");
+  if (explicitLabel) return normalizeRouteProgressLabel(explicitLabel);
+
+  const labelledChild = anchor.querySelector<HTMLElement>(
+    "[data-route-progress-label], [data-navigation-item-label], h1, h2, h3"
+  );
+  return normalizeRouteProgressLabel(labelledChild?.textContent);
 }
 
 export function hasRouteProgressReachedDestination(
@@ -193,10 +213,7 @@ export default function RouteProgressBar() {
 
       start({
         href: anchor.href,
-        label:
-          anchor.getAttribute("aria-label") ??
-          anchor.querySelector("[data-route-progress-label], h1, h2, h3, p")?.textContent ??
-          anchor.textContent,
+        label: getAnchorProgressLabel(anchor),
       });
     };
 
@@ -261,7 +278,7 @@ export default function RouteProgressBar() {
         <div
           role="status"
           aria-live="polite"
-          className={`${showRecovery ? "pointer-events-auto" : "pointer-events-none"} fixed left-1/2 top-[calc(env(safe-area-inset-top,0px)+10px)] z-[239] flex max-w-[min(92vw,26rem)] -translate-x-1/2 items-center gap-2 rounded-full border border-white/12 bg-[#101118]/92 px-3 py-2 text-xs font-semibold text-white/82 shadow-2xl shadow-black/35 backdrop-blur-xl`}
+          className={`${showRecovery ? "pointer-events-auto" : "pointer-events-none"} route-progress-status fixed left-1/2 z-[239] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/12 bg-[#101118]/92 px-3 py-2 text-xs font-semibold text-white/82 shadow-2xl shadow-black/35 backdrop-blur-xl`}
         >
           <span
             aria-hidden="true"

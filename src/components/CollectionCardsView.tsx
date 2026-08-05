@@ -4,7 +4,7 @@ import { type ReactNode, useDeferredValue, useEffect, useMemo, useRef, useState 
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { BadgeEuro, CheckCircle2, Minus, TrendingDown, TrendingUp, X } from "lucide-react";
+import { BadgeEuro, CheckCircle2, Minus, Pencil, RotateCcw, TrendingDown, TrendingUp, X } from "lucide-react";
 import CardBrowserToolbar, {
   type CardBrowserToolbarActiveFilter,
   type CardBrowserToolbarFilterOption,
@@ -146,6 +146,7 @@ interface Props {
   allowSaleListing?: boolean;
   readOnlyCollectionItems?: boolean;
   salesLedger?: boolean;
+  allowSaleRecordEditing?: boolean;
 }
 
 interface RemoveDialogState {
@@ -204,6 +205,14 @@ function parseCurrencyInput(value: string): number | null {
 
 function formatPricePlaceholder(value: number | null | undefined): string {
   return value == null ? "0.00" : value.toFixed(2);
+}
+
+interface SaleRecordDialogState {
+  item: CollectionCardViewItem;
+  salePrice: string;
+  feeTotal: string;
+  platform: string;
+  error: string | null;
 }
 
 function getNetSalePrice(item: CollectionCardViewItem): number | null {
@@ -279,6 +288,7 @@ export default function CollectionCardsView({
   allowSaleListing = false,
   readOnlyCollectionItems = false,
   salesLedger = false,
+  allowSaleRecordEditing = false,
 }: Props) {
   const router = useRouter();
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
@@ -308,6 +318,8 @@ export default function CollectionCardsView({
   const [savingSold, setSavingSold] = useState(false);
   const [saleListingDialog, setSaleListingDialog] = useState<SaleListingDialogState | null>(null);
   const [savingSaleListing, setSavingSaleListing] = useState(false);
+  const [saleRecordDialog, setSaleRecordDialog] = useState<SaleRecordDialogState | null>(null);
+  const [savingSaleRecord, setSavingSaleRecord] = useState(false);
   const [optimisticallyMovedItemIds, setOptimisticallyMovedItemIds] = useState<string[]>([]);
   const longPressTimerRef = useRef<number | null>(null);
   const longPressFiredRef = useRef(false);
@@ -1254,6 +1266,79 @@ export default function CollectionCardsView({
       );
     } finally {
       setSavingSold(false);
+    }
+  }
+
+  function openSaleRecordDialog(event: React.MouseEvent, item: CollectionCardViewItem) {
+    event.preventDefault();
+    event.stopPropagation();
+    if (!item.collection_item_id) return;
+    setSaleRecordDialog({
+      item,
+      salePrice: item.sale_price?.toFixed(2) ?? "",
+      feeTotal: item.sale_fee_eur?.toFixed(2) ?? "",
+      platform: item.sale_platform ?? "",
+      error: null,
+    });
+  }
+
+  async function saveSaleRecord() {
+    if (!saleRecordDialog?.item.collection_item_id) return;
+    const salePrice = parseCurrencyInput(saleRecordDialog.salePrice);
+    const feeTotal = saleRecordDialog.feeTotal.trim()
+      ? parseCurrencyInput(saleRecordDialog.feeTotal)
+      : 0;
+    if (salePrice == null || feeTotal == null) {
+      setSaleRecordDialog((current) => current ? { ...current, error: "Fill in valid EUR amounts." } : current);
+      return;
+    }
+
+    setSavingSaleRecord(true);
+    try {
+      const response = await fetch("/api/collection/cards/sold", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          itemId: saleRecordDialog.item.collection_item_id,
+          salePrice,
+          feeTotal,
+          platform: saleRecordDialog.platform,
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Could not update this sale");
+      setSaleRecordDialog(null);
+      router.refresh();
+    } catch (error) {
+      setSaleRecordDialog((current) => current ? {
+        ...current,
+        error: error instanceof Error ? error.message : "Could not update this sale",
+      } : current);
+    } finally {
+      setSavingSaleRecord(false);
+    }
+  }
+
+  async function restoreSaleRecord() {
+    if (!saleRecordDialog?.item.collection_item_id) return;
+    setSavingSaleRecord(true);
+    try {
+      const response = await fetch("/api/collection/cards/sold", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ itemIds: [saleRecordDialog.item.collection_item_id] }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? "Could not restore this card");
+      setSaleRecordDialog(null);
+      router.refresh();
+    } catch (error) {
+      setSaleRecordDialog((current) => current ? {
+        ...current,
+        error: error instanceof Error ? error.message : "Could not restore this card",
+      } : current);
+    } finally {
+      setSavingSaleRecord(false);
     }
   }
 
@@ -2274,6 +2359,18 @@ export default function CollectionCardsView({
                           </div>
                         </CardListTileMetrics>
 
+                        {salesLedger && allowSaleRecordEditing ? (
+                          <CardListTileFooter className="justify-end">
+                            <button
+                              type="button"
+                              onClick={(event) => openSaleRecordDialog(event, item)}
+                              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-white/9 bg-white/[0.04] px-2.5 text-[10px] font-bold text-white/58 transition-colors hover:bg-white/[0.08] hover:text-white"
+                            >
+                              <Pencil className="h-3 w-3" aria-hidden="true" /> Edit sale
+                            </button>
+                          </CardListTileFooter>
+                        ) : null}
+
                         {!activeSelectionMode &&
                         (!item.owned ||
                           (canRemoveFromCollection &&
@@ -2528,6 +2625,15 @@ export default function CollectionCardsView({
 
                           <td className="px-4 py-3">
                             <div className="flex justify-end gap-1.5">
+                              {salesLedger && allowSaleRecordEditing ? (
+                                <button
+                                  type="button"
+                                  onClick={(event) => openSaleRecordDialog(event, item)}
+                                  className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/9 bg-white/[0.04] px-2.5 text-[10px] font-bold text-white/58 transition-colors hover:bg-white/[0.08] hover:text-white"
+                                >
+                                  <Pencil className="h-3 w-3" aria-hidden="true" /> Edit sale
+                                </button>
+                              ) : null}
                               {!activeSelectionMode &&
                                 (item.owned ? (
                                   canRemoveFromCollection &&
@@ -2763,6 +2869,17 @@ export default function CollectionCardsView({
                             x{item.owned_count}
                           </span>
                         )}
+                        {salesLedger && allowSaleRecordEditing ? (
+                          <button
+                            type="button"
+                            onClick={(event) => openSaleRecordDialog(event, item)}
+                            className="absolute bottom-2 left-2 z-10 inline-flex h-8 w-8 items-center justify-center rounded-lg border border-white/12 bg-black/62 text-white/72 shadow-lg backdrop-blur-md transition-colors hover:bg-violet-500/70 hover:text-white"
+                            aria-label={`Edit sale for ${item.name}`}
+                            title="Edit sold record"
+                          >
+                            <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                          </button>
+                        ) : null}
                         {tileAction && !showWantPriceRowAction && (
                           <div
                             className="absolute bottom-1.5 right-1.5 z-10"
@@ -3311,8 +3428,8 @@ export default function CollectionCardsView({
               {soldDialog.items.length > 1 && (
                 <div className="mb-4 grid grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/[0.045] p-1.5 max-[640px]:rounded-xl">
                   {[
-                    { mode: "per-card" as const, label: "Per card" },
-                    { mode: "stack" as const, label: "Stack total" },
+                    { mode: "per-card" as const, label: "Different price per card" },
+                    { mode: "stack" as const, label: "One total for the complete sale" },
                   ].map((option) => (
                     <button
                       key={option.mode}
@@ -3334,7 +3451,7 @@ export default function CollectionCardsView({
               {soldDialog.mode === "stack" ? (
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold text-white/70 max-[640px]:text-[12px]">
-                    Stack sold price
+                    Total received for all {soldDialog.items.length} cards
                   </label>
                   <div className="relative">
                     <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-white/36">
@@ -3357,10 +3474,14 @@ export default function CollectionCardsView({
                     />
                   </div>
                   {soldStackPerCard != null && (
-                    <p className="text-xs font-semibold text-white/42">
-                      Split over {soldDialog.items.length} cards:{" "}
-                      {formatCollectionCurrency(soldStackPerCard)} each
-                    </p>
+                    <div className="rounded-xl border border-amber-300/18 bg-amber-500/[0.06] px-3 py-2.5">
+                      <p className="text-xs font-bold text-amber-100/80">
+                        {formatCollectionCurrency(soldStackTotal ?? 0)} total ÷ {soldDialog.items.length} cards = {formatCollectionCurrency(soldStackPerCard)} saved per card
+                      </p>
+                      <p className="mt-1 text-[10px] leading-4 text-white/38">
+                        Choose “Different price per card” when this is not one combined transaction.
+                      </p>
+                    </div>
                   )}
                 </div>
               ) : (
@@ -3446,6 +3567,104 @@ export default function CollectionCardsView({
                   className={modalSecondaryButtonClass}
                 >
                   Cancel
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {saleRecordDialog && (
+        <div
+          className={`${modalCenteredMobileOverlayClass} z-[365]`}
+          onClick={() => (savingSaleRecord ? null : setSaleRecordDialog(null))}
+        >
+          <div
+            className={`${modalCenteredPanelClass} max-w-lg`}
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className={modalCompactHeaderClass}>
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-200/52">Sold ledger</p>
+                <h2 className="mt-1.5 truncate text-xl font-black text-white">{saleRecordDialog.item.name}</h2>
+                <p className="mt-1 text-xs leading-5 text-white/42">
+                  Correct the saved transaction, or move a card that was not actually sold back to For Sale.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSaleRecordDialog(null)}
+                disabled={savingSaleRecord}
+                className={modalCloseButtonClass}
+                aria-label="Close sale editor"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className={modalBodyClass}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="text-[10px] font-black uppercase tracking-[0.12em] text-white/35">
+                  Actual sold price
+                  <span className="relative mt-1.5 block">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-white/36">EUR</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={saleRecordDialog.salePrice}
+                      onChange={(event) => setSaleRecordDialog((current) => current ? { ...current, salePrice: event.target.value, error: null } : current)}
+                      disabled={savingSaleRecord}
+                      className={`${modalInputClass} pl-11 tabular-nums normal-case tracking-normal`}
+                    />
+                  </span>
+                </label>
+                <label className="text-[10px] font-black uppercase tracking-[0.12em] text-white/35">
+                  Fees
+                  <span className="relative mt-1.5 block">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-white/36">EUR</span>
+                    <input
+                      type="text"
+                      inputMode="decimal"
+                      value={saleRecordDialog.feeTotal}
+                      onChange={(event) => setSaleRecordDialog((current) => current ? { ...current, feeTotal: event.target.value, error: null } : current)}
+                      disabled={savingSaleRecord}
+                      className={`${modalInputClass} pl-11 tabular-nums normal-case tracking-normal`}
+                    />
+                  </span>
+                </label>
+              </div>
+              <label className="mt-3 block text-[10px] font-black uppercase tracking-[0.12em] text-white/35">
+                Platform
+                <input
+                  type="text"
+                  value={saleRecordDialog.platform}
+                  onChange={(event) => setSaleRecordDialog((current) => current ? { ...current, platform: event.target.value, error: null } : current)}
+                  placeholder="CardMarket, eBay, local..."
+                  disabled={savingSaleRecord}
+                  className={`${modalInputClass} mt-1.5 normal-case tracking-normal`}
+                />
+              </label>
+
+              {saleRecordDialog.error ? (
+                <p className="mt-3 text-sm font-semibold text-rose-300">{saleRecordDialog.error}</p>
+              ) : null}
+
+              <div className="mt-5 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                <button
+                  type="button"
+                  onClick={() => void saveSaleRecord()}
+                  disabled={savingSaleRecord}
+                  className={modalPrimaryButtonClass}
+                >
+                  {savingSaleRecord ? "Saving..." : "Save sold record"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void restoreSaleRecord()}
+                  disabled={savingSaleRecord}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-amber-300/16 bg-amber-500/[0.06] px-4 text-sm font-bold text-amber-100/76 transition-colors hover:bg-amber-500/[0.12] disabled:opacity-50"
+                >
+                  <RotateCcw className="h-4 w-4" aria-hidden="true" /> Back to For Sale
                 </button>
               </div>
             </div>

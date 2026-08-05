@@ -162,3 +162,80 @@ export async function POST(req: NextRequest) {
     );
   }
 }
+
+export async function PATCH(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    const body = await readJsonBody<{
+      itemId?: unknown;
+      salePrice?: unknown;
+      feeTotal?: unknown;
+      platform?: unknown;
+    }>(req);
+    const itemId = typeof body.itemId === "string" ? body.itemId.trim() : "";
+    const salePrice = toMoney(body.salePrice);
+    const feeTotal = body.feeTotal == null || body.feeTotal === "" ? 0 : toMoney(body.feeTotal);
+
+    if (!itemId || salePrice == null || salePrice < 0) {
+      return NextResponse.json({ error: "A sold card and valid sold price are required" }, { status: 400 });
+    }
+    if (feeTotal == null || feeTotal < 0) {
+      return NextResponse.json({ error: "Fees must be zero or a positive amount" }, { status: 400 });
+    }
+
+    const result = await db.collectionCard.updateMany({
+      where: { id: itemId, user_id: user.id, sold_at: { not: null } },
+      data: {
+        sale_price: centsToMoney(toCents(salePrice)),
+        sale_fee_eur: centsToMoney(toCents(feeTotal)),
+        sale_platform:
+          typeof body.platform === "string" && body.platform.trim()
+            ? body.platform.trim().slice(0, 80)
+            : null,
+      },
+    });
+
+    if (result.count === 0) {
+      return NextResponse.json({ error: "Sold card was not found" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to update sold card" }, { status: 500 })
+    );
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const user = await requireUser();
+    const body = await readJsonBody<{ itemIds?: unknown }>(req);
+    const itemIds = toStringArray(body.itemIds);
+    if (itemIds.length === 0 || itemIds.length > SOLD_BATCH_LIMIT) {
+      return NextResponse.json({ error: "Select one or more sold cards" }, { status: 400 });
+    }
+
+    const result = await db.collectionCard.updateMany({
+      where: { id: { in: itemIds }, user_id: user.id, sold_at: { not: null } },
+      data: {
+        sold_at: null,
+        sale_price: null,
+        sale_fee_eur: null,
+        sale_platform: null,
+        for_sale: true,
+      },
+    });
+    if (result.count === 0) {
+      return NextResponse.json({ error: "No sold cards were restored" }, { status: 404 });
+    }
+    return NextResponse.json({ success: true, count: result.count });
+  } catch (error) {
+    return (
+      authErrorResponse(error) ??
+      malformedJsonBodyResponse(error) ??
+      NextResponse.json({ error: "Failed to restore sold cards" }, { status: 500 })
+    );
+  }
+}

@@ -36,7 +36,10 @@ describe("isRouteProgressNavigation", () => {
 
   it("keeps destination labels compact and readable", () => {
     expect(normalizeRouteProgressLabel("  Perfect   Order  ")).toBe("Perfect Order");
-    expect(normalizeRouteProgressLabel("A".repeat(80))).toBe(`${"A".repeat(41)}…`);
+    expect(normalizeRouteProgressLabel("A".repeat(80))).toBe("A".repeat(24));
+    expect(normalizeRouteProgressLabel("Open full analysis for Shaymin-EX")).toBe(
+      "Shaymin-EX"
+    );
     expect(normalizeRouteProgressLabel("   ")).toBeNull();
   });
 

@@ -730,6 +730,18 @@ body img {
   padding-left: var(--ui-shell-start);
 }
 
+.route-progress-status {
+  top: calc(var(--ui-app-header-height) + env(safe-area-inset-top, 0px) + 0.65rem);
+  width: max-content;
+  max-width: min(calc(100vw - 1.5rem), 22rem);
+}
+
+@media (min-width: 768px) {
+  .route-progress-status {
+    top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
+  }
+}
+
 [data-app-desktop-navigation-row] {
   display: none;
 }
@@ -1774,7 +1786,7 @@ html.widescreen .settings-page {
   --card-detail-media-max: 28rem;
   --card-detail-title-size: clamp(2rem, 4.8vw, 3rem);
   --card-detail-route-header-offset: 0rem;
-  --card-detail-mobile-action-reserve: calc(4.25rem + env(safe-area-inset-bottom, 0px));
+  --card-detail-mobile-action-reserve: env(safe-area-inset-bottom, 0px);
   --card-detail-safe-area-left: env(safe-area-inset-left, 0px);
   --card-detail-safe-area-right: env(safe-area-inset-right, 0px);
   position: relative;
@@ -1829,9 +1841,10 @@ html.widescreen .settings-page {
 }
 
 .card-detail-experience[data-card-detail-mode="radar"] {
-  --card-detail-route-header-offset: calc(
-    var(--ui-app-header-height) + env(safe-area-inset-top, 0px)
-  );
+  /* The route already starts below the fixed app header. Keep this internal
+     canvas relative to that content area instead of reserving the header a
+     second time. */
+  --card-detail-route-header-offset: 0rem;
 }
 
 .card-modal-frame:has(> [data-card-detail-shell]) {
@@ -1846,6 +1859,7 @@ html.widescreen .settings-page {
     "media"
     "identity"
     "chart"
+    "mobileActions"
     "tabs"
     "panel";
   gap: 0.9rem;
@@ -1869,8 +1883,12 @@ html.widescreen .settings-page {
 
   [data-card-detail-shell][data-card-detail-mode="radar"][data-has-actions="true"]
     .card-detail-scroll-viewport {
-    height: calc(100vh - var(--card-detail-route-header-offset));
-    height: calc(100dvh - var(--card-detail-route-header-offset));
+    height: calc(
+      100vh - var(--ui-app-header-height) - env(safe-area-inset-top, 0px)
+    );
+    height: calc(
+      100dvh - var(--ui-app-header-height) - env(safe-area-inset-top, 0px)
+    );
   }
 
   [data-card-detail-shell][data-has-actions="true"] .card-detail-layout {
@@ -1982,19 +2000,37 @@ html.widescreen .settings-page {
 }
 
 .card-detail-mobile-actions-host {
+  grid-area: mobileActions;
   display: none;
-  position: fixed;
-  inset: 0;
-  z-index: 225;
-  pointer-events: none;
+  min-width: 0;
 }
 
 .card-detail-mobile-actions-host:not(:empty) {
   display: block;
 }
 
+[data-detail-loading] .card-detail-mobile-actions-host {
+  display: none;
+}
+
+@container card-detail (max-width: 39.99rem) {
+  [data-detail-loading] .card-detail-mobile-actions-host:not(:empty) {
+    display: block;
+  }
+}
+
 .card-detail-mobile-actions-host > .card-detail-primary-actions {
-  pointer-events: auto;
+  position: static;
+  z-index: auto;
+  right: auto;
+  bottom: auto;
+  left: auto;
+  width: 100%;
+  max-width: none;
+  min-height: 0;
+  margin: 0;
+  transform: none;
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.28), inset 0 1px rgba(255, 255, 255, 0.06);
 }
 
 .card-detail-actions [data-card-detail-overflow-actions] {
@@ -2852,7 +2888,7 @@ html.widescreen .settings-page {
     grid-template-areas:
       "toolbar toolbar"
       "media identity"
-      "chart chart"
+      "media chart"
       "tabs tabs"
       "panel panel";
     gap: 1.25rem;
@@ -2929,8 +2965,11 @@ html.widescreen .settings-page {
       "toolbar"
       "media"
       "marketHero"
+      "mobileActions"
       "tabs"
       "panel" !important;
+    gap: 0.75rem;
+    padding: 0.65rem 0.75rem calc(1rem + env(safe-area-inset-bottom, 0px));
   }
 
   [data-card-detail-shell] .card-detail-market-hero {
@@ -3056,16 +3095,15 @@ html.widescreen .settings-page {
     min-height: max(
       22rem,
       calc(
-        100dvh - var(--card-detail-route-header-offset) -
-          var(--card-detail-mobile-action-reserve) - 4.5rem
+        100dvh - var(--ui-app-header-height) - env(safe-area-inset-top, 0px) - 4.5rem
       )
     );
   }
 }
 
-@container card-detail (min-width: 96rem) {
+@container card-detail (min-width: 78rem) {
   .card-detail-layout {
-    grid-template-columns: minmax(20rem, var(--card-detail-media-max)) minmax(27.5rem, 0.95fr) minmax(32rem, 1.45fr);
+    grid-template-columns: minmax(18rem, var(--card-detail-media-max)) minmax(22rem, 0.95fr) minmax(28rem, 1.45fr);
     grid-template-areas:
       "toolbar toolbar toolbar"
       "media identity chart"

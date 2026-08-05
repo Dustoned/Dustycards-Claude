@@ -35,6 +35,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Featured Cards fills one complete measured row on wide and ultrawide screens while mobile remains limited to two complete rows.",
           "The mobile More sheet no longer shifts the fixed bottom navigation when background scrolling is locked.",
           "The DustyCards Pokéball is now the consistent icon in browser tabs, iPhone homescreen shortcuts and installed Android browser apps.",
+          "Desktop browsers receive the Pokéball through a unique cache-safe icon URL, so an older saved tab icon cannot keep winning after the update.",
           "Collection overview results and exchange rates reuse safer caches, while low-priority images decode lazily instead of competing with the first screen.",
         ],
       },
@@ -42,8 +43,18 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         title: "One tap stays one tap",
         highlights: [
           "Every internal route gets immediate progress feedback plus a compact destination label when loading takes longer than expected.",
+          "On phones that status stays below the fixed header and shortens labels such as card analysis links to the card name instead of covering the profile controls.",
           "Navigation progress observes one in-flight transition without cancelling it; genuinely slow routes offer an explicit direct-open action instead of silently starting duplicate requests.",
           "Search, game switches and binder create/edit flows now join the same progress lifecycle instead of navigating silently.",
+        ],
+      },
+      {
+        title: "Stable card details, trades and sales",
+        highlights: [
+          "Signal Radar details no longer reserve the mobile header twice. The loading skeleton follows the same grid as the finished card and primary actions remain in normal page flow instead of covering the price or profile.",
+          "Friend Trade suggestions are selectable on both sides and are never presented as though two cards were already chosen; the value balance appears only after an explicit pair is selected.",
+          "For Sale and Sold ledger are separate views. A sold record can be corrected card by card or returned to For Sale without mixing completed and active inventory.",
+          "When a large batch shares one divided sale price, the ledger explains what happened instead of presenting the repeated amount without context.",
         ],
       },
       {

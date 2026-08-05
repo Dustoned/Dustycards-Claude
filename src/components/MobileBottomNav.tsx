@@ -689,6 +689,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                           href={itemHref(item)}
                           prefetch={false}
                           onClick={navigateFromMoreMenu}
+                          data-route-progress-label={item.shortLabel ?? item.label}
                           data-mobile-more-quick-link
                           aria-current={active ? "page" : undefined}
                           className={`grid min-h-[4.7rem] grid-cols-[auto_minmax(0,1fr)] items-center gap-2 rounded-[20px] border p-2 transition-colors ${
@@ -752,6 +753,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                             href={itemHref(item)}
                             prefetch={false}
                             onClick={navigateFromMoreMenu}
+                            data-route-progress-label={item.shortLabel ?? item.label}
                             data-mobile-more-link
                             aria-current={active ? "page" : undefined}
                             className={`relative min-h-[5.35rem] min-w-0 overflow-hidden rounded-[20px] border p-2.5 transition-colors ${
@@ -854,6 +856,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                 // page the collector is currently using.
                 prefetch={item.href === "/" ? null : false}
                 onClick={moreOpen ? navigateFromMoreMenu : undefined}
+                data-route-progress-label={item.shortLabel ?? item.label}
                 aria-current={active ? "page" : undefined}
                 className={`flex min-h-[3.05rem] min-w-0 flex-col items-center justify-center gap-0.5 rounded-2xl border px-1 text-[9px] font-semibold transition-colors min-[390px]:text-[10px] ${
                   active
