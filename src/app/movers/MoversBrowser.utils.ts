@@ -1,4 +1,4 @@
-import type { CollectionMoverItem } from "@/lib/movers";
+import type { CollectionMoverBrowserItem } from "@/lib/movers";
 
 export type SortKey =
   | "move"
@@ -20,7 +20,7 @@ export type SortKey =
 export type DirectionFilter = "all" | "risers" | "fallers";
 
 export interface MoverVariantGroup<
-  T extends Pick<CollectionMoverItem, "cardId" | "gradedLabel" | "source">,
+  T extends Pick<CollectionMoverBrowserItem, "cardId" | "gradedLabel" | "source">,
 > {
   cardId: string;
   variants: T[];
@@ -32,7 +32,7 @@ export interface MoverVariantGroup<
  * ignored so stale/imported market rows cannot create duplicate selectors.
  */
 export function groupMoverVariantsByCard<
-  T extends Pick<CollectionMoverItem, "cardId" | "gradedLabel" | "source">,
+  T extends Pick<CollectionMoverBrowserItem, "cardId" | "gradedLabel" | "source">,
 >(items: readonly T[]): MoverVariantGroup<T>[] {
   const groups: MoverVariantGroup<T>[] = [];
   const byCardId = new Map<string, MoverVariantGroup<T>>();
@@ -107,7 +107,7 @@ export function buildSortSummary(sortKey: SortKey, direction: DirectionFilter): 
 }
 
 export function matchesDirection(
-  item: CollectionMoverItem,
+  item: CollectionMoverBrowserItem,
   direction: DirectionFilter
 ): boolean {
   if (direction === "risers") {
@@ -141,8 +141,8 @@ function compareMetricValues(
 }
 
 export function compareMoverItems(
-  a: CollectionMoverItem,
-  b: CollectionMoverItem,
+  a: CollectionMoverBrowserItem,
+  b: CollectionMoverBrowserItem,
   sortKey: SortKey,
   direction: DirectionFilter
 ): number {

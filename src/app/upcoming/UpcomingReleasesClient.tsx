@@ -328,6 +328,7 @@ export default function UpcomingReleasesClient({
 }) {
   const [view, setView] = useState<ReleaseView>("all");
   const [search, setSearch] = useState("");
+  const [visibleSingleGroupCount, setVisibleSingleGroupCount] = useState(4);
   const query = useDeferredValue(search).trim().toLowerCase();
   const filtered = useMemo(() => ({
     sealed: sealed.filter((item) => matchesQuery(query, [item.name, item.episodeName, item.episodeCode, item.sourceName])),
@@ -335,6 +336,11 @@ export default function UpcomingReleasesClient({
     stories: stories.filter((item) => matchesQuery(query, [item.title, item.description, item.sourceName, item.status])),
   }), [query, sealed, singles, stories]);
   const singleGroups = useMemo(() => groupUpcomingSingles(filtered.singles), [filtered.singles]);
+  const visibleSingleGroups = query
+    ? singleGroups
+    : singleGroups.slice(0, visibleSingleGroupCount);
+  const visibleSealed = view === "sealed" || query ? filtered.sealed : filtered.sealed.slice(0, 10);
+  const visibleStories = view === "sources" || query ? filtered.stories : filtered.stories.slice(0, 6);
 
   const tabs: Array<{ key: ReleaseView; label: string; count: number }> = [
     { key: "all", label: "All", count: sealed.length + singles.length + stories.length },
@@ -375,7 +381,7 @@ export default function UpcomingReleasesClient({
           <SectionTitle Icon={Package} eyebrow="Release calendar" title="Upcoming sealed" description="Confirmed products ordered by their own release date, not only by the set launch." count={filtered.sealed.length} />
           {filtered.sealed.length ? (
             <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
-              {filtered.sealed.map((release) => <SealedReleaseTile key={release.id} release={release} />)}
+              {visibleSealed.map((release) => <SealedReleaseTile key={release.id} release={release} />)}
             </div>
           ) : <EmptyState>No sealed releases match this search.</EmptyState>}
         </section>
@@ -385,9 +391,20 @@ export default function UpcomingReleasesClient({
         <section>
           <SectionTitle Icon={Sparkles} eyebrow="Card watch" title="Revealed & leaked singles" description="Source images appear immediately; once a card is matched to the local library, its tile links directly to card detail." count={filtered.singles.length} />
           {filtered.singles.length ? (
-            <div className="space-y-4 sm:space-y-5">
-              {singleGroups.map((group) => <SingleSetSection key={group.key} group={group} />)}
-            </div>
+            <>
+              <div className="space-y-4 sm:space-y-5">
+                {visibleSingleGroups.map((group) => <SingleSetSection key={group.key} group={group} />)}
+              </div>
+              {!query && visibleSingleGroups.length < singleGroups.length ? (
+                <button
+                  type="button"
+                  onClick={() => setVisibleSingleGroupCount((count) => count + 4)}
+                  className="mt-4 inline-flex h-11 w-full items-center justify-center rounded-xl border border-violet-300/15 bg-violet-400/[0.055] px-4 text-sm font-bold text-violet-100/78 transition hover:border-violet-300/25 hover:bg-violet-400/[0.09] hover:text-white"
+                >
+                  Show more upcoming sets ({visibleSingleGroups.length} / {singleGroups.length})
+                </button>
+              ) : null}
+            </>
           ) : <EmptyState>No single-card reveals have been ingested yet. The background source scan fills this automatically.</EmptyState>}
         </section>
       ) : null}
@@ -397,7 +414,7 @@ export default function UpcomingReleasesClient({
           <SectionTitle Icon={Eye} eyebrow="Background scan" title="Latest source watch" description="Release and reveal reports ingested from Pokémon, PokeBeach, ICv2, Bill's Archive and the other trusted Signal Radar sources." count={filtered.stories.length} />
           {filtered.stories.length ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              {filtered.stories.map((story) => <StoryTile key={story.id} story={story} />)}
+              {visibleStories.map((story) => <StoryTile key={story.id} story={story} />)}
             </div>
           ) : <EmptyState>The next scheduled source scan will add new release and reveal stories here.</EmptyState>}
         </section>

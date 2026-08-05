@@ -1,10 +1,10 @@
 ﻿"use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   useEffect,
   useMemo,
-  useState,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -16,7 +16,7 @@ export interface SettingsTabItem {
   key: string;
   label: string;
   description?: string;
-  content: ReactNode;
+  content?: ReactNode;
 }
 
 export default function SettingsTabs({
@@ -36,12 +36,10 @@ export default function SettingsTabs({
       "",
     [defaultKey, requestedKey, tabs]
   );
-  const [selectedKey, setSelectedKey] = useState(initialKey);
-  const selected = tabs.find((tab) => tab.key === selectedKey) ?? tabs[0] ?? null;
+  const selected = tabs.find((tab) => tab.key === initialKey) ?? tabs[0] ?? null;
 
   useEffect(() => {
     const frame = window.requestAnimationFrame(() => {
-      setSelectedKey(initialKey);
       const activeButton = document.getElementById(
         `settings-tab-button-${initialKey}`
       );
@@ -61,7 +59,7 @@ export default function SettingsTabs({
     return () => window.cancelAnimationFrame(frame);
   }, [initialKey]);
 
-  function selectFromKeyboard(event: KeyboardEvent<HTMLButtonElement>, index: number) {
+  function selectFromKeyboard(event: KeyboardEvent<HTMLAnchorElement>, index: number) {
     let nextIndex: number | null = null;
     if (event.key === "ArrowRight") nextIndex = (index + 1) % tabs.length;
     if (event.key === "ArrowLeft") nextIndex = (index - 1 + tabs.length) % tabs.length;
@@ -71,7 +69,6 @@ export default function SettingsTabs({
 
     event.preventDefault();
     const next = tabs[nextIndex];
-    setSelectedKey(next.key);
     window.requestAnimationFrame(() => {
       document.getElementById(`settings-tab-button-${next.key}`)?.focus();
     });
@@ -104,24 +101,24 @@ export default function SettingsTabs({
             const active = tab.key === selected.key;
 
             return (
-              <button
+              <Link
                 key={tab.key}
                 id={`settings-tab-button-${tab.key}`}
-                type="button"
+                href={`/settings?section=${encodeURIComponent(tab.key)}`}
+                prefetch={false}
                 role="tab"
                 aria-selected={active}
                 aria-controls={`settings-tab-${tab.key}`}
                 tabIndex={active ? 0 : -1}
-                onClick={() => setSelectedKey(tab.key)}
                 onKeyDown={(event) => selectFromKeyboard(event, tabs.indexOf(tab))}
-                className={`min-h-11 min-w-[7rem] rounded-xl px-3 text-xs font-semibold leading-none transition md:min-w-0 md:px-4 md:text-sm ${
+                className={`inline-flex min-h-11 min-w-[7rem] items-center justify-center rounded-xl px-3 text-xs font-semibold leading-none transition md:min-w-0 md:px-4 md:text-sm ${
                   active
                     ? ACTIVE_TAB_CLASS
                     : "text-white/50 hover:bg-white/8 hover:text-white"
                 }`}
               >
                 {tab.label}
-              </button>
+              </Link>
             );
           })}
         </div>

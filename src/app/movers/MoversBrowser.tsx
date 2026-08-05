@@ -20,7 +20,7 @@ import type { ModalCardData } from "@/components/card-modal/types";
 import type { BuySignalLabel } from "@/lib/buy-signal";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import { parseGradingTargetLabel } from "@/lib/grading-targets";
-import type { CollectionMoverItem, MoversItemScope, MoversScope } from "@/lib/movers";
+import type { CollectionMoverBrowserItem, MoversItemScope, MoversScope } from "@/lib/movers";
 import type { CardQuickActionMap } from "@/lib/card-quick-actions";
 import {
   compareMoverItems,
@@ -55,18 +55,20 @@ interface PreviewCardConfig {
   description: string;
   href: string;
   hrefLabel?: string;
-  items: CollectionMoverItem[];
+  items: CollectionMoverBrowserItem[];
   reasonMode?: "raw" | "graded" | "target";
 }
 
 interface SpotlightConfig {
   title: string;
-  item: CollectionMoverItem | null;
+  item: CollectionMoverBrowserItem | null;
   windowKey: "7d" | "30d";
 }
 
 interface Props {
-  movers: CollectionMoverItem[];
+  movers: CollectionMoverBrowserItem[];
+  totalMoverCount?: number;
+  deferredMoversEndpoint?: string | null;
   activeScope: MoversScope;
   activeItemScope: MoversItemScope;
   marketMode?: "standard" | "sudden_drops";
@@ -82,6 +84,11 @@ interface Props {
   metricWindowLabel?: string;
   cardQuickActions: CardQuickActionMap;
   parallelLayout?: boolean;
+}
+
+interface DeferredMoversPayload {
+  movers: CollectionMoverBrowserItem[];
+  cardQuickActions: CardQuickActionMap;
 }
 
 type FocusFilter =
@@ -112,7 +119,7 @@ function isGradeTenLabel(label: string | null | undefined): boolean {
   return parseGradingTargetLabel(label).isGradeTenEquivalent;
 }
 
-function getRecentDropAmount(item: Pick<CollectionMoverItem, "change7d" | "change30d">): number {
+function getRecentDropAmount(item: Pick<CollectionMoverBrowserItem, "change7d" | "change30d">): number {
   return Math.max(
     item.change7d != null && item.change7d < 0 ? Math.abs(item.change7d) : 0,
     item.change30d != null && item.change30d < 0 ? Math.abs(item.change30d) : 0
@@ -120,7 +127,7 @@ function getRecentDropAmount(item: Pick<CollectionMoverItem, "change7d" | "chang
 }
 
 function matchesFocusFilter(
-  item: CollectionMoverItem,
+  item: CollectionMoverBrowserItem,
   focusFilter: FocusFilter,
   options: { isGradingScope: boolean; isSuddenDropMode: boolean }
 ): boolean {
@@ -175,7 +182,7 @@ function buildFocusOptions({
 }: {
   isGradingScope: boolean;
   isSuddenDropMode: boolean;
-  movers: CollectionMoverItem[];
+  movers: CollectionMoverBrowserItem[];
 }): FocusFilterOption[] {
   const options: FocusFilterOption[] = isSuddenDropMode
     ? [
@@ -238,6 +245,8 @@ function MoverGridFallback() {
 
 export default function MoversBrowser({
   movers,
+  totalMoverCount,
+  deferredMoversEndpoint = null,
   activeScope,
   activeItemScope,
   marketMode = "standard",
@@ -274,13 +283,39 @@ export default function MoversBrowser({
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
   const [activeHighlightedCardId, setActiveHighlightedCardId] = useState(highlightedCardId);
+  const [deferredPayload, setDeferredPayload] = useState<DeferredMoversPayload | null>(null);
+  const deferredLoadPromiseRef = useRef<Promise<void> | null>(null);
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim().toLowerCase();
   const showBuySignalFilter = !isSuddenDropMode;
   const showTrendFilter = !isGradingScope && !isSuddenDropMode;
+  const effectiveMovers = deferredPayload?.movers ?? movers;
+  const effectiveCardQuickActions = useMemo(
+    () => ({ ...cardQuickActions, ...(deferredPayload?.cardQuickActions ?? {}) }),
+    [cardQuickActions, deferredPayload?.cardQuickActions]
+  );
+  const loadDeferredMovers = useCallback(() => {
+    if (!deferredMoversEndpoint || deferredPayload) return Promise.resolve();
+    if (deferredLoadPromiseRef.current) return deferredLoadPromiseRef.current;
+
+    const request = fetch(deferredMoversEndpoint, {
+      credentials: "same-origin",
+      headers: { Accept: "application/json" },
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load the complete market list");
+        setDeferredPayload((await response.json()) as DeferredMoversPayload);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        deferredLoadPromiseRef.current = null;
+      });
+    deferredLoadPromiseRef.current = request;
+    return request;
+  }, [deferredMoversEndpoint, deferredPayload]);
   const matchesBuySignalFilter = useCallback(
-    (item: CollectionMoverItem | null | undefined) =>
+    (item: CollectionMoverBrowserItem | null | undefined) =>
       Boolean(
         item &&
           (buySignalFilter === "all" || item.buySignal?.label === buySignalFilter)
@@ -360,15 +395,15 @@ export default function MoversBrowser({
   }, [activeScope, isSuddenDropMode]);
 
   const focusOptions = useMemo(
-    () => buildFocusOptions({ isGradingScope, isSuddenDropMode, movers }),
-    [isGradingScope, isSuddenDropMode, movers]
+    () => buildFocusOptions({ isGradingScope, isSuddenDropMode, movers: effectiveMovers }),
+    [effectiveMovers, isGradingScope, isSuddenDropMode]
   );
   const activeFocusFilter = focusOptions.some((option) => option.value === focusFilter)
     ? focusFilter
     : "all";
 
   const visibleMovers = useMemo(() => {
-    const filtered = movers.filter((item) => {
+    const filtered = effectiveMovers.filter((item) => {
       if (!isGradingScope && direction !== "all" && !matchesDirection(item, direction)) {
         return false;
       }
@@ -399,7 +434,7 @@ export default function MoversBrowser({
 
     return [...filtered].sort((a, b) => compareMoverItems(a, b, sortKey, direction));
   }, [
-    movers,
+    effectiveMovers,
     activeFocusFilter,
     buySignalFilter,
     direction,
@@ -418,8 +453,9 @@ export default function MoversBrowser({
   );
   const allMoverGroupCount = useMemo(
     () =>
-      groupGradeVariants ? groupMoverVariantsByCard(movers).length : movers.length,
-    [groupGradeVariants, movers]
+      totalMoverCount ??
+      (groupGradeVariants ? groupMoverVariantsByCard(effectiveMovers).length : effectiveMovers.length),
+    [effectiveMovers, groupGradeVariants, totalMoverCount]
   );
   const highlightedVisibleIndex = useMemo(
     () =>
@@ -446,7 +482,11 @@ export default function MoversBrowser({
     () => visibleMoverGroups.slice(0, renderLimit),
     [renderLimit, visibleMoverGroups]
   );
-  const hasMoreMovers = renderLimit < visibleMoverGroups.length;
+  const hasDeferredMovers =
+    Boolean(deferredMoversEndpoint) &&
+    deferredPayload == null &&
+    effectiveMovers.length < (totalMoverCount ?? effectiveMovers.length);
+  const hasMoreMovers = renderLimit < visibleMoverGroups.length || hasDeferredMovers;
   const hasDirectionFilter = showTrendFilter && direction !== defaultDirection;
 
   useEffect(() => {
@@ -462,6 +502,11 @@ export default function MoversBrowser({
     const observer = new IntersectionObserver(
       (entries) => {
         if (!entries.some((entry) => entry.isIntersecting)) {
+          return;
+        }
+
+        if (renderLimit >= visibleMoverGroups.length && hasDeferredMovers) {
+          void loadDeferredMovers();
           return;
         }
 
@@ -491,7 +536,36 @@ export default function MoversBrowser({
     return () => {
       observer.disconnect();
     };
-  }, [hasMoreMovers, renderKey, renderLimit, visibleMoverGroups.length]);
+  }, [
+    hasDeferredMovers,
+    hasMoreMovers,
+    loadDeferredMovers,
+    renderKey,
+    renderLimit,
+    visibleMoverGroups.length,
+  ]);
+
+  useEffect(() => {
+    const usesWholeMarket =
+      normalizedSearch.length > 0 ||
+      direction !== defaultDirection ||
+      focusFilter !== "all" ||
+      buySignalFilter !== "all" ||
+      sortKey !== (isGradingScope ? "grade_score" : "move");
+    if (usesWholeMarket && hasDeferredMovers) {
+      void loadDeferredMovers();
+    }
+  }, [
+    buySignalFilter,
+    defaultDirection,
+    direction,
+    focusFilter,
+    hasDeferredMovers,
+    isGradingScope,
+    loadDeferredMovers,
+    normalizedSearch,
+    sortKey,
+  ]);
 
   useEffect(() => {
     if (!activeHighlightedCardId || highlightedVisibleIndex < 0) {
@@ -612,7 +686,7 @@ export default function MoversBrowser({
           spotlights={visibleSpotlights}
           previewCards={visiblePreviewCards}
           loadingCardId={loadingCardId}
-          cardQuickActions={cardQuickActions}
+          cardQuickActions={effectiveCardQuickActions}
           onOpenCard={handleOpenMoverCard}
         />
       ) : null}
@@ -776,7 +850,7 @@ export default function MoversBrowser({
             <MoverGrid
               moverGroups={renderedMoverGroups}
               loadingCardId={loadingCardId}
-              cardQuickActions={cardQuickActions}
+              cardQuickActions={effectiveCardQuickActions}
               displayMode={isGradingScope ? "target" : isGradedScope ? "graded" : "raw"}
               highlightedCardId={activeHighlightedCardId}
               metricWindowLabel={metricWindowLabel}
@@ -790,7 +864,7 @@ export default function MoversBrowser({
                 aria-live="polite"
               >
                 Loading more cards ({renderedMoverGroups.length.toLocaleString("en-US")} /{" "}
-                {visibleMoverGroups.length.toLocaleString("en-US")})
+                {(totalMoverCount ?? visibleMoverGroups.length).toLocaleString("en-US")})
               </div>
             ) : null}
           </>

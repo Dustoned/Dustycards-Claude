@@ -291,16 +291,7 @@ export default function IllustratorGridClient({
                   <div className={`relative isolate min-h-24 w-full overflow-hidden rounded-2xl border border-white/8 bg-black/24 ${tileConfig.mediaClass}`}>
                     {imageUrl ? (
                       <>
-                        <Image
-                          src={imageUrl}
-                          alt=""
-                          fill
-                          aria-hidden="true"
-                          className="scale-125 object-cover opacity-30 blur-xl saturate-150 transition duration-500 group-hover:scale-[1.32] group-hover:opacity-38"
-                          sizes={tileConfig.minWidth}
-                          unoptimized
-                        />
-                        <div className="absolute inset-0 bg-[linear-gradient(110deg,rgba(5,6,10,0.78),rgba(10,12,20,0.12)_48%,rgba(5,6,10,0.72))]" />
+                        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_12%,rgba(139,92,246,0.18),transparent_58%),linear-gradient(110deg,rgba(5,6,10,0.9),rgba(14,15,24,0.55)_48%,rgba(5,6,10,0.88))] transition duration-300 group-hover:brightness-110" />
                         <div className="absolute inset-0 z-10 flex items-center justify-center gap-1.5 p-2.5 sm:gap-2">
                           {featuredCards.map((card) => {
                             const cardImageUrl =

@@ -20,8 +20,15 @@ import {
 } from "@/lib/games";
 import { getMoversMode, type MoversMode, type MoversPageScope } from "@/app/movers/routing";
 import type { CollectionValueDriversData } from "@/lib/collection-data";
-import type { CollectionMoversData, MoversScope } from "@/lib/movers";
-import type { SealedMoversData } from "@/lib/sealed-movers";
+import {
+  toCollectionMoverBrowserItem,
+  type CollectionMoversData,
+  type MoversScope,
+} from "@/lib/movers";
+import {
+  toSealedMoverBrowserItem,
+  type SealedMoversData,
+} from "@/lib/sealed-movers";
 import type { PriceSource } from "@/lib/user-settings";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
@@ -30,6 +37,7 @@ export const dynamic = "force-dynamic";
 
 type SummaryMetric = HeaderStat;
 type MarketTrend = Extract<DirectionFilter, "all" | "risers" | "fallers">;
+const INITIAL_BROWSER_MOVER_COUNT = 96;
 
 interface PulseChartData {
   title: string;
@@ -450,7 +458,7 @@ export default async function MoversPage({
     ? Array.from(
         new Set(
           [
-            ...cardData.movers,
+            ...cardData.movers.slice(0, INITIAL_BROWSER_MOVER_COUNT),
             ...cardData.cheapestHighRarityMovers.slice(0, 4),
             ...cardData.suddenDropDeals.slice(0, 4),
             ...cardData.discountedHighRarity.slice(0, 4),
@@ -631,6 +639,43 @@ export default async function MoversPage({
           },
         ]
       : [];
+  const compactMoverCache = new Map<
+    CollectionMoversData["movers"][number],
+    ReturnType<typeof toCollectionMoverBrowserItem>
+  >();
+  const compactMover = (item: CollectionMoversData["movers"][number]) => {
+    const cached = compactMoverCache.get(item);
+    if (cached) return cached;
+    const compact = toCollectionMoverBrowserItem(item);
+    compactMoverCache.set(item, compact);
+    return compact;
+  };
+  const browserMovers =
+    cardData?.movers.slice(0, INITIAL_BROWSER_MOVER_COUNT).map(compactMover) ?? [];
+  const browserSpotlights = cardSpotlights.map((spotlight) => ({
+    ...spotlight,
+    item: spotlight.item ? compactMover(spotlight.item) : null,
+  }));
+  const browserPreviewCards = marketPreviewCards.map((preview) => ({
+    ...preview,
+    items: preview.items.map(compactMover),
+  }));
+  const totalBrowserMoverCount = cardData
+    ? isGradedScope || isGradingScope
+      ? new Set(cardData.movers.map((item) => item.cardId)).size
+      : cardData.movers.length
+    : 0;
+  const deferredMoversEndpoint = cardData && cardData.movers.length > browserMovers.length
+    ? (() => {
+        const params = new URLSearchParams();
+        params.set("source", activePriceSource);
+        params.set("scope", activeScope);
+        params.set("view", activeItemScope);
+        const gameValue = getGameFilterSearchParamValue(activeGame);
+        if (gameValue) params.set(GAME_SEARCH_PARAM, gameValue);
+        return `/api/movers/list?${params.toString()}`;
+      })()
+    : null;
   return (
     <div
       className="page-container mx-auto max-w-7xl px-4 py-3 sm:px-6 sm:py-8 lg:px-8"
@@ -789,18 +834,20 @@ export default async function MoversPage({
         ) : isSealedScope && sealedData ? (
           <SealedMoversBrowser
             key={`${activeScope}:${activeItemScope}`}
-            data={sealedData}
+            movers={sealedData.movers.map(toSealedMoverBrowserItem)}
           />
         ) : cardData ? (
           <MoversBrowser
             key={`${activeScope}:${activeItemScope}:${activeTrend}`}
-            movers={cardData.movers}
+            movers={browserMovers}
+            totalMoverCount={totalBrowserMoverCount}
+            deferredMoversEndpoint={deferredMoversEndpoint}
             cardQuickActions={cardQuickActions}
             activeScope={activeScope as MoversScope}
             activeItemScope={activeItemScope}
             initialDirection={isGradingScope ? "all" : activeTrend}
-            spotlights={cardSpotlights}
-            previewCards={marketPreviewCards}
+            spotlights={browserSpotlights}
+            previewCards={browserPreviewCards}
             emptyTitle={
               isGradingScope
                 ? "No grade targets found"

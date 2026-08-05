@@ -13,6 +13,11 @@ import { getSealedMovers, type SealedMoversData } from "@/lib/sealed-movers";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { POKEMON_GAME, type TradingCardGameFilter } from "@/lib/games";
 import {
+  readMoversSnapshot,
+  writeMoversSnapshot,
+  type MoversSnapshotKey,
+} from "@/lib/movers-snapshot-store";
+import {
   buildMoversSourceHref,
   type MoversPageScope,
   normalizeMoversItemScope,
@@ -32,6 +37,11 @@ const MOVERS_FRESH_TTL_MS = 60_000;
 // Stale window: callers up to this age get the stale value immediately while a
 // background refresh refills the cache. Anything older blocks on a fresh fetch.
 const MOVERS_STALE_TTL_MS = 5 * 60_000;
+// A durable snapshot keeps the first request after a deploy fast. It is only
+// used as a short-lived bridge while current market data refreshes in the
+// background; it never replaces the normal live cache.
+const MOVERS_SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60_000;
+const MOVERS_SNAPSHOT_REFRESH_DELAY_MS = 8_000;
 
 interface CachedMoversEntry<T> {
   /** Absolute timestamp at which the entry stops being fresh. */
@@ -103,10 +113,27 @@ function getCachedMovers(
   const key = `${userId}:${game}:${activePriceSource}:${activeScope}:${activeItemScope}`;
   const now = Date.now();
   const cached = moversPageCache.get(key);
-  const fetcher = () =>
+  const snapshotKey: MoversSnapshotKey | null =
     activeScope === "sealed"
-      ? getSealedMovers(activeItemScope, userId, game)
-      : getMovers(activePriceSource, activeScope, activeItemScope, userId, game);
+      ? null
+      : {
+          userId,
+          game,
+          source: activePriceSource,
+          scope: activeScope,
+          itemScope: activeItemScope,
+        };
+  const fetcher = async () => {
+    if (activeScope === "sealed") {
+      return getSealedMovers(activeItemScope, userId, game);
+    }
+
+    const data = await getMovers(activePriceSource, activeScope, activeItemScope, userId, game);
+    if (snapshotKey) {
+      void writeMoversSnapshot(snapshotKey, data).catch(() => undefined);
+    }
+    return data;
+  };
 
   if (cached && cached.expiresAt > now) {
     return cached.promise;
@@ -117,7 +144,36 @@ function getCachedMovers(
     return cached.promise;
   }
 
-  return storeCachedEntry(moversPageCache, key, fetcher()).promise;
+  if (!snapshotKey) {
+    return storeCachedEntry(moversPageCache, key, fetcher()).promise;
+  }
+
+  const coldStart = (async () => {
+    const snapshot = await readMoversSnapshot(snapshotKey);
+    const writtenAt = snapshot ? Date.parse(snapshot.writtenAt) : Number.NaN;
+    if (
+      snapshot &&
+      Number.isFinite(writtenAt) &&
+      Date.now() - writtenAt <= MOVERS_SNAPSHOT_MAX_AGE_MS
+    ) {
+      const snapshotEntry = moversPageCache.get(key);
+      if (snapshotEntry) {
+        snapshotEntry.expiresAt = Date.now() + MOVERS_SNAPSHOT_REFRESH_DELAY_MS;
+        snapshotEntry.staleAt = Date.now() + MOVERS_STALE_TTL_MS;
+        const refreshTimer = setTimeout(() => {
+          if (moversPageCache.get(key) === snapshotEntry) {
+            refreshInBackground(moversPageCache, key, snapshotEntry, fetcher);
+          }
+        }, MOVERS_SNAPSHOT_REFRESH_DELAY_MS);
+        refreshTimer.unref?.();
+      }
+      return snapshot.data;
+    }
+
+    return fetcher() as Promise<CollectionMoversData>;
+  })();
+
+  return storeCachedEntry(moversPageCache, key, coldStart).promise;
 }
 
 function getCachedValueDrivers(

@@ -17,6 +17,9 @@ import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
 import CollectionInstantTabs from "@/components/CollectionInstantTabs";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
 import ProgressiveHomeOverviewInsights from "@/components/ProgressiveHomeOverviewInsights";
+import ProgressiveCollectionOverviewSections, {
+  CompleteCollectionSkeleton,
+} from "@/components/ProgressiveCollectionOverviewSections";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
 import { formatCollectionCurrency } from "@/lib/collection";
 import type {
@@ -42,9 +45,6 @@ import HomePageLoading from "@/components/HomePageLoading";
 import { getSocialTradeOpportunities } from "@/lib/social";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
-const ProgressiveCollectionOverviewSections = nextDynamic(
-  () => import("@/components/ProgressiveCollectionOverviewSections")
-);
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
 const BinderOverviewGrid = nextDynamic(() => import("@/components/BinderOverviewGrid"));
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"));
@@ -708,15 +708,13 @@ async function HomePageContent({
       emptySlot={null}
       completeSlot={
         activeTab === "complete" ? (
-        <ProgressiveCollectionOverviewSections
-          key={activeGame}
-          endpoint={(() => {
-            const gameValue = getGameFilterSearchParamValue(activeGame);
-            return gameValue
-              ? `/api/collection/complete?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameValue)}`
-              : "/api/collection/complete";
-          })()}
-        />
+        <Suspense key={activeGame} fallback={<CompleteCollectionSkeleton />}>
+          <ProgressiveCollectionOverviewSections
+            userId={user.id}
+            game={activeGame}
+            binderWatchMinPrice={settings.binderWatchMinPrice}
+          />
+        </Suspense>
         ) : null
       }
       singlesSlot={

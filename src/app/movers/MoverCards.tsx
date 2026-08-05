@@ -19,7 +19,7 @@ import { ChevronRight, Loader2 } from "lucide-react";
 import { rarityBadge, formatCurrency } from "@/components/card-modal/utils";
 import { getExpansionHref } from "@/lib/games";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
-import type { CollectionMoverItem } from "@/lib/movers";
+import type { CollectionMoverBrowserItem } from "@/lib/movers";
 import type { CardQuickActionData, CardQuickActionMap } from "@/lib/card-quick-actions";
 
 interface PreviewCardConfig {
@@ -28,13 +28,13 @@ interface PreviewCardConfig {
   description: string;
   href: string;
   hrefLabel?: string;
-  items: CollectionMoverItem[];
+  items: CollectionMoverBrowserItem[];
   reasonMode?: "raw" | "graded" | "target";
 }
 
 interface SpotlightConfig {
   title: string;
-  item: CollectionMoverItem | null;
+  item: CollectionMoverBrowserItem | null;
   windowKey: "7d" | "30d";
 }
 
@@ -156,7 +156,7 @@ function handleOpenKey(event: KeyboardEvent<HTMLElement>, onOpen: () => void) {
 }
 
 function getMoverQuickActionData(
-  item: CollectionMoverItem,
+  item: CollectionMoverBrowserItem,
   quickActions: CardQuickActionMap
 ): CardQuickActionData {
   return (
@@ -193,7 +193,7 @@ interface MoverReason {
   tone: MoverReasonTone;
 }
 
-function getRecentDropAmount(item: CollectionMoverItem): number {
+function getRecentDropAmount(item: CollectionMoverBrowserItem): number {
   return Math.max(
     item.change7d != null && item.change7d < 0 ? Math.abs(item.change7d) : 0,
     item.change30d != null && item.change30d < 0 ? Math.abs(item.change30d) : 0
@@ -216,7 +216,7 @@ function reasonChipClass(tone: MoverReasonTone): string {
 }
 
 function buySignalChipClass(
-  label: NonNullable<CollectionMoverItem["buySignal"]>["label"]
+  label: NonNullable<CollectionMoverBrowserItem["buySignal"]>["label"]
 ): string {
   if (label === "strong_buy") {
     return "border-emerald-300/30 bg-emerald-400/[0.14] text-emerald-100";
@@ -236,7 +236,7 @@ function buySignalChipClass(
 function MoverBuySignalChip({
   signal,
 }: {
-  signal: CollectionMoverItem["buySignal"];
+  signal: CollectionMoverBrowserItem["buySignal"];
 }) {
   if (!signal) return null;
 
@@ -257,7 +257,7 @@ function MoverBuySignalChip({
  * Pure: only reads existing fields on the mover item.
  */
 export function getMoverReasons(
-  item: CollectionMoverItem,
+  item: CollectionMoverBrowserItem,
   mode: MoverDisplayMode,
   changeDisplay: MoverChangeDisplay = "percent"
 ): MoverReason[] {
@@ -387,7 +387,7 @@ function MoverReasonChips({
   changeDisplay,
   mobileLimit = 2,
 }: {
-  item: CollectionMoverItem;
+  item: CollectionMoverBrowserItem;
   mode: MoverDisplayMode;
   changeDisplay: MoverChangeDisplay;
   mobileLimit?: number;
@@ -418,14 +418,14 @@ function metricValueClass(toneValue?: number | null): string {
   return "text-white/82";
 }
 
-function getMoverVariantKey(item: CollectionMoverItem): string {
+function getMoverVariantKey(item: CollectionMoverBrowserItem): string {
   const normalizedLabel =
     item.gradedLabel?.trim().toLocaleLowerCase("en-US") || "ungraded";
   return `${item.source}:${normalizedLabel}`;
 }
 
 function buildCompactMetrics(
-  item: CollectionMoverItem,
+  item: CollectionMoverBrowserItem,
   mode: MoverDisplayMode,
   metricWindowLabel = "7D",
   changeDisplay: MoverChangeDisplay = "percent"
@@ -533,7 +533,7 @@ const MoverTile = memo(function MoverTile({
   prioritizeImage,
   onOpen,
 }: {
-  variants: readonly CollectionMoverItem[];
+  variants: readonly CollectionMoverBrowserItem[];
   isLoading: boolean;
   displayMode: MoverDisplayMode;
   isHighlighted: boolean;
@@ -745,7 +745,7 @@ function MoverSpotlightCard({
   onOpenCard,
 }: {
   title: string;
-  item: CollectionMoverItem | null;
+  item: CollectionMoverBrowserItem | null;
   windowKey: "7d" | "30d";
   isLoading: boolean;
   cardQuickActions: CardQuickActionMap;
@@ -889,7 +889,7 @@ function PocketPreviewCard({
   title: string;
   eyebrow: string;
   description: string;
-  items: CollectionMoverItem[];
+  items: CollectionMoverBrowserItem[];
   href: string;
   hrefLabel?: string;
   loadingCardId: string | null;
@@ -1018,7 +1018,7 @@ export function MoverGrid({
 }: {
   moverGroups: ReadonlyArray<{
     cardId: string;
-    variants: CollectionMoverItem[];
+    variants: CollectionMoverBrowserItem[];
   }>;
   loadingCardId: string | null;
   cardQuickActions: CardQuickActionMap;

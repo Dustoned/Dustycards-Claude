@@ -46,6 +46,22 @@ const SCRAPER_QUOTA_TIME_ZONE = "Europe/Amsterdam";
 const SCHEDULER_INTERVAL_MS = 1000 * 60 * 5;
 const SCHEDULER_STALE_MS = 1000 * 60 * 15;
 const HISTORY_DRAIN_WINDOW_MS = 1000 * 60 * 60 * 2;
+const ADMIN_SETTINGS_SECTIONS = [
+  "preferences",
+  "collection",
+  "updates",
+  "feedback",
+  "system",
+  "firecrawl",
+  "sync",
+] as const;
+type AdminSettingsSection = (typeof ADMIN_SETTINGS_SECTIONS)[number];
+
+function normalizeAdminSettingsSection(value: string | undefined): AdminSettingsSection {
+  return ADMIN_SETTINGS_SECTIONS.includes(value as AdminSettingsSection)
+    ? (value as AdminSettingsSection)
+    : "preferences";
+}
 
 type SchedulerTickDetails = {
   checkedAt?: string;
@@ -212,11 +228,23 @@ function parseSyncType(type: string): {
   return { kind: "other", episodeId: null, cardId: null };
 }
 
-export default async function SettingsPage() {
-  const user = await requirePageUser("/settings");
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ section?: string }>;
+}) {
+  const [user, { section }] = await Promise.all([
+    requirePageUser("/settings"),
+    searchParams,
+  ]);
   const isAdmin = user.role === "admin";
+  const activeSection = normalizeAdminSettingsSection(section);
 
   if (!isAdmin) {
+    const memberSection =
+      activeSection === "collection" || activeSection === "updates"
+        ? activeSection
+        : "preferences";
     return (
       <div className="settings-page mx-auto px-4 py-10 sm:px-6 lg:px-8">
         <PageHeroHeader
@@ -232,19 +260,97 @@ export default async function SettingsPage() {
               key: "preferences",
               label: "Preferences",
               description: "Display, layout, phone overrides, and visible libraries.",
-              content: <SettingsPreferencesPanel />,
+              content: memberSection === "preferences" ? <SettingsPreferencesPanel /> : undefined,
             },
             {
               key: "collection",
               label: "Collection",
               description: "Browsing defaults, filters, prices, and Binder Watch.",
-              content: <SettingsCollectionDefaultsPanel />,
+              content:
+                memberSection === "collection" ? <SettingsCollectionDefaultsPanel /> : undefined,
             },
             {
               key: "updates",
               label: "Updates",
               description: "Patch notes and a compact roadmap for the latest app changes.",
-              content: <SettingsUpdatesPanel />,
+              content: memberSection === "updates" ? <SettingsUpdatesPanel /> : undefined,
+            },
+          ]}
+          defaultKey={memberSection}
+        />
+      </div>
+    );
+  }
+
+  if (activeSection !== "system" && activeSection !== "sync") {
+    const newFeedbackCount = await db.feedback.count({ where: { status: "new" } });
+    const firecrawlConfig =
+      activeSection === "firecrawl" ? getFirecrawlConfigSnapshot() : null;
+
+    return (
+      <div className="settings-page mx-auto px-4 py-10 sm:px-6 lg:px-8">
+        <PageHeroHeader
+          eyebrow="DustyCards"
+          title="Settings"
+          description="Tune appearance, layout, defaults and background sync behavior."
+          className="mb-8"
+        />
+
+        <SettingsTabs
+          defaultKey={activeSection}
+          tabs={[
+            {
+              key: "preferences",
+              label: "Preferences",
+              description: "Display, layout, phone overrides, and visible libraries.",
+              content:
+                activeSection === "preferences" ? <SettingsPreferencesPanel /> : undefined,
+            },
+            {
+              key: "collection",
+              label: "Collection",
+              description: "Browsing defaults, filters, prices, and Binder Watch.",
+              content:
+                activeSection === "collection" ? (
+                  <SettingsCollectionDefaultsPanel />
+                ) : undefined,
+            },
+            {
+              key: "updates",
+              label: "Updates",
+              description: "Patch notes and a compact roadmap for the latest app changes.",
+              content: activeSection === "updates" ? <SettingsUpdatesPanel /> : undefined,
+            },
+            {
+              key: "feedback",
+              label: newFeedbackCount > 0 ? `Feedback (${newFeedbackCount})` : "Feedback",
+              description: "Review reports and ideas submitted from inside DustyCards.",
+              content:
+                activeSection === "feedback" ? (
+                  <div className="grid gap-4">
+                    <ReprintReviewSection />
+                    <FeedbackSection />
+                  </div>
+                ) : undefined,
+            },
+            {
+              key: "system",
+              label: "System",
+              description: "Runtime health, data quality, database backups, and pull-rate imports.",
+            },
+            {
+              key: "firecrawl",
+              label: "Firecrawl",
+              description: "Admin-only web context tools with clear credit guardrails.",
+              content:
+                activeSection === "firecrawl" && firecrawlConfig ? (
+                  <FirecrawlSection config={firecrawlConfig} isAdmin />
+                ) : undefined,
+            },
+            {
+              key: "sync",
+              label: "Sync",
+              description: "Background refresh status, scheduler tools, and manual sync actions.",
             },
           ]}
         />
@@ -774,8 +880,6 @@ export default async function SettingsPage() {
   const latestBackupLabel = latestBackup
     ? formatDateTime(parseDateTime(latestBackup.updatedAt)) ?? latestBackup.name
     : null;
-  const firecrawlConfig = getFirecrawlConfigSnapshot();
-
   return (
     <div className="settings-page mx-auto px-4 py-10 sm:px-6 lg:px-8">
       <PageHeroHeader
@@ -786,41 +890,33 @@ export default async function SettingsPage() {
       />
 
       <SettingsTabs
+        defaultKey={activeSection}
         tabs={[
           {
             key: "preferences",
             label: "Preferences",
             description: "Display, layout, phone overrides, and visible libraries.",
-            content: <SettingsPreferencesPanel />,
           },
           {
             key: "collection",
             label: "Collection",
             description: "Browsing defaults, filters, prices, and Binder Watch.",
-            content: <SettingsCollectionDefaultsPanel />,
           },
           {
             key: "updates",
             label: "Updates",
             description: "Patch notes and a compact roadmap for the latest app changes.",
-            content: <SettingsUpdatesPanel />,
           },
           {
             key: "feedback",
             label: newFeedbackCount > 0 ? `Feedback (${newFeedbackCount})` : "Feedback",
             description: "Review reports and ideas submitted from inside DustyCards.",
-            content: (
-              <div className="grid gap-4">
-                {user.role === "admin" ? <ReprintReviewSection /> : null}
-                <FeedbackSection />
-              </div>
-            ),
           },
           {
             key: "system",
             label: "System",
             description: "Runtime health, data quality, database backups, and pull-rate imports.",
-            content: (
+            content: activeSection === "system" ? (
               <div className="grid gap-4">
                 <HealthDashboardSection
                   app={{
@@ -879,19 +975,18 @@ export default async function SettingsPage() {
                   }}
                 />
               </div>
-            ),
+            ) : undefined,
           },
           {
             key: "firecrawl",
             label: "Firecrawl",
             description: "Admin-only web context tools with clear credit guardrails.",
-            content: <FirecrawlSection config={firecrawlConfig} isAdmin={user.role === "admin"} />,
           },
           {
             key: "sync",
             label: "Sync",
             description: "Background refresh status, scheduler tools, and manual sync actions.",
-            content: (
+            content: activeSection === "sync" ? (
               <div className="grid gap-4">
                 <SyncStatusSection
                   activeSync={activeSyncEntry}
@@ -945,7 +1040,7 @@ export default async function SettingsPage() {
                   scraperDisabledReason={scraperDisabledReason ?? "Scraper requests are disabled."}
                 />
               </div>
-            ),
+            ) : undefined,
           },
         ]}
       />

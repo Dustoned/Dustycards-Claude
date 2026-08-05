@@ -1,15 +1,8 @@
-"use client";
+import CollectionOverviewSections from "@/components/CollectionOverviewSections";
+import { getCachedCollectionOverviewData } from "@/lib/collection-overview-cache";
+import type { TradingCardGameFilter } from "@/lib/games";
 
-import dynamic from "next/dynamic";
-import { useCallback, useEffect, useState } from "react";
-import type { CompleteCollectionPayload } from "@/lib/complete-collection-payload";
-
-const CollectionOverviewSections = dynamic(
-  () => import("@/components/CollectionOverviewSections"),
-  { loading: () => <CompleteCollectionSkeleton /> }
-);
-
-function CompleteCollectionSkeleton() {
+export function CompleteCollectionSkeleton() {
   return (
     <div className="space-y-5" aria-label="Loading complete collection" aria-busy="true">
       <div className="binder-subpanel h-[4.25rem] rounded-[var(--ui-page-header-radius)] motion-safe:animate-pulse" />
@@ -31,69 +24,49 @@ function CompleteCollectionSkeleton() {
   );
 }
 
-export default function ProgressiveCollectionOverviewSections({
-  endpoint,
+/**
+ * Server-streamed complete collection. The old version waited for hydration
+ * and then made a second authenticated browser request, leaving phones on a
+ * skeleton for noticeably longer. Suspense now starts this work with the page
+ * request and streams the finished grid into the existing shell.
+ */
+export default async function ProgressiveCollectionOverviewSections({
+  userId,
+  game,
+  binderWatchMinPrice,
 }: {
-  endpoint: string;
+  userId: string;
+  game: TradingCardGameFilter;
+  binderWatchMinPrice: number;
 }) {
-  const [payload, setPayload] = useState<CompleteCollectionPayload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [attempt, setAttempt] = useState(0);
-
-  const retry = useCallback(() => {
-    setError(null);
-    setAttempt((current) => current + 1);
-  }, []);
-
-  useEffect(() => {
-    const controller = new AbortController();
-
-    async function load() {
-      try {
-        const response = await fetch(endpoint, {
-          cache: "no-store",
-          credentials: "same-origin",
-          signal: controller.signal,
-        });
-        if (!response.ok) throw new Error(`Request failed (${response.status})`);
-        const nextPayload = (await response.json()) as CompleteCollectionPayload;
-        if (!controller.signal.aborted) setPayload(nextPayload);
-      } catch (loadError) {
-        if (controller.signal.aborted) return;
-        setError(loadError instanceof Error ? loadError.message : "Unable to load collection");
-      }
-    }
-
-    void load();
-    return () => controller.abort();
-  }, [attempt, endpoint]);
-
-  if (error) {
-    return (
-      <section className="binder-panel rounded-[var(--ui-page-header-radius)] px-4 py-8 text-center">
-        <h2 className="text-base font-bold text-white">Collection could not be loaded</h2>
-        <p className="mt-1 text-sm text-white/48">Your saved items are safe. Try loading this view again.</p>
-        <button
-          type="button"
-          onClick={retry}
-          className="mt-4 min-h-11 rounded-xl border border-violet-300/20 bg-violet-500/15 px-5 text-sm font-bold text-violet-100 transition hover:bg-violet-500/25"
-        >
-          Try again
-        </button>
-      </section>
-    );
-  }
-
-  if (!payload) return <CompleteCollectionSkeleton />;
+  const data = await getCachedCollectionOverviewData({
+    userId,
+    activeTab: "complete",
+    game,
+  });
+  const gradedLooseSingles = data.looseSingles.filter(
+    (item) => Boolean(item.grading_company && item.grading_grade)
+  );
+  const rawLooseSingles = data.looseSingles.filter(
+    (item) => !item.grading_company || !item.grading_grade
+  );
+  // The complete tab uses binder cards only for Binder Watch. Sending every
+  // card in every binder made a typical account serialize more than 1 MB of
+  // card data even though the UI immediately filtered almost all of it out.
+  // Apply the account's watch threshold on the server and keep the complete
+  // binder inventory on the dedicated Binders tab.
+  const binderWatchCards = data.binderCards.filter(
+    (item) => (item.current_value ?? 0) >= binderWatchMinPrice
+  );
 
   return (
     <CollectionOverviewSections
-      gradedLooseSingles={payload.gradedLooseSingles}
-      rawLooseSingles={payload.rawLooseSingles}
-      showRawLooseSinglesSection={payload.rawLooseSingles.length > 0}
-      binderCards={payload.binderCards}
-      sealed={payload.sealed}
-      binders={payload.binders}
+      gradedLooseSingles={gradedLooseSingles}
+      rawLooseSingles={rawLooseSingles}
+      showRawLooseSinglesSection={rawLooseSingles.length > 0}
+      binderCards={binderWatchCards}
+      sealed={data.sealed}
+      binders={data.binders}
     />
   );
 }

@@ -160,6 +160,64 @@ export interface SealedMoversData {
   upcomingReleases: UpcomingSealedRelease[];
 }
 
+/** Compact row shape used by the interactive sealed market grid. */
+export type SealedMoverBrowserItem = Pick<
+  SealedMoverItem,
+  | "productId"
+  | "name"
+  | "imageUrl"
+  | "episodeId"
+  | "episodeName"
+  | "episodeCode"
+  | "category"
+  | "categoryLabel"
+  | "ownedCount"
+  | "currentPrice"
+  | "historyPoints"
+  | "lifetimeHistoryPoints"
+  | "change7dPct"
+  | "change30dPct"
+  | "changeSinceTrackedPct"
+  | "changeFromLowPct"
+  | "gapToPeakPct"
+  | "lowPrice"
+  | "highPrice"
+  | "movementScore"
+  | "rankingScore"
+> & {
+  priceQuality: Pick<MoverPriceQuality, "status" | "reason">;
+};
+
+export function toSealedMoverBrowserItem(item: SealedMoverItem): SealedMoverBrowserItem {
+  return {
+    productId: item.productId,
+    name: item.name,
+    imageUrl: item.imageUrl,
+    episodeId: item.episodeId,
+    episodeName: item.episodeName,
+    episodeCode: item.episodeCode,
+    category: item.category,
+    categoryLabel: item.categoryLabel,
+    ownedCount: item.ownedCount,
+    currentPrice: item.currentPrice,
+    historyPoints: item.historyPoints,
+    lifetimeHistoryPoints: item.lifetimeHistoryPoints,
+    change7dPct: item.change7dPct,
+    change30dPct: item.change30dPct,
+    changeSinceTrackedPct: item.changeSinceTrackedPct,
+    changeFromLowPct: item.changeFromLowPct,
+    gapToPeakPct: item.gapToPeakPct,
+    lowPrice: item.lowPrice,
+    highPrice: item.highPrice,
+    movementScore: item.movementScore,
+    rankingScore: item.rankingScore,
+    priceQuality: {
+      status: item.priceQuality.status,
+      reason: item.priceQuality.reason,
+    },
+  };
+}
+
 function round(value: number, decimals = 2): number {
   return Number(value.toFixed(decimals));
 }

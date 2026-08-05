@@ -53,6 +53,7 @@ const ERA_ORDER = [
 ];
 
 const UPCOMING_RELEASE_GROUP = "Upcoming";
+const RECENT_EXPANSION_GROUP_LIMIT = 4;
 
 function getEra(name: string, series: string | null, releaseDate: string | null): string {
   const normalizedName = name.toLowerCase();
@@ -122,10 +123,11 @@ function getKnownEpisodeCardCount(input: {
 export default async function ExpansionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string }>;
+  searchParams: Promise<{ view?: string; range?: string }>;
 }) {
-  const { view } = await searchParams;
+  const { view, range } = await searchParams;
   const userViewActive = view === "user";
+  const showArchive = range === "all";
   const user = await requirePageUser("/expansions");
   const isAdmin = user.role === "admin";
   const settings = await getServerUserSettings(user.id);
@@ -225,6 +227,14 @@ export default async function ExpansionsPage({
       const promos = sets.filter((set) => isPromoExpansion(set));
       return [era, [...nonPromos, ...promos]] as [string, typeof sets];
     });
+  const displayedGroups =
+    userViewActive || showArchive
+      ? sortedGroups
+      : sortedGroups.slice(0, RECENT_EXPANSION_GROUP_LIMIT);
+  const archivedGroups = userViewActive
+    ? []
+    : sortedGroups.slice(RECENT_EXPANSION_GROUP_LIMIT);
+  const archivedSetCount = archivedGroups.reduce((total, [, sets]) => total + sets.length, 0);
 
   const eraCount = sortedGroups.filter(([group]) => group !== UPCOMING_RELEASE_GROUP).length;
   const userGameCount = new Set(withCards.map((episode) => episode.game)).size;
@@ -341,7 +351,7 @@ export default async function ExpansionsPage({
       ) : null}
 
       <div className="space-y-5 sm:space-y-6">
-        {sortedGroups.map(([era, sets], groupIndex) => (
+        {displayedGroups.map(([era, sets], groupIndex) => (
           <section
             key={era}
             className="[content-visibility:auto] [contain-intrinsic-size:auto_720px]"
@@ -485,6 +495,28 @@ export default async function ExpansionsPage({
           </section>
         ))}
       </div>
+
+      {!userViewActive && archivedSetCount > 0 ? (
+        <div className="mt-6 flex flex-col items-start justify-between gap-3 rounded-2xl border border-white/8 bg-white/[0.035] p-4 sm:flex-row sm:items-center sm:p-5">
+          <div className="min-w-0">
+            <p className="font-bold text-white">
+              {showArchive ? "All expansion eras are visible" : "Looking for an older set?"}
+            </p>
+            <p className="mt-1 text-sm leading-5 text-white/46">
+              {showArchive
+                ? "Switch back to the lighter recent view whenever you are done browsing the archive."
+                : `${archivedSetCount.toLocaleString("en-US")} older sets stay out of the first mobile load.`}
+            </p>
+          </div>
+          <Link
+            href={showArchive ? "/expansions" : "/expansions?range=all"}
+            prefetch={false}
+            className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-violet-300/22 bg-violet-500/14 px-4 text-sm font-bold text-violet-100 transition hover:bg-violet-500/24"
+          >
+            {showArchive ? "Show recent eras" : "Browse older eras"}
+          </Link>
+        </div>
+      ) : null}
     </div>
   );
 }

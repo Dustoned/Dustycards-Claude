@@ -184,8 +184,8 @@ interface SaleListingDialogState {
 
 type CollectionView = Exclude<CardView, "binder">;
 
-const INITIAL_COLLECTION_RENDER_COUNT = 72;
-const COLLECTION_RENDER_BATCH_SIZE = 96;
+const INITIAL_COLLECTION_RENDER_COUNT = 36;
+const COLLECTION_RENDER_BATCH_SIZE = 48;
 const INITIAL_COLLECTION_EAGER_IMAGE_COUNT = 4;
 const LONG_PRESS_SELECT_MS = 450;
 const LONG_PRESS_MOVE_TOLERANCE_PX = 12;
@@ -588,8 +588,8 @@ export default function CollectionCardsView({
     key: "",
     limit: INITIAL_COLLECTION_RENDER_COUNT,
   });
-  const initialRenderCount = isMobileViewport ? 36 : INITIAL_COLLECTION_RENDER_COUNT;
-  const renderBatchSize = isMobileViewport ? 36 : COLLECTION_RENDER_BATCH_SIZE;
+  const initialRenderCount = isMobileViewport ? 18 : INITIAL_COLLECTION_RENDER_COUNT;
+  const renderBatchSize = isMobileViewport ? 24 : COLLECTION_RENDER_BATCH_SIZE;
   const renderKey = `${visibleEntries.length}:${visibleEntries[0]?.selectionKey ?? ""}:${
     visibleEntries[visibleEntries.length - 1]?.selectionKey ?? ""
   }:${sortBy}:${sortDir}:${splitByGrading ? "split" : "all"}`;
@@ -635,7 +635,7 @@ export default function CollectionCardsView({
           };
         });
       },
-      { rootMargin: isMobileViewport ? "320px 0px" : "700px 0px" }
+      { rootMargin: isMobileViewport ? "160px 0px" : "400px 0px" }
     );
 
     observer.observe(loadMoreElement);

@@ -441,6 +441,129 @@ export interface CollectionMoverItem {
   moverScore: number;
 }
 
+/**
+ * The market grid does not need the full lifetime evidence object for every
+ * row. Keeping an explicit browser shape prevents hundreds of unused dates,
+ * history counters and price-series points from entering the RSC payload.
+ */
+export type CollectionMoverBrowserItem = Pick<
+  CollectionMoverItem,
+  | "cardId"
+  | "name"
+  | "imageUrl"
+  | "cardNumber"
+  | "normalizedRarity"
+  | "episodeId"
+  | "episodeName"
+  | "episodeCode"
+  | "releaseAgeYears"
+  | "ownedCount"
+  | "source"
+  | "sourceLabel"
+  | "currency"
+  | "currentPrice"
+  | "cardmarketPrice"
+  | "gradedLabel"
+  | "change7d"
+  | "change7dPct"
+  | "change7dCoveredDays"
+  | "change30d"
+  | "change30dPct"
+  | "change30dCoveredDays"
+  | "changeSinceTrackedPct"
+  | "changeFromLowPct"
+  | "gapToPeakPct"
+  | "rarityWeight"
+  | "olderValueScore"
+  | "movementScore"
+  | "opportunityScore"
+  | "rankingScore"
+  | "buySignal"
+  | "moverScore"
+> & {
+  tcggoScore: Pick<TcggoMoverScore, "score"> | null;
+  priceQuality: Pick<MoverPriceQuality, "status" | "reason">;
+  grading: Pick<
+    MoverGradingInsight,
+    | "rawPrice"
+    | "marketPrice"
+    | "gradedPrice"
+    | "expectedValue"
+    | "expectedGain"
+    | "expectedMultiplier"
+    | "estimatedHitRatePct"
+    | "fallbackLabel"
+    | "fallbackPrice"
+    | "gradeStepMultiplier"
+    | "spreadRisk"
+    | "tier"
+    | "priceAdjusted"
+    | "score"
+  > | null;
+};
+
+export function toCollectionMoverBrowserItem(
+  item: CollectionMoverItem
+): CollectionMoverBrowserItem {
+  return {
+    cardId: item.cardId,
+    name: item.name,
+    imageUrl: item.imageUrl,
+    cardNumber: item.cardNumber,
+    normalizedRarity: item.normalizedRarity,
+    episodeId: item.episodeId,
+    episodeName: item.episodeName,
+    episodeCode: item.episodeCode,
+    releaseAgeYears: item.releaseAgeYears,
+    ownedCount: item.ownedCount,
+    source: item.source,
+    sourceLabel: item.sourceLabel,
+    currency: item.currency,
+    currentPrice: item.currentPrice,
+    cardmarketPrice: item.cardmarketPrice,
+    gradedLabel: item.gradedLabel,
+    grading: item.grading
+      ? {
+          rawPrice: item.grading.rawPrice,
+          marketPrice: item.grading.marketPrice,
+          gradedPrice: item.grading.gradedPrice,
+          expectedValue: item.grading.expectedValue,
+          expectedGain: item.grading.expectedGain,
+          expectedMultiplier: item.grading.expectedMultiplier,
+          estimatedHitRatePct: item.grading.estimatedHitRatePct,
+          fallbackLabel: item.grading.fallbackLabel,
+          fallbackPrice: item.grading.fallbackPrice,
+          gradeStepMultiplier: item.grading.gradeStepMultiplier,
+          spreadRisk: item.grading.spreadRisk,
+          tier: item.grading.tier,
+          priceAdjusted: item.grading.priceAdjusted,
+          score: item.grading.score,
+        }
+      : null,
+    change7d: item.change7d,
+    change7dPct: item.change7dPct,
+    change7dCoveredDays: item.change7dCoveredDays,
+    change30d: item.change30d,
+    change30dPct: item.change30dPct,
+    change30dCoveredDays: item.change30dCoveredDays,
+    changeSinceTrackedPct: item.changeSinceTrackedPct,
+    changeFromLowPct: item.changeFromLowPct,
+    gapToPeakPct: item.gapToPeakPct,
+    rarityWeight: item.rarityWeight,
+    olderValueScore: item.olderValueScore,
+    tcggoScore: item.tcggoScore ? { score: item.tcggoScore.score } : null,
+    movementScore: item.movementScore,
+    opportunityScore: item.opportunityScore,
+    rankingScore: item.rankingScore,
+    priceQuality: {
+      status: item.priceQuality.status,
+      reason: item.priceQuality.reason,
+    },
+    buySignal: item.buySignal,
+    moverScore: item.moverScore,
+  };
+}
+
 export interface CollectionMoversData {
   scope: MoversScope;
   preferredSource: PriceSource;

@@ -25,7 +25,7 @@ import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { textMatchesSearchQuery } from "@/lib/card-search";
 import { buildSealedEbaySearchUrl } from "@/lib/ebay-search-url";
 import { formatCurrency } from "@/lib/format";
-import type { SealedMoverItem, SealedMoversData } from "@/lib/sealed-movers";
+import type { SealedMoverBrowserItem } from "@/lib/sealed-movers";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
@@ -46,7 +46,7 @@ type SealedSortKey =
   | "name";
 
 interface Props {
-  data: SealedMoversData;
+  movers: SealedMoverBrowserItem[];
 }
 
 interface FilterChipOption {
@@ -83,8 +83,8 @@ function compareMetricValues(
 }
 
 function compareSealedMovers(
-  a: SealedMoverItem,
-  b: SealedMoverItem,
+  a: SealedMoverBrowserItem,
+  b: SealedMoverBrowserItem,
   sortKey: SealedSortKey,
   direction: DirectionFilter
 ): number {
@@ -138,7 +138,7 @@ function compareSealedMovers(
   return a.name.localeCompare(b.name, "en", { sensitivity: "base", numeric: true });
 }
 
-function sealedReasonChip(item: SealedMoverItem): {
+function sealedReasonChip(item: SealedMoverBrowserItem): {
   label: string;
   className: string;
 } | null {
@@ -166,7 +166,7 @@ function sealedReasonChip(item: SealedMoverItem): {
   return null;
 }
 
-function buildSealedProductData(item: SealedMoverItem): SealedModalProductData {
+function buildSealedProductData(item: SealedMoverBrowserItem): SealedModalProductData {
   return {
     id: item.productId,
     name: item.name,
@@ -197,8 +197,8 @@ const SealedMoverTile = memo(function SealedMoverTile({
   item,
   onOpen,
 }: {
-  item: SealedMoverItem;
-  onOpen: (item: SealedMoverItem) => void;
+  item: SealedMoverBrowserItem;
+  onOpen: (item: SealedMoverBrowserItem) => void;
 }) {
   const reason = sealedReasonChip(item);
   const openDetails = () => onOpen(item);
@@ -320,7 +320,7 @@ const SealedMoverTile = memo(function SealedMoverTile({
   );
 });
 
-export default function SealedMoversBrowser({ data }: Props) {
+export default function SealedMoversBrowser({ movers }: Props) {
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<SealedSortKey>("move");
   const [direction, setDirection] = useState<DirectionFilter>("all");
@@ -333,7 +333,7 @@ export default function SealedMoversBrowser({ data }: Props) {
 
   const categoryOptions = useMemo<FilterChipOption[]>(() => {
     const counts = new Map<string, { label: string; count: number }>();
-    for (const item of data.movers) {
+    for (const item of movers) {
       const current = counts.get(item.category) ?? { label: item.categoryLabel, count: 0 };
       current.count += 1;
       counts.set(item.category, current);
@@ -342,10 +342,10 @@ export default function SealedMoversBrowser({ data }: Props) {
     return [...counts.entries()]
       .sort(([, a], [, b]) => b.count - a.count || a.label.localeCompare(b.label))
       .map(([key, value]) => ({ key, label: value.label, count: value.count }));
-  }, [data.movers]);
+  }, [movers]);
 
   const visibleMovers = useMemo(() => {
-    const filtered = data.movers.filter((item) => {
+    const filtered = movers.filter((item) => {
       if (direction === "risers" && item.movementScore <= 0) return false;
       if (direction === "fallers" && item.movementScore >= 0) return false;
       if (categoryFilter !== "all" && item.category !== categoryFilter) return false;
@@ -366,7 +366,7 @@ export default function SealedMoversBrowser({ data }: Props) {
     return [...filtered].sort((a, b) => compareSealedMovers(a, b, sortKey, direction));
   }, [
     categoryFilter,
-    data.movers,
+    movers,
     direction,
     focusFilter,
     normalizedSearch,
@@ -411,7 +411,7 @@ export default function SealedMoversBrowser({ data }: Props) {
     return () => observer.disconnect();
   }, [hasMoreMovers, renderKey, renderLimit, visibleMovers.length]);
 
-  const handleOpenSealedProduct = useCallback((item: SealedMoverItem) => {
+  const handleOpenSealedProduct = useCallback((item: SealedMoverBrowserItem) => {
     setSelectedProduct(buildSealedProductData(item));
   }, []);
   const hasActiveControls =
@@ -447,7 +447,7 @@ export default function SealedMoversBrowser({ data }: Props) {
           actions={
             <p className="shrink-0 text-sm text-gray-500 dark:text-white/46">
               {visibleMovers.length.toLocaleString("en-US")} /{" "}
-              {data.movers.length.toLocaleString("en-US")} visible
+              {movers.length.toLocaleString("en-US")} visible
             </p>
           }
         />
