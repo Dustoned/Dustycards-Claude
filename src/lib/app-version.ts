@@ -23,9 +23,10 @@ export const buildVersion =
   process.env.RAILWAY_GIT_COMMIT_SHA ??
   appVersion;
 
-function formatBuildLabel(value: string): string {
-  const date = new Date(value);
-  if (!Number.isNaN(date.getTime())) {
+export function formatBuildLabel(value: string): string {
+  const looksLikeTimestamp = /^\d{4}-\d{2}-\d{2}(?:[T\s]|$)/.test(value);
+  const date = looksLikeTimestamp ? new Date(value) : null;
+  if (date && !Number.isNaN(date.getTime())) {
     const year = date.getUTCFullYear();
     const month = String(date.getUTCMonth() + 1).padStart(2, "0");
     const day = String(date.getUTCDate()).padStart(2, "0");

@@ -17,6 +17,23 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.11.0",
+    releasedAt: "August 5, 2026",
+    title: "Faster opening and reliable one-tap navigation",
+    summary:
+      "DustyCards shows useful collection content sooner, keeps heavy page changes alive after the first tap and turns the full update history into readable feature chapters.",
+    tone: "improved",
+    highlights: [
+      "The launch shell paints immediately and yields to the real app frame without leaving phones on an unexplained black screen.",
+      "Home returns the essential collection overview first and progressively loads featured cards, value drivers and sudden drops afterwards.",
+      "Internal navigation now shows destination-aware progress, retries a stalled App Router transition automatically and uses a full-page fallback only when the route remains stuck.",
+      "Search, game switches and binder create/edit flows join the same route progress lifecycle.",
+      "Expansion overview sections defer off-screen layout work and large set pages reveal card batches near the viewport instead of mounting the complete set immediately.",
+      "The isolated reprint worker is installed as a persistent low-priority service so unfinished evidence safely resumes after a server reboot.",
+      "The in-app update history now groups repeated hotfixes into complete feature chapters with clear section headings, version ranges and reusable copy for a future What’s New popup.",
+    ],
+  },
+  {
     version: "3.10.0",
     releasedAt: "August 4, 2026",
     title: "Account-synced navigation and quiet background intelligence",
