@@ -296,7 +296,9 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
         (href) => pathname === href || pathname.startsWith(`${href}/`)
       ));
   const moreActive = moreOpen || moreRouteActive;
-  useBodyScrollLock(moreOpen);
+  // Keeping the body positioned normally prevents iOS Safari's dynamic
+  // viewport from lifting the fixed bottom bar when the More sheet opens.
+  useBodyScrollLock(moreOpen, "overflow");
   const accountInitial = summary?.email.slice(0, 1).toUpperCase() ?? "D";
   const accountName = summary ? getDisplayName(summary.email) : "Account";
 

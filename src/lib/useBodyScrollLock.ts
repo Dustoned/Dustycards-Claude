@@ -23,7 +23,10 @@ let restoreState:
     }
   | null = null;
 
-export default function useBodyScrollLock(active = true) {
+export default function useBodyScrollLock(
+  active = true,
+  strategy: "fixed" | "overflow" = "fixed"
+) {
   useEffect(() => {
     if (!active || typeof window === "undefined") {
       return;
@@ -59,13 +62,16 @@ export default function useBodyScrollLock(active = true) {
       documentElement.style.overscrollBehaviorX = "auto";
       documentElement.style.overscrollBehaviorY = "none";
       body.style.overflow = "hidden";
-      body.style.position = "fixed";
-      body.style.top = `-${scrollY}px`;
-      body.style.left = "0";
-      body.style.right = "0";
-      body.style.width = "100%";
       body.style.overscrollBehaviorX = "auto";
       body.style.overscrollBehaviorY = "none";
+
+      if (strategy === "fixed") {
+        body.style.position = "fixed";
+        body.style.top = `-${scrollY}px`;
+        body.style.left = "0";
+        body.style.right = "0";
+        body.style.width = "100%";
+      }
 
       if (scrollbarWidth > 0) {
         body.style.paddingRight = `${scrollbarWidth}px`;
@@ -106,5 +112,5 @@ export default function useBodyScrollLock(active = true) {
 
       window.scrollTo(0, nextState.scrollY);
     };
-  }, [active]);
+  }, [active, strategy]);
 }
