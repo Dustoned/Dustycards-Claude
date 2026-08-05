@@ -25,6 +25,7 @@ export const patchNotes: PatchNoteEntry[] = [
     tone: "improved",
     highlights: [
       "The launch shell paints immediately and yields to the real app frame without leaving phones on an unexplained black screen.",
+      "Opening a cached app after a release can no longer trigger three or four reloads: version checks wait until the first screen is settled, clear the stale page cache and attempt at most one reload per build.",
       "Home returns the essential collection overview first and progressively loads featured cards, value drivers and sudden drops afterwards.",
       "Collection Value keeps its fast recent chart on first load, then fetches a true one-year or all-time history only when 1Y or All is selected. Those ranges no longer stop at the old 120-day payload.",
       "Returning to Home now paints the last successful Collection Value Drivers and Sudden Drops immediately. Account collection changes and new price observations invalidate the one-day cache instead of every navigation rebuilding unchanged panels.",

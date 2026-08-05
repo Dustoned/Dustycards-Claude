@@ -3,6 +3,9 @@
 import { useEffect, useRef } from "react";
 
 const VERSION_POLL_MS = 60_000;
+const INITIAL_VERSION_CHECK_DELAY_MS = 30_000;
+const BUILD_RELOAD_STORAGE_KEY = "dustycards:build-reload-target";
+const PAGE_CACHE_PREFIX = "dustycards-pages-";
 
 async function fetchAppVersion(): Promise<string | null> {
   const response = await fetch("/api/app-version", {
@@ -23,29 +26,93 @@ export function appBuildChanged(loadedBuild: string, liveBuild: string | null): 
   return Boolean(loadedBuild && liveBuild && loadedBuild !== liveBuild);
 }
 
+export function shouldReloadForBuild(
+  loadedBuild: string,
+  liveBuild: string | null,
+  attemptedBuild: string | null
+): boolean {
+  return appBuildChanged(loadedBuild, liveBuild) && liveBuild !== attemptedBuild;
+}
+
+function readAttemptedBuild(): string | null {
+  try {
+    return window.sessionStorage.getItem(BUILD_RELOAD_STORAGE_KEY);
+  } catch {
+    return null;
+  }
+}
+
+function writeAttemptedBuild(build: string) {
+  try {
+    window.sessionStorage.setItem(BUILD_RELOAD_STORAGE_KEY, build);
+  } catch {
+    // The in-memory reload guard still prevents repeats in this document.
+  }
+}
+
+function clearCompletedBuildAttempt(build: string) {
+  try {
+    if (window.sessionStorage.getItem(BUILD_RELOAD_STORAGE_KEY) === build) {
+      window.sessionStorage.removeItem(BUILD_RELOAD_STORAGE_KEY);
+    }
+  } catch {
+    // Session storage is optional.
+  }
+}
+
+async function clearCachedAppPages() {
+  if (!("caches" in window)) return;
+
+  try {
+    const names = await window.caches.keys();
+    await Promise.all(
+      names
+        .filter((name) => name.startsWith(PAGE_CACHE_PREFIX))
+        .map((name) => window.caches.delete(name))
+    );
+  } catch {
+    // A reload still works when cache storage is unavailable.
+  }
+}
+
 export default function AppVersionWatcher({ initialBuild }: { initialBuild: string }) {
   const loadedBuildRef = useRef(initialBuild);
-  const pendingReloadRef = useRef(false);
+  const attemptedBuildRef = useRef<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     let checking = false;
+    let checksEnabled = false;
+
+    clearCompletedBuildAttempt(loadedBuildRef.current);
+
+    async function reloadOnceForBuild(liveBuild: string) {
+      const attemptedBuild = attemptedBuildRef.current ?? readAttemptedBuild();
+      if (!shouldReloadForBuild(loadedBuildRef.current, liveBuild, attemptedBuild)) return;
+
+      attemptedBuildRef.current = liveBuild;
+      writeAttemptedBuild(liveBuild);
+      await clearCachedAppPages();
+      if (!cancelled) window.location.reload();
+    }
 
     async function checkVersion() {
-      if (checking) return;
+      if (!checksEnabled || checking) return;
       checking = true;
 
       try {
         const version = await fetchAppVersion();
         if (cancelled || !version) return;
 
-        if (appBuildChanged(loadedBuildRef.current, version)) {
-          if (document.visibilityState === "hidden") {
-            pendingReloadRef.current = true;
-            return;
-          }
-
-          window.location.reload();
+        if (
+          document.visibilityState === "visible" &&
+          shouldReloadForBuild(
+            loadedBuildRef.current,
+            version,
+            attemptedBuildRef.current ?? readAttemptedBuild()
+          )
+        ) {
+          await reloadOnceForBuild(version);
         }
       } finally {
         checking = false;
@@ -54,16 +121,13 @@ export default function AppVersionWatcher({ initialBuild }: { initialBuild: stri
 
     function checkVisibleVersion() {
       if (document.visibilityState !== "visible") return;
-
-      if (pendingReloadRef.current) {
-        window.location.reload();
-        return;
-      }
-
       void checkVersion();
     }
 
-    void checkVersion();
+    const initialCheckId = window.setTimeout(() => {
+      checksEnabled = true;
+      void checkVersion();
+    }, INITIAL_VERSION_CHECK_DELAY_MS);
     const intervalId = window.setInterval(() => {
       void checkVersion();
     }, VERSION_POLL_MS);
@@ -73,6 +137,7 @@ export default function AppVersionWatcher({ initialBuild }: { initialBuild: stri
 
     return () => {
       cancelled = true;
+      window.clearTimeout(initialCheckId);
       window.clearInterval(intervalId);
       document.removeEventListener("visibilitychange", checkVisibleVersion);
       window.removeEventListener("focus", checkVisibleVersion);

@@ -31,6 +31,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         title: "Faster app launch",
         highlights: [
           "The phone launch screen now appears immediately and disappears as soon as the real app frame is ready, avoiding a long unexplained black screen.",
+          "A cached phone app now updates with at most one controlled reload per release instead of repeatedly reopening the same stale page during startup.",
           "Home loads the essential collection overview first; featured cards, value drivers and sudden drops arrive progressively afterwards.",
           "Collection Value now expands to a real one-year or all-time chart when 1Y or All is selected, without making every Home visit download the full history.",
           "Returning Home reuses the latest successful value drivers and sudden drops immediately; collection edits and completed price observations refresh that cache automatically.",
