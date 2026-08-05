@@ -5,8 +5,8 @@ describe("public app metadata", () => {
   it.each([
     "/favicon.ico",
     "/manifest.webmanifest",
-    "/icon",
-    "/apple-icon",
+    "/icons/dustycards-pokeball-192.png",
+    "/icons/dustycards-pokeball-apple-180.png",
     "/_next/static/chunks/app.js",
   ])("allows %s before authentication", (pathname) => {
     expect(isPublicFile(pathname)).toBe(true);

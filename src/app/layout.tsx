@@ -41,6 +41,28 @@ export const metadata: Metadata = {
   description: "Track, value and research your trading card collection.",
   applicationName: "DustyCards",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [
+      {
+        url: "/icons/dustycards-pokeball-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        url: "/icons/dustycards-pokeball-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+    ],
+    shortcut: "/favicon.ico",
+    apple: [
+      {
+        url: "/icons/dustycards-pokeball-apple-180.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "black-translucent",

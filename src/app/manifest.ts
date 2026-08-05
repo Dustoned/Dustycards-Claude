@@ -15,13 +15,19 @@ export default function manifest(): MetadataRoute.Manifest {
     categories: ["shopping", "finance", "utilities"],
     icons: [
       {
-        src: "/icon",
+        src: "/icons/dustycards-pokeball-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icons/dustycards-pokeball-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "any",
       },
       {
-        src: "/icon",
+        src: "/icons/dustycards-pokeball-maskable-512.png",
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",

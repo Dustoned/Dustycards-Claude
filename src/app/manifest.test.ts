@@ -20,10 +20,25 @@ describe("PWA manifest", () => {
 
     expect(icons).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ src: "/icon", type: "image/png", purpose: "any" }),
-        expect.objectContaining({ src: "/icon", type: "image/png", purpose: "maskable" }),
+        expect.objectContaining({
+          src: "/icons/dustycards-pokeball-192.png",
+          sizes: "192x192",
+          type: "image/png",
+          purpose: "any",
+        }),
+        expect.objectContaining({
+          src: "/icons/dustycards-pokeball-512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "any",
+        }),
+        expect.objectContaining({
+          src: "/icons/dustycards-pokeball-maskable-512.png",
+          sizes: "512x512",
+          type: "image/png",
+          purpose: "maskable",
+        }),
       ])
     );
-    expect(icons.every((icon) => icon.sizes === "512x512")).toBe(true);
   });
 });

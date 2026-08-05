@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { SESSION_COOKIE_NAME } from "@/lib/auth-constants";
 
 const PUBLIC_PATHS = ["/login", "/register", "/forgot-password", "/reset-password", "/share"];
-const PUBLIC_METADATA_PATHS = ["/icon", "/apple-icon"];
 const PUBLIC_API_PREFIXES = [
   "/api/app-version",
   "/api/health",
@@ -24,7 +23,6 @@ export function isPublicFile(pathname: string): boolean {
   return (
     pathname.startsWith("/_next/") ||
     pathname === "/favicon.ico" ||
-    PUBLIC_METADATA_PATHS.includes(pathname) ||
     /\.[^/]+$/.test(pathname)
   );
 }

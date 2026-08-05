@@ -34,6 +34,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Home loads the essential collection overview first; featured cards, value drivers and sudden drops arrive progressively afterwards.",
           "Featured Cards fills one complete measured row on wide and ultrawide screens while mobile remains limited to two complete rows.",
           "The mobile More sheet no longer shifts the fixed bottom navigation when background scrolling is locked.",
+          "The DustyCards Pokéball is now the consistent icon in browser tabs, iPhone homescreen shortcuts and installed Android browser apps.",
           "Collection overview results and exchange rates reuse safer caches, while low-priority images decode lazily instead of competing with the first screen.",
         ],
       },
