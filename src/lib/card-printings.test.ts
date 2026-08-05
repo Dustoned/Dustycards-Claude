@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildCardIdentityFingerprint,
+  getArtworkHashSimilarity,
   getConnectedPrintingIndexes,
   getPerceptualHashSimilarity,
   getPrintingMatchType,
@@ -61,14 +62,14 @@ describe("card printings", () => {
     ).toBe("swsh12.5gg-GG01");
   });
 
-  it("accepts identical rules when a treatment uses visibly different artwork", () => {
+  it("rejects identical rules when the artwork is visibly different", () => {
     expect(
       getPrintingMatchType(
         CHARIZARD_RULES,
         CHARIZARD_RULES,
         0.59
       )
-    ).toBe("reprint");
+    ).toBeNull();
   });
 
   it("matches a visually equivalent reprint when the complete card rules are equal", () => {
@@ -80,32 +81,32 @@ describe("card printings", () => {
           ...ability,
           effect: `  ${ability.effect}  `,
         })),
-      }, 0.74)
+      }, 0.9)
     ).toBe("reprint");
   });
 
-  it("accepts a rules-verified rainbow treatment below the normal artwork threshold", () => {
-    expect(getPrintingMatchType(CHARIZARD_RULES, CHARIZARD_RULES, 0.645)).toBe("reprint");
+  it("does not let matching text override a weak visual match", () => {
+    expect(getPrintingMatchType(CHARIZARD_RULES, CHARIZARD_RULES, 0.645)).toBeNull();
   });
 
-  it("accepts an exact gold, promo or jumbo variant even when art and illustrator differ", () => {
+  it("requires a manual decision for gold, promo or jumbo variants with different art", () => {
     expect(
       getPrintingMatchType(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: "Promo Studio" },
         0.28
       )
-    ).toBe("reprint");
+    ).toBeNull();
   });
 
-  it("accepts an exact promo variant when the provider omits its illustrator", () => {
+  it("does not auto-link a visually different promo when illustrator data is absent", () => {
     expect(
       getPrintingMatchType(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: undefined },
         0.24
       )
-    ).toBe("reprint");
+    ).toBeNull();
   });
 
   it("accepts an updated reprint lineage when move names and art still match", () => {
@@ -124,7 +125,7 @@ describe("card printings", () => {
             damage: "200+",
           })),
         },
-        0.61
+        0.88
       )
     ).toBe("reprint");
   });
@@ -138,7 +139,7 @@ describe("card printings", () => {
           weaknesses: undefined,
           resistances: undefined,
         },
-        0.637
+        0.87
       )
     ).toBe("reprint");
   });
@@ -189,6 +190,26 @@ describe("card printings", () => {
     expect(getPerceptualHashSimilarity("1", "11")).toBe(0);
   });
 
+  it("keeps card colour and tint in the visual score", () => {
+    const signature = (red: number, green: number, blue: number, pixels: number) =>
+      `rgb1:${Buffer.from(Array.from({ length: pixels }, () => [red, green, blue]).flat()).toString("base64")}`;
+    const warm = {
+      full: signature(230, 190, 30, 140),
+      illustration: signature(220, 170, 20, 60),
+    };
+    const sameWarm = {
+      full: signature(228, 188, 32, 140),
+      illustration: signature(218, 168, 22, 60),
+    };
+    const cool = {
+      full: signature(45, 100, 220, 140),
+      illustration: signature(35, 80, 210, 60),
+    };
+
+    expect(getArtworkHashSimilarity(warm, sameWarm)).toBeGreaterThan(0.98);
+    expect(getArtworkHashSimilarity(warm, cool)).toBeLessThan(0.7);
+  });
+
   it("rejects different rules and imagery credited to a different illustrator", () => {
     expect(
       getPrintingMatchType(
@@ -212,7 +233,7 @@ describe("card printings", () => {
     ).toBeNull();
   });
 
-  it("connects treatment and alternate-art variants through a verified base printing", () => {
+  it("does not propagate a reprint match through an intermediate card", () => {
     const regular = CHARIZARD_RULES;
     const rainbow = { ...CHARIZARD_RULES };
     const gallery = {
@@ -225,10 +246,10 @@ describe("card printings", () => {
       illustrator: "Different Artist",
     };
     const similarities = [
-      [1, 0.645, 0.422, 0.9],
-      [0.645, 1, 0.637, 0.9],
-      [0.422, 0.637, 1, 0.9],
-      [0.9, 0.9, 0.9, 1],
+      [1, 0.9, 0.422, 0.7],
+      [0.9, 1, 0.9, 0.9],
+      [0.422, 0.9, 1, 0.9],
+      [0.7, 0.9, 0.9, 1],
     ];
 
     expect(
@@ -236,7 +257,7 @@ describe("card printings", () => {
         [rainbow, regular, gallery, alternateArtwork],
         (leftIndex, rightIndex) => similarities[leftIndex][rightIndex]
       )
-    ).toEqual([1, 2, 3]);
+    ).toEqual([1]);
   });
 
   it("refuses weak identities without actual card rules", () => {

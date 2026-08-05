@@ -39,7 +39,7 @@ import {
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { FAST_SUDDEN_DROP_MIN_AMOUNT } from "@/lib/home-sudden-drops-server";
-import PriceHistoryPanel from "@/components/PriceHistoryPanel";
+import CollectionValueHistoryPanel from "@/components/CollectionValueHistoryPanel";
 import EmptyState from "@/components/EmptyState";
 import HomePageLoading from "@/components/HomePageLoading";
 import { getSocialTradeOpportunities } from "@/lib/social";
@@ -544,6 +544,13 @@ async function HomePageContent({
       : "/api/collection/home-insights";
   }
 
+  function buildCollectionValueHistoryApiHref() {
+    const gameValue = getGameFilterSearchParamValue(activeGame);
+    return gameValue
+      ? `/api/collection/value-history?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameValue)}`
+      : "/api/collection/value-history";
+  }
+
   const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
     href: buildGameHref(game),
     active: activeGame === game,
@@ -666,19 +673,14 @@ async function HomePageContent({
             <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 lg:p-4">
               <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
                 {showCollectionChart ? (
-                  <PriceHistoryPanel
-                    layout="dashboard"
-                    title="Collection Value"
-                    currency="EUR"
-                    points={data.overview.chart}
+                  <CollectionValueHistoryPanel
+                    initialPoints={data.overview.chart}
                     currentValue={data.overview.currentValue}
                     deltaValue={latestCollectionChartValue}
-                    tone="dark"
                     subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
                       data.overview.pnl
                     )}`}
-                    emptyText="Add cards or sealed to start tracking your value"
-                    rangeStorageKey="collection-dashboard"
+                    endpoint={buildCollectionValueHistoryApiHref()}
                   />
                 ) : (
                   <CollectionValueSummaryCard
@@ -749,9 +751,6 @@ async function HomePageContent({
           emptyTitle="No loose singles in your collection"
           emptyText="Cards saved without a binder appear here."
           showFilters
-          forcedSortBy="cm_en"
-          forcedSortDir="desc"
-          hideSortControls
         />
         ) : null
       }
@@ -765,9 +764,6 @@ async function HomePageContent({
           emptyTitle="No graded cards in your collection"
           emptyText="Cards with a grading company and grade will appear here."
           showFilters
-          forcedSortBy="cm_en"
-          forcedSortDir="desc"
-          hideSortControls
         />
         ) : null
       }
@@ -865,9 +861,6 @@ async function HomePageContent({
                 emptyTitle="No cards marked for sale"
                 emptyText="Cards you save to For Sale will appear here."
                 showFilters
-                forcedSortBy="cm_en"
-                forcedSortDir="desc"
-                hideSortControls
                 collectionRemovalLabel="For Sale"
                 collectionRemovalWarning="This removes the saved For Sale entry entirely."
               />
@@ -880,7 +873,6 @@ async function HomePageContent({
                 allowSaleRecordEditing
                 showGradedSlabPreview
                 showFilters
-                hideSortControls
                 emptyTitle="No completed sales"
                 emptyText="Cards only move here after you explicitly mark them sold."
               />

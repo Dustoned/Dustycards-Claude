@@ -175,6 +175,7 @@ export type CollectionPageTab =
   | "selling";
 
 export type BinderHistoryRange = "recent" | "all";
+export type CollectionHistoryRange = "recent" | "year" | "all";
 
 export interface BinderPageData {
   binder: {
@@ -2063,6 +2064,8 @@ export async function getCollectionOverviewData(
      * detailed rows after hydration. Aggregate collection metrics still load.
      */
     deferDetailedRows?: boolean;
+    /** Load longer portfolio history only after the user explicitly asks for it. */
+    historyRange?: CollectionHistoryRange;
   }
 ): Promise<CollectionOverviewData> {
   const activeTab = options?.activeTab ?? "overview";
@@ -2134,7 +2137,12 @@ export async function getCollectionOverviewData(
 
   const cardQuantities = buildCardQuantityMap(metricCards);
   const sealedQuantities = buildProductQuantityMap(metricSealed);
-  const historyCutoff = loadCollectionHistory ? getHistoryCutoffDate() : null;
+  const historyRange = options.historyRange ?? "recent";
+  const historyCutoff = loadCollectionHistory
+    ? historyRange === "all"
+      ? null
+      : getHistoryCutoffDate(historyRange === "year" ? 365 : COLLECTION_OVERVIEW_CHART_DAYS)
+    : null;
   const overviewGradedCardIds = [
     ...new Set(
       metricCards

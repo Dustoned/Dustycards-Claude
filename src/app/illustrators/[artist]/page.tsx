@@ -41,6 +41,7 @@ type IllustratorCardRow = {
   episode_id: string;
   episode_name: string;
   episode_code: string | null;
+  episode_release_date: string | null;
   price_fetched_at: Date | string | null;
   cm_en_lowest_nm: number | null;
   cm_de_lowest_nm: number | null;
@@ -140,6 +141,7 @@ ${visibleEpisodeWhereSql}
         ac.episode_id,
         ac.episode_name,
         ac.episode_code,
+        ac.release_date AS episode_release_date,
         lp.fetched_at AS price_fetched_at,
         lp.cm_en_lowest_nm,
         lp.cm_de_lowest_nm,
@@ -293,6 +295,7 @@ export default async function IllustratorPage({
       episode_id: card.episode_id,
       episode_name: card.episode_name,
       episode_code: card.episode_code,
+      episode_release_date: card.episode_release_date,
       price_source_status: card.price_source_status,
       price_source_checked_at: toIsoString(card.price_source_checked_at),
       price_fetched_at: toIsoString(card.price_fetched_at),

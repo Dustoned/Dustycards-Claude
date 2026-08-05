@@ -612,9 +612,6 @@ export default async function SocialPage({
                   emptyTitle="No loose singles in this collection"
                   emptyText="Cards saved without a binder appear here."
                   showFilters
-                  forcedSortBy="cm_en"
-                  forcedSortDir="desc"
-                  hideSortControls
                   readOnlyCollectionItems={fullAccess}
                 />
               ) : null}
@@ -626,9 +623,6 @@ export default async function SocialPage({
                   emptyTitle="No graded cards in this collection"
                   emptyText="Cards with a grading company and grade appear here."
                   showFilters
-                  forcedSortBy="cm_en"
-                  forcedSortDir="desc"
-                  hideSortControls
                   readOnlyCollectionItems={fullAccess}
                 />
               ) : null}

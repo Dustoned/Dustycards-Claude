@@ -15,6 +15,8 @@ export type SortKey =
   | "peak_gap"
   | "price_low"
   | "price_high"
+  | "release_newest"
+  | "release_oldest"
   | "name";
 
 export type DirectionFilter = "all" | "risers" | "fallers";
@@ -96,6 +98,10 @@ export function buildSortSummary(sortKey: SortKey, direction: DirectionFilter): 
       return "Price low -> high";
     case "price_high":
       return "Price high -> low";
+    case "release_newest":
+      return "Newest card releases first";
+    case "release_oldest":
+      return "Oldest card releases first";
     case "name":
       return "Name A -> Z";
     case "move":
@@ -150,6 +156,16 @@ export function compareMoverItems(
 
   if (sortKey === "name") {
     return a.name.localeCompare(b.name, undefined, { sensitivity: "base", numeric: true });
+  }
+
+  if (sortKey === "release_newest" || sortKey === "release_oldest") {
+    const leftDate = a.episodeReleaseDate ?? "";
+    const rightDate = b.episodeReleaseDate ?? "";
+    if (!leftDate && !rightDate) return a.name.localeCompare(b.name);
+    if (!leftDate) return 1;
+    if (!rightDate) return -1;
+    const difference = leftDate.localeCompare(rightDate);
+    if (difference !== 0) return sortKey === "release_oldest" ? difference : -difference;
   }
 
   if (sortKey === "price_low") {

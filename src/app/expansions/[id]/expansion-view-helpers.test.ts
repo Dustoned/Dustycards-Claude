@@ -85,6 +85,15 @@ describe("getSortPrice", () => {
   });
 });
 
+describe("release sorting labels", () => {
+  it("uses human date direction labels", () => {
+    expect(getSortLabel("release")).toBe("Release date");
+    expect(getDefaultSortDir("release")).toBe("desc");
+    expect(formatSortSummary("release", "asc")).toBe("Oldest release");
+    expect(formatSortSummary("release", "desc")).toBe("Newest release");
+  });
+});
+
 describe("getPriceBySource", () => {
   const card = makeCard({
     price: { cm_en_lowest_nm: 5, tcp_market: 7 } as CardData["price"],

@@ -80,7 +80,7 @@ import {
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
 type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
 type SealedHistoryFilter = "all" | "established" | "building";
-type SortKey = "opportunity" | "price_asc" | "price_desc" | "confluence" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
+type SortKey = "opportunity" | "price_asc" | "price_desc" | "release_newest" | "release_oldest" | "confluence" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
 
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
@@ -110,6 +110,8 @@ const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
   { value: "opportunity", label: "Best match" },
   { value: "price_asc", label: "Price: low to high" },
   { value: "price_desc", label: "Price: high to low" },
+  { value: "release_newest", label: "Newest release" },
+  { value: "release_oldest", label: "Oldest release" },
   { value: "confluence", label: "Setup" },
   { value: "signal", label: "Signal" },
   { value: "sealed", label: "Sealed pressure" },
@@ -128,6 +130,10 @@ const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
 
 const INITIAL_VISIBLE_SIGNALS = 12;
 const VISIBLE_SIGNAL_STEP = 12;
+
+function getReleaseYear(value: string | null | undefined): string | null {
+  return value?.match(/^(\d{4})/)?.[1] ?? null;
+}
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -1326,6 +1332,7 @@ export default function ExternalSignalBrowser({
   const [origin, setOrigin] = useState<OriginFilter>("all");
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
   const [sortKey, setSortKey] = useState<SortKey>("opportunity");
+  const [releaseYear, setReleaseYear] = useState("all");
   const [visibleLimit, setVisibleLimit] = useState(INITIAL_VISIBLE_SIGNALS);
   const deferredSearch = useDeferredValue(search);
   const retryProgressiveLoad = useCallback(() => {
@@ -1472,6 +1479,18 @@ export default function ExternalSignalBrowser({
     () => new Set(newReleaseChases?.cards.map((card) => card.cardId) ?? []),
     [newReleaseChases]
   );
+  const releaseYears = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          signals
+            .map((signal) => getReleaseYear(signal.episodeReleaseDate))
+            .filter((year): year is string => Boolean(year))
+        )
+      ).sort((left, right) => right.localeCompare(left)),
+    [signals]
+  );
+  const activeReleaseYear = releaseYears.includes(releaseYear) ? releaseYear : "all";
 
   const visibleSignals = useMemo(() => {
     const query = deferredSearch.trim();
@@ -1486,6 +1505,10 @@ export default function ExternalSignalBrowser({
             : signal.sourceMode !== origin)
         ) return false;
         if (marketMode === "graded" && !signal.marketIntelligence?.graded.available) return false;
+        if (
+          activeReleaseYear !== "all" &&
+          getReleaseYear(signal.episodeReleaseDate) !== activeReleaseYear
+        ) return false;
         const selectedScenario =
           marketMode === "graded"
             ? signal.marketIntelligence?.gradedScenario
@@ -1528,6 +1551,15 @@ export default function ExternalSignalBrowser({
           if (rightPrice == null) return -1;
           return sortKey === "price_asc" ? leftPrice - rightPrice : rightPrice - leftPrice;
         }
+        if (sortKey === "release_newest" || sortKey === "release_oldest") {
+          const leftDate = left.episodeReleaseDate ?? "";
+          const rightDate = right.episodeReleaseDate ?? "";
+          if (!leftDate && !rightDate) return left.rank - right.rank;
+          if (!leftDate) return 1;
+          if (!rightDate) return -1;
+          const difference = leftDate.localeCompare(rightDate);
+          return sortKey === "release_oldest" ? difference : -difference;
+        }
         if (sortKey === "opportunity") {
           const leftScore =
             marketMode === "graded"
@@ -1567,6 +1599,7 @@ export default function ExternalSignalBrowser({
       });
   }, [
     confidence,
+    activeReleaseYear,
     deferredSearch,
     marketMode,
     newReleaseCardIds,
@@ -1578,7 +1611,7 @@ export default function ExternalSignalBrowser({
   const chaseSectionOwnsEverySignal =
     signals.length > 0 && signals.every((signal) => newReleaseCardIds.has(signal.cardId));
   const filtersAreDefault =
-    !deferredSearch.trim() && confidence === "all" && origin === "all" && marketMode === "raw";
+    !deferredSearch.trim() && confidence === "all" && origin === "all" && marketMode === "raw" && activeReleaseYear === "all";
 
   return (
     <div className="space-y-4 sm:space-y-5">
@@ -1641,7 +1674,7 @@ export default function ExternalSignalBrowser({
       />
 
       <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3">
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto] lg:items-center">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto_auto] lg:items-center">
           <label className="relative col-span-2 block min-w-0 lg:col-span-1">
             <span className="sr-only">Search signal cards</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
@@ -1729,6 +1762,25 @@ export default function ExternalSignalBrowser({
               ))}
             </select>
           </label>
+
+          {releaseYears.length > 1 ? (
+            <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
+              <span className="sr-only">Filter signals by release year</span>
+              <select
+                value={activeReleaseYear}
+                onChange={(event) => {
+                  setReleaseYear(event.target.value);
+                  setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+                }}
+                className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"
+              >
+                <option value="all">All years</option>
+                {releaseYears.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
 
           <label className="col-span-2 flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3 lg:col-span-1">
             <BarChart3 className="h-4 w-4 text-white/32" />

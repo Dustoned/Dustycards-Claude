@@ -115,7 +115,7 @@ const INITIAL_SINGLE_RESULTS = 36;
 const INITIAL_SEALED_RESULTS = 18;
 
 type SearchSection = "all" | "singles" | "sealed" | "expansions";
-type SearchSortMode = "relevance" | "price_desc" | "price_asc" | "newest";
+type SearchSortMode = "relevance" | "price_desc" | "price_asc" | "newest" | "oldest";
 
 function ShowMoreResults({
   visible,
@@ -186,6 +186,10 @@ function compareNewestRelease(a: string | null | undefined, b: string | null | u
   return (b ?? "").localeCompare(a ?? "");
 }
 
+function getReleaseYear(value: string | null | undefined): string | null {
+  return value?.match(/^(\d{4})/)?.[1] ?? null;
+}
+
 function formatEur(value: number | null | undefined): string {
   return value == null ? "-" : formatCurrency(value, "EUR");
 }
@@ -225,6 +229,7 @@ function SearchPageContent({
   const [recentSearches, setRecentSearches] = useState<string[]>([]);
   const [activeSection, setActiveSection] = useState<SearchSection>("all");
   const [sortMode, setSortMode] = useState<SearchSortMode>("relevance");
+  const [releaseYear, setReleaseYear] = useState("all");
   const [visibleExpansions, setVisibleExpansions] = useState(INITIAL_EXPANSION_RESULTS);
   const [visibleSingles, setVisibleSingles] = useState(INITIAL_SINGLE_RESULTS);
   const [visibleSealed, setVisibleSealed] = useState(INITIAL_SEALED_RESULTS);
@@ -432,13 +437,32 @@ function SearchPageContent({
 
   const allExpansions: ExpansionResult[] = results?.expansions ?? [];
 
+  const releaseYears = useMemo(
+    () =>
+      Array.from(
+        new Set([
+          ...(results?.singles.map((card) => getReleaseYear(card.episode_release_date)) ?? []),
+          ...(results?.sealed.map((product) => getReleaseYear(product.episode.release_date)) ?? []),
+        ].filter((year): year is string => Boolean(year)))
+      ).sort((left, right) => right.localeCompare(left)),
+    [results]
+  );
+  const activeReleaseYear = releaseYears.includes(releaseYear) ? releaseYear : "all";
+
   const sortedSingles = useMemo(() => {
-    const singles = results?.singles ?? [];
+    const singles = (results?.singles ?? []).filter(
+      (card) =>
+        activeReleaseYear === "all" ||
+        getReleaseYear(card.episode_release_date) === activeReleaseYear
+    );
     if (sortMode === "relevance") return singles;
 
     const copy = [...singles];
-    if (sortMode === "newest") {
-      copy.sort((a, b) => compareNewestRelease(a.episode_release_date, b.episode_release_date));
+    if (sortMode === "newest" || sortMode === "oldest") {
+      copy.sort((a, b) => {
+        const newest = compareNewestRelease(a.episode_release_date, b.episode_release_date);
+        return sortMode === "newest" ? newest : -newest;
+      });
     } else {
       const direction = sortMode === "price_asc" ? 1 : -1;
       copy.sort((a, b) =>
@@ -450,17 +474,22 @@ function SearchPageContent({
       );
     }
     return copy;
-  }, [results, sortMode]);
+  }, [activeReleaseYear, results, sortMode]);
 
   const sortedSealed = useMemo(() => {
-    const sealed = results?.sealed ?? [];
+    const sealed = (results?.sealed ?? []).filter(
+      (product) =>
+        activeReleaseYear === "all" ||
+        getReleaseYear(product.episode.release_date) === activeReleaseYear
+    );
     if (sortMode === "relevance") return sealed;
 
     const copy = [...sealed];
-    if (sortMode === "newest") {
-      copy.sort((a, b) =>
-        compareNewestRelease(a.episode.release_date, b.episode.release_date)
-      );
+    if (sortMode === "newest" || sortMode === "oldest") {
+      copy.sort((a, b) => {
+        const newest = compareNewestRelease(a.episode.release_date, b.episode.release_date);
+        return sortMode === "newest" ? newest : -newest;
+      });
     } else {
       const direction = sortMode === "price_asc" ? 1 : -1;
       copy.sort((a, b) =>
@@ -472,7 +501,7 @@ function SearchPageContent({
       );
     }
     return copy;
-  }, [results, sortMode]);
+  }, [activeReleaseYear, results, sortMode]);
 
   const hasResults = Boolean(results && trimmedQuery.length >= MIN_SEARCH_LENGTH);
   const sectionChips = hasResults
@@ -602,7 +631,21 @@ function SearchPageContent({
               <option value="price_desc">Price: high to low</option>
               <option value="price_asc">Price: low to high</option>
               <option value="newest">Newest set</option>
+              <option value="oldest">Oldest set</option>
             </select>
+            {releaseYears.length > 1 ? (
+              <select
+                value={activeReleaseYear}
+                onChange={(event) => setReleaseYear(event.target.value)}
+                aria-label="Filter results by release year"
+                className="min-h-11 rounded-full border border-white/10 bg-white/[0.04] px-3 text-xs font-semibold text-white/60 outline-none transition-colors hover:border-white/20 hover:text-white [&>option]:bg-zinc-900"
+              >
+                <option value="all">All years</option>
+                {releaseYears.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            ) : null}
           </div>
         ) : null}
       </div>

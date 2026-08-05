@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { groupMoverVariantsByCard } from "./MoversBrowser.utils";
+import type { CollectionMoverBrowserItem } from "@/lib/movers";
+import { buildSortSummary, compareMoverItems, groupMoverVariantsByCard } from "./MoversBrowser.utils";
 
 describe("groupMoverVariantsByCard", () => {
   it("renders one physical card group with all distinct grade targets", () => {
@@ -50,5 +51,23 @@ describe("groupMoverVariantsByCard", () => {
       "graded",
       "cardmarket",
     ]);
+  });
+});
+
+describe("release date sorting", () => {
+  const item = (name: string, episodeReleaseDate: string | null) =>
+    ({ name, episodeReleaseDate } as CollectionMoverBrowserItem);
+
+  it("sorts card releases in either date direction", () => {
+    const older = item("Older", "2021-01-01");
+    const newer = item("Newer", "2025-01-01");
+
+    expect(compareMoverItems(older, newer, "release_newest", "all")).toBeGreaterThan(0);
+    expect(compareMoverItems(older, newer, "release_oldest", "all")).toBeLessThan(0);
+  });
+
+  it("describes both release date directions", () => {
+    expect(buildSortSummary("release_newest", "all")).toBe("Newest card releases first");
+    expect(buildSortSummary("release_oldest", "all")).toBe("Oldest card releases first");
   });
 });

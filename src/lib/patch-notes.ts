@@ -26,6 +26,7 @@ export const patchNotes: PatchNoteEntry[] = [
     highlights: [
       "The launch shell paints immediately and yields to the real app frame without leaving phones on an unexplained black screen.",
       "Home returns the essential collection overview first and progressively loads featured cards, value drivers and sudden drops afterwards.",
+      "Collection Value keeps its fast recent chart on first load, then fetches a true one-year or all-time history only when 1Y or All is selected. Those ranges no longer stop at the old 120-day payload.",
       "Returning to Home now paints the last successful Collection Value Drivers and Sudden Drops immediately. Account collection changes and new price observations invalidate the one-day cache instead of every navigation rebuilding unchanged panels.",
       "Adding a card or saving it for sale now shows one clear app-level confirmation with the card name after the compact add menu closes.",
       "Featured Cards now keeps a larger ranked pool for ultrawide layouts, filling one complete measured desktop row without increasing the two-row mobile limit or stretching card artwork.",
@@ -49,6 +50,9 @@ export const patchNotes: PatchNoteEntry[] = [
       "The isolated reprint worker is installed as a persistent low-priority service so unfinished evidence safely resumes after a server reboot.",
       "Deploys can no longer consume both production CPUs: Next builds use one worker inside a strict low-priority CPU, memory and I/O budget, while the live app keeps resource priority.",
       "Automatic releases now build into an immutable version directory. The live app keeps serving its complete previous build until restart, so Search and other routes can no longer read half-written Next.js manifests during a deploy.",
+      "Reprint detection now treats colour and artwork as hard evidence instead of letting matching card text decide on its own. Similarity can no longer spread through an intermediate card, old matcher results stay out of Card Detail and admin review, and the review queue shows only direct visual candidates.",
+      "Card browsers with filters now include release-year choices plus newest and oldest release sorting. The same controls are available across collection, binders, Wants goals, For Sale, categories, illustrators, characters, shared collections, Search, Trade Search, Movers and Signal Radar.",
+      "Admins can run a live English Near Mint CardMarket check from Card Detail. A compact review popup compares the saved and freshly scraped price, shows the matching offer count and only writes the price after an explicit Save live price decision; No price change records the check without altering history.",
       "Post-deploy Signal Radar startup now hydrates its durable snapshot instead of recalculating the full model, and image transforms run one at a time so a cold gallery cannot pin the server.",
       "Nightly database compaction moved out of the web process into its own throttled service. Cache warming, market-score refreshes, Upcoming matching and external Radar maintenance now defer while collectors are active or server load is high.",
       "New registrations now wait for admin approval. Pending accounts receive a clear login popup; only a correct login attempt creates one durable admin-only Action Center notification linking directly to the approval queue. Active admin sessions refresh the bell within 30 seconds, on app focus and when opening it, while locking an account immediately ends its sessions.",

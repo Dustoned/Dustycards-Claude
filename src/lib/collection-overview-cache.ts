@@ -4,6 +4,7 @@ import { db } from "@/lib/db";
 import {
   getCollectionOverviewData,
   type CollectionOverviewData,
+  type CollectionHistoryRange,
   type CollectionPageTab,
 } from "@/lib/collection-data";
 import { POKEMON_GAME, type TradingCardGameFilter } from "@/lib/games";
@@ -75,10 +76,12 @@ export async function getCachedCollectionOverviewData(options: {
   activeTab?: CollectionPageTab;
   game?: TradingCardGameFilter;
   deferDetailedRows?: boolean;
+  historyRange?: CollectionHistoryRange;
 }): Promise<CollectionOverviewData> {
   const activeTab = options.activeTab ?? "overview";
   const game = options.game ?? POKEMON_GAME;
-  const key = `${options.userId}:${activeTab}:${game}:${options.deferDetailedRows ? 1 : 0}`;
+  const historyRange = options.historyRange ?? "recent";
+  const key = `${options.userId}:${activeTab}:${game}:${options.deferDetailedRows ? 1 : 0}:${historyRange}`;
   const fingerprint = await computeOverviewFingerprint(options.userId);
   const now = Date.now();
   const cached = overviewCache.get(key);

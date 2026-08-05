@@ -320,28 +320,6 @@ async function prepareEvidence(
   };
 }
 
-class DisjointSet {
-  private readonly parents: number[];
-
-  constructor(size: number) {
-    this.parents = Array.from({ length: size }, (_, index) => index);
-  }
-
-  find(index: number): number {
-    const parent = this.parents[index];
-    if (parent === index) return index;
-    const root = this.find(parent);
-    this.parents[index] = root;
-    return root;
-  }
-
-  union(left: number, right: number): void {
-    const leftRoot = this.find(left);
-    const rightRoot = this.find(right);
-    if (leftRoot !== rightRoot) this.parents[rightRoot] = leftRoot;
-  }
-}
-
 async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
   if (cards.length < 2) return { cards: cards.length, relations: 0 };
 
@@ -357,12 +335,10 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
     ));
     await yieldToWebTraffic();
   }
-  const groups = new DisjointSet(cards.length);
   const directMatches = new Map<string, {
     method: CardPrintingMatchMethod;
     imageSimilarity: number;
   }>();
-  const cardIndexById = new Map(cards.map((card, index) => [card.id, index]));
   const overrides = await db.cardPrintingOverride.findMany({
     where: {
       OR: [
@@ -389,7 +365,6 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
       const override = overrideByPair.get([cards[left].id, cards[right].id].sort().join("\u0000"));
       if (override === "exclude") continue;
       if (override === "include") {
-        groups.union(left, right);
         directMatches.set(`${left}:${right}`, { method: "manual-include", imageSimilarity: 1 });
         continue;
       }
@@ -411,28 +386,11 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
         match.method === "likely-art" &&
         cards[left].episode.id === cards[right].episode.id
       ) continue;
-      groups.union(left, right);
       directMatches.set(`${left}:${right}`, {
         method: match.method,
         imageSimilarity,
       });
     }
-  }
-
-  for (const override of overrides) {
-    if (override.decision !== "include") continue;
-    const left = cardIndexById.get(override.source_card_id);
-    const right = cardIndexById.get(override.target_card_id);
-    if (left == null || right == null || left === right) continue;
-    groups.union(left, right);
-  }
-
-  const components = new Map<number, number[]>();
-  for (let index = 0; index < cards.length; index += 1) {
-    const root = groups.find(index);
-    const component = components.get(root) ?? [];
-    component.push(index);
-    components.set(root, component);
   }
 
   const relations: Array<{
@@ -444,35 +402,18 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
     model_version: string;
     matched_at: Date;
   }> = [];
-  let relationCandidates = 0;
-  for (const component of components.values()) {
-    if (component.length < 2) continue;
-    for (const source of component) {
-      for (const target of component) {
-        relationCandidates += 1;
-        if (relationCandidates % EVENT_LOOP_YIELD_INTERVAL === 0) {
-          await yieldToWebTraffic();
-        }
-        if (source === target) continue;
-        const [left, right] = source < target ? [source, target] : [target, source];
-        if (
-          overrideByPair.get([cards[source].id, cards[target].id].sort().join("\u0000")) ===
-          "exclude"
-        ) continue;
-        const direct = directMatches.get(`${left}:${right}`);
-        relations.push({
-          source_card_id: cards[source].id,
-          target_card_id: cards[target].id,
-          match_type: "reprint",
-          match_method: direct?.method ?? "connected-reprint",
-          image_similarity: direct?.imageSimilarity ?? getArtworkHashSimilarity(
-            evidence[source].artworkHash,
-            evidence[target].artworkHash
-          ),
-          model_version: CARD_REPRINT_MODEL_VERSION,
-          matched_at: now,
-        });
-      }
+  for (const [key, direct] of directMatches) {
+    const [left, right] = key.split(":").map(Number);
+    for (const [source, target] of [[left, right], [right, left]]) {
+      relations.push({
+        source_card_id: cards[source].id,
+        target_card_id: cards[target].id,
+        match_type: "reprint",
+        match_method: direct.method,
+        image_similarity: direct.imageSimilarity,
+        model_version: CARD_REPRINT_MODEL_VERSION,
+        matched_at: now,
+      });
     }
   }
 

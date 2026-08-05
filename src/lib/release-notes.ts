@@ -32,6 +32,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "The phone launch screen now appears immediately and disappears as soon as the real app frame is ready, avoiding a long unexplained black screen.",
           "Home loads the essential collection overview first; featured cards, value drivers and sudden drops arrive progressively afterwards.",
+          "Collection Value now expands to a real one-year or all-time chart when 1Y or All is selected, without making every Home visit download the full history.",
           "Returning Home reuses the latest successful value drivers and sudden drops immediately; collection edits and completed price observations refresh that cache automatically.",
           "Saving a card now leaves a clear confirmation with its name after the add menu closes.",
           "Featured Cards fills one complete measured row on wide and ultrawide screens while mobile remains limited to two complete rows.",
@@ -62,6 +63,8 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Friend Trade suggestions are selectable on both sides and are never presented as though two cards were already chosen; the value balance appears only after an explicit pair is selected.",
           "For Sale and Sold ledger are separate views. A sold record can be corrected card by card or returned to For Sale without mixing completed and active inventory.",
           "When a large batch shares one divided sale price, the ledger explains what happened instead of presenting the repeated amount without context.",
+          "Admins can check the current English Near Mint CardMarket offers directly from Card Detail, compare the live quote with the saved value and explicitly save a changed price or record that nothing changed.",
+          "Every existing card filter now offers release-year selection and newest/oldest release ordering, including Search, Trade Search, Movers and Signal Radar.",
         ],
       },
       {

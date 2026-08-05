@@ -2,6 +2,7 @@
 
 import {
   useCallback,
+  useEffect,
   useId,
   useLayoutEffect,
   useMemo,
@@ -55,6 +56,7 @@ interface Props {
   hideRangeControls?: boolean;
   projection?: PriceHistoryProjection | null;
   stabilizeMobileHeader?: boolean;
+  onRangeChange?: (range: PriceHistoryRangeKey) => void;
 }
 
 interface ParsedHistoryPoint extends PriceHistoryValuePoint {
@@ -568,6 +570,7 @@ export default function PriceHistoryPanel({
   hideRangeControls = false,
   projection = null,
   stabilizeMobileHeader = false,
+  onRangeChange,
 }: Props) {
   const pathname = usePathname();
   const isHeroLayout = !compact && layout === "hero";
@@ -673,6 +676,10 @@ export default function PriceHistoryPanel({
 
     persistStoredRangeKey(effectiveRangeStorageKeys.primary, storedRange);
   }, [defaultRange, effectiveRangeStorageKeys, fixedRange, rangeResolved]);
+
+  useEffect(() => {
+    onRangeChange?.(selectedRange);
+  }, [onRangeChange, selectedRange]);
 
   const parsedPoints = points.map((point) => ({
     ...point,

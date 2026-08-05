@@ -456,6 +456,7 @@ export type CollectionMoverBrowserItem = Pick<
   | "episodeId"
   | "episodeName"
   | "episodeCode"
+  | "episodeReleaseDate"
   | "releaseAgeYears"
   | "ownedCount"
   | "source"
@@ -514,6 +515,7 @@ export function toCollectionMoverBrowserItem(
     episodeId: item.episodeId,
     episodeName: item.episodeName,
     episodeCode: item.episodeCode,
+    episodeReleaseDate: item.episodeReleaseDate,
     releaseAgeYears: item.releaseAgeYears,
     ownedCount: item.ownedCount,
     source: item.source,

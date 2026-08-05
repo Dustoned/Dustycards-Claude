@@ -60,6 +60,7 @@ import {
 import type { ModalCardData } from "./card-modal/types";
 import type { SealedModalProductData } from "./sealed-modal/types";
 import { getCardModalLayoutClasses } from "./card-modal/utils";
+import CardMarketPriceCheckDialog from "./card-modal/CardMarketPriceCheckDialog";
 
 export type { ModalCardData } from "./card-modal/types";
 
@@ -260,6 +261,7 @@ export default function CardModal({
   const { displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
   const [priceAlertOpen, setPriceAlertOpen] = useState(false);
+  const [cardMarketPriceCheckOpen, setCardMarketPriceCheckOpen] = useState(false);
   const [selectedSealedProduct, setSelectedSealedProduct] =
     useState<SealedModalProductData | null>(null);
   const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
@@ -316,13 +318,17 @@ export default function CardModal({
         setPriceAlertOpen(false);
         return;
       }
+      if (cardMarketPriceCheckOpen) {
+        setCardMarketPriceCheckOpen(false);
+        return;
+      }
 
       onClose();
     };
 
     window.addEventListener(MOBILE_EDGE_BACK_EVENT, handleMobileEdgeBack);
     return () => window.removeEventListener(MOBILE_EDGE_BACK_EVENT, handleMobileEdgeBack);
-  }, [onClose, priceAlertOpen, selectedSealedProduct, threeDOpen]);
+  }, [cardMarketPriceCheckOpen, onClose, priceAlertOpen, selectedSealedProduct, threeDOpen]);
 
   const collectionItem = modalCard.collection_item ?? null;
   const layout = getCardModalLayoutClasses(
@@ -421,7 +427,7 @@ export default function CardModal({
 
   useModalA11y({
     dialogRef: modalFrameRef,
-    enabled: !threeDOpen && !priceAlertOpen,
+    enabled: !threeDOpen && !priceAlertOpen && !cardMarketPriceCheckOpen,
     initialFocus: "dialog",
     onClose,
   });
@@ -1195,6 +1201,7 @@ export default function CardModal({
                   canManageCardPrices={canManageCardPrices}
                   removingCollectionItem={removingCollectionItem}
                   onRefresh={() => void runCardAction("refresh")}
+                  onLivePriceCheck={() => setCardMarketPriceCheckOpen(true)}
                   onSyncHistory={() => void runCardAction("sync-history")}
                   onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
                   onAddedToCollection={refreshModalCardFromServer}
@@ -1228,6 +1235,17 @@ export default function CardModal({
         <SealedProductModal
           product={selectedSealedProduct}
           onClose={() => setSelectedSealedProduct(null)}
+        />
+      ) : null}
+
+      {cardMarketPriceCheckOpen ? (
+        <CardMarketPriceCheckDialog
+          card={modalCard}
+          onClose={() => setCardMarketPriceCheckOpen(false)}
+          onSaved={(nextCard) => {
+            applyRefreshedCard(nextCard);
+            invalidateMarketHomeClientCache();
+          }}
         />
       ) : null}
     </>

@@ -115,6 +115,10 @@ const BUY_SIGNAL_FILTER_OPTIONS: Array<{ value: BuySignalFilter; label: string }
   { value: "strong_sell", label: "STRONG SELL" },
 ];
 
+function getReleaseYear(value: string | null | undefined): string | null {
+  return value?.match(/^(\d{4})/)?.[1] ?? null;
+}
+
 function isGradeTenLabel(label: string | null | undefined): boolean {
   return parseGradingTargetLabel(label).isGradeTenEquivalent;
 }
@@ -278,6 +282,7 @@ export default function MoversBrowser({
   const [direction, setDirection] = useState<DirectionFilter>(defaultDirection);
   const [focusFilter, setFocusFilter] = useState<FocusFilter>("all");
   const [buySignalFilter, setBuySignalFilter] = useState<BuySignalFilter>("all");
+  const [releaseYear, setReleaseYear] = useState("all");
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
@@ -369,6 +374,8 @@ export default function MoversBrowser({
       return [
         { key: "move" as const, label: "Fresh biggest drop" },
         { key: "price_low" as const, label: "Price low" },
+        { key: "release_newest" as const, label: "Newest release" },
+        { key: "release_oldest" as const, label: "Oldest release" },
         { key: "name" as const, label: "Name" },
       ];
     }
@@ -380,6 +387,8 @@ export default function MoversBrowser({
         { key: "grade_multiplier" as const, label: "Expected return" },
         { key: "grade_gap" as const, label: "Expected gain" },
         { key: "raw_price_low" as const, label: "Raw price" },
+        { key: "release_newest" as const, label: "Newest release" },
+        { key: "release_oldest" as const, label: "Oldest release" },
         { key: "name" as const, label: "Name" },
       ];
     }
@@ -390,6 +399,8 @@ export default function MoversBrowser({
       { key: "7d" as const, label: "7 days" },
       { key: "30d" as const, label: "30 days" },
       { key: "price_low" as const, label: "Price low" },
+      { key: "release_newest" as const, label: "Newest release" },
+      { key: "release_oldest" as const, label: "Oldest release" },
       { key: "name" as const, label: "Name" },
     ];
   }, [activeScope, isSuddenDropMode]);
@@ -401,6 +412,18 @@ export default function MoversBrowser({
   const activeFocusFilter = focusOptions.some((option) => option.value === focusFilter)
     ? focusFilter
     : "all";
+  const releaseYears = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          effectiveMovers
+            .map((item) => getReleaseYear(item.episodeReleaseDate))
+            .filter((year): year is string => Boolean(year))
+        )
+      ).sort((left, right) => right.localeCompare(left)),
+    [effectiveMovers]
+  );
+  const activeReleaseYear = releaseYears.includes(releaseYear) ? releaseYear : "all";
 
   const visibleMovers = useMemo(() => {
     const filtered = effectiveMovers.filter((item) => {
@@ -413,6 +436,13 @@ export default function MoversBrowser({
       }
 
       if (!matchesFocusFilter(item, activeFocusFilter, { isGradingScope, isSuddenDropMode })) {
+        return false;
+      }
+
+      if (
+        activeReleaseYear !== "all" &&
+        getReleaseYear(item.episodeReleaseDate) !== activeReleaseYear
+      ) {
         return false;
       }
 
@@ -435,6 +465,7 @@ export default function MoversBrowser({
     return [...filtered].sort((a, b) => compareMoverItems(a, b, sortKey, direction));
   }, [
     effectiveMovers,
+    activeReleaseYear,
     activeFocusFilter,
     buySignalFilter,
     direction,
@@ -469,7 +500,7 @@ export default function MoversBrowser({
     visibleMoverGroups[0]?.cardId ?? ""
   }:${
     visibleMoverGroups[visibleMoverGroups.length - 1]?.cardId ?? ""
-  }:${sortKey}:${direction}:${activeFocusFilter}:${buySignalFilter}:${normalizedSearch}`;
+  }:${sortKey}:${direction}:${activeFocusFilter}:${buySignalFilter}:${activeReleaseYear}:${normalizedSearch}`;
   const minimumRenderLimit =
     highlightedVisibleIndex >= 0
       ? Math.max(INITIAL_MOVER_RENDER_COUNT, highlightedVisibleIndex + 1)
@@ -551,6 +582,7 @@ export default function MoversBrowser({
       direction !== defaultDirection ||
       focusFilter !== "all" ||
       buySignalFilter !== "all" ||
+      activeReleaseYear !== "all" ||
       sortKey !== (isGradingScope ? "grade_score" : "move");
     if (usesWholeMarket && hasDeferredMovers) {
       void loadDeferredMovers();
@@ -564,6 +596,7 @@ export default function MoversBrowser({
     isGradingScope,
     loadDeferredMovers,
     normalizedSearch,
+    activeReleaseYear,
     sortKey,
   ]);
 
@@ -628,12 +661,14 @@ export default function MoversBrowser({
     hasDirectionFilter ||
     activeFocusFilter !== "all" ||
     buySignalFilter !== "all" ||
+    activeReleaseYear !== "all" ||
     sortKey !== (isGradingScope ? "grade_score" : "move");
 
   function clearAllFilters() {
     setDirection(defaultDirection);
     setFocusFilter("all");
     setBuySignalFilter("all");
+    setReleaseYear("all");
     setSortKey(isGradingScope ? "grade_score" : "move");
     setSearch("");
   }
@@ -715,8 +750,8 @@ export default function MoversBrowser({
           <div
             className={`grid gap-3 lg:items-end ${
               isSuddenDropMode
-                ? "lg:grid-cols-[minmax(16rem,1fr)_repeat(2,minmax(9rem,12rem))_auto]"
-                : "lg:grid-cols-[minmax(16rem,1fr)_repeat(4,minmax(9rem,12rem))_auto]"
+                ? "lg:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(8rem,11rem))_auto]"
+                : "lg:grid-cols-[minmax(16rem,1fr)_repeat(5,minmax(8rem,11rem))_auto]"
             }`}
           >
             <label className="block">
@@ -777,6 +812,24 @@ export default function MoversBrowser({
                   <option className={SELECT_OPTION_CLASS} value="all">All moves</option>
                   <option className={SELECT_OPTION_CLASS} value="risers">Risers</option>
                   <option className={SELECT_OPTION_CLASS} value="fallers">Fallers</option>
+                </select>
+              </label>
+            ) : null}
+
+            {releaseYears.length > 1 ? (
+              <label className="block">
+                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+                  Year
+                </span>
+                <select
+                  value={activeReleaseYear}
+                  onChange={(event) => setReleaseYear(event.target.value)}
+                  className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
+                >
+                  <option className={SELECT_OPTION_CLASS} value="all">All years</option>
+                  {releaseYears.map((year) => (
+                    <option className={SELECT_OPTION_CLASS} key={year} value={year}>{year}</option>
+                  ))}
                 </select>
               </label>
             ) : null}

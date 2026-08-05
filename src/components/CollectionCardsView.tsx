@@ -237,6 +237,11 @@ function formatSoldDate(value: string | null | undefined): string | null {
   }).format(date);
 }
 
+function getReleaseYear(value: string | null | undefined): string | null {
+  const match = value?.match(/^(\d{4})/);
+  return match?.[1] ?? null;
+}
+
 function getCollectionCardQuickActionData(item: CollectionCardViewItem): CardQuickActionData {
   return {
     card: {
@@ -304,6 +309,7 @@ export default function CollectionCardsView({
   const setSearch = onSearchChange ?? setInternalSearch;
   const [filtersExpanded, setFiltersExpanded] = useState(false);
   const [showOnlyGraded, setShowOnlyGraded] = useState(false);
+  const [selectedReleaseYears, setSelectedReleaseYears] = useState<string[]>([]);
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
   const [openCardError, setOpenCardError] = useState<string | null>(null);
@@ -390,6 +396,22 @@ export default function CollectionCardsView({
     () => buildFilterOptions(visibleSourceItems.map((item) => item.supertype), KNOWN_SUPERTYPE_ORDER),
     [visibleSourceItems]
   );
+  const availableReleaseYears = useMemo(
+    () =>
+      buildFilterOptions(
+        visibleSourceItems.map((item) => getReleaseYear(item.episode_release_date)),
+        []
+      ).sort((left, right) => right.value.localeCompare(left.value)),
+    [visibleSourceItems]
+  );
+  const availableReleaseYearValues = useMemo(
+    () => new Set(availableReleaseYears.map((option) => option.value)),
+    [availableReleaseYears]
+  );
+  const activeReleaseYears = useMemo(
+    () => selectedReleaseYears.filter((year) => availableReleaseYearValues.has(year)),
+    [availableReleaseYearValues, selectedReleaseYears]
+  );
   const availableRarityValues = useMemo(
     () => new Set(availableRarities.map((option) => option.value)),
     [availableRarities]
@@ -453,12 +475,14 @@ export default function CollectionCardsView({
   const deferredNormalizedSearch = useDeferredValue(normalizedSearch);
   const deferredAppliedRarities = useDeferredValue(appliedRarities);
   const deferredAppliedSupertypes = useDeferredValue(appliedSupertypes);
+  const deferredReleaseYears = useDeferredValue(activeReleaseYears);
   const deferredEffectiveShowOnlyGraded = useDeferredValue(effectiveShowOnlyGraded);
   const deferredEffectiveOnlyPriced = useDeferredValue(effectiveOnlyPriced);
   const isFilteringPending =
     normalizedSearch !== deferredNormalizedSearch ||
     appliedRarities !== deferredAppliedRarities ||
     appliedSupertypes !== deferredAppliedSupertypes ||
+    activeReleaseYears !== deferredReleaseYears ||
     effectiveShowOnlyGraded !== deferredEffectiveShowOnlyGraded ||
     effectiveOnlyPriced !== deferredEffectiveOnlyPriced;
   const pricedOnlyUnavailable =
@@ -507,6 +531,13 @@ export default function CollectionCardsView({
         return false;
       }
 
+      if (
+        deferredReleaseYears.length > 0 &&
+        !deferredReleaseYears.includes(getReleaseYear(entry.item.episode_release_date) ?? "")
+      ) {
+        return false;
+      }
+
       if (deferredEffectiveOnlyPriced && !entry.isPriced) {
         return false;
       }
@@ -521,6 +552,7 @@ export default function CollectionCardsView({
     searchMatchedEntries,
     deferredAppliedRarities,
     deferredAppliedSupertypes,
+    deferredReleaseYears,
     deferredEffectiveOnlyPriced,
     deferredEffectiveShowOnlyGraded,
   ]);
@@ -535,6 +567,7 @@ export default function CollectionCardsView({
     showFilters &&
     !deferredNormalizedSearch &&
     !deferredEffectiveShowOnlyGraded &&
+    deferredReleaseYears.length === 0 &&
     visibleSourceItems.length > 0 &&
     orderedFilteredEntries.length === 0 &&
     (
@@ -1399,11 +1432,20 @@ export default function CollectionCardsView({
     set("defaultSupertypes", next);
   }
 
+  function toggleReleaseYear(year: string) {
+    setSelectedReleaseYears((current) =>
+      current.includes(year)
+        ? current.filter((value) => value !== year)
+        : [...current, year]
+    );
+  }
+
   const hasActiveFilters =
     Boolean(search) ||
     effectiveShowOnlyGraded ||
     appliedRarities.length > 0 ||
     appliedSupertypes.length > 0 ||
+    activeReleaseYears.length > 0 ||
     effectiveOnlyPriced;
   const sortSummary = hideSortControls ? "Highest price first" : formatSortSummary(sortBy, sortDir);
   const soldStackTotal =
@@ -1429,6 +1471,7 @@ export default function CollectionCardsView({
     saleListingDialog?.items.filter(({ item }) => item.current_value != null).length ?? 0;
   const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
     { value: "number", label: "#" },
+    { value: "release", label: "Date" },
     { value: "cm_en", label: "CM" },
     { value: "tcp", label: "TCP" },
   ];
@@ -1464,6 +1507,7 @@ export default function CollectionCardsView({
   function clearAllFilters() {
     setSearch("");
     setShowOnlyGraded(false);
+    setSelectedReleaseYears([]);
     set("defaultRarities", []);
     set("defaultSupertypes", []);
     set("showOnlyPriced", false);
@@ -1514,6 +1558,7 @@ export default function CollectionCardsView({
   const filterBadgeCount =
     appliedRarities.length +
     appliedSupertypes.length +
+    activeReleaseYears.length +
     (effectiveOnlyPriced ? 1 : 0) +
     (effectiveShowOnlyGraded ? 1 : 0) +
     (search.trim() ? 1 : 0);
@@ -1522,6 +1567,11 @@ export default function CollectionCardsView({
       value: "number",
       label: "#",
       title: "Sort by card number",
+    },
+    {
+      value: "release",
+      label: "Date",
+      title: "Sort by card release date",
     },
     {
       value: "cm_en",
@@ -1575,6 +1625,11 @@ export default function CollectionCardsView({
       key: `supertype-${supertype}`,
       label: supertype,
       onRemove: () => toggleSupertype(supertype),
+    })),
+    ...activeReleaseYears.map((year) => ({
+      key: `release-year-${year}`,
+      label: year,
+      onRemove: () => toggleReleaseYear(year),
     })),
     ...(effectiveOnlyPriced
       ? [
@@ -1634,6 +1689,29 @@ export default function CollectionCardsView({
     }),
   ];
   const toolbarFilterSections: CardBrowserToolbarFilterSection[] = [
+    ...(availableReleaseYears.length > 1
+      ? [
+          {
+            key: "release-year",
+            title: "Release year",
+            summary: activeReleaseYears.length > 0 ? `${activeReleaseYears.length} selected` : "All",
+            className: "xl:min-w-0",
+            options: availableReleaseYears.map((year) => {
+              const active = activeReleaseYears.includes(year.value);
+              return {
+                key: year.value,
+                label: year.value,
+                active,
+                count: year.count,
+                onToggle: () => toggleReleaseYear(year.value),
+                className: `inline-flex min-h-[var(--ui-chip-min-height)] shrink-0 items-center gap-[var(--ui-chip-gap)] overflow-hidden rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-colors ${
+                  active ? "font-semibold" : "font-medium"
+                } ${neutralFilterChip(active)}`,
+              };
+            }),
+          } satisfies CardBrowserToolbarFilterSection,
+        ]
+      : []),
     {
       key: "rarity",
       title: "Rarity",

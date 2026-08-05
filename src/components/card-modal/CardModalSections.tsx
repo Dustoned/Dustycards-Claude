@@ -1521,6 +1521,7 @@ export function CardModalDesktopActionGroup({
   canManageCardPrices,
   removingCollectionItem,
   onRefresh,
+  onLivePriceCheck,
   onSyncHistory,
   onRemoveCollectionItem,
   onAddedToCollection,
@@ -1540,6 +1541,7 @@ export function CardModalDesktopActionGroup({
   canManageCardPrices: boolean;
   removingCollectionItem: boolean;
   onRefresh: () => void;
+  onLivePriceCheck?: () => void;
   onSyncHistory: () => void;
   onRemoveCollectionItem: () => void;
   onAddedToCollection?: () => void | Promise<void>;
@@ -1682,6 +1684,18 @@ export function CardModalDesktopActionGroup({
 
           {canManageCardPrices ? (
             <div className="mt-1 border-t border-white/[0.07] pt-1">
+          {onLivePriceCheck ? (
+          <button
+            type="button"
+            onClick={onLivePriceCheck}
+            disabled={isBusy}
+            className={menuButtonClass}
+            aria-label="Check CardMarket English Near Mint price now"
+          >
+            <BadgeEuro className="h-4 w-4" />
+            Check CardMarket now
+          </button>
+          ) : null}
           <button
             type="button"
             onClick={onSyncHistory}

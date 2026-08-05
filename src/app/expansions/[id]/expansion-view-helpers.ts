@@ -43,6 +43,7 @@ export function getPriceSourceCurrency(source: PriceSource): CurrencyCode {
 
 export function getSortLabel(sortBy: SortBy): string {
   if (sortBy === "number") return "Number";
+  if (sortBy === "release") return "Release date";
   return sortBy === "cm_en" ? "CardMarket" : "TCGPlayer";
 }
 
@@ -71,6 +72,7 @@ export function compareCardNumbers(a: CardData, b: CardData): number {
 }
 
 export function formatSortSummary(sortBy: SortBy, sortDir: SortDir): string {
+  if (sortBy === "release") return sortDir === "asc" ? "Oldest release" : "Newest release";
   const direction = sortDir === "asc" ? "low-high" : "high-low";
   return `${getSortLabel(sortBy)} ${direction}`;
 }

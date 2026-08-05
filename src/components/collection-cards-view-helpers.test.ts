@@ -288,11 +288,19 @@ describe("compareCollectionCardItems", () => {
     const b = makeItem({ card_number: "10", cm_value: 5 });
     expect(compareCollectionCardItems(a, b, "cm_en", "asc")).toBeLessThan(0);
   });
+
+  it("sorts cards by their set release date", () => {
+    const older = makeItem({ episode_release_date: "2021-10-08", card_number: "99" });
+    const newer = makeItem({ episode_release_date: "2025-01-17", card_number: "1" });
+    expect(compareCollectionCardItems(older, newer, "release", "asc")).toBeLessThan(0);
+    expect(compareCollectionCardItems(older, newer, "release", "desc")).toBeGreaterThan(0);
+  });
 });
 
 describe("getSortLabel / getDefaultSortDir / formatSortSummary", () => {
   it("getSortLabel maps known sortBy values", () => {
     expect(getSortLabel("number")).toBe("Number");
+    expect(getSortLabel("release")).toBe("Release date");
     expect(getSortLabel("cm_en")).toBe("CardMarket");
     expect(getSortLabel("tcp")).toBe("TCGPlayer");
   });
@@ -300,11 +308,13 @@ describe("getSortLabel / getDefaultSortDir / formatSortSummary", () => {
   it("getDefaultSortDir picks ascending only for number", () => {
     expect(getDefaultSortDir("number")).toBe("asc");
     expect(getDefaultSortDir("cm_en")).toBe("desc");
+    expect(getDefaultSortDir("release")).toBe("desc");
   });
 
   it("formatSortSummary combines label and direction", () => {
     expect(formatSortSummary("cm_en", "asc")).toBe("CardMarket low-high");
     expect(formatSortSummary("number", "desc")).toBe("Number high-low");
+    expect(formatSortSummary("release", "desc")).toBe("Newest release");
   });
 });
 

@@ -35,6 +35,7 @@ export interface CardData {
   episode_id?: string;
   episode_name?: string | null;
   episode_code?: string | null;
+  episode_release_date?: string | null;
   price_source_status: string | null;
   price_source_checked_at: string | null;
   price_fetched_at: string | null;

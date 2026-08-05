@@ -28,7 +28,7 @@ export type ResolvedTheme = "light" | "dark";
 export type CardView = "table" | "grid" | "binder";
 export type DisplaySize = "small" | "medium" | "large";
 export type CardSize = "xsmall" | DisplaySize;
-export type SortBy = "number" | "cm_en" | "tcp";
+export type SortBy = "number" | "release" | "cm_en" | "tcp";
 export type SortDir = "asc" | "desc";
 export type ModalSize = DisplaySize;
 export type UiScale = DisplaySize;
@@ -215,7 +215,7 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       ["cm_en", "tcp"],
       DEFAULT_SETTINGS.primaryPriceSource
     ),
-    sortBy: pickEnumValue(source.sortBy, ["number", "cm_en", "tcp"], DEFAULT_SETTINGS.sortBy),
+    sortBy: pickEnumValue(source.sortBy, ["number", "release", "cm_en", "tcp"], DEFAULT_SETTINGS.sortBy),
     sortDir: pickEnumValue(source.sortDir, ["asc", "desc"], DEFAULT_SETTINGS.sortDir),
     modalSize: pickEnumValue(
       source.modalSize,

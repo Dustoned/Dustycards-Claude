@@ -85,7 +85,7 @@ export default function ReprintReviewSection() {
         <div>
           <p className="text-[10px] font-black uppercase tracking-[0.13em] text-violet-200/58">Admin only</p>
           <h2 className="mt-1 text-lg font-black text-white">Reprint review</h2>
-          <p className="mt-1 text-xs leading-5 text-white/42">Check lower-confidence artwork families. Your decision remains applied when the background matcher runs again.</p>
+          <p className="mt-1 text-xs leading-5 text-white/42">Review only direct visual candidates. Text and match chains can no longer create a pair by themselves.</p>
         </div>
         <button type="button" onClick={() => void load()} disabled={loading} className="flex h-9 items-center gap-1.5 rounded-xl border border-white/9 px-2.5 text-[10px] font-black text-white/58">
           <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
@@ -108,7 +108,7 @@ export default function ReprintReviewSection() {
                   <ReviewCardView card={item.target} />
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/7 pt-3">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.09em] text-white/30">{item.matchMethod} · {Math.round(item.imageSimilarity * 100)}% image match</span>
+                  <span className="text-[9px] font-bold uppercase tracking-[0.09em] text-white/30">Visual candidate · {Math.round(item.imageSimilarity * 100)}% colour and artwork agreement</span>
                   <span className="flex gap-1.5">
                     <button type="button" onClick={() => void decide(item, "exclude")} disabled={busy} className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-300/14 bg-rose-500/[0.06] px-2.5 text-[10px] font-black text-rose-100"><Unlink className="h-3 w-3" /> Not a reprint</button>
                     <button type="button" onClick={() => void decide(item, "include")} disabled={busy} className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-300/14 bg-emerald-500/[0.07] px-2.5 text-[10px] font-black text-emerald-100"><Link2 className="h-3 w-3" /> Same card</button>

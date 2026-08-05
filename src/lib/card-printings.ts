@@ -3,11 +3,12 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v3";
-const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.62;
-const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.6;
-const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.67;
-const STRONG_REPRINT_IMAGE_SIMILARITY = 0.8;
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v4-color";
+const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.82;
+const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.84;
+const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.88;
+const STRONG_REPRINT_IMAGE_SIMILARITY = 0.92;
+const COLOR_SIGNATURE_PREFIX = "rgb1:";
 const MAX_CACHED_ARTWORK_HASHES = 512;
 const MAX_CACHED_TCGDEX_SEARCHES = 256;
 const artworkHashCache = new Map<string, Promise<ArtworkHash | null>>();
@@ -93,12 +94,10 @@ export type PrintingLookupCard = {
 
 export type CardPrintingMatchMethod =
   | "rules-and-art"
-  | "exact-card-variant"
   | "lineage-and-art"
   | "likely-art"
   | "strong-art"
-  | "manual-include"
-  | "connected-reprint";
+  | "manual-include";
 
 export type CardPrintingMatch = {
   matchType: RelatedCardPrinting["match_type"];
@@ -339,6 +338,27 @@ function haveCompatibleKnownIdentityFields(
 }
 
 export function getPerceptualHashSimilarity(left: string, right: string): number {
+  if (left.startsWith(COLOR_SIGNATURE_PREFIX) || right.startsWith(COLOR_SIGNATURE_PREFIX)) {
+    if (!left.startsWith(COLOR_SIGNATURE_PREFIX) || !right.startsWith(COLOR_SIGNATURE_PREFIX)) {
+      return 0;
+    }
+    const leftPixels = Buffer.from(left.slice(COLOR_SIGNATURE_PREFIX.length), "base64");
+    const rightPixels = Buffer.from(right.slice(COLOR_SIGNATURE_PREFIX.length), "base64");
+    if (leftPixels.length === 0 || leftPixels.length !== rightPixels.length) return 0;
+
+    let absoluteDifference = 0;
+    let squaredDifference = 0;
+    for (let index = 0; index < leftPixels.length; index += 1) {
+      const difference = Math.abs(leftPixels[index] - rightPixels[index]);
+      absoluteDifference += difference;
+      squaredDifference += difference * difference;
+    }
+    const meanDifference = absoluteDifference / leftPixels.length;
+    const rootMeanSquareDifference = Math.sqrt(squaredDifference / leftPixels.length);
+    const normalizedDifference = (meanDifference * 0.6 + rootMeanSquareDifference * 0.4) / 255;
+    return Math.max(0, Math.min(1, 1 - normalizedDifference));
+  }
+
   if (left.length === 0 || left.length !== right.length) return 0;
   let equalBits = 0;
   for (let index = 0; index < left.length; index += 1) {
@@ -371,13 +391,8 @@ export function getPrintingMatchDetails(
       );
 
     if (rulesMatch) {
-      return {
-        matchType: "reprint",
-        method: imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY
-          ? "rules-and-art"
-          : "exact-card-variant",
-        imageSimilarity,
-      };
+      if (imageSimilarity < MIN_RULES_VERIFIED_IMAGE_SIMILARITY) return null;
+      return { matchType: "reprint", method: "rules-and-art", imageSimilarity };
     }
   }
 
@@ -421,28 +436,19 @@ export function getConnectedPrintingIndexes(
 ): number[] {
   if (identities.length <= 1) return [];
 
-  const connected = new Set<number>([0]);
-  const queue = [0];
-  while (queue.length > 0) {
-    const currentIndex = queue.shift();
-    if (currentIndex == null) break;
-
-    for (let candidateIndex = 1; candidateIndex < identities.length; candidateIndex += 1) {
-      if (connected.has(candidateIndex)) continue;
-      if (
-        getPrintingMatchType(
-          identities[currentIndex],
-          identities[candidateIndex],
-          getImageSimilarity(currentIndex, candidateIndex)
-        )
-      ) {
-        connected.add(candidateIndex);
-        queue.push(candidateIndex);
-      }
+  const directMatches: number[] = [];
+  for (let candidateIndex = 1; candidateIndex < identities.length; candidateIndex += 1) {
+    if (
+      getPrintingMatchType(
+        identities[0],
+        identities[candidateIndex],
+        getImageSimilarity(0, candidateIndex)
+      )
+    ) {
+      directMatches.push(candidateIndex);
     }
   }
-
-  return Array.from(connected).filter((index) => index !== 0);
+  return directMatches;
 }
 
 function getComparableArtworkUrl(imageUrl: string): string {
@@ -460,26 +466,21 @@ function getComparableArtworkUrl(imageUrl: string): string {
   }
 }
 
-async function createDifferenceHash(
+async function createColorSignature(
   image: Buffer,
+  width: number,
+  height: number,
   extract?: { left: number; top: number; width: number; height: number }
 ): Promise<string> {
   let pipeline = sharp(image);
   if (extract) pipeline = pipeline.extract(extract);
-  const { data } = await pipeline
-    .resize(17, 16, { fit: "fill" })
-    .grayscale()
-    .normalize()
+  const data = await pipeline
+    .resize(width, height, { fit: "fill" })
+    .removeAlpha()
+    .toColourspace("srgb")
     .raw()
-    .toBuffer({ resolveWithObject: true });
-
-  let hash = "";
-  for (let y = 0; y < 16; y += 1) {
-    for (let x = 0; x < 16; x += 1) {
-      hash += data[y * 17 + x] > data[y * 17 + x + 1] ? "1" : "0";
-    }
-  }
-  return hash;
+    .toBuffer();
+  return `${COLOR_SIGNATURE_PREFIX}${data.toString("base64")}`;
 }
 
 async function createArtworkHash(imageUrl: string): Promise<ArtworkHash | null> {
@@ -502,8 +503,8 @@ async function createArtworkHash(imageUrl: string): Promise<ArtworkHash | null> 
       height: Math.max(1, Math.floor(metadata.height * 0.43)),
     };
     const [full, illustration] = await Promise.all([
-      createDifferenceHash(image),
-      createDifferenceHash(image, illustrationBounds),
+      createColorSignature(image, 10, 14),
+      createColorSignature(image, 10, 6, illustrationBounds),
     ]);
     return { full, illustration };
   } catch {
@@ -531,10 +532,18 @@ export function getArtworkHashSimilarity(
   right: ArtworkHash | null
 ): number {
   if (!left || !right) return 0;
-  return Math.max(
-    getPerceptualHashSimilarity(left.full, right.full),
-    getPerceptualHashSimilarity(left.illustration, right.illustration)
+  const fullSimilarity = getPerceptualHashSimilarity(left.full, right.full);
+  const illustrationSimilarity = getPerceptualHashSimilarity(
+    left.illustration,
+    right.illustration
   );
+  const usesColorSignatures = left.full.startsWith(COLOR_SIGNATURE_PREFIX)
+    && right.full.startsWith(COLOR_SIGNATURE_PREFIX)
+    && left.illustration.startsWith(COLOR_SIGNATURE_PREFIX)
+    && right.illustration.startsWith(COLOR_SIGNATURE_PREFIX);
+  return usesColorSignatures
+    ? fullSimilarity * 0.35 + illustrationSimilarity * 0.65
+    : Math.max(fullSimilarity, illustrationSimilarity);
 }
 
 function getTcgDexProviderPrefix(tcgid: string | null | undefined): string | null {

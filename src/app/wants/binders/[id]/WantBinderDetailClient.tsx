@@ -153,9 +153,6 @@ export default function WantBinderDetailClient({ data }: { data: WantBinderPageD
         items={data.items}
         allowWantRemoval
         showFilters
-        forcedSortBy="cm_en"
-        forcedSortDir="desc"
-        hideSortControls
         emptyTitle="No missing cards left"
         emptyText="This binder goal is complete, or every remaining missing card is hidden."
         sectionTitle="Missing cards"

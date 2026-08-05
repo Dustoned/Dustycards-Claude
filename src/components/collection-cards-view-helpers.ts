@@ -212,6 +212,7 @@ export function compareCollectionCardNumbers(
 
 export function getSortLabel(sortBy: SortBy): string {
   if (sortBy === "number") return "Number";
+  if (sortBy === "release") return "Release date";
   return sortBy === "cm_en" ? "CardMarket" : "TCGPlayer";
 }
 
@@ -220,6 +221,7 @@ export function getDefaultSortDir(sortBy: SortBy): SortDir {
 }
 
 export function formatSortSummary(sortBy: SortBy, sortDir: SortDir): string {
+  if (sortBy === "release") return sortDir === "asc" ? "Oldest release" : "Newest release";
   const direction = sortDir === "asc" ? "low-high" : "high-low";
   return `${getSortLabel(sortBy)} ${direction}`;
 }
@@ -233,6 +235,17 @@ export function compareCollectionCardItems(
   if (sortBy === "number") {
     const diff = compareCollectionCardNumbers(a, b);
     return sortDir === "asc" ? diff : -diff;
+  }
+
+  if (sortBy === "release") {
+    const leftDate = a.episode_release_date ?? "";
+    const rightDate = b.episode_release_date ?? "";
+    if (!leftDate && !rightDate) return compareCollectionCardNumbers(a, b);
+    if (!leftDate) return 1;
+    if (!rightDate) return -1;
+    const dateDifference = leftDate.localeCompare(rightDate);
+    if (dateDifference !== 0) return sortDir === "asc" ? dateDifference : -dateDifference;
+    return compareCollectionCardNumbers(a, b);
   }
 
   const priceDiff = comparePriceValues(

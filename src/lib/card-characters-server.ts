@@ -176,6 +176,7 @@ export async function getCharacterPageData(
       episode_id: card.episode.id,
       episode_name: card.episode.name,
       episode_code: card.episode.code,
+      episode_release_date: card.episode.release_date,
       price_source_status: card.price_source_status,
       price_source_checked_at: toIsoString(card.price_source_checked_at),
       price_fetched_at: toIsoString(price?.fetched_at),

@@ -26,14 +26,19 @@ export type CardSearchPickerResult = {
   cm_en_lowest_nm: number | null;
 };
 
-type SortMode = "relevance" | "price_asc" | "price_desc" | "newest";
+type SortMode = "relevance" | "price_asc" | "price_desc" | "newest" | "oldest";
 
 const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
   { value: "relevance", label: "Best match" },
   { value: "price_asc", label: "Lowest price" },
   { value: "price_desc", label: "Highest price" },
   { value: "newest", label: "Newest set" },
+  { value: "oldest", label: "Oldest set" },
 ];
+
+function getReleaseYear(value: string | null | undefined): string | null {
+  return value?.match(/^(\d{4})/)?.[1] ?? null;
+}
 
 function comparePrice(
   left: CardSearchPickerResult,
@@ -73,6 +78,7 @@ export default function CardSearchPickerDialog({
   const [searched, setSearched] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>("relevance");
+  const [releaseYear, setReleaseYear] = useState("all");
   const trimmedQuery = query.trim();
 
   useEffect(() => {
@@ -133,12 +139,31 @@ export default function CardSearchPickerDialog({
     };
   }, [game, trimmedQuery]);
 
+  const releaseYears = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          results
+            .map((card) => getReleaseYear(card.episode_release_date))
+            .filter((year): year is string => Boolean(year))
+        )
+      ).sort((left, right) => right.localeCompare(left)),
+    [results]
+  );
+  const activeReleaseYear = releaseYears.includes(releaseYear) ? releaseYear : "all";
   const sortedResults = useMemo(() => {
-    if (sortMode === "relevance") return results;
-    const copy = [...results];
-    if (sortMode === "newest") {
+    const filtered = activeReleaseYear === "all"
+      ? results
+      : results.filter(
+          (card) => getReleaseYear(card.episode_release_date) === activeReleaseYear
+        );
+    if (sortMode === "relevance") return filtered;
+    const copy = [...filtered];
+    if (sortMode === "newest" || sortMode === "oldest") {
       copy.sort((left, right) =>
-        (right.episode_release_date ?? "").localeCompare(left.episode_release_date ?? "")
+        sortMode === "newest"
+          ? (right.episode_release_date ?? "").localeCompare(left.episode_release_date ?? "")
+          : (left.episode_release_date ?? "").localeCompare(right.episode_release_date ?? "")
       );
     } else {
       copy.sort((left, right) =>
@@ -146,7 +171,7 @@ export default function CardSearchPickerDialog({
       );
     }
     return copy;
-  }, [results, sortMode]);
+  }, [activeReleaseYear, results, sortMode]);
 
   return createPortal(
     <div
@@ -249,6 +274,19 @@ export default function CardSearchPickerDialog({
                 </button>
               );
             })}
+            {releaseYears.length > 1 ? (
+              <select
+                value={activeReleaseYear}
+                onChange={(event) => setReleaseYear(event.target.value)}
+                aria-label="Filter by release year"
+                className="min-h-9 rounded-xl border border-white/8 bg-white/[0.025] px-3 text-[10px] font-black text-white/55 outline-none transition-colors hover:border-white/14 hover:text-white/75 [&>option]:bg-zinc-950"
+              >
+                <option value="all">All years</option>
+                {releaseYears.map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
+            ) : null}
           </div>
         </div>
 

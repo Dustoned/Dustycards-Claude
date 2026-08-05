@@ -96,6 +96,11 @@ const LONG_PRESS_MOVE_TOLERANCE_PX = 12;
 const warmedCardImageUrls = new Set<string>();
 const warmedCardImageQueue: string[] = [];
 
+function getReleaseYear(value: string | null | undefined): string | null {
+  const match = value?.match(/^(\d{4})/);
+  return match?.[1] ?? null;
+}
+
 interface Props {
   cards: CardData[];
   episode?: {
@@ -254,6 +259,7 @@ export default function ExpansionView({
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
   const [search, setSearch] = useState("");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
+  const [selectedReleaseYears, setSelectedReleaseYears] = useState<string[]>([]);
   const [selected, setSelected] = useState<CardData | null>(() =>
     initialCardId ? cards.find((card) => card.id === initialCardId) ?? null : null
   );
@@ -320,6 +326,20 @@ export default function ExpansionView({
   const availableSupertypes = useMemo(
     () => buildFilterOptions(cards.map((card) => card.supertype), KNOWN_SUPERTYPE_ORDER),
     [cards]
+  );
+  const availableReleaseYears = useMemo(
+    () =>
+      buildFilterOptions(cards.map((card) => getReleaseYear(card.episode_release_date)), [])
+        .sort((left, right) => right.value.localeCompare(left.value)),
+    [cards]
+  );
+  const availableReleaseYearValues = useMemo(
+    () => new Set(availableReleaseYears.map((option) => option.value)),
+    [availableReleaseYears]
+  );
+  const activeReleaseYears = useMemo(
+    () => selectedReleaseYears.filter((year) => availableReleaseYearValues.has(year)),
+    [availableReleaseYearValues, selectedReleaseYears]
   );
   const normalizedSearch = search.trim().toLowerCase();
   const availableRarityValues = useMemo(
@@ -625,6 +645,14 @@ export default function ExpansionView({
     set("defaultSupertypes", next);
   }
 
+  function toggleReleaseYear(year: string) {
+    setSelectedReleaseYears((current) =>
+      current.includes(year)
+        ? current.filter((value) => value !== year)
+        : [...current, year]
+    );
+  }
+
   const sortedCards = useMemo(() => {
     const next = cards.filter((card) => {
       if (normalizedSearch) {
@@ -653,6 +681,17 @@ export default function ExpansionView({
         return sortDir === "asc" ? diff : -diff;
       }
 
+      if (sortBy === "release") {
+        const leftDate = a.episode_release_date ?? "";
+        const rightDate = b.episode_release_date ?? "";
+        if (!leftDate && !rightDate) return compareCardNumbers(a, b);
+        if (!leftDate) return 1;
+        if (!rightDate) return -1;
+        const dateDifference = leftDate.localeCompare(rightDate);
+        if (dateDifference !== 0) return sortDir === "asc" ? dateDifference : -dateDifference;
+        return compareCardNumbers(a, b);
+      }
+
       const priceDiff = comparePriceValues(getSortPrice(a, sortBy), getSortPrice(b, sortBy), sortDir);
       if (priceDiff !== 0) return priceDiff;
       return compareCardNumbers(a, b);
@@ -670,6 +709,12 @@ export default function ExpansionView({
       if (activeSupertypes.length > 0 && !activeSupertypes.includes(card.supertype ?? "")) {
         return false;
       }
+      if (
+        activeReleaseYears.length > 0 &&
+        !activeReleaseYears.includes(getReleaseYear(card.episode_release_date) ?? "")
+      ) {
+        return false;
+      }
       if (effectiveOnlyPriced && !hasAnyVisiblePrice(card)) return false;
       return true;
     });
@@ -677,11 +722,13 @@ export default function ExpansionView({
     sortedCards,
     activeRarities,
     activeSupertypes,
+    activeReleaseYears,
     effectiveOnlyPriced,
   ]);
 
   const persistentFiltersHideEverything =
     !normalizedSearch &&
+    activeReleaseYears.length === 0 &&
     sortedCards.length > 0 &&
     filteredCards.length === 0 &&
     (activeRarities.length > 0 || activeSupertypes.length > 0 || effectiveOnlyPriced);
@@ -737,11 +784,13 @@ export default function ExpansionView({
     Boolean(search) ||
     activeRarities.length > 0 ||
     activeSupertypes.length > 0 ||
+    activeReleaseYears.length > 0 ||
     onlyPriced;
   const sortSummary = formatSortSummary(sortBy, sortDir);
 
   const SORT_OPTIONS: Array<{ value: SortBy; label: string }> = [
     { value: "number", label: "#" },
+    { value: "release", label: "Date" },
     { value: "cm_en", label: "CM" },
     { value: "tcp", label: "TCP" },
   ];
@@ -756,6 +805,7 @@ export default function ExpansionView({
   const filterBadgeCount =
     activeRarities.length +
     activeSupertypes.length +
+    activeReleaseYears.length +
     (onlyPriced ? 1 : 0) +
     (search.trim() ? 1 : 0);
   const toolbarSortOptions: CardBrowserToolbarOption[] = [
@@ -764,6 +814,7 @@ export default function ExpansionView({
       label: "#",
       title: "Sort by card number",
     },
+    { value: "release", label: "Date", title: "Sort by card release date" },
     {
       value: "cm_en",
       label: "CM",
@@ -817,6 +868,11 @@ export default function ExpansionView({
       label: supertype,
       onRemove: () => toggleSupertype(supertype),
     })),
+    ...activeReleaseYears.map((year) => ({
+      key: `release-year-${year}`,
+      label: year,
+      onRemove: () => toggleReleaseYear(year),
+    })),
     ...(onlyPriced
       ? [
           {
@@ -853,6 +909,29 @@ export default function ExpansionView({
     }),
   ];
   const toolbarFilterSections: CardBrowserToolbarFilterSection[] = [
+    ...(availableReleaseYears.length > 1
+      ? [
+          {
+            key: "release-year",
+            title: "Release year",
+            summary: activeReleaseYears.length > 0 ? `${activeReleaseYears.length} selected` : "All",
+            className: "xl:min-w-0",
+            options: availableReleaseYears.map((year) => {
+              const active = activeReleaseYears.includes(year.value);
+              return {
+                key: year.value,
+                label: year.value,
+                active,
+                count: year.count,
+                onToggle: () => toggleReleaseYear(year.value),
+                className: `inline-flex min-h-[var(--ui-chip-min-height)] items-center gap-[var(--ui-chip-gap)] rounded-full border px-[var(--ui-chip-x)] py-[var(--ui-chip-y)] text-[length:var(--ui-chip-font-size)] leading-none transition-all ${
+                  active ? "font-semibold" : "font-medium"
+                } ${neutralFilterChip(active)}`,
+              };
+            }),
+          } satisfies CardBrowserToolbarFilterSection,
+        ]
+      : []),
     {
       key: "rarity",
       title: "Rarity",
@@ -887,6 +966,7 @@ export default function ExpansionView({
 
   function clearAllFilters() {
     setSearch("");
+    setSelectedReleaseYears([]);
     set("defaultRarities", []);
     set("defaultSupertypes", []);
     set("showOnlyPriced", false);

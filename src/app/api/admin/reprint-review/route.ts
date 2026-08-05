@@ -14,7 +14,10 @@ export async function GET() {
     await requireAdmin();
     const [relations, overrides] = await Promise.all([
       db.cardPrintingRelation.findMany({
-        where: { match_method: { in: ["likely-art", "connected-reprint"] } },
+        where: {
+          model_version: CARD_REPRINT_MODEL_VERSION,
+          match_method: "likely-art",
+        },
         orderBy: [{ image_similarity: "asc" }, { matched_at: "desc" }],
         take: 500,
         include: {

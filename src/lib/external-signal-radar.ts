@@ -189,6 +189,7 @@ export interface ExternalCardSignal {
   cardNumber: string | null;
   episodeName: string;
   episodeCode: string | null;
+  episodeReleaseDate?: string | null;
   rarity: string | null;
   currentPrice: number | null;
   currency: "EUR" | "USD";
@@ -265,6 +266,7 @@ const RADAR_CARD_SELECT = {
       id: true,
       name: true,
       code: true,
+      release_date: true,
     },
   },
 } satisfies Prisma.CardSelect;
@@ -797,6 +799,7 @@ async function buildRadarData(
         cardNumber: localCard.printed_card_number ?? localCard.card_number,
         episodeName: localCard.episode.name,
         episodeCode: localCard.episode.code,
+        episodeReleaseDate: localCard.episode.release_date,
         rarity: localCard.rarity,
         currentPrice: price?.value ?? null,
         currency: "EUR" as const,
