@@ -12,7 +12,7 @@ import { convertUsdToEur, getUsdToEurRate } from "@/lib/exchange-rates";
 // the card detail page shows) onto the Card row, so search and other list
 // surfaces can rank on real market interest without recomputing per request.
 // Runs a small batch per scheduler tick until every priced card is fresh.
-const BATCH_SIZE = 120;
+const BATCH_SIZE = 40;
 const REFRESH_INTERVAL_MS = 3 * 24 * 60 * 60 * 1000;
 
 let running = false;
@@ -163,8 +163,11 @@ async function runMarketScoreBatch(now: Date): Promise<number> {
   return candidates.length;
 }
 
-export function maybeRunMarketScoreJob(now: Date = new Date()): void {
-  if (running) return;
+export function maybeRunMarketScoreJob(
+  now: Date = new Date(),
+  options: { defer?: boolean } = {}
+): void {
+  if (running || options.defer) return;
   running = true;
 
   void runMarketScoreBatch(now)

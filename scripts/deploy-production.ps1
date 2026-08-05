@@ -100,6 +100,10 @@ DeploySha="${DUSTYCARDS_DEPLOY_SHA:-}"
 DeployArchive="${DUSTYCARDS_DEPLOY_ARCHIVE:-/tmp/dustycards-deploy.tar.gz}"
 
 mkdir -p /opt/dustycards /opt/dustycards/backups
+install -d -o dustycards -g dustycards -m 0755 /opt/dustycards/backups
+touch /opt/dustycards/backup.lock
+chown root:dustycards /opt/dustycards/backup.lock
+chmod 0660 /opt/dustycards/backup.lock
 exec 9>/opt/dustycards/deploy.lock
 if ! flock -n 9; then
   echo "Another DustyCards deploy is already running; refusing to overlap." >&2
@@ -218,7 +222,10 @@ cleanup_remote_junk() {
 }
 
 cleanup_remote_junk
+exec 8>/opt/dustycards/backup.lock
+flock -w 900 8
 create_predeploy_backup
+flock -u 8
 
 release_dir="$(mktemp -d /tmp/dustycards-release.XXXXXX)"
 cleanup() {
@@ -239,7 +246,7 @@ install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath"
 # Replace only source-controlled app paths so deleted/renamed files do not linger
 # on the server. Persistent runtime data (.env, dustycards.db, node_modules, .next)
 # is intentionally left in place.
-for path in src prisma scripts tests public docs; do
+for path in src prisma scripts tests public docs deploy; do
   rm -rf "$RemoteAppPath/$path"
 done
 
@@ -306,6 +313,7 @@ if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.timer 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
+  systemctl stop dustycards-daily-backup.service 2>/dev/null || true
   systemctl stop dustycards-reprint-backlog.service 2>/dev/null || true
   systemctl stop dustycards 2>/dev/null || true
   PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
@@ -344,6 +352,7 @@ if [ "$PENDING_MIGRATIONS" -gt 0 ] 2>/dev/null; then
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.timer 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
+  systemctl stop dustycards-daily-backup.service 2>/dev/null || true
   systemctl stop dustycards-reprint-backlog.service 2>/dev/null || true
   systemctl stop dustycards 2>/dev/null || true
   npx prisma migrate deploy
@@ -358,7 +367,7 @@ npx prisma generate
 release_build="${DeploySha:-$(date -u +%Y%m%dT%H%M%SZ)}"
 NEXT_PUBLIC_APP_BUILD="$release_build" \
   APP_BUILD="$release_build" \
-  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2560}" \
+  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}" \
   npm run build
 cleanup_remote_junk
 
@@ -369,6 +378,11 @@ install -d -m 0755 /etc/systemd/system/dustycards.service.d
 cat > /etc/systemd/system/dustycards.service.d/10-release-build.conf <<EOF
 [Service]
 Environment=APP_BUILD=$release_build
+EOF
+cat > /etc/systemd/system/dustycards.service.d/20-resource-priority.conf <<'EOF'
+[Service]
+CPUWeight=1000
+IOWeight=1000
 EOF
 systemctl daemon-reload
 systemctl restart dustycards
@@ -431,7 +445,9 @@ Environment=UV_THREADPOOL_SIZE=1
 ExecStart=/usr/bin/node --no-warnings scripts/card-reprint-backlog-worker.mjs
 Nice=15
 IOSchedulingClass=idle
-CPUQuota=35%
+CPUQuota=20%
+CPUWeight=10
+IOWeight=10
 MemoryHigh=768M
 MemoryMax=1G
 TimeoutStopSec=180
@@ -440,6 +456,29 @@ RestartSec=30
 
 [Install]
 WantedBy=multi-user.target
+EOF
+
+cat > /etc/systemd/system/dustycards-daily-backup.service <<EOF
+[Unit]
+Description=DustyCards low-priority daily database backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=dustycards
+Group=dustycards
+WorkingDirectory=$RemoteAppPath
+EnvironmentFile=$RemoteAppPath/.env
+ExecStart=/usr/bin/flock -w 900 /opt/dustycards/backup.lock /usr/bin/node --no-warnings scripts/daily-backup-worker.mjs
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=25%
+CPUWeight=10
+IOWeight=10
+MemoryHigh=512M
+MemoryMax=1G
+TimeoutStartSec=3h
 EOF
 
 cat > /etc/systemd/system/dustycards-sync-scheduler.timer <<'EOF'
@@ -476,8 +515,26 @@ WorkingDirectory=$RemoteAppPath
 EnvironmentFile=$RemoteAppPath/.env
 ExecStart=/usr/bin/env npm run sync:sealed-release-dates -- --refresh --apply --allow-partial --years=current-next --max-pages=60 --concurrency=3
 Nice=10
-IOSchedulingClass=best-effort
-IOSchedulingPriority=7
+IOSchedulingClass=idle
+CPUQuota=35%
+CPUWeight=10
+IOWeight=10
+MemoryHigh=768M
+MemoryMax=1536M
+EOF
+
+cat > /etc/systemd/system/dustycards-daily-backup.timer <<'EOF'
+[Unit]
+Description=Create one bounded DustyCards database backup per day
+
+[Timer]
+OnCalendar=*-*-* 02:20:00
+RandomizedDelaySec=20min
+Persistent=true
+Unit=dustycards-daily-backup.service
+
+[Install]
+WantedBy=timers.target
 EOF
 
 cat > /etc/systemd/system/dustycards-sealed-release-refresh.timer <<'EOF'
@@ -497,6 +554,7 @@ EOF
 systemctl daemon-reload
 systemctl enable --now dustycards-sync-scheduler.timer
 systemctl enable --now dustycards-sealed-release-refresh.timer
+systemctl enable --now dustycards-daily-backup.timer
 systemctl enable dustycards-reprint-backlog.service
 systemctl restart dustycards-reprint-backlog.service || true
 # Kick off one sync immediately, but do not fail the deploy if it does: the app
@@ -505,6 +563,7 @@ systemctl restart dustycards-reprint-backlog.service || true
 systemctl start dustycards-sync-scheduler.service || true
 systemctl is-active dustycards-sync-scheduler.timer
 systemctl is-active dustycards-sealed-release-refresh.timer
+systemctl is-active dustycards-daily-backup.timer
 
 # Production follows GitHub over an outbound connection. This removes inbound
 # SSH from the normal release path: a push to main is picked up within a minute
@@ -554,9 +613,14 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 ExecStart=/usr/local/sbin/dustycards-auto-deploy
-Nice=10
-IOSchedulingClass=best-effort
-IOSchedulingPriority=7
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=65%
+CPUWeight=10
+IOWeight=10
+MemoryHigh=2300M
+MemoryMax=2800M
+TasksMax=96
 EOF
 
 cat > /etc/systemd/system/dustycards-auto-deploy.timer <<'EOF'

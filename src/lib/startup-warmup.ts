@@ -12,9 +12,10 @@ import { POKEMON_GAME } from "@/lib/games";
 // after boot and then re-warms every few minutes, which keeps the movers
 // stale-while-revalidate caches permanently populated. Nobody ever waits for
 // a cold Targets/Graded build again.
-const WARMUP_USER_LIMIT = 3;
+const WARMUP_USER_LIMIT = 1;
 const INITIAL_WARMUP_DELAY_MS = 2 * 60_000;
-const REWARM_INTERVAL_MS = 30 * 60_000;
+const REWARM_INTERVAL_MS = 10 * 60_000;
+const BUSY_RETRY_MS = 5 * 60_000;
 // Market scopes to keep warm; undefined = the default raw view.
 const MARKET_SCOPES: Array<string | undefined> = [undefined, "graded", "grading", "sealed"];
 
@@ -22,6 +23,7 @@ let running = false;
 let nextEligibleAt = Date.now() + INITIAL_WARMUP_DELAY_MS;
 let lastFinishedAt: string | null = null;
 let lastError: string | null = null;
+let nextMarketScopeIndex = 0;
 
 export function getStartupWarmupSnapshot() {
   return { running, lastFinishedAt, lastError };
@@ -46,23 +48,28 @@ async function findRecentlyActiveUserIds(): Promise<string[]> {
 
 async function runCacheWarmup(): Promise<void> {
   const userIds = await findRecentlyActiveUserIds();
+  const marketScope = MARKET_SCOPES[nextMarketScopeIndex % MARKET_SCOPES.length];
 
   for (const userId of userIds) {
-    // Sequential on purpose: the goal is warm caches, not extra load spikes.
+    // One user and one market scope per pass. Repeated scheduler ticks rotate
+    // through the scopes without a post-deploy burst of fifteen heavy builds.
     await getCachedCollectionOverviewData({
       userId,
       activeTab: "overview",
       game: POKEMON_GAME,
     });
-    for (const scope of MARKET_SCOPES) {
-      await loadMoversPageData(undefined, scope, undefined, userId, POKEMON_GAME);
-    }
+    await loadMoversPageData(undefined, marketScope, undefined, userId, POKEMON_GAME);
   }
+  nextMarketScopeIndex = (nextMarketScopeIndex + 1) % MARKET_SCOPES.length;
 }
 
-export function maybeRunCacheWarmer(): void {
+export function maybeRunCacheWarmer(options: { defer?: boolean } = {}): void {
   const now = Date.now();
   if (running || now < nextEligibleAt) return;
+  if (options.defer) {
+    nextEligibleAt = now + BUSY_RETRY_MS;
+    return;
+  }
   running = true;
 
   void runCacheWarmup()

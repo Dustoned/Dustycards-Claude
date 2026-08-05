@@ -40,13 +40,16 @@ import {
 } from "@/lib/sync/set-lifecycle-job";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { maybeRunCacheWarmer } from "@/lib/startup-warmup";
-import { maybeRunDailyBackupJob } from "@/lib/sync/backup-job";
 import { maybeRunMarketScoreJob } from "@/lib/sync/market-score-job";
 import {
   maybeRunCardReprintJob,
   type CardReprintJobSnapshot,
 } from "@/lib/sync/card-reprint-job";
 import { maybeRunUpcomingGallerySourceJob } from "@/lib/sync/upcoming-gallery-source-job";
+import {
+  getBackgroundLoadSnapshot,
+  type BackgroundLoadSnapshot,
+} from "@/lib/background-load-guard";
 
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
 
@@ -54,6 +57,7 @@ export interface SyncSchedulerTickResult {
   ok: true;
   checkedAt: string;
   scraperDisabled: boolean;
+  backgroundLoad: BackgroundLoadSnapshot;
   priceRefresh: {
     started: boolean;
     running: boolean;
@@ -149,19 +153,27 @@ async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<voi
 export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
   const checkedAt = new Date();
   const scraperDisabled = areScraperRequestsDisabled();
+  const backgroundLoad = await getBackgroundLoadSnapshot(checkedAt).catch(() => ({
+    activeUsers: 0,
+    logicalCpus: 1,
+    load1m: 0,
+    loadPerCpu: 0,
+    deferred: false,
+  }));
   // Fire-and-forget: keep the heaviest page caches (home overview + market
   // scopes) warm for recently active users, starting right after boot and
   // re-warming every few minutes.
-  maybeRunCacheWarmer();
-  // Fire-and-forget: nightly automatic database backup with rotation.
-  maybeRunDailyBackupJob(checkedAt);
+  maybeRunCacheWarmer({ defer: backgroundLoad.deferred });
   // Fire-and-forget: persist DustyCards market scores in small batches so
   // search can rank on real market interest.
-  maybeRunMarketScoreJob(checkedAt);
+  maybeRunMarketScoreJob(checkedAt, { defer: backgroundLoad.deferred });
   // Complete release galleries use a zero-credit direct fetch first, then
   // Scrape.do, and finally their last successful stored snapshot. The job is
   // fire-and-forget so a slow publisher never delays the main scheduler tick.
-  maybeRunUpcomingGallerySourceJob({ now: checkedAt, skip: scraperDisabled });
+  maybeRunUpcomingGallerySourceJob({
+    now: checkedAt,
+    skip: scraperDisabled || backgroundLoad.deferred,
+  });
   // Reprint relationships are precomputed in resumable batches. Card-detail
   // requests only read stored matches and never wait for TCGdex or image work.
   const reprints = maybeRunCardReprintJob(checkedAt);
@@ -250,7 +262,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
         };
   const currentCardPriceWorkPending = pricePendingCards > 0 || priceRefresh.running;
   const externalRadar = await maybeStartExternalSignalRadarJob({
-    skip: scraperDisabled,
+    skip: scraperDisabled || backgroundLoad.deferred,
     now: checkedAt,
   });
   // Sealed prices refresh on their own daily cadence; card price work keeps
@@ -320,6 +332,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     ok: true,
     checkedAt: checkedAt.toISOString(),
     scraperDisabled,
+    backgroundLoad,
     priceRefresh: {
       started: priceRefresh.started,
       running: priceRefresh.running,

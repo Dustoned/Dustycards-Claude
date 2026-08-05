@@ -57,6 +57,9 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         title: "Background reliability",
         highlights: [
           "The isolated reprint worker is enabled as a persistent service, so unfinished evidence resumes safely after a server reboot without moving the workload back into web requests.",
+          "Automatic deploys use one Next worker and a strict low-priority CPU, memory and I/O budget, leaving the running app responsive on the two-core production server.",
+          "Signal Radar startup reads its saved snapshot instead of rebuilding during a release, while image transforms are serialized to prevent cold galleries from taking both CPUs.",
+          "Nightly database backups run in a separate throttled service; cache warming, market scoring, Upcoming matching and external Radar maintenance wait until collectors and system load are quiet.",
           "Patch notes are now grouped by completed feature, with clear headings and version ranges while the detailed build archive stays preserved.",
         ],
       },

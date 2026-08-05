@@ -1,0 +1,11 @@
+[Unit]
+Description=Create one bounded DustyCards database backup per day
+
+[Timer]
+OnCalendar=*-*-* 02:20:00
+RandomizedDelaySec=20min
+Persistent=true
+Unit=dustycards-daily-backup.service
+
+[Install]
+WantedBy=timers.target

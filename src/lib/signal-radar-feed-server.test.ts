@@ -24,6 +24,7 @@ import {
 
 describe("shared Signal Radar feed cache", () => {
   beforeEach(() => {
+    vi.useRealTimers();
     vi.clearAllMocks();
     clearSharedSignalRadarFeedCache();
     snapshotMock.readSignalRadarChaseSnapshot.mockResolvedValue(null);
@@ -74,6 +75,22 @@ describe("shared Signal Radar feed cache", () => {
     });
 
     expect(result.newReleaseChases).toBe(chaseSnapshot);
+    expect(chaseMock.getExpansionChaseRadarData).not.toHaveBeenCalled();
+  });
+
+  it("hydrates an old Chase snapshot during deploy without scheduling a rebuild", async () => {
+    vi.useFakeTimers();
+    snapshotMock.readSignalRadarChaseSnapshot.mockResolvedValue({
+      writtenAt: "2026-01-01T00:00:00.000Z",
+      data: { cards: [{ cardId: "stored-chase" }] },
+    });
+
+    await getSharedSignalRadarFeedData(
+      { gameFilter: "all", episodeId: null },
+      { refreshStaleChases: false }
+    );
+    await vi.advanceTimersByTimeAsync(1_100);
+
     expect(chaseMock.getExpansionChaseRadarData).not.toHaveBeenCalled();
   });
 

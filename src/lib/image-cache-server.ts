@@ -14,6 +14,12 @@ import {
 import { getRemoteImageCandidates } from "@/lib/image-cache-fallbacks";
 import { trimResponsiveImageCache } from "@/lib/image-cache-maintenance";
 
+// Image transforms share the web process with normal page requests. One
+// libvips thread per transform prevents a cold card grid from claiming both
+// VPS cores; the small JS-level queue below still keeps two images moving.
+sharp.concurrency(1);
+sharp.cache({ memory: 64, files: 0, items: 64 });
+
 function resolveImageCacheDir() {
   return path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "image-cache");
 }
@@ -27,7 +33,7 @@ const MAX_REMOTE_IMAGE_FETCHES = 16;
 // Sharp decodes full source images before producing a thumbnail. Bounding the
 // number of decodes prevents a cold grid from multiplying CPU and native-memory
 // pressure by every simultaneously requested card.
-const MAX_IMAGE_TRANSFORMS = 3;
+const MAX_IMAGE_TRANSFORMS = 1;
 const MAX_RESPONSIVE_CACHE_ENTRIES = 4_096;
 const MAX_RESPONSIVE_CACHE_BYTES = 256 * 1024 * 1024;
 // A pass reads metadata sequentially, so amortize it across a sizeable batch.

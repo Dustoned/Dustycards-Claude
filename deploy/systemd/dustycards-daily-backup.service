@@ -1,0 +1,20 @@
+[Unit]
+Description=DustyCards low-priority daily database backup
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=dustycards
+Group=dustycards
+WorkingDirectory=/opt/dustycards/app
+EnvironmentFile=/opt/dustycards/app/.env
+ExecStart=/usr/bin/flock -w 900 /opt/dustycards/backup.lock /usr/bin/node --no-warnings scripts/daily-backup-worker.mjs
+Nice=15
+IOSchedulingClass=idle
+CPUQuota=25%
+CPUWeight=10
+IOWeight=10
+MemoryHigh=512M
+MemoryMax=1G
+TimeoutStartSec=3h

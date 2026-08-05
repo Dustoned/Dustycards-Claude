@@ -4,8 +4,7 @@ import { NextRequest } from "next/server";
 const { authMock, feedMock } = vi.hoisted(() => ({
   authMock: { isAuthorizedSchedulerRequest: vi.fn() },
   feedMock: {
-    refreshSharedSignalRadarChases: vi.fn(),
-    refreshSharedSignalRadarSignals: vi.fn(),
+    getSharedSignalRadarFeedData: vi.fn(),
   },
 }));
 
@@ -18,13 +17,12 @@ describe("Signal Radar warm-up endpoint", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     authMock.isAuthorizedSchedulerRequest.mockReturnValue(true);
-    feedMock.refreshSharedSignalRadarSignals.mockResolvedValue([
-      { cardId: "signal-1" },
-      { cardId: "signal-2" },
-    ]);
-    feedMock.refreshSharedSignalRadarChases.mockResolvedValue({
-      generatedAt: "2026-07-29T20:00:00.000Z",
-      cards: [{ cardId: "chase-1" }],
+    feedMock.getSharedSignalRadarFeedData.mockResolvedValue({
+      signals: [{ cardId: "signal-1" }, { cardId: "signal-2" }],
+      newReleaseChases: {
+        generatedAt: "2026-07-29T20:00:00.000Z",
+        cards: [{ cardId: "chase-1" }],
+      },
     });
   });
 
@@ -41,11 +39,10 @@ describe("Signal Radar warm-up endpoint", () => {
       signals: 2,
       chaseCards: 1,
     });
-    expect(feedMock.refreshSharedSignalRadarSignals).toHaveBeenCalledWith("all");
-    expect(feedMock.refreshSharedSignalRadarChases).toHaveBeenCalledWith({
-      gameFilter: "all",
-      episodeId: null,
-    });
+    expect(feedMock.getSharedSignalRadarFeedData).toHaveBeenCalledWith(
+      { gameFilter: "all", episodeId: null },
+      { refreshStaleChases: false }
+    );
   });
 
   it("hides the endpoint without the scheduler secret", async () => {
@@ -58,6 +55,6 @@ describe("Signal Radar warm-up endpoint", () => {
     );
 
     expect(response.status).toBe(404);
-    expect(feedMock.refreshSharedSignalRadarSignals).not.toHaveBeenCalled();
+    expect(feedMock.getSharedSignalRadarFeedData).not.toHaveBeenCalled();
   });
 });

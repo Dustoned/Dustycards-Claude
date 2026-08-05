@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { ALL_GAMES } from "@/lib/games";
 import { isAuthorizedSchedulerRequest } from "@/lib/scheduler-secret";
 import {
-  refreshSharedSignalRadarChases,
-  refreshSharedSignalRadarSignals,
+  getSharedSignalRadarFeedData,
 } from "@/lib/signal-radar-feed-server";
 
 export const dynamic = "force-dynamic";
@@ -15,13 +14,16 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const [signals, newReleaseChases] = await Promise.all([
-      refreshSharedSignalRadarSignals(ALL_GAMES),
-      refreshSharedSignalRadarChases({
+    // Hydrate the new process from durable snapshots. A deploy must never
+    // force the expensive Radar model to recompute while collectors are
+    // trying to open the freshly restarted app.
+    const { signals, newReleaseChases } = await getSharedSignalRadarFeedData(
+      {
         gameFilter: ALL_GAMES,
         episodeId: null,
-      }),
-    ]);
+      },
+      { refreshStaleChases: false }
+    );
 
     return NextResponse.json({
       ok: true,

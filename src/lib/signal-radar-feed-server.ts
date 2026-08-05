@@ -74,7 +74,8 @@ export function getSharedSignalRadarSignals(
 }
 
 export function getSharedSignalRadarChases(
-  options: SharedSignalRadarFeedOptions
+  options: SharedSignalRadarFeedOptions,
+  behavior: { refreshStaleSnapshot?: boolean } = {}
 ): Promise<ExpansionChaseRadarData | null> {
   const key = chaseCacheKey(options);
   return sharedChaseCache.get(key, async () => {
@@ -82,8 +83,9 @@ export function getSharedSignalRadarChases(
     if (snapshot) {
       const writtenAt = new Date(snapshot.writtenAt).getTime();
       if (
-        !Number.isFinite(writtenAt) ||
-        writtenAt <= Date.now() - CHASE_SNAPSHOT_BACKGROUND_REFRESH_MS
+        behavior.refreshStaleSnapshot !== false &&
+        (!Number.isFinite(writtenAt) ||
+          writtenAt <= Date.now() - CHASE_SNAPSHOT_BACKGROUND_REFRESH_MS)
       ) {
         scheduleChaseBackgroundRefresh(options);
       }
@@ -147,11 +149,14 @@ export async function refreshSharedSignalRadarSignals(
 }
 
 export async function getSharedSignalRadarFeedData(
-  options: SharedSignalRadarFeedOptions
+  options: SharedSignalRadarFeedOptions,
+  behavior: { refreshStaleChases?: boolean } = {}
 ): Promise<SharedSignalRadarFeedData> {
   const [signals, newReleaseChases] = await Promise.all([
     getSharedSignalRadarSignals(options.gameFilter),
-    getSharedSignalRadarChases(options),
+    getSharedSignalRadarChases(options, {
+      refreshStaleSnapshot: behavior.refreshStaleChases !== false,
+    }),
   ]);
 
   return {

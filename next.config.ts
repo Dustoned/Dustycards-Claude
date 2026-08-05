@@ -3,6 +3,12 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   allowedDevOrigins: ["127.0.0.1"],
   serverExternalPackages: ["sharp"],
+  experimental: {
+    // The production VPS has two CPUs. A single build worker plus the deploy
+    // cgroup limit leaves capacity for the currently running app instead of
+    // letting Turbopack discover dozens of host workers and pin both cores.
+    cpus: 1,
+  },
   outputFileTracingExcludes: {
     "*": [
       "**/data/image-cache/**/*",
