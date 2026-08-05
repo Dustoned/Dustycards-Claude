@@ -1,6 +1,15 @@
 import type { NextConfig } from "next";
 
+const releaseBuild = process.env.NEXT_PUBLIC_APP_BUILD || process.env.APP_BUILD;
+const safeReleaseBuild = releaseBuild?.replace(/[^a-zA-Z0-9._-]/g, "-");
+
 const nextConfig: NextConfig = {
+  // Production builds into a release-specific directory so the running app
+  // never reads a half-written Next.js manifest during an automatic deploy.
+  // APP_BUILD is already provided by the existing production service, so this
+  // also takes effect on the very first automatic deploy of this change.
+  distDir: process.env.DUSTYCARDS_NEXT_DIST_DIR
+    || (safeReleaseBuild ? `.next-releases/${safeReleaseBuild}` : ".next"),
   allowedDevOrigins: ["127.0.0.1"],
   serverExternalPackages: ["sharp"],
   experimental: {

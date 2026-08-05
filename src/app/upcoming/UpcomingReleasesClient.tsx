@@ -1,7 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { useDeferredValue, useMemo, useState, type CSSProperties } from "react";
+import {
+  useDeferredValue,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+  type ReactNode,
+} from "react";
 import {
   ArrowRight,
   CalendarDays,
@@ -234,6 +243,91 @@ function BinderSingleTile({
   );
 }
 
+function HorizontalCardRail({
+  children,
+  label,
+  tileTrackWidth,
+}: {
+  children: ReactNode;
+  label: string;
+  tileTrackWidth: string;
+}) {
+  const railRef = useRef<HTMLDivElement>(null);
+  const dragState = useRef({
+    pointerId: -1,
+    startX: 0,
+    startScrollLeft: 0,
+    moved: false,
+    blockClick: false,
+  });
+
+  const handlePointerDown = (event: ReactPointerEvent<HTMLDivElement>) => {
+    if (event.pointerType !== "mouse" || event.button !== 0) return;
+    const rail = railRef.current;
+    if (!rail || rail.scrollWidth <= rail.clientWidth) return;
+
+    dragState.current.pointerId = event.pointerId;
+    dragState.current.startX = event.clientX;
+    dragState.current.startScrollLeft = rail.scrollLeft;
+    dragState.current.moved = false;
+    dragState.current.blockClick = false;
+    rail.setPointerCapture(event.pointerId);
+  };
+
+  const handlePointerMove = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rail = railRef.current;
+    const state = dragState.current;
+    if (!rail || state.pointerId !== event.pointerId) return;
+
+    const distance = event.clientX - state.startX;
+    if (!state.moved && Math.abs(distance) < 5) return;
+    state.moved = true;
+    event.preventDefault();
+    rail.scrollLeft = state.startScrollLeft - distance;
+  };
+
+  const finishPointerDrag = (event: ReactPointerEvent<HTMLDivElement>) => {
+    const rail = railRef.current;
+    const state = dragState.current;
+    if (!rail || state.pointerId !== event.pointerId) return;
+
+    state.blockClick = state.moved;
+    state.pointerId = -1;
+    if (rail.hasPointerCapture(event.pointerId)) {
+      rail.releasePointerCapture(event.pointerId);
+    }
+    window.setTimeout(() => {
+      dragState.current.blockClick = false;
+    }, 0);
+  };
+
+  const blockDraggedClick = (event: ReactMouseEvent<HTMLDivElement>) => {
+    if (!dragState.current.blockClick) return;
+    event.preventDefault();
+    event.stopPropagation();
+    dragState.current.blockClick = false;
+  };
+
+  return (
+    <div
+      ref={railRef}
+      role="region"
+      aria-label={label}
+      tabIndex={0}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={finishPointerDrag}
+      onPointerCancel={finishPointerDrag}
+      onClickCapture={blockDraggedClick}
+      onDragStart={(event) => event.preventDefault()}
+      className="grid cursor-grab select-none gap-x-3 overflow-x-auto overscroll-x-contain pb-2 active:cursor-grabbing sm:gap-x-4 [scrollbar-color:rgba(139,92,246,0.42)_rgba(255,255,255,0.06)] [scrollbar-width:thin]"
+      style={{ gridAutoFlow: "column", gridAutoColumns: tileTrackWidth } as CSSProperties}
+    >
+      {children}
+    </div>
+  );
+}
+
 function SingleSetSection({
   group,
   tileTrackWidth,
@@ -243,7 +337,6 @@ function SingleSetSection({
   tileTrackWidth: string;
   imageSizes: string;
 }) {
-  const visibleItems = group.items.slice(0, 8);
   const setHref = `/upcoming/sets/${encodeURIComponent(group.key)}`;
   const progress = group.coverage == null ? null : Math.round(group.coverage * 100);
   const statusSummary = [
@@ -294,26 +387,25 @@ function SingleSetSection({
         )}
       </Link>
 
-      <Link
-        href={setHref}
-        prefetch={false}
-        aria-label={`View all ${group.items.length} ${group.items.length === 1 ? "card" : "cards"} from ${group.name}`}
-        className="group/row block bg-[radial-gradient(circle_at_50%_0%,rgba(124,92,255,0.11),transparent_46%)] p-3 transition hover:bg-violet-400/[0.025] sm:p-5"
-      >
-        <div
-          className="grid overflow-hidden gap-x-3 sm:gap-x-4"
-          style={{ gridAutoFlow: "column", gridAutoColumns: tileTrackWidth } as CSSProperties}
+      <div className="bg-[radial-gradient(circle_at_50%_0%,rgba(124,92,255,0.11),transparent_46%)] p-3 sm:p-5">
+        <HorizontalCardRail
+          label={`Browse all ${group.items.length} ${group.items.length === 1 ? "card" : "cards"} from ${group.name}`}
+          tileTrackWidth={tileTrackWidth}
         >
-          {visibleItems.map((item) => (
-            <div
+          {group.items.map((item) => (
+            <Link
               key={item.id}
-              className="min-w-0"
+              href={setHref}
+              prefetch={false}
+              aria-label={`Open ${group.name} gallery at ${item.name}`}
+              className="min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
+              style={{ contentVisibility: "auto", containIntrinsicSize: "auto 280px" }}
             >
               <BinderSingleTile item={item} interactive={false} imageSizes={imageSizes} />
-            </div>
+            </Link>
           ))}
-        </div>
-      </Link>
+        </HorizontalCardRail>
+      </div>
     </section>
   );
 }

@@ -365,6 +365,10 @@ npx prisma generate
 # also has swap as a safety net, but a bounded heap prevents another build from
 # starving sshd and systemd-journald.
 release_build="${DeploySha:-$(date -u +%Y%m%dT%H%M%SZ)}"
+release_dist_dir=".next-releases/$release_build"
+rm -rf -- "$RemoteAppPath/$release_dist_dir"
+install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/.next-releases"
+DUSTYCARDS_NEXT_DIST_DIR="$release_dist_dir" \
 NEXT_PUBLIC_APP_BUILD="$release_build" \
   APP_BUILD="$release_build" \
   NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}" \
@@ -378,6 +382,7 @@ install -d -m 0755 /etc/systemd/system/dustycards.service.d
 cat > /etc/systemd/system/dustycards.service.d/10-release-build.conf <<EOF
 [Service]
 Environment=APP_BUILD=$release_build
+Environment=DUSTYCARDS_NEXT_DIST_DIR=$release_dist_dir
 EOF
 cat > /etc/systemd/system/dustycards.service.d/20-resource-priority.conf <<'EOF'
 [Service]
@@ -401,6 +406,12 @@ if [ "$health_ok" -ne 1 ]; then
   journalctl -u dustycards -n 80 --no-pager >&2 || true
   exit 1
 fi
+
+# The new process is healthy and no longer reads the legacy in-place build.
+# Keep the current and two previous immutable releases for a quick rollback while
+# removing older build output that would otherwise accumulate on the VPS.
+rm -rf -- "$RemoteAppPath/.next"
+node scripts/prune-next-release-builds.mjs --keep=3
 
 # Build the durable, user-independent Radar snapshot before real traffic lands.
 # A warm-up failure must not roll back an otherwise healthy release.

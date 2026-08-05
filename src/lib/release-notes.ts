@@ -76,6 +76,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "Upcoming & Leaks follows the account card-size setting and the same readable maximum workspace width as the rest of DustyCards.",
           "Set previews remain one compact row, while the complete gallery keeps its search and sort tools without stretching artwork on ultrawide screens.",
+          "Every card in a set preview is available in the same horizontal rail: swipe on phone, use a trackpad or drag with the desktop mouse while off-screen tiles remain deferred.",
           "Cards already matched to released printings and known released promo reprints are removed from the upcoming feed.",
         ],
       },
@@ -84,6 +85,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "The isolated reprint worker is enabled as a persistent service, so unfinished evidence resumes safely after a server reboot without moving the workload back into web requests.",
           "Automatic deploys use one Next worker and a strict low-priority CPU, memory and I/O budget, leaving the running app responsive on the two-core production server.",
+          "A release is built beside the live Next.js output and only becomes active after the process restarts, preventing Search and other routes from seeing incomplete manifests during a deploy.",
           "Signal Radar startup reads its saved snapshot instead of rebuilding during a release, while image transforms are serialized to prevent cold galleries from taking both CPUs.",
           "Nightly database backups run in a separate throttled service; cache warming, market scoring, Upcoming matching and external Radar maintenance wait until collectors and system load are quiet.",
           "Patch notes are now grouped by completed feature, with clear headings and version ranges while the detailed build archive stays preserved.",
