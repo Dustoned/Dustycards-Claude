@@ -44,7 +44,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
       {
         title: "One tap stays one tap",
         highlights: [
-          "Every internal route gets immediate progress feedback plus a compact destination label when loading takes longer than expected.",
+          "Every internal route gets immediate progress feedback plus a compact destination label when loading takes longer than expected; on desktop it sits below the complete menu row instead of covering search or navigation controls.",
           "On phones that status stays below the fixed header and shortens labels such as card analysis links to the card name instead of covering the profile controls.",
           "Navigation progress observes one in-flight transition without cancelling it; genuinely slow routes offer an explicit direct-open action instead of silently starting duplicate requests.",
           "Search, game switches and binder create/edit flows now join the same progress lifecycle instead of navigating silently.",
@@ -54,7 +54,8 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         title: "Stable card details, trades and sales",
         highlights: [
           "Card Detail respects the iPhone safe area, keeps its loading shell aligned with the finished card and restores a persistent bottom action bar with enough reserved space to avoid covering the price or profile.",
-          "Fullscreen Card Detail anchors the action dock to the real phone viewport and keeps its sticky section rail below the iPhone status area during long scrolls.",
+          "Fullscreen Card Detail anchors the action dock to the visible phone viewport without inheriting the underlying page scroll, removes the unused dark tail beneath the last panel and keeps its sticky section rail below the iPhone status area during long scrolls.",
+          "Short desktop detail tabs retain the same fullscreen background all the way to the viewport edge instead of exposing a dark cutoff below their content.",
           "Desktop detail panels keep their own natural height when another section expands, eliminating the large empty bars beneath shorter content.",
           "Phone price charts capture chart gestures instead of scrolling the page while a collector inspects a data point.",
           "The installed phone app keeps its viewport fixed instead of pinch-zooming the complete interface by accident.",

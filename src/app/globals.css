@@ -742,7 +742,7 @@ body img {
 
 @media (min-width: 768px) {
   .route-progress-status {
-    top: calc(env(safe-area-inset-top, 0px) + 0.6rem);
+    top: calc(var(--ui-app-header-height) + env(safe-area-inset-top, 0px) + 0.45rem);
   }
 }
 
@@ -1802,6 +1802,14 @@ html.widescreen .settings-page {
     #050508;
 }
 
+/* Keep the fullscreen canvas continuous when a short tab makes the modal
+   frame end above the visible bottom of its scrolling overlay. */
+[data-card-detail-overlay] {
+  background:
+    linear-gradient(180deg, rgba(13, 13, 19, 0.985), rgba(5, 5, 8, 0.998) 42rem),
+    #050508 !important;
+}
+
 .card-detail-query-container {
   container-name: card-detail;
   container-type: inline-size;
@@ -1895,7 +1903,7 @@ html.widescreen .settings-page {
   }
 
   [data-card-detail-shell][data-has-actions="true"] .card-detail-layout {
-    padding-bottom: calc(1.25rem + var(--card-detail-mobile-action-reserve));
+    padding-bottom: var(--card-detail-mobile-action-reserve);
   }
 
   .card-detail-primary-actions > :is(button, a),
@@ -2963,7 +2971,7 @@ html.widescreen .settings-page {
   }
 
   [data-card-detail-shell][data-has-actions="true"] .card-detail-layout {
-    padding-bottom: calc(1.25rem + var(--card-detail-mobile-action-reserve));
+    padding-bottom: var(--card-detail-mobile-action-reserve);
   }
 
   [data-card-detail-shell] .card-detail-market-hero {
@@ -3086,25 +3094,12 @@ html.widescreen .settings-page {
     top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
   }
 
-  /* A small commit buffer keeps tab swaps stable without forcing every short
-     mobile panel to occupy a complete viewport and leave a dead empty tail. */
   [data-card-detail-shell] .card-detail-panel {
-    min-height: min(
-      22rem,
-      calc(
-        100dvh - var(--card-detail-mobile-action-reserve) - 4.5rem
-      )
-    );
+    min-height: 0;
   }
 
   [data-card-detail-shell][data-card-detail-mode="radar"] .card-detail-panel {
-    min-height: min(
-      22rem,
-      calc(
-        100dvh - var(--ui-app-header-height) - env(safe-area-inset-top, 0px) -
-          var(--card-detail-mobile-action-reserve) - 4.5rem
-      )
-    );
+    min-height: 0;
   }
 }
 
@@ -3366,6 +3361,16 @@ html[data-appearance-scheme="light"]
 html[data-appearance-scheme="light"]
   .card-modal-frame[data-mobile-showcase="true"] {
   background: var(--dc-bg-main) !important;
+}
+
+html[data-appearance-scheme="light"] [data-card-detail-overlay] {
+  background:
+    linear-gradient(
+      180deg,
+      rgb(var(--dc-surface-primary-rgb) / 0.99),
+      var(--dc-bg-main) 42rem
+    ),
+    var(--dc-bg-main) !important;
 }
 
 html[data-appearance-scheme="light"]

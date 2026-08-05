@@ -237,7 +237,7 @@ function SealedDetailActionGroup({
 }
 
 export default function SealedProductModal({ product, onClose }: Props) {
-  useBodyScrollLock();
+  useBodyScrollLock(true, "overflow");
   const router = useRouter();
   const modalFrameRef = useRef<HTMLDivElement | null>(null);
   const { displaySettings, currentUserRole } = useSettings();
@@ -770,6 +770,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
     <>
       <div
         data-sealed-modal-root
+        data-card-detail-overlay
         className="dc-modal-overlay dc-sidebar-offset-overlay fixed inset-0 z-[200] flex items-start justify-center overflow-hidden px-0 py-0 sm:px-3 sm:py-[calc(0.75rem+env(safe-area-inset-top,0px))] sm:pb-[calc(1rem+env(safe-area-inset-bottom,0px))] md:block md:overflow-y-auto md:p-0"
         style={{ overscrollBehaviorX: "auto", overscrollBehaviorY: "contain" }}
         onClick={onClose}
