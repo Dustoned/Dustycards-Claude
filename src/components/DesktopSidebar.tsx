@@ -266,9 +266,9 @@ function DesktopSidebarContent({ summary }: { summary: DesktopSidebarSummary }) 
                   >
                     <Icon className={`h-3.5 w-3.5 ${active ? "text-violet-200" : "text-white/55"}`} />
                     <span className="min-w-0 flex-1">{item.label}</span>
-                    {item.key === "settings" && (summary.attentionCount ?? 0) > 0 ? (
+                    {item.key === "settings" && (summary.settingsAttentionCount ?? 0) > 0 ? (
                       <span className="min-w-4 rounded-full bg-rose-500 px-1 text-center text-[8px] font-black leading-4 text-white">
-                        {(summary.attentionCount ?? 0) > 99 ? "99+" : summary.attentionCount}
+                        {(summary.settingsAttentionCount ?? 0) > 99 ? "99+" : summary.settingsAttentionCount}
                       </span>
                     ) : null}
                   </Link>

@@ -8,7 +8,7 @@ const MAX_ITEM_KEY_LENGTH = 240;
 
 type ActionItem = {
   id: string;
-  kind: "alert" | "ebay" | "signal" | "feedback";
+  kind: "account" | "alert" | "ebay" | "signal" | "feedback";
   title: string;
   detail: string;
   href: string;
@@ -24,7 +24,7 @@ export async function GET() {
     const ebayWindowStart = new Date(now.getTime() - 24 * 60 * 60_000);
     const ebayWindowEnd = new Date(now.getTime() + 48 * 60 * 60_000);
 
-    const [cardAlerts, collectionAlerts, watched, outcomes, feedback] = await Promise.all([
+    const [cardAlerts, collectionAlerts, watched, outcomes, feedback, pendingAccounts] = await Promise.all([
       db.cardPriceAlert.findMany({
         where: { user_id: user.id, triggered_at: { gte: recent } },
         orderBy: { triggered_at: "desc" },
@@ -55,6 +55,14 @@ export async function GET() {
       }),
       user.role === "admin"
         ? db.feedback.findMany({ where: { status: "new" }, orderBy: { created_at: "desc" }, take: 12 })
+        : Promise.resolve([]),
+      user.role === "admin"
+        ? db.user.findMany({
+            where: { disabled: true },
+            orderBy: { updated_at: "desc" },
+            take: 12,
+            select: { id: true, email: true, updated_at: true },
+          })
         : Promise.resolve([]),
     ]);
 
@@ -111,6 +119,15 @@ export async function GET() {
         detail: item.message,
         href: "/settings?section=feedback",
         occurredAt: item.created_at.toISOString(),
+        tone: "warning" as const,
+      })),
+      ...pendingAccounts.map((account) => ({
+        id: `account-approval-${account.id}-${account.updated_at.getTime()}`,
+        kind: "account" as const,
+        title: "Account waiting for approval",
+        detail: account.email,
+        href: `/account?tab=users&user=${encodeURIComponent(account.id)}`,
+        occurredAt: account.updated_at.toISOString(),
         tone: "warning" as const,
       })),
     ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 24);

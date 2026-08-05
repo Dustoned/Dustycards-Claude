@@ -31,6 +31,7 @@ export interface NavigationSummary {
   email: string;
   role: "admin" | "user";
   attentionCount?: number;
+  settingsAttentionCount?: number;
   activeUserCount?: number;
 }
 

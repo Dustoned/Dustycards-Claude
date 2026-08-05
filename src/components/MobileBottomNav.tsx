@@ -645,9 +645,9 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     >
                       <SettingsIcon className="h-4 w-4" aria-hidden="true" />
                       {SETTINGS_ITEM.label}
-                      {(summary?.attentionCount ?? 0) > 0 ? (
+                      {(summary?.settingsAttentionCount ?? 0) > 0 ? (
                         <span className="min-w-4 rounded-full bg-rose-500 px-1 text-center text-[8px] font-black leading-4 text-white">
-                          {(summary?.attentionCount ?? 0) > 99 ? "99+" : summary?.attentionCount}
+                          {(summary?.settingsAttentionCount ?? 0) > 99 ? "99+" : summary?.settingsAttentionCount}
                         </span>
                       ) : null}
                     </Link>

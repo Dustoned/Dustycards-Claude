@@ -62,9 +62,11 @@ function formatDate(value: string): string {
 
 export default function AdminUsersPanel({
   currentUserId,
+  initialUserId,
   users,
 }: {
   currentUserId: string;
+  initialUserId?: string;
   users: AdminUserSummary[];
 }) {
   const router = useRouter();
@@ -77,7 +79,9 @@ export default function AdminUsersPanel({
   const [error, setError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState(
-    users.find((user) => user.disabled)?.id ?? users[0]?.id ?? ""
+    users.some((user) => user.id === initialUserId)
+      ? initialUserId ?? ""
+      : users.find((user) => user.disabled)?.id ?? users[0]?.id ?? ""
   );
   const [passwordEditorUserId, setPasswordEditorUserId] = useState<string | null>(null);
   const [confirmAction, setConfirmAction] = useState<ConfirmAction>(null);

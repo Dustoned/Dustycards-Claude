@@ -184,7 +184,12 @@ function AccountOverview({
   );
 }
 
-export default async function AccountPage() {
+export default async function AccountPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ tab?: string; user?: string }>;
+}) {
+  const requested = await searchParams;
   const user = await requirePageUser("/account");
   const now = new Date();
   const [account, activeSessionCount] = await Promise.all([
@@ -264,6 +269,16 @@ export default async function AccountPage() {
 
   const totalSavedItems =
     account._count.collectionCards + account._count.sealedItems + account._count.wants;
+  const requestedUserId =
+    typeof requested.user === "string" && managedUsers.some((managedUser) => managedUser.id === requested.user)
+      ? requested.user
+      : undefined;
+  const defaultAccountTab =
+    requested.tab === "security"
+      ? "security"
+      : requested.tab === "users" && user.role === "admin"
+        ? "users"
+        : "overview";
   const headerStats = [
     {
       label: "Role",
@@ -302,6 +317,7 @@ export default async function AccountPage() {
       />
 
       <AccountTabs
+        defaultKey={defaultAccountTab}
         tabs={[
           {
             key: "overview",
@@ -321,7 +337,13 @@ export default async function AccountPage() {
                   key: "users",
                   label: "Users",
                   description: "Admin controls for accounts, roles, access, and password resets.",
-                  content: <AdminUsersPanel currentUserId={user.id} users={managedUsers} />,
+                  content: (
+                    <AdminUsersPanel
+                      currentUserId={user.id}
+                      initialUserId={requestedUserId}
+                      users={managedUsers}
+                    />
+                  ),
                 },
               ]
             : []),

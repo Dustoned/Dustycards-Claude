@@ -91,7 +91,7 @@ async function getDesktopSidebarSummary(
   email: string,
   role: DesktopSidebarSummary["role"]
 ): Promise<DesktopSidebarSummary> {
-  const [cards, forSaleCards, binders, wants, sealed, attentionCount, activeUsers] = await Promise.all([
+  const [cards, forSaleCards, binders, wants, sealed, feedbackCount, pendingAccountCount, activeUsers] = await Promise.all([
     db.collectionCard.count({ where: { user_id: userId, for_sale: false, sold_at: null } }),
     db.collectionCard.count({ where: { user_id: userId, for_sale: true, sold_at: null } }),
     db.collectionBinder.count({ where: { user_id: userId } }),
@@ -101,6 +101,7 @@ async function getDesktopSidebarSummary(
       _sum: { quantity: true },
     }),
     role === "admin" ? db.feedback.count({ where: { status: "new" } }) : Promise.resolve(0),
+    role === "admin" ? db.user.count({ where: { disabled: true } }) : Promise.resolve(0),
     role === "admin" ? getAdminActiveUsersSnapshot() : Promise.resolve(null),
   ]);
 
@@ -112,7 +113,8 @@ async function getDesktopSidebarSummary(
     wants,
     email,
     role,
-    attentionCount,
+    attentionCount: feedbackCount + pendingAccountCount,
+    settingsAttentionCount: feedbackCount,
     activeUserCount: activeUsers?.count ?? 0,
   };
 }

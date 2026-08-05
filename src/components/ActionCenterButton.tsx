@@ -1,14 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Bell, CheckCircle2, Clock3, Radar, X } from "lucide-react";
+import { Bell, CheckCircle2, Clock3, Radar, UserRoundCheck, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
 const ACTION_CENTER_ITEM_READ_EVENT = "dustycards:action-center-item-read";
 
 type ActionItem = {
   id: string;
-  kind: "alert" | "ebay" | "signal" | "feedback";
+  kind: "account" | "alert" | "ebay" | "signal" | "feedback";
   title: string;
   detail: string;
   href: string;
@@ -148,7 +148,13 @@ export default function ActionCenterButton({
             </div>
             <div className="max-h-[calc(100dvh-var(--ui-app-header-height)-env(safe-area-inset-top,0px)-5rem)] overscroll-contain overflow-y-auto p-2 sm:max-h-[27rem]">
               {items.length ? items.map((item) => {
-                const Icon = item.kind === "signal" ? Radar : item.kind === "ebay" ? Clock3 : CheckCircle2;
+                const Icon = item.kind === "signal"
+                  ? Radar
+                  : item.kind === "ebay"
+                    ? Clock3
+                    : item.kind === "account"
+                      ? UserRoundCheck
+                      : CheckCircle2;
                 return (
                   <Link key={item.id} href={item.href} onClick={() => { markItemRead(item.id); setOpen(false); }} target={item.kind === "ebay" ? "_blank" : undefined} rel={item.kind === "ebay" ? "noopener noreferrer" : undefined} className="flex gap-3 rounded-xl px-3 py-2.5 transition-colors hover:bg-white/[0.055]">
                     <span className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border ${item.tone === "positive" ? "border-emerald-300/16 bg-emerald-500/[0.08] text-emerald-200" : item.tone === "warning" ? "border-amber-300/16 bg-amber-500/[0.08] text-amber-200" : "border-white/8 bg-white/[0.035] text-white/52"}`}>

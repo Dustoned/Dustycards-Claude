@@ -633,9 +633,9 @@ function DesktopMarketplaceNavigation({ summary }: { summary: NavigationSummary 
                     >
                       <Icon className="h-4 w-4 text-white/46" />
                       <span className="min-w-0 flex-1">{item.label}</span>
-                      {item.key === "settings" && (summary.attentionCount ?? 0) > 0 ? (
+                      {item.key === "settings" && (summary.settingsAttentionCount ?? 0) > 0 ? (
                         <span className="min-w-5 rounded-full bg-rose-500 px-1.5 text-center text-[9px] font-black leading-5 text-white">
-                          {(summary.attentionCount ?? 0) > 99 ? "99+" : summary.attentionCount}
+                          {(summary.settingsAttentionCount ?? 0) > 99 ? "99+" : summary.settingsAttentionCount}
                         </span>
                       ) : null}
                     </Link>
