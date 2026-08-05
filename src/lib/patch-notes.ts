@@ -26,6 +26,7 @@ export const patchNotes: PatchNoteEntry[] = [
     highlights: [
       "The launch shell paints immediately and yields to the real app frame without leaving phones on an unexplained black screen.",
       "Home returns the essential collection overview first and progressively loads featured cards, value drivers and sudden drops afterwards.",
+      "Featured Cards now keeps a larger ranked pool for ultrawide layouts, filling one complete measured desktop row without increasing the two-row mobile limit or stretching card artwork.",
       "Internal navigation now shows destination-aware progress without restarting or cancelling a valid in-flight page request. A direct-open action appears only when a transition is genuinely slow.",
       "Search, game switches and binder create/edit flows join the same route progress lifecycle.",
       "Expansion overview sections defer off-screen layout work and large set pages reveal card batches near the viewport instead of mounting the complete set immediately.",

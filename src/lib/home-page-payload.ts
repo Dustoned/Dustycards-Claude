@@ -4,11 +4,10 @@ import type {
   CollectionValueDriversData,
 } from "@/lib/collection-data";
 
-// The home card rail is one desktop row or two mobile rows. Even the smallest
-// desktop card setting cannot fit more than ten cards inside the 1280px home
-// canvas, so sixteen leaves comfortable resize headroom without serializing all
-// 24 rich collection records into every Home response.
-export const HOME_FEATURED_CARD_LIMIT = 16;
+// Home can use the full widescreen canvas. Keep enough ranked cards available
+// for one complete ultrawide row; the client still renders only the measured
+// desktop column count or two complete mobile rows.
+export const HOME_FEATURED_CARD_LIMIT = 48;
 
 // HomeValueDriversPanel displays six rows per lane so its widescreen density
 // matches Sudden Price Drops (four card rows plus two sealed rows). Keep totals

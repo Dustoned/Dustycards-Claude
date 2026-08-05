@@ -35,10 +35,11 @@ import {
   getCardGridTrackWidth,
 } from "@/lib/display-scale";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
+import { HOME_FEATURED_CARD_LIMIT } from "@/lib/home-page-payload";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
 const DEFAULT_DESKTOP_FEATURED_COLUMNS = 8;
-const MAX_FEATURED_CARDS = 24;
+const MAX_FEATURED_CARDS = HOME_FEATURED_CARD_LIMIT;
 const MOBILE_FEATURED_ROWS = 2;
 
 const CardModal = dynamic(() => import("@/components/CardModal"), {

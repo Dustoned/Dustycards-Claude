@@ -32,6 +32,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "The phone launch screen now appears immediately and disappears as soon as the real app frame is ready, avoiding a long unexplained black screen.",
           "Home loads the essential collection overview first; featured cards, value drivers and sudden drops arrive progressively afterwards.",
+          "Featured Cards fills one complete measured row on wide and ultrawide screens while mobile remains limited to two complete rows.",
           "Collection overview results and exchange rates reuse safer caches, while low-priority images decode lazily instead of competing with the first screen.",
         ],
       },

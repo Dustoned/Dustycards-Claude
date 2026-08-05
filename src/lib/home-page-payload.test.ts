@@ -77,13 +77,13 @@ describe("home page payload", () => {
   });
 
   it("keeps only the cards that can appear in the home rail", () => {
-    const cards = Array.from({ length: 30 }, (_, index) => card(index + 1));
+    const cards = Array.from({ length: 60 }, (_, index) => card(index + 1));
     const result = getHomeFeaturedCards(cards);
 
     expect(result).toHaveLength(HOME_FEATURED_CARD_LIMIT);
-    expect(result[0]?.current_value).toBe(30);
-    expect(result.at(-1)?.current_value).toBe(15);
-    expect(cards).toHaveLength(30);
+    expect(result[0]?.current_value).toBe(60);
+    expect(result.at(-1)?.current_value).toBe(13);
+    expect(cards).toHaveLength(60);
   });
 
   it("removes hidden driver rows without changing portfolio totals", () => {
