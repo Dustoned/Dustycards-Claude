@@ -5,6 +5,8 @@ import { Bell, CheckCircle2, Clock3, Radar, UserRoundCheck, X } from "lucide-rea
 import { useEffect, useRef, useState } from "react";
 
 const ACTION_CENTER_ITEM_READ_EVENT = "dustycards:action-center-item-read";
+const ACTION_CENTER_REFRESH_INTERVAL_MS = 30_000;
+const ACTION_CENTER_SHARED_DEDUPE_MS = 2_000;
 
 type ActionItem = {
   id: string;
@@ -15,6 +17,64 @@ type ActionItem = {
   occurredAt: string;
   tone: "positive" | "warning" | "neutral";
 };
+
+type ActionCenterSnapshot = {
+  count: number;
+  items: ActionItem[];
+};
+
+let sharedSnapshot: ActionCenterSnapshot | null = null;
+let sharedLoadedAt = 0;
+let sharedRequest: Promise<ActionCenterSnapshot | null> | null = null;
+const sharedSubscribers = new Set<(snapshot: ActionCenterSnapshot) => void>();
+
+function publishSnapshot(snapshot: ActionCenterSnapshot) {
+  sharedSnapshot = snapshot;
+  for (const subscriber of sharedSubscribers) subscriber(snapshot);
+}
+
+async function requestActionCenterSnapshot(): Promise<ActionCenterSnapshot | null> {
+  if (
+    sharedSnapshot &&
+    Date.now() - sharedLoadedAt < ACTION_CENTER_SHARED_DEDUPE_MS
+  ) {
+    return sharedSnapshot;
+  }
+  if (sharedRequest) return sharedRequest;
+
+  sharedRequest = (async () => {
+    try {
+      const response = await fetch("/api/action-center", { cache: "no-store" });
+      const payload = (await response.json().catch(() => ({}))) as {
+        count?: number;
+        items?: ActionItem[];
+      };
+      if (!response.ok) return null;
+
+      const snapshot = {
+        count: payload.count ?? 0,
+        items: payload.items ?? [],
+      };
+      sharedLoadedAt = Date.now();
+      publishSnapshot(snapshot);
+      return snapshot;
+    } catch {
+      return null;
+    }
+  })().finally(() => {
+    sharedRequest = null;
+  });
+
+  return sharedRequest;
+}
+
+function removeSharedItem(itemId: string) {
+  if (!sharedSnapshot?.items.some((item) => item.id === itemId)) return;
+  publishSnapshot({
+    count: Math.max(0, sharedSnapshot.count - 1),
+    items: sharedSnapshot.items.filter((item) => item.id !== itemId),
+  });
+}
 
 function timeAgo(value: string): string {
   const elapsed = Date.now() - new Date(value).getTime();
@@ -39,29 +99,45 @@ export default function ActionCenterButton({
   const [loading, setLoading] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const locallyReadItemIdsRef = useRef(new Set<string>());
+  const loadRef = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     let active = true;
+    function applySnapshot(snapshot: ActionCenterSnapshot) {
+      if (!active) return;
+      const nextItems = snapshot.items.filter(
+        (item) => !locallyReadItemIdsRef.current.has(item.id)
+      );
+      setItems(nextItems);
+      setCount(nextItems.length);
+    }
     async function load() {
       setLoading(true);
       try {
-        const response = await fetch("/api/action-center", { cache: "no-store" });
-        const payload = (await response.json().catch(() => ({}))) as { count?: number; items?: ActionItem[] };
-        if (!active || !response.ok) return;
-        const nextItems = (payload.items ?? []).filter(
-          (item) => !locallyReadItemIdsRef.current.has(item.id)
-        );
-        setItems(nextItems);
-        setCount(nextItems.length);
+        const snapshot = await requestActionCenterSnapshot();
+        if (snapshot) applySnapshot(snapshot);
       } finally {
         if (active) setLoading(false);
       }
     }
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") void load();
+    }
+
+    loadRef.current = () => void load();
+    sharedSubscribers.add(applySnapshot);
+    if (sharedSnapshot) applySnapshot(sharedSnapshot);
     void load();
-    const timer = window.setInterval(load, 5 * 60_000);
+    const timer = window.setInterval(load, ACTION_CENTER_REFRESH_INTERVAL_MS);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       active = false;
+      loadRef.current = () => undefined;
+      sharedSubscribers.delete(applySnapshot);
       window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, []);
 
@@ -80,6 +156,7 @@ export default function ActionCenterButton({
   }, []);
 
   function markItemRead(itemId: string) {
+    removeSharedItem(itemId);
     window.dispatchEvent(
       new CustomEvent(ACTION_CENTER_ITEM_READ_EVENT, { detail: { itemId } })
     );
@@ -112,7 +189,10 @@ export default function ActionCenterButton({
     <div ref={rootRef} className={`relative shrink-0 ${className}`} data-action-center>
       <button
         type="button"
-        onClick={() => setOpen((current) => !current)}
+        onClick={() => {
+          loadRef.current();
+          setOpen((current) => !current);
+        }}
         className="relative flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/[0.045] text-white/68 transition-colors hover:bg-white/[0.08] hover:text-white"
         aria-label={`Action Center${count ? `, ${count} items` : ""}`}
         aria-expanded={open}

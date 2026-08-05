@@ -30,7 +30,7 @@ export const patchNotes: PatchNoteEntry[] = [
       "Search, game switches and binder create/edit flows join the same route progress lifecycle.",
       "Expansion overview sections defer off-screen layout work and large set pages reveal card batches near the viewport instead of mounting the complete set immediately.",
       "The isolated reprint worker is installed as a persistent low-priority service so unfinished evidence safely resumes after a server reboot.",
-      "New registrations now wait for admin approval. Pending accounts receive a clear login popup; only a correct login attempt creates one durable admin-only Action Center notification linking directly to the approval queue, while locking an account immediately ends its sessions.",
+      "New registrations now wait for admin approval. Pending accounts receive a clear login popup; only a correct login attempt creates one durable admin-only Action Center notification linking directly to the approval queue. Active admin sessions refresh the bell within 30 seconds, on app focus and when opening it, while locking an account immediately ends its sessions.",
       "Database retention now reserves disk space before writing: production keeps one local nightly and two pre-deploy restore points, while a configured off-site location retains seven nightly copies.",
       "The in-app update history now groups repeated hotfixes into complete feature chapters with clear section headings, version ranges and reusable copy for a future What’s New popup.",
     ],

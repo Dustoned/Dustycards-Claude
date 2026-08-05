@@ -62,7 +62,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "New accounts now enter an admin approval queue after registration instead of receiving collection access immediately.",
           "A pending account receives a clear approval popup at login, while admins can approve or lock accounts from the account management panel.",
-          "A pending account appears in the existing Action Center only after a correct login attempt, with a badge and direct link to the exact approval record without duplicate alerts.",
+          "A pending account appears in the existing Action Center only after a correct login attempt, with a badge and direct link to the exact approval record without duplicate alerts; active admin sessions refresh automatically and on bell open.",
           "Locking an account ends its active sessions, and the owner admin account cannot be locked from the interface.",
         ],
       },
