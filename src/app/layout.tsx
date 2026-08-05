@@ -8,6 +8,7 @@ import AppVersionWatcher from "@/components/AppVersionWatcher";
 import ActionCenterButton from "@/components/ActionCenterButton";
 import AdminActiveUsersButton from "@/components/AdminActiveUsersButton";
 import AutoPriceRefreshBoot from "@/components/AutoPriceRefreshBoot";
+import CollectionActionToast from "@/components/CollectionActionToast";
 import { HeaderMobileMenu, HeaderNav } from "@/components/HeaderNav";
 import HeaderSearch from "@/components/HeaderSearch";
 import DesktopSidebar, { type DesktopSidebarSummary } from "@/components/DesktopSidebar";
@@ -173,6 +174,7 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
       >
         <AppVersionWatcher initialBuild={buildVersion} />
         {currentUser ? <RouteProgressBar /> : null}
+        {currentUser ? <CollectionActionToast /> : null}
         {currentUser ? <OfflineCacheRegistration /> : null}
         {currentUser ? <NavigationStateController /> : null}
         <MobileHoverTooltip />

@@ -40,6 +40,7 @@ import type {
   CollectionCardAddDestination,
   CollectionCardAddedDetail,
 } from "@/lib/collection-client-events";
+import { dispatchCollectionCardAdded } from "@/lib/collection-client-events";
 import { SEALED_ORIGIN_PRICE_SOURCE } from "@/lib/collection-sealed-origin";
 
 type BinderOption = InlineBinderOption;
@@ -221,11 +222,13 @@ export default function CollectionAddCardButton({
 
       const addedDetail: CollectionCardAddedDetail = {
         cardId: card.id,
+        cardName: card.name,
         destination: forSale ? "for-sale" : "collection",
       };
 
       setOpen(false);
       setFlashDestination(addedDetail.destination);
+      dispatchCollectionCardAdded(addedDetail);
       await onAdded?.(addedDetail);
       if (refreshOnAdded) {
         router.refresh();

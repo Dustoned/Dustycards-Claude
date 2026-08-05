@@ -42,6 +42,7 @@ import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import { formatCurrency } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 import { MOBILE_EDGE_BACK_EVENT } from "@/lib/mobile-edge-back";
+import { invalidateMarketHomeClientCache } from "@/lib/home-client-cache";
 import type { CollectionCardSavedDetail } from "@/lib/collection-client-events";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import {
@@ -556,6 +557,7 @@ export default function CardModal({
       // The server response is authoritative. In particular, a null value must
       // clear a stale local owned-copy state after a refresh.
       applyRefreshedCard(refreshedCard);
+      invalidateMarketHomeClientCache();
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       setRefreshError(

@@ -1,9 +1,12 @@
+import { invalidateCollectionHomeClientCache } from "@/lib/home-client-cache";
+
 export const COLLECTION_CARD_ADDED_EVENT = "dustycards:collection-card-added";
 
 export type CollectionCardAddDestination = "collection" | "for-sale";
 
 export interface CollectionCardAddedDetail {
   cardId: string;
+  cardName?: string;
   destination: CollectionCardAddDestination;
 }
 
@@ -86,6 +89,10 @@ export function resolveCollectionCardOwnedState(cardId: string, serverOwned: boo
 }
 
 export function dispatchCollectionCardAdded(detail: CollectionCardAddedDetail) {
+  // Home keeps its latest successful panels in memory so returning to Home is
+  // instant. A collection mutation must invalidate that account-derived view
+  // before subscribers request it again.
+  invalidateCollectionHomeClientCache();
   rememberCollectionCardAdded(detail);
   window.dispatchEvent(
     new CustomEvent<CollectionCardAddedDetail>(COLLECTION_CARD_ADDED_EVENT, { detail })

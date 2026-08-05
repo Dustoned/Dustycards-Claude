@@ -701,6 +701,7 @@ async function HomePageContent({
           {hasCollection && (
             <ProgressiveHomeOverviewInsights
               endpoint={buildHomeInsightsApiHref()}
+              cacheScope={user.id}
               valueDriversHref={buildValueDriversHref()}
               suddenDropsApiHref={buildSuddenDropsApiHref()}
               suddenDropsHref={buildSuddenDropsHref()}

@@ -1960,9 +1960,9 @@ html.widescreen .settings-page {
 .card-detail-primary-actions {
   position: fixed;
   z-index: 220;
-  right: max(0.75rem, calc(var(--card-detail-safe-area-right) + 0.25rem));
+  right: max(0.75rem, calc(env(safe-area-inset-right, 0px) + 0.25rem));
   bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
-  left: max(0.75rem, calc(var(--card-detail-safe-area-left) + 0.25rem));
+  left: max(0.75rem, calc(env(safe-area-inset-left, 0px) + 0.25rem));
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -3082,11 +3082,14 @@ html.widescreen .settings-page {
     padding-bottom: 0;
   }
 
-  /* Keep enough content below the sticky rail for short tabs. Without this,
-     mobile browsers clamp the scroll position while React swaps panels and the
-     entire detail page appears to jump back up. */
+  .card-modal-frame[data-mobile-showcase="true"] .card-detail-tabs-shell {
+    top: calc(env(safe-area-inset-top, 0px) + 0.5rem);
+  }
+
+  /* A small commit buffer keeps tab swaps stable without forcing every short
+     mobile panel to occupy a complete viewport and leave a dead empty tail. */
   [data-card-detail-shell] .card-detail-panel {
-    min-height: max(
+    min-height: min(
       22rem,
       calc(
         100dvh - var(--card-detail-mobile-action-reserve) - 4.5rem
@@ -3095,7 +3098,7 @@ html.widescreen .settings-page {
   }
 
   [data-card-detail-shell][data-card-detail-mode="radar"] .card-detail-panel {
-    min-height: max(
+    min-height: min(
       22rem,
       calc(
         100dvh - var(--ui-app-header-height) - env(safe-area-inset-top, 0px) -

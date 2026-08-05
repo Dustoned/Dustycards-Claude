@@ -122,17 +122,22 @@ interface CardDetailShellProps {
 
 interface MobileActionPortalContextValue {
   enabled: boolean;
-  target: HTMLDivElement | null;
 }
 
 const MobileActionPortalContext = createContext<MobileActionPortalContextValue>({
   enabled: false,
-  target: null,
 });
 
 export function CardDetailMobileActionPortal({ children }: { children: ReactNode }) {
-  const { enabled, target } = useContext(MobileActionPortalContext);
-  return enabled && target ? createPortal(children, target) : children;
+  const { enabled } = useContext(MobileActionPortalContext);
+  return enabled && typeof document !== "undefined"
+    ? createPortal(
+        <div className="card-detail-mobile-actions-host" data-card-detail-mobile-actions-host>
+          {children}
+        </div>,
+        document.body
+      )
+    : children;
 }
 
 const DEFAULT_TAB_ICONS: Record<CardDetailTabId, LucideIcon> = {
@@ -245,7 +250,6 @@ export default function CardDetailShell({
   const tabListRef = useRef<HTMLDivElement | null>(null);
   const shellRef = useRef<HTMLElement | null>(null);
   const pendingTabScrollAnchorRef = useRef<PendingTabScrollAnchor | null>(null);
-  const [mobileActionHost, setMobileActionHost] = useState<HTMLDivElement | null>(null);
   const [useMobileActionPortal, setUseMobileActionPortal] = useState(false);
   const reactId = useId().replace(/:/g, "");
   const active = tabs.find((tab) => tab.id === activeTab) ?? tabs[0];
@@ -382,7 +386,7 @@ export default function CardDetailShell({
 
   return (
     <MobileActionPortalContext.Provider
-      value={{ enabled: useMobileActionPortal, target: mobileActionHost }}
+      value={{ enabled: useMobileActionPortal }}
     >
       <article
         ref={shellRef}
@@ -526,12 +530,6 @@ export default function CardDetailShell({
             </div>
           </div>
         </div>
-        <div
-          ref={setMobileActionHost}
-          className="card-detail-mobile-actions-host"
-          data-card-detail-mobile-actions-host
-          aria-hidden={!useMobileActionPortal || !actions ? "true" : undefined}
-        />
       </article>
     </MobileActionPortalContext.Provider>
   );

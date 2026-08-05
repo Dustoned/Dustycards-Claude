@@ -9,6 +9,11 @@ import type {
   HomeAllocationTone,
   HomeOverviewInsightsPayload,
 } from "@/lib/home-overview-insights";
+import {
+  readHomeClientCache,
+  writeHomeClientCache,
+} from "@/lib/home-client-cache";
+import { COLLECTION_CARD_ADDED_EVENT } from "@/lib/collection-client-events";
 
 const HomeValueDriversPanel = dynamic(() => import("@/components/HomeValueDriversPanel"), {
   ssr: false,
@@ -129,6 +134,7 @@ function CollectionAllocationPanel({ segments }: { segments: HomeAllocationSegme
 
 export default function ProgressiveHomeOverviewInsights({
   endpoint,
+  cacheScope,
   valueDriversHref,
   suddenDropsApiHref,
   suddenDropsHref,
@@ -136,15 +142,34 @@ export default function ProgressiveHomeOverviewInsights({
   topSetsSlot,
 }: {
   endpoint: string;
+  cacheScope: string;
   valueDriversHref: string;
   suddenDropsApiHref: string;
   suddenDropsHref: string;
   collectionHref: string;
   topSetsSlot: ReactNode;
 }) {
-  const [payload, setPayload] = useState<HomeOverviewInsightsPayload | null>(null);
+  const [payloadState, setPayloadState] = useState<{
+    endpoint: string;
+    payload: HomeOverviewInsightsPayload | null;
+  }>(() => ({
+    endpoint,
+    payload: readHomeClientCache<HomeOverviewInsightsPayload>(
+      "collection-insights",
+      cacheScope,
+      endpoint
+    ),
+  }));
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
+  const payload =
+    payloadState.endpoint === endpoint
+      ? payloadState.payload
+      : readHomeClientCache<HomeOverviewInsightsPayload>(
+          "collection-insights",
+          cacheScope,
+          endpoint
+        );
 
   const retry = useCallback(() => {
     setError(false);
@@ -153,6 +178,11 @@ export default function ProgressiveHomeOverviewInsights({
 
   useEffect(() => {
     const controller = new AbortController();
+    const cachedPayload = readHomeClientCache<HomeOverviewInsightsPayload>(
+      "collection-insights",
+      cacheScope,
+      endpoint
+    );
 
     void fetch(endpoint, {
       cache: "no-store",
@@ -164,14 +194,27 @@ export default function ProgressiveHomeOverviewInsights({
         return (await response.json()) as HomeOverviewInsightsPayload;
       })
       .then((nextPayload) => {
-        if (!controller.signal.aborted) setPayload(nextPayload);
+        if (!controller.signal.aborted) {
+          writeHomeClientCache("collection-insights", cacheScope, endpoint, nextPayload);
+          setPayloadState({ endpoint, payload: nextPayload });
+        }
       })
       .catch(() => {
-        if (!controller.signal.aborted) setError(true);
+        if (!controller.signal.aborted && !cachedPayload) setError(true);
       });
 
     return () => controller.abort();
-  }, [attempt, endpoint]);
+  }, [attempt, cacheScope, endpoint]);
+
+  useEffect(() => {
+    const refreshAfterCollectionChange = () => {
+      setAttempt((current) => current + 1);
+    };
+    window.addEventListener(COLLECTION_CARD_ADDED_EVENT, refreshAfterCollectionChange);
+    return () => {
+      window.removeEventListener(COLLECTION_CARD_ADDED_EVENT, refreshAfterCollectionChange);
+    };
+  }, []);
 
   return (
     <div className="space-y-2.5 sm:space-y-3">
@@ -181,7 +224,11 @@ export default function ProgressiveHomeOverviewInsights({
         ) : (
           <InsightPanelSkeleton />
         )}
-        <HomeSuddenDropsPanel apiHref={suddenDropsApiHref} viewAllHref={suddenDropsHref} />
+        <HomeSuddenDropsPanel
+          apiHref={suddenDropsApiHref}
+          cacheScope={cacheScope}
+          viewAllHref={suddenDropsHref}
+        />
       </div>
 
       {payload ? (
@@ -197,7 +244,7 @@ export default function ProgressiveHomeOverviewInsights({
         {topSetsSlot}
       </div>
 
-      {error ? (
+      {error && !payload ? (
         <div className="flex items-center justify-between gap-3 rounded-xl border border-amber-300/12 bg-amber-300/[0.045] px-3 py-2 text-xs text-white/48">
           <span>Extra collection insights could not be loaded.</span>
           <button

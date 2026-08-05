@@ -349,6 +349,7 @@ model SealedPriceSnapshot {
   @@index([product_id])
   @@index([product_id, fetched_at])
   @@index([episode_id, fetched_at])
+  @@index([fetched_at])
 }
 
 // Weekly, set-level supply observations. These rows are deliberately derived

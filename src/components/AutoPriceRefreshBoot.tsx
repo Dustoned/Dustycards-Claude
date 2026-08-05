@@ -11,6 +11,7 @@ import {
   type AutoPriceRefreshClientResponse,
 } from "@/lib/auto-price-refresh-client";
 import { useSettings } from "@/components/SettingsProvider";
+import { invalidateMarketHomeClientCache } from "@/lib/home-client-cache";
 
 const AUTO_PRICE_REFRESH_START_DELAY_MS = 3_000;
 const AUTO_PRICE_REFRESH_POLL_MS = 5 * 60_000;
@@ -140,6 +141,7 @@ export default function AutoPriceRefreshBoot({ enabled = false }: { enabled?: bo
         }
 
         lastRouterRefreshAtRef.current = refreshNow;
+        invalidateMarketHomeClientCache();
         router.refresh();
       } catch {
         return;

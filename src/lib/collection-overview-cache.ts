@@ -7,13 +7,14 @@ import {
   type CollectionPageTab,
 } from "@/lib/collection-data";
 import { POKEMON_GAME, type TradingCardGameFilter } from "@/lib/games";
+import { getMarketDataFingerprint } from "@/lib/market-data-fingerprint";
 
 // Collection edits invalidate immediately. Market values may be refreshed by
-// background jobs without touching the collection rows, so cached overviews
-// also expire on a short fixed window. This avoids scanning the large history
-// tables during every page request while still making new prices visible soon.
+// background jobs without touching the collection rows, so the market-data
+// fingerprint participates in the cache key too. An unchanged collection can
+// then safely reuse one overview for a day instead of rebuilding every minute.
 const MAX_ENTRIES = 40;
-const OVERVIEW_CACHE_TTL_MS = 60_000;
+const OVERVIEW_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 interface CachedOverviewEntry {
   fingerprint: string;
@@ -35,23 +36,26 @@ interface OverviewFingerprintRow {
 }
 
 async function computeOverviewFingerprint(userId: string): Promise<string> {
-  const rows = await db.$queryRawUnsafe<OverviewFingerprintRow[]>(
-    `SELECT
-       (SELECT COUNT(*) FROM "CollectionCard" WHERE user_id = ?) AS card_total,
-       (SELECT MAX(updated_at) FROM "CollectionCard" WHERE user_id = ?) AS card_latest,
-       (SELECT COUNT(*) FROM "CollectionSealed" WHERE user_id = ?) AS sealed_total,
-       (SELECT MAX(updated_at) FROM "CollectionSealed" WHERE user_id = ?) AS sealed_latest,
-       (SELECT COUNT(*) FROM "CollectionBinder" WHERE user_id = ?) AS binder_total,
-       (SELECT MAX(updated_at) FROM "CollectionBinder" WHERE user_id = ?) AS binder_latest,
-       (SELECT updated_at FROM "User" WHERE id = ?) AS user_latest`,
-    userId,
-    userId,
-    userId,
-    userId,
-    userId,
-    userId,
-    userId
-  );
+  const [rows, marketFingerprint] = await Promise.all([
+    db.$queryRawUnsafe<OverviewFingerprintRow[]>(
+      `SELECT
+         (SELECT COUNT(*) FROM "CollectionCard" WHERE user_id = ?) AS card_total,
+         (SELECT MAX(updated_at) FROM "CollectionCard" WHERE user_id = ?) AS card_latest,
+         (SELECT COUNT(*) FROM "CollectionSealed" WHERE user_id = ?) AS sealed_total,
+         (SELECT MAX(updated_at) FROM "CollectionSealed" WHERE user_id = ?) AS sealed_latest,
+         (SELECT COUNT(*) FROM "CollectionBinder" WHERE user_id = ?) AS binder_total,
+         (SELECT MAX(updated_at) FROM "CollectionBinder" WHERE user_id = ?) AS binder_latest,
+         (SELECT updated_at FROM "User" WHERE id = ?) AS user_latest`,
+      userId,
+      userId,
+      userId,
+      userId,
+      userId,
+      userId,
+      userId
+    ),
+    getMarketDataFingerprint(),
+  ]);
   const stats = rows[0];
 
   return [
@@ -62,6 +66,7 @@ async function computeOverviewFingerprint(userId: string): Promise<string> {
     stats?.binder_total,
     stats?.binder_latest,
     stats?.user_latest,
+    marketFingerprint,
   ].join("|");
 }
 

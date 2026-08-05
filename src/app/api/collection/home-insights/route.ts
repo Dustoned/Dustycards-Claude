@@ -20,7 +20,9 @@ export async function GET(request: NextRequest) {
     });
 
     return compressedJsonResponse(request, buildHomeOverviewInsights(data), {
-      headers: { "Cache-Control": "private, no-store" },
+      headers: {
+        "Cache-Control": "private, max-age=300, stale-while-revalidate=86400",
+      },
     });
   } catch (error) {
     return (

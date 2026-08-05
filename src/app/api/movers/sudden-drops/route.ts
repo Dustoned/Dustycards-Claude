@@ -6,9 +6,8 @@ import {
   parseVisibleGameFilter,
 } from "@/lib/games";
 import {
-  getFastSealedSuddenDropsData,
-  getFastSuddenDropsData,
-} from "@/lib/home-sudden-drops-server";
+  getCachedHomeSuddenDropsData,
+} from "@/lib/home-sudden-drops-cache";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export const dynamic = "force-dynamic";
@@ -25,28 +24,11 @@ export async function GET(request: NextRequest) {
       searchParams.get("source"),
       settings.primaryPriceSource
     );
-    const [data, sealed] = await Promise.all([
-      getFastSuddenDropsData(activePriceSource, activeGame),
-      getFastSealedSuddenDropsData(activeGame, 12),
-    ]);
+    const data = await getCachedHomeSuddenDropsData(activePriceSource, activeGame);
 
-    return NextResponse.json({
-      ...data.preview,
-      sealedItems: sealed.items.slice(0, 4).map((item) => ({
-        productId: item.productId,
-        name: item.name,
-        episodeId: item.episodeId,
-        episodeName: item.episodeName,
-        episodeCode: item.episodeCode,
-        currentPrice: item.currentPrice,
-        currency: item.currency,
-        dropAmount: item.dropAmount,
-        dropPercent: item.dropPercent,
-      })),
-      sealedTotal: sealed.total,
-    }, {
+    return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "private, no-store",
+        "Cache-Control": "private, max-age=300, stale-while-revalidate=86400",
       },
     });
   } catch (error) {

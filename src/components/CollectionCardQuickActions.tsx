@@ -6,7 +6,6 @@ import CollectionAddCardButton from "@/components/CollectionAddCardButton";
 import CollectionWantButton from "@/components/CollectionWantButton";
 import type { CardQuickActionData } from "@/lib/card-quick-actions";
 import {
-  dispatchCollectionCardAdded,
   getCollectionCardAddedEffects,
   resolveCollectionCardOwnedState,
   subscribeCollectionCardAdded,
@@ -105,7 +104,6 @@ export default function CollectionCardQuickActions({
     if (effects.removeWant && wantItem) {
       dispatchWantsChanged({ cardId: data.card.id, wanted: false, item: null });
     }
-    dispatchCollectionCardAdded(detail);
   }
 
   return (

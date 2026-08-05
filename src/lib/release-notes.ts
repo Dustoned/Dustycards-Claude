@@ -32,6 +32,8 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "The phone launch screen now appears immediately and disappears as soon as the real app frame is ready, avoiding a long unexplained black screen.",
           "Home loads the essential collection overview first; featured cards, value drivers and sudden drops arrive progressively afterwards.",
+          "Returning Home reuses the latest successful value drivers and sudden drops immediately; collection edits and completed price observations refresh that cache automatically.",
+          "Saving a card now leaves a clear confirmation with its name after the add menu closes.",
           "Featured Cards fills one complete measured row on wide and ultrawide screens while mobile remains limited to two complete rows.",
           "The mobile More sheet no longer shifts the fixed bottom navigation when background scrolling is locked.",
           "The DustyCards Pokéball is now the consistent icon in browser tabs, iPhone homescreen shortcuts and installed Android browser apps.",
@@ -52,6 +54,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         title: "Stable card details, trades and sales",
         highlights: [
           "Card Detail respects the iPhone safe area, keeps its loading shell aligned with the finished card and restores a persistent bottom action bar with enough reserved space to avoid covering the price or profile.",
+          "Fullscreen Card Detail anchors the action dock to the real phone viewport and keeps its sticky section rail below the iPhone status area during long scrolls.",
           "Desktop detail panels keep their own natural height when another section expands, eliminating the large empty bars beneath shorter content.",
           "Phone price charts capture chart gestures instead of scrolling the page while a collector inspects a data point.",
           "The installed phone app keeps its viewport fixed instead of pinch-zooming the complete interface by accident.",

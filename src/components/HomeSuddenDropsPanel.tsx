@@ -9,6 +9,10 @@ import type {
   HomeSuddenDropSealedPreviewItem,
   HomeSuddenDropsResponse,
 } from "@/lib/home-sudden-drops";
+import {
+  readHomeClientCache,
+  writeHomeClientCache,
+} from "@/lib/home-client-cache";
 
 type LoadState =
   | { status: "loading"; apiHref: string }
@@ -180,16 +184,26 @@ function HomeSuddenDropLane({
 
 export default function HomeSuddenDropsPanel({
   apiHref,
+  cacheScope,
   viewAllHref,
 }: {
   apiHref: string;
+  cacheScope: string;
   viewAllHref: string;
 }) {
-  const [state, setState] = useState<LoadState>({ status: "loading", apiHref });
+  const [state, setState] = useState<LoadState>(() => {
+    const cached = readHomeClientCache<HomeSuddenDropsResponse>(
+      "sudden-drops",
+      cacheScope,
+      apiHref
+    );
+    return cached
+      ? { status: "ready", apiHref, data: cached }
+      : { status: "loading", apiHref };
+  });
 
   useEffect(() => {
     const controller = new AbortController();
-
     fetch(apiHref, {
       credentials: "same-origin",
       signal: controller.signal,
@@ -202,6 +216,7 @@ export default function HomeSuddenDropsPanel({
         return (await response.json()) as HomeSuddenDropsResponse;
       })
       .then((data) => {
+        writeHomeClientCache("sudden-drops", cacheScope, apiHref, data);
         setState({ status: "ready", apiHref, data });
       })
       .catch((error: unknown) => {
@@ -210,10 +225,18 @@ export default function HomeSuddenDropsPanel({
       });
 
     return () => controller.abort();
-  }, [apiHref]);
+  }, [apiHref, cacheScope]);
 
-  const isLoading = state.apiHref !== apiHref || state.status === "loading";
-  const data = state.status === "ready" && state.apiHref === apiHref ? state.data : EMPTY_DATA;
+  const cachedData = readHomeClientCache<HomeSuddenDropsResponse>(
+    "sudden-drops",
+    cacheScope,
+    apiHref
+  );
+  const data =
+    state.status === "ready" && state.apiHref === apiHref
+      ? state.data
+      : cachedData ?? EMPTY_DATA;
+  const isLoading = !cachedData && (state.apiHref !== apiHref || state.status === "loading");
   const previewItems = data.items;
   const sealedItems = data.sealedItems ?? [];
   const currency = previewItems[0]?.currency ?? "EUR";
