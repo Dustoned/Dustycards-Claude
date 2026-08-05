@@ -31,6 +31,7 @@ export async function PATCH(
     }
 
     const data: {
+      approval_requested_at?: null;
       disabled?: boolean;
       password_hash?: string;
       role?: "admin" | "user";
@@ -65,6 +66,9 @@ export async function PATCH(
         return NextResponse.json({ error: "You cannot disable your own account" }, { status: 400 });
       }
       data.disabled = body.disabled;
+      if (body.disabled) {
+        data.approval_requested_at = null;
+      }
     }
 
     if (body.newPassword !== undefined || body.newPasswordConfirm !== undefined) {

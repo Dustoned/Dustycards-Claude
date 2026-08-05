@@ -83,6 +83,21 @@ export async function POST(req: NextRequest) {
   }
 
   if (user.disabled) {
+    try {
+      await db.user.updateMany({
+        where: {
+          id: user.id,
+          disabled: true,
+          approval_requested_at: null,
+        },
+        data: { approval_requested_at: new Date() },
+      });
+    } catch (error) {
+      // A notification failure must never weaken the account lock or expose
+      // a different login response to the waiting user.
+      console.error("Could not register pending account login", error);
+    }
+
     if (isFormPost) {
       const redirectUrl = new URL("/login", getPublicOrigin(req));
       redirectUrl.searchParams.set("error", "pending");

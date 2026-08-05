@@ -13,6 +13,7 @@ const { authMock, cryptoMock, dbMock, mailMock, originMock, rateLimitMock } = vi
   dbMock: {
     user: {
       findUnique: vi.fn(),
+      updateMany: vi.fn(),
     },
   },
   mailMock: {
@@ -54,6 +55,7 @@ describe("login account approval", () => {
     rateLimitMock.isRateLimited.mockReturnValue(false);
     dbMock.user.findUnique.mockResolvedValue(pendingUser);
     cryptoMock.verifyPassword.mockResolvedValue(true);
+    dbMock.user.updateMany.mockResolvedValue({ count: 1 });
   });
 
   it("returns a dedicated approval response after valid credentials", async () => {
@@ -73,6 +75,14 @@ describe("login account approval", () => {
     expect(authMock.createUserSession).not.toHaveBeenCalled();
     expect(mailMock.sendVerificationEmailForUser).not.toHaveBeenCalled();
     expect(rateLimitMock.recordRateLimitHit).not.toHaveBeenCalled();
+    expect(dbMock.user.updateMany).toHaveBeenCalledWith({
+      where: {
+        id: pendingUser.id,
+        disabled: true,
+        approval_requested_at: null,
+      },
+      data: { approval_requested_at: expect.any(Date) },
+    });
   });
 
   it("does not reveal approval status when the password is wrong", async () => {
@@ -89,6 +99,7 @@ describe("login account approval", () => {
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Invalid email or password" });
     expect(rateLimitMock.recordRateLimitHit).toHaveBeenCalledTimes(2);
+    expect(dbMock.user.updateMany).not.toHaveBeenCalled();
   });
 
   it("redirects form logins to the approval popup state", async () => {

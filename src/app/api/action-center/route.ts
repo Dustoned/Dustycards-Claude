@@ -58,10 +58,10 @@ export async function GET() {
         : Promise.resolve([]),
       user.role === "admin"
         ? db.user.findMany({
-            where: { disabled: true },
-            orderBy: { updated_at: "desc" },
+            where: { disabled: true, approval_requested_at: { not: null } },
+            orderBy: { approval_requested_at: "desc" },
             take: 12,
-            select: { id: true, email: true, updated_at: true },
+            select: { id: true, email: true, approval_requested_at: true },
           })
         : Promise.resolve([]),
     ]);
@@ -122,12 +122,12 @@ export async function GET() {
         tone: "warning" as const,
       })),
       ...pendingAccounts.map((account) => ({
-        id: `account-approval-${account.id}-${account.updated_at.getTime()}`,
+        id: `account-approval-${account.id}-${account.approval_requested_at!.getTime()}`,
         kind: "account" as const,
         title: "Account waiting for approval",
         detail: account.email,
         href: `/account?tab=users&user=${encodeURIComponent(account.id)}`,
-        occurredAt: account.updated_at.toISOString(),
+        occurredAt: account.approval_requested_at!.toISOString(),
         tone: "warning" as const,
       })),
     ].sort((left, right) => right.occurredAt.localeCompare(left.occurredAt)).slice(0, 24);

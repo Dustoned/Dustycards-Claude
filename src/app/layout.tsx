@@ -101,7 +101,9 @@ async function getDesktopSidebarSummary(
       _sum: { quantity: true },
     }),
     role === "admin" ? db.feedback.count({ where: { status: "new" } }) : Promise.resolve(0),
-    role === "admin" ? db.user.count({ where: { disabled: true } }) : Promise.resolve(0),
+    role === "admin"
+      ? db.user.count({ where: { disabled: true, approval_requested_at: { not: null } } })
+      : Promise.resolve(0),
     role === "admin" ? getAdminActiveUsersSnapshot() : Promise.resolve(null),
   ]);
 

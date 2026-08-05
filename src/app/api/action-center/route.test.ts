@@ -27,7 +27,7 @@ import { GET } from "@/app/api/action-center/route";
 const pendingAccount = {
   id: "pending-1",
   email: "collector@example.com",
-  updated_at: new Date("2026-08-05T10:00:00.000Z"),
+  approval_requested_at: new Date("2026-08-05T10:00:00.000Z"),
 };
 
 describe("Action Center account approvals", () => {
@@ -50,10 +50,10 @@ describe("Action Center account approvals", () => {
 
     expect(response.status).toBe(200);
     expect(dbMock.user.findMany).toHaveBeenCalledWith({
-      where: { disabled: true },
-      orderBy: { updated_at: "desc" },
+      where: { disabled: true, approval_requested_at: { not: null } },
+      orderBy: { approval_requested_at: "desc" },
       take: 12,
-      select: { id: true, email: true, updated_at: true },
+      select: { id: true, email: true, approval_requested_at: true },
     });
     expect(body).toEqual({
       ok: true,
