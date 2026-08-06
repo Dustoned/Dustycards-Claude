@@ -20,9 +20,9 @@ function pairKey(left: string, right: string): string {
 }
 
 /**
- * Treat every already-confirmed reprint as one equivalence group. Once a
- * decision has involved a card, retire that complete group from manual review
- * so neither endpoint can resurface in another pairing or in reverse.
+ * A manual decision belongs only to the exact unordered pair that was shown.
+ * Confirmed groups do not propagate it, while forward and reversed directions
+ * collapse into the same review so A → B can never return as B → A.
  */
 export function collapseReprintReviewCandidates<T>(input: {
   candidates: ReprintReviewCandidate<T>[];
@@ -30,65 +30,18 @@ export function collapseReprintReviewCandidates<T>(input: {
   decisions: ReprintReviewDecision[];
   limit?: number;
 }): T[] {
-  const parent = new Map<string, string>();
-
-  function find(cardId: string): string {
-    const current = parent.get(cardId);
-    if (!current) {
-      parent.set(cardId, cardId);
-      return cardId;
-    }
-    if (current === cardId) return cardId;
-    const root = find(current);
-    parent.set(cardId, root);
-    return root;
-  }
-
-  function union(left: string, right: string) {
-    const leftRoot = find(left);
-    const rightRoot = find(right);
-    if (leftRoot === rightRoot) return;
-    const [root, child] = orderedPair(leftRoot, rightRoot);
-    parent.set(child, root);
-  }
-
-  for (const relation of input.confirmedPairs) {
-    union(relation.sourceCardId, relation.targetCardId);
-  }
+  const reviewedPairs = new Set<string>();
   for (const decision of input.decisions) {
-    if (decision.decision === "include") {
-      union(decision.sourceCardId, decision.targetCardId);
-    }
+    reviewedPairs.add(pairKey(decision.sourceCardId, decision.targetCardId));
   }
 
-  const reviewedGroupRoots = new Set<string>();
-  for (const decision of input.decisions) {
-    reviewedGroupRoots.add(find(decision.sourceCardId));
-    reviewedGroupRoots.add(find(decision.targetCardId));
-  }
-
-  const excludedGroupPairs = new Set<string>();
-  for (const decision of input.decisions) {
-    if (decision.decision !== "exclude") continue;
-    const sourceRoot = find(decision.sourceCardId);
-    const targetRoot = find(decision.targetCardId);
-    if (sourceRoot !== targetRoot) {
-      excludedGroupPairs.add(pairKey(sourceRoot, targetRoot));
-    }
-  }
-
-  const seenGroupPairs = new Set<string>();
+  const seenPairs = new Set<string>();
   const items: T[] = [];
   const limit = Math.max(1, Math.floor(input.limit ?? 100));
   for (const candidate of input.candidates) {
-    const sourceRoot = find(candidate.sourceCardId);
-    const targetRoot = find(candidate.targetCardId);
-    if (sourceRoot === targetRoot) continue;
-    if (reviewedGroupRoots.has(sourceRoot) || reviewedGroupRoots.has(targetRoot)) continue;
-
-    const key = pairKey(sourceRoot, targetRoot);
-    if (excludedGroupPairs.has(key) || seenGroupPairs.has(key)) continue;
-    seenGroupPairs.add(key);
+    const key = pairKey(candidate.sourceCardId, candidate.targetCardId);
+    if (reviewedPairs.has(key) || seenPairs.has(key)) continue;
+    seenPairs.add(key);
     items.push(candidate.value);
     if (items.length >= limit) break;
   }

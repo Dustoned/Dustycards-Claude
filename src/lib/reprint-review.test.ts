@@ -16,7 +16,7 @@ describe("reprint review grouping", () => {
     })).toEqual(["forward"]);
   });
 
-  it("shows only one comparison between already-confirmed reprint groups", () => {
+  it("does not hide distinct cards merely because they share confirmed groups", () => {
     expect(collapseReprintReviewCandidates({
       candidates: [
         candidate("a", "c", "a-to-c"),
@@ -25,10 +25,10 @@ describe("reprint review grouping", () => {
       ],
       confirmedPairs: [{ sourceCardId: "a", targetCardId: "b" }],
       decisions: [],
-    })).toEqual(["a-to-c", "a-to-d"]);
+    })).toEqual(["a-to-c", "b-to-c", "a-to-d"]);
   });
 
-  it("retires both complete groups after an approved decision", () => {
+  it("retires only the approved pair while keeping other pairings", () => {
     expect(collapseReprintReviewCandidates({
       candidates: [
         candidate("a", "b", "already-approved"),
@@ -38,10 +38,10 @@ describe("reprint review grouping", () => {
       ],
       confirmedPairs: [],
       decisions: [{ sourceCardId: "a", targetCardId: "b", decision: "include" }],
-    })).toEqual(["untouched"]);
+    })).toEqual(["reviewed-source", "reviewed-target", "untouched"]);
   });
 
-  it("retires both sides after a rejection instead of offering new pairings", () => {
+  it("keeps other exact cards from confirmed groups after a rejection", () => {
     expect(collapseReprintReviewCandidates({
       candidates: [
         candidate("a", "c", "excluded"),
@@ -55,10 +55,10 @@ describe("reprint review grouping", () => {
         { sourceCardId: "c", targetCardId: "d" },
       ],
       decisions: [{ sourceCardId: "a", targetCardId: "c", decision: "exclude" }],
-    })).toEqual(["untouched"]);
+    })).toEqual(["also-excluded", "reviewed-source", "reviewed-target", "untouched"]);
   });
 
-  it("retires every confirmed reprint of a reviewed card", () => {
+  it("does not retire a different card from the reviewed card's confirmed group", () => {
     expect(collapseReprintReviewCandidates({
       candidates: [
         candidate("confirmed-copy", "new-card", "same-group-resurfaced"),
@@ -66,6 +66,17 @@ describe("reprint review grouping", () => {
       ],
       confirmedPairs: [{ sourceCardId: "reviewed-card", targetCardId: "confirmed-copy" }],
       decisions: [{ sourceCardId: "reviewed-card", targetCardId: "other-card", decision: "exclude" }],
-    })).toEqual(["untouched"]);
+    })).toEqual(["same-group-resurfaced", "untouched"]);
+  });
+
+  it("never returns a decided pair with source and candidate reversed", () => {
+    expect(collapseReprintReviewCandidates({
+      candidates: [
+        candidate("b", "a", "reversed-decision"),
+        candidate("a", "c", "different-pair"),
+      ],
+      confirmedPairs: [],
+      decisions: [{ sourceCardId: "a", targetCardId: "b", decision: "exclude" }],
+    })).toEqual(["different-pair"]);
   });
 });

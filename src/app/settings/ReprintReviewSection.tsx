@@ -67,6 +67,8 @@ function ReviewCardView({
 
 export default function ReprintReviewSection() {
   const [items, setItems] = useState<ReviewItem[]>([]);
+  const [totalCount, setTotalCount] = useState(0);
+  const [reviewedCount, setReviewedCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -77,9 +79,16 @@ export default function ReprintReviewSection() {
     setError(null);
     try {
       const response = await fetch("/api/admin/reprint-review", { cache: "no-store" });
-      const payload = (await response.json().catch(() => ({}))) as { error?: string; items?: ReviewItem[] };
+      const payload = (await response.json().catch(() => ({}))) as {
+        error?: string;
+        count?: number;
+        reviewedCount?: number;
+        items?: ReviewItem[];
+      };
       if (!response.ok) throw new Error(payload.error ?? "Could not load review queue");
       setItems(payload.items ?? []);
+      setTotalCount(payload.count ?? 0);
+      setReviewedCount(payload.reviewedCount ?? 0);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not load review queue");
     } finally {
@@ -121,9 +130,16 @@ export default function ReprintReviewSection() {
           <h2 className="mt-1 text-lg font-black text-white">Reprint review</h2>
           <p className="mt-1 text-xs leading-5 text-white/42">Review only direct visual candidates. Text and match chains can no longer create a pair by themselves.</p>
         </div>
-        <button type="button" onClick={() => void load()} disabled={loading} className="flex h-9 items-center gap-1.5 rounded-xl border border-white/9 px-2.5 text-[10px] font-black text-white/58">
-          <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
-        </button>
+        <div className="flex shrink-0 flex-col items-end gap-2 sm:flex-row sm:items-center">
+          <div className="flex h-9 items-center gap-2 rounded-xl border border-white/9 bg-black/18 px-3 text-[10px] font-black tabular-nums">
+            <span className="text-emerald-100/72">{reviewedCount.toLocaleString()} reviewed</span>
+            <span className="text-white/20">·</span>
+            <span className="text-amber-100/72">{totalCount.toLocaleString()} waiting</span>
+          </div>
+          <button type="button" onClick={() => void load()} disabled={loading} className="flex h-9 items-center gap-1.5 rounded-xl border border-white/9 px-2.5 text-[10px] font-black text-white/58">
+            <RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} /> Refresh
+          </button>
+        </div>
       </div>
 
       {error ? <p className="mt-3 rounded-xl border border-rose-300/14 bg-rose-500/[0.07] px-3 py-2 text-xs text-rose-100">{error}</p> : null}

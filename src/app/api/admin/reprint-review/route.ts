@@ -13,7 +13,7 @@ function pair(left: string, right: string) {
 export async function GET() {
   try {
     await requireAdmin();
-    const [relations, confirmedRelations, overrides] = await Promise.all([
+    const [relations, overrides] = await Promise.all([
       db.cardPrintingRelation.findMany({
         where: {
           model_version: CARD_REPRINT_MODEL_VERSION,
@@ -25,13 +25,6 @@ export async function GET() {
           sourceCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
           targetCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
         },
-      }),
-      db.cardPrintingRelation.findMany({
-        where: {
-          model_version: CARD_REPRINT_MODEL_VERSION,
-          match_method: { not: "likely-art" },
-        },
-        select: { source_card_id: true, target_card_id: true },
       }),
       db.cardPrintingOverride.findMany({
         select: { source_card_id: true, target_card_id: true, decision: true },
@@ -52,20 +45,22 @@ export async function GET() {
         },
       };
     });
-    const items = collapseReprintReviewCandidates({
+    const allItems = collapseReprintReviewCandidates({
       candidates,
-      confirmedPairs: confirmedRelations.map((relation) => ({
-        sourceCardId: relation.source_card_id,
-        targetCardId: relation.target_card_id,
-      })),
+      confirmedPairs: [],
       decisions: overrides.map((override) => ({
         sourceCardId: override.source_card_id,
         targetCardId: override.target_card_id,
         decision: override.decision,
       })),
-      limit: 100,
+      limit: Math.max(1, candidates.length),
     });
-    return NextResponse.json({ ok: true, count: items.length, items });
+    return NextResponse.json({
+      ok: true,
+      count: allItems.length,
+      reviewedCount: overrides.length,
+      items: allItems.slice(0, 100),
+    });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Could not load reprint review" }, { status: 500 });
   }

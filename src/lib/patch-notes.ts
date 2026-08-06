@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.11",
+    releasedAt: "August 7, 2026",
+    title: "Exact-card reprint review reset",
+    summary: "Manual decisions now belong only to the exact unordered card pair shown.",
+    tone: "fixed",
+    highlights: [
+      "A decision retires only the exact pair shown; either card can still be compared with a different artwork card.",
+      "Confirmed groups no longer collapse or suppress separate visual candidates in the admin queue.",
+      "Source and candidate order is canonical, so A versus B can never return later as B versus A.",
+      "A live Reviewed and Waiting counter shows progress while the background scan continues.",
+      "The existing manual review history is reset from a recoverable backup so the 70% scan can be reviewed cleanly from the beginning.",
+    ],
+  },
+  {
     version: "3.12.10",
     releasedAt: "August 7, 2026",
     title: "Deeper reprint review",
