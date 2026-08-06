@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   getCachedExternalCardResearch: vi.fn(),
   buildOnDemandExternalCardSignal: vi.fn(),
   getExternalSignalRadarDetailContext: vi.fn(),
+  readSignalRadarSnapshot: vi.fn(),
   requirePageUser: vi.fn(),
   getServerUserSettings: vi.fn(),
 }));
@@ -29,6 +30,9 @@ vi.mock("@/lib/external-signal-intelligence", () => ({
 }));
 vi.mock("@/lib/external-signal-persisted", () => ({
   getExternalSignalRadarDetailContext: mocks.getExternalSignalRadarDetailContext,
+}));
+vi.mock("@/lib/signal-radar-snapshot-store", () => ({
+  readSignalRadarSnapshot: mocks.readSignalRadarSnapshot,
 }));
 vi.mock("@/lib/page-auth", () => ({ requirePageUser: mocks.requirePageUser }));
 vi.mock("@/lib/user-settings-server", () => ({
@@ -73,6 +77,7 @@ describe("Signal Radar card detail loader", () => {
     mocks.getCardDetailPayload.mockResolvedValue(card);
     mocks.getCachedExternalCardResearch.mockResolvedValue(null);
     mocks.buildOnDemandExternalCardSignal.mockResolvedValue(focusedSignal);
+    mocks.readSignalRadarSnapshot.mockResolvedValue(null);
     mocks.getExternalSignalRadarDetailContext.mockResolvedValue({
       generatedAt: "2026-07-20T12:00:00.000Z",
       rank: 7,
@@ -115,5 +120,31 @@ describe("Signal Radar card detail loader", () => {
     })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
 
     expect(result.props.children.props.signal).toBe(focusedSignal);
+  });
+
+  it("reuses the durable ranked signal instead of rebuilding market intelligence", async () => {
+    const storedSignal = { ...focusedSignal, rank: 3 };
+    mocks.readSignalRadarSnapshot.mockResolvedValue({
+      writtenAt: "2026-07-20T12:05:00.000Z",
+      data: {
+        generatedAt: "2026-07-20T12:04:00.000Z",
+        signals: [storedSignal],
+        sources: [],
+        unmatchedCount: 0,
+        scannedDeckCount: 0,
+      },
+    });
+
+    const result = (await SignalRadarCardPage({
+      params: Promise.resolve({ cardId: "1693" }),
+      searchParams: Promise.resolve({ game: "pokemon" }),
+    })) as ReactElement<{ children: ReactElement<Record<string, unknown>> }>;
+
+    expect(mocks.getExternalSignalRadarDetailContext).not.toHaveBeenCalled();
+    expect(mocks.buildOnDemandExternalCardSignal).not.toHaveBeenCalled();
+    expect(result.props.children.props.signal).toBe(storedSignal);
+    expect(result.props.children.props.priceHistory).toMatchObject({
+      modelDate: "2026-07-20T12:04:00.000Z",
+    });
   });
 });
