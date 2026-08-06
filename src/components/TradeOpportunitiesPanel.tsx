@@ -19,7 +19,7 @@ type PanelMode = "compare" | "friends";
 type ManualTradeCard = CardSearchPickerResult;
 
 const TRADE_VALUE_RATE_STORAGE_KEY = "dustycards.trade.value-rate.v1";
-const TRADE_VALUE_RATE_OPTIONS = [85, 90, 95, 100] as const;
+const TRADE_VALUE_RATE_OPTIONS = [80, 85, 90, 95, 100] as const;
 const DEFAULT_TRADE_VALUE_RATE = 90;
 
 function normalizeTradeValueRate(value: unknown): number {

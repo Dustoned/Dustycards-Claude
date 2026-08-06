@@ -17,6 +17,16 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.2",
+    releasedAt: "August 6, 2026",
+    title: "80% trade value option",
+    summary: "Trade comparisons now support the complete 80% to 100% value range.",
+    tone: "improved",
+    highlights: [
+      "The selector now offers 80%, 85%, 90%, 95% and 100%; percentages below 80% are not available.",
+    ],
+  },
+  {
     version: "3.12.1",
     releasedAt: "August 6, 2026",
     title: "Sold cards leave active sale inventory",
