@@ -191,7 +191,7 @@ export function getSignalExplanations(signal: ExternalCardSignal) {
         label: "Sealed pressure",
         text: market
           ? `${market.sealed.pressureLabel} (${market.sealed.pressureScore}/100). ${market.sealed.packPrice != null ? `Cheapest linked pack is about €${market.sealed.packPrice.toFixed(2)}.` : "No reliable single-pack price is stored yet."}`
-          : "Sealed context is still loading.",
+          : "Sealed market context is incomplete.",
       },
       {
         label: "Grade potential",
