@@ -323,17 +323,36 @@ npm install --no-audit --no-fund
 npx prisma generate
 
 # Build the immutable Next release while the previous process remains online.
-# Migration downtime is then limited to the schema change and one restart.
-release_build="${DeploySha:-$(date -u +%Y%m%dT%H%M%SZ)}"
+# Every attempt gets its own directory, including an automatic retry of the
+# same commit. A late failure must never make the next retry erase files that
+# the still-running process is serving from that commit's earlier attempt.
+app_build="${DeploySha:-$(date -u +%Y%m%dT%H%M%SZ)}"
+release_build="$app_build-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 release_dist_dir=".next-releases/$release_build"
-rm -rf -- "$RemoteAppPath/$release_dist_dir"
 install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/.next-releases"
 DUSTYCARDS_IMAGE_CACHE_DIR="$image_cache_dir" \
 DUSTYCARDS_NEXT_DIST_DIR="$release_dist_dir" \
-NEXT_PUBLIC_APP_BUILD="$release_build" \
-  APP_BUILD="$release_build" \
+NEXT_PUBLIC_APP_BUILD="$app_build" \
+  APP_BUILD="$app_build" \
   NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}" \
   npm run build
+
+# Never activate a partial Next build. Route manifests are required for the
+# authenticated App Router pages; a health-only API check cannot detect when
+# one of those files is absent or unreadable.
+test -s "$RemoteAppPath/$release_dist_dir/BUILD_ID"
+for route_manifest in \
+  "server/app/page_client-reference-manifest.js" \
+  "server/app/movers/page_client-reference-manifest.js" \
+  "server/app/openings/page_client-reference-manifest.js" \
+  "server/app/settings/page_client-reference-manifest.js"; do
+  test -s "$RemoteAppPath/$release_dist_dir/$route_manifest"
+done
+
+# Next writes more than its cache directory at runtime (including regenerated
+# App Router output). The complete release must therefore belong to the service
+# account before the process starts, not only its cache subdirectory.
+chown -R dustycards:dustycards "$RemoteAppPath/$release_dist_dir"
 
 # Publish this build's hashed chunks, styles and fonts into the shared static
 # asset directory before activating the new process. Files copied by a fresh
@@ -344,9 +363,8 @@ chown -R dustycards:dustycards "$next_static_dir"
 find "$next_static_dir" -type f -mtime +30 -delete
 find "$next_static_dir" -mindepth 1 -type d -empty -delete
 
-# The build runs as root, while Next writes image/fetch caches as dustycards.
+# Ensure the runtime cache exists even when a future Next build omits it.
 install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/$release_dist_dir/cache"
-chown -R dustycards:dustycards "$RemoteAppPath/$release_dist_dir/cache"
 cleanup_remote_junk
 
 # Only run `prisma migrate deploy` when there is actually an unapplied
@@ -450,7 +468,7 @@ fi
 install -d -m 0755 /etc/systemd/system/dustycards.service.d
 cat > /etc/systemd/system/dustycards.service.d/10-release-build.conf <<EOF
 [Service]
-Environment=APP_BUILD=$release_build
+Environment=APP_BUILD=$app_build
 Environment=DUSTYCARDS_NEXT_DIST_DIR=$release_dist_dir
 Environment=DUSTYCARDS_IMAGE_CACHE_DIR=$image_cache_dir
 Environment=DUSTYCARDS_TIMING=1
@@ -476,6 +494,27 @@ for attempt in $(seq 1 30); do
 done
 if [ "$health_ok" -ne 1 ]; then
   echo "DustyCards failed its localhost health check after restart." >&2
+  journalctl -u dustycards -n 80 --no-pager >&2 || true
+  exit 1
+fi
+
+# Exercise a real App Router page as well. This catches missing/unreadable page
+# manifests that /api/health cannot see and rolls the deploy back automatically.
+page_probe_file="$(mktemp)"
+page_ok=0
+for attempt in $(seq 1 12); do
+  if /usr/bin/curl -fsSL --max-time 10 \
+      http://127.0.0.1:3000/login -o "$page_probe_file" &&
+      grep -q '<title>DustyCards</title>' "$page_probe_file" &&
+      ! grep -qiE 'Internal Server Error|Application error' "$page_probe_file"; then
+    page_ok=1
+    break
+  fi
+  sleep 1
+done
+rm -f -- "$page_probe_file"
+if [ "$page_ok" -ne 1 ]; then
+  echo "DustyCards failed its real-page check after restart." >&2
   journalctl -u dustycards -n 80 --no-pager >&2 || true
   exit 1
 fi
