@@ -1,6 +1,8 @@
+import { spawn } from "node:child_process";
+import { setPriority } from "node:os";
+import path from "node:path";
 import { NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
-import { warmAllImages } from "@/lib/sync/image-warmer";
 import type { WarmCardImagesResult } from "@/lib/image-cache-server";
 
 export const dynamic = "force-dynamic";
@@ -14,10 +16,62 @@ let startedAt: string | null = null;
 let lastFinishedAt: string | null = null;
 let lastResult: {
   cards: WarmCardImagesResult;
+  episodes: WarmCardImagesResult;
   sealed: WarmCardImagesResult;
   upcoming: WarmCardImagesResult;
 } | null = null;
 let lastError: string | null = null;
+const RESULT_PREFIX = "DUSTYCARDS_IMAGE_WARM_RESULT ";
+
+function runImageWarmWorker(): Promise<NonNullable<typeof lastResult>> {
+  return new Promise((resolve, reject) => {
+    const child = spawn(
+      process.execPath,
+      ["--no-warnings", path.join(process.cwd(), "scripts", "image-cache-warmer-worker.mjs")],
+      {
+        cwd: process.cwd(),
+        env: process.env,
+        stdio: ["ignore", "pipe", "pipe"],
+        windowsHide: true,
+      }
+    );
+    if (child.pid) {
+      try {
+        setPriority(child.pid, 10);
+      } catch {
+        // Priority lowering is best-effort; the worker remains process-isolated.
+      }
+    }
+
+    let output = "";
+    let errorOutput = "";
+    child.stdout.on("data", (chunk: Buffer) => {
+      output = `${output}${chunk.toString("utf8")}`.slice(-256_000);
+    });
+    child.stderr.on("data", (chunk: Buffer) => {
+      errorOutput = `${errorOutput}${chunk.toString("utf8")}`.slice(-64_000);
+    });
+    child.once("error", reject);
+    child.once("close", (code) => {
+      if (code !== 0) {
+        reject(new Error(errorOutput.trim() || `Image warm worker exited with code ${code}`));
+        return;
+      }
+      const resultLine = output
+        .split(/\r?\n/)
+        .findLast((line) => line.startsWith(RESULT_PREFIX));
+      if (!resultLine) {
+        reject(new Error("Image warm worker finished without a result"));
+        return;
+      }
+      try {
+        resolve(JSON.parse(resultLine.slice(RESULT_PREFIX.length)) as NonNullable<typeof lastResult>);
+      } catch {
+        reject(new Error("Image warm worker returned an invalid result"));
+      }
+    });
+  });
+}
 
 function snapshot() {
   return {
@@ -33,6 +87,12 @@ function snapshot() {
             downloaded: lastResult.cards.downloaded,
             hits: lastResult.cards.hits,
             failed: lastResult.cards.failed,
+          },
+          episodes: {
+            total: lastResult.episodes.total,
+            downloaded: lastResult.episodes.downloaded,
+            hits: lastResult.episodes.hits,
+            failed: lastResult.episodes.failed,
           },
           sealed: {
             total: lastResult.sealed.total,
@@ -75,7 +135,7 @@ export async function POST() {
     startedAt = new Date().toISOString();
     lastError = null;
 
-    void warmAllImages()
+    void runImageWarmWorker()
       .then((result) => {
         lastResult = result;
       })

@@ -3,6 +3,7 @@ import path from "node:path";
 
 interface ResponsiveCacheMeta {
   deliveryWidth?: unknown;
+  sourceUrl?: unknown;
 }
 
 interface ResponsiveCacheEntry {
@@ -11,6 +12,7 @@ interface ResponsiveCacheEntry {
   bytes: number;
   modifiedAt: number;
   responsive: boolean;
+  sourceUrl: string | null;
 }
 
 export interface ResponsiveCacheLimits {
@@ -30,6 +32,8 @@ export interface ImageCacheLimits {
   maxBytes: number;
   maxResponsiveEntries: number;
   maxResponsiveBytes: number;
+  /** Original images still referenced by live records must never be evicted. */
+  protectedSourceUrls?: ReadonlySet<string>;
 }
 
 export interface ImageCacheMaintenanceResult extends ResponsiveCacheMaintenanceResult {
@@ -57,6 +61,7 @@ async function readCacheEntry(
       bytes: imageStat.size,
       modifiedAt: Math.max(imageStat.mtimeMs, metaStat.mtimeMs),
       responsive: typeof metadata.deliveryWidth === "number",
+      sourceUrl: typeof metadata.sourceUrl === "string" ? metadata.sourceUrl : null,
     };
   } catch {
     // A concurrent writer or an incomplete pair is harmless. The next bounded
@@ -137,8 +142,8 @@ async function removeCacheEntry(entry: ResponsiveCacheEntry): Promise<boolean> {
 /**
  * Bounds the complete persistent cache from a low-priority maintenance worker.
  * Responsive variants receive their own tighter budget first; the total budget
- * then removes the oldest remaining pairs regardless of kind. Nothing here runs
- * in the web request process.
+ * then removes the oldest remaining pairs while preserving live referenced
+ * originals. Nothing here runs in the web request process.
  */
 export async function trimImageCache(
   cacheDir: string,
@@ -148,6 +153,7 @@ export async function trimImageCache(
   const maxBytes = Math.max(0, Math.floor(limits.maxBytes));
   const maxResponsiveEntries = Math.max(0, Math.floor(limits.maxResponsiveEntries));
   const maxResponsiveBytes = Math.max(0, Math.floor(limits.maxResponsiveBytes));
+  const protectedSourceUrls = limits.protectedSourceUrls ?? new Set<string>();
 
   let names: string[];
   try {
@@ -209,7 +215,15 @@ export async function trimImageCache(
 
   for (const entry of entries) {
     if (remainingEntries <= maxEntries && remainingBytes <= maxBytes) break;
-    if (removed.has(entry) || !(await removeCacheEntry(entry))) continue;
+    if (removed.has(entry)) continue;
+    if (
+      !entry.responsive &&
+      entry.sourceUrl !== null &&
+      protectedSourceUrls.has(entry.sourceUrl)
+    ) {
+      continue;
+    }
+    if (!(await removeCacheEntry(entry))) continue;
     remainingEntries -= 1;
     remainingBytes -= entry.bytes;
     removedEntries += 1;

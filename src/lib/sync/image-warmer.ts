@@ -129,16 +129,21 @@ export function warmEpisodeImages(episodeId: string): Promise<WarmStats> {
  * Used by the backfill script.
  */
 export async function warmAllImages(options?: {
-  onProgress?: (state: { phase: "cards" | "sealed" | "upcoming"; progress: WarmCardImagesProgress }) => void;
+  onProgress?: (state: { phase: "cards" | "episodes" | "sealed" | "upcoming"; progress: WarmCardImagesProgress }) => void;
 }): Promise<{
   cards: WarmCardImagesResult;
+  episodes: WarmCardImagesResult;
   sealed: WarmCardImagesResult;
   upcoming: WarmCardImagesResult;
 }> {
-  const [cardRows, sealedRows] = await Promise.all([
+  const [cardRows, episodeRows, sealedRows] = await Promise.all([
     db.card.findMany({
       where: { image_url: { not: null } },
       select: { image_url: true },
+    }),
+    db.episode.findMany({
+      where: { logo_url: { not: null } },
+      select: { logo_url: true },
     }),
     db.sealedProduct.findMany({
       where: { image_url: { not: null } },
@@ -147,11 +152,19 @@ export async function warmAllImages(options?: {
   ]);
 
   const cardUrls = cardRows.map((c) => c.image_url).filter((v): v is string => Boolean(v));
+  const episodeUrls = episodeRows
+    .map((episode) => episode.logo_url)
+    .filter((v): v is string => Boolean(v));
   const sealedUrls = sealedRows.map((p) => p.image_url).filter((v): v is string => Boolean(v));
 
   const cards = await warmCardImages(cardUrls, {
     onProgress: options?.onProgress
       ? (progress) => options.onProgress?.({ phase: "cards", progress })
+      : undefined,
+  });
+  const episodes = await warmCardImages(episodeUrls, {
+    onProgress: options?.onProgress
+      ? (progress) => options.onProgress?.({ phase: "episodes", progress })
       : undefined,
   });
   const sealed = await warmCardImages(sealedUrls, {
@@ -167,5 +180,5 @@ export async function warmAllImages(options?: {
       : undefined,
   });
 
-  return { cards, sealed, upcoming };
+  return { cards, episodes, sealed, upcoming };
 }
