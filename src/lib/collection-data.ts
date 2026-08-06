@@ -2036,13 +2036,14 @@ function buildMetric(investment: number, currentValue: number): CollectionSummar
 }
 
 function shouldLoadDetailedCards(activeTab: CollectionPageTab): boolean {
+  // Selling has dedicated, limited for-sale and sold queries. Loading every
+  // collection card as well only delays the first response.
   return (
     activeTab === "overview" ||
     activeTab === "complete" ||
     activeTab === "singles" ||
     activeTab === "cards" ||
-    activeTab === "graded" ||
-    activeTab === "selling"
+    activeTab === "graded"
   );
 }
 

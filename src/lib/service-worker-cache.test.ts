@@ -204,37 +204,45 @@ describe("DustyCards service-worker page cache", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 
-  it("uses the cached app document when mobile navigation stays slow", async () => {
+  it("waits for a fresh app document when navigation stays slow", async () => {
     vi.useFakeTimers();
-    let finishNetwork: ((response: Response) => void) | undefined;
-    const networkGate = new Promise<Response>((resolve) => {
-      finishNetwork = resolve;
-    });
-    const cachedPage = new Response("<html>cached app</html>", {
-      headers: { "Content-Type": "text/html; charset=utf-8" },
-    });
-    const cache = {
-      match: vi.fn(async () => cachedPage.clone()),
-      put: vi.fn(async () => undefined),
-      keys: vi.fn(async () => [] as Request[]),
-      delete: vi.fn(async () => true),
-    };
-    const { dispatchPageRequest, fetchMock } = loadServiceWorker(cache);
-    fetchMock.mockImplementation(() => networkGate);
-    const request = dispatchPageRequest();
+    try {
+      let finishNetwork: ((response: Response) => void) | undefined;
+      const networkGate = new Promise<Response>((resolve) => {
+        finishNetwork = resolve;
+      });
+      const cache = {
+        match: vi.fn(async () => new Response("<html>cached app</html>")),
+        put: vi.fn(async () => undefined),
+        keys: vi.fn(async () => [] as Request[]),
+        delete: vi.fn(async () => true),
+      };
+      const { dispatchPageRequest, fetchMock } = loadServiceWorker(cache);
+      fetchMock.mockImplementation(() => networkGate);
+      const request = dispatchPageRequest();
+      let settled = false;
+      request.responsePromise.then(() => {
+        settled = true;
+      });
 
-    await vi.advanceTimersByTimeAsync(901);
-    const response = await request.responsePromise;
+      await vi.advanceTimersByTimeAsync(1_000);
 
-    expect(await response.text()).toContain("cached app");
-    expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(settled).toBe(false);
+      expect(cache.match).not.toHaveBeenCalled();
 
-    finishNetwork?.(
-      new Response("<html>fresh app</html>", {
-        headers: { "Content-Type": "text/html; charset=utf-8" },
-      })
-    );
-    await Promise.resolve();
-    vi.useRealTimers();
+      finishNetwork?.(
+        new Response("<html>fresh app</html>", {
+          headers: { "Content-Type": "text/html; charset=utf-8" },
+        })
+      );
+      const response = await request.responsePromise;
+      await Promise.all(request.background);
+
+      expect(await response.text()).toContain("fresh app");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+      expect(cache.put).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
