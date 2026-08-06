@@ -77,6 +77,10 @@ export function normalizeRouteProgressLabel(value?: string | null): string | nul
   return normalized.length > 24 ? normalized.slice(0, 24).trimEnd() : normalized;
 }
 
+export function getDirectRouteRecoveryMessage(label: string | null): string {
+  return label ? `Reopening ${label}…` : "Reopening page…";
+}
+
 function getAnchorProgressLabel(anchor: HTMLAnchorElement): string | null {
   const explicitLabel =
     anchor.getAttribute("data-route-progress-label") ??
@@ -224,7 +228,7 @@ export default function RouteProgressBar() {
 
           if (shouldAttemptDirectRouteRecovery(lastAttemptAt, now)) {
             markDirectRecoveryAttempt(href, now);
-            setMessage(label ? `Reopening ${label}â€¦` : "Reopening pageâ€¦");
+            setMessage(getDirectRouteRecoveryMessage(label));
             window.location.assign(href);
             return;
           }

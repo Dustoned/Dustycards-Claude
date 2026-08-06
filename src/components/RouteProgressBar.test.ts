@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getDirectRouteRecoveryMessage,
   hasRouteProgressReachedDestination,
   isRouteProgressNavigation,
   normalizeRouteProgressLabel,
@@ -65,5 +66,10 @@ describe("isRouteProgressNavigation", () => {
     expect(shouldAttemptDirectRouteRecovery(null, 100_000)).toBe(true);
     expect(shouldAttemptDirectRouteRecovery(90_000, 100_000)).toBe(false);
     expect(shouldAttemptDirectRouteRecovery(40_000, 100_000)).toBe(true);
+  });
+
+  it("shows a readable recovery message", () => {
+    expect(getDirectRouteRecoveryMessage("Settings")).toBe("Reopening Settings…");
+    expect(getDirectRouteRecoveryMessage(null)).toBe("Reopening page…");
   });
 });
