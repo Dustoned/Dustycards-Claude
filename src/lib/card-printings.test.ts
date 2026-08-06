@@ -203,6 +203,22 @@ describe("card printings", () => {
     expect(getPrintingMatchDetails(left, right, 0.699)).toBeNull();
   });
 
+  it("treats provider spaces and stored hyphens as the same card name", () => {
+    const left = {
+      category: "Pokemon",
+      name: "Rayquaza-GX",
+      illustrator: "5ban Graphics",
+      hp: 180,
+      abilities: [{ name: "Stormy Winds" }],
+      attacks: [{ name: "Dragon Break" }, { name: "Tempest GX" }],
+    };
+    const right = { ...left, name: "Rayquaza GX" };
+
+    expect(getPrintingMatchDetails(left, right, 0.74)).toMatchObject({
+      method: "likely-art",
+    });
+  });
+
   it("rejects manual-review candidates with different attacks", () => {
     const left = {
       category: "Pokemon",

@@ -3,7 +3,7 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v8-review70-rules";
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v9-review70-rules";
 const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.82;
 const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.84;
 const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.7;
@@ -134,6 +134,12 @@ function normalizeRulesLabel(value: unknown): string | null {
   return normalized;
 }
 
+function normalizeCardName(value: unknown): string | null {
+  const normalized = normalizeText(value);
+  if (!normalized) return null;
+  return normalized.replace(/[^a-z0-9]+/g, " ").trim() || null;
+}
+
 function normalizeStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map(normalizeText).filter((item): item is string => Boolean(item))
@@ -180,7 +186,7 @@ function getTcgdexCardIds(input: {
 
 export function buildCardIdentityFingerprint(card: TcgDexCardIdentity): string | null {
   const category = normalizeText(card.category);
-  const name = normalizeText(card.name);
+  const name = normalizeCardName(card.name);
   if (!category || !name) return null;
 
   const fingerprint = {
@@ -265,7 +271,7 @@ function buildCoreRulesFingerprint(card: TcgDexCardIdentity): string | null {
  */
 export function buildCardLineageFingerprint(card: TcgDexCardIdentity): string | null {
   const category = normalizeText(card.category);
-  const name = normalizeText(card.name);
+  const name = normalizeCardName(card.name);
   const illustrator = normalizeText(card.illustrator);
   if (!category || !name || !illustrator) return null;
 
@@ -374,7 +380,7 @@ export function getPrintingMatchDetails(
 ): CardPrintingMatch | null {
   const sameNamedCard =
     normalizeText(current.category) === normalizeText(candidate.category) &&
-    normalizeText(current.name) === normalizeText(candidate.name);
+    normalizeCardName(current.name) === normalizeCardName(candidate.name);
   if (!sameNamedCard) return null;
 
   const currentFingerprint = buildCardIdentityFingerprint(current);
@@ -390,8 +396,7 @@ export function getPrintingMatchDetails(
         haveCompatibleKnownIdentityFields(current, candidate)
       );
 
-    if (rulesMatch) {
-      if (imageSimilarity < MIN_RULES_VERIFIED_IMAGE_SIMILARITY) return null;
+    if (rulesMatch && imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY) {
       return { matchType: "reprint", method: "rules-and-art", imageSimilarity };
     }
   }
@@ -596,7 +601,7 @@ function isCompatibleIdentityFallback(
   card: PrintingLookupCard,
   identity: TcgDexCardIdentity
 ): boolean {
-  if (normalizeText(identity.name) !== normalizeText(card.name)) return false;
+  if (normalizeCardName(identity.name) !== normalizeCardName(card.name)) return false;
   const storedArtist = normalizeText(card.artist);
   const providerArtist = normalizeText(identity.illustrator);
   if (

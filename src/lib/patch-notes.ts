@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.13",
+    releasedAt: "August 7, 2026",
+    title: "Complete rules evidence retry",
+    summary: "Provider naming differences no longer hide valid attack data from reprint review.",
+    tone: "fixed",
+    highlights: [
+      "Names such as Rayquaza GX and Rayquaza-GX now resolve to the same rules identity.",
+      "Image-only evidence retries once under the new model so transient or previously rejected rules data can be recovered.",
+      "Valid same-move reprints remain reviewable while different-move cards stay filtered out.",
+    ],
+  },
+  {
     version: "3.12.12",
     releasedAt: "August 7, 2026",
     title: "Rules-aware reprint candidates",

@@ -127,8 +127,9 @@ function shouldRefreshEvidence(card: ReprintCandidateCard, now: Date): boolean {
   const evidence = card.printingEvidence;
   if (!evidence || evidence.image_url !== card.image_url) return true;
   if (!getStoredArtworkHash(card)) return true;
-  if (!parseIdentity(evidence.identity_json) && evidence.source_status !== "image-only") {
-    return true;
+  if (!parseIdentity(evidence.identity_json)) {
+    if (evidence.match_version !== CARD_REPRINT_MODEL_VERSION) return true;
+    if (evidence.source_status !== "image-only") return true;
   }
   return now.getTime() - evidence.source_checked_at.getTime() >= EVIDENCE_REFRESH_MS;
 }
