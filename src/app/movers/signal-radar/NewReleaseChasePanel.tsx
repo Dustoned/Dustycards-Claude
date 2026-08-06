@@ -135,8 +135,8 @@ function readinessCopy(data: ExpansionChaseRadarData): {
   }
   if (data.readiness === "prices_loading") {
     return {
-      label: "Prices still loading",
-      description: "Only a partial market view is available, so treat every ranking as an early read.",
+      label: "Partial price coverage",
+      description: "Some current market prices are unavailable, so treat every ranking as an early read.",
       tone: "amber",
     };
   }
