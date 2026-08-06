@@ -2126,8 +2126,15 @@ export interface ManualCardHistoryCandidateCounts {
   onePiece: number;
 }
 
+let manualCardHistoryCandidateCountsSnapshot: ManualCardHistoryCandidateCounts | null = null;
+let manualCardHistoryCandidateCountsInFlight: Promise<ManualCardHistoryCandidateCounts> | null = null;
+
 export async function countManualCardHistoryCandidatesByGame(): Promise<ManualCardHistoryCandidateCounts> {
-  return timeAsync("sync.card-history-candidates.count-by-game", async () => {
+  if (manualCardHistoryCandidateCountsInFlight) {
+    return manualCardHistoryCandidateCountsInFlight;
+  }
+
+  const pending = timeAsync("sync.card-history-candidates.count-by-game", async () => {
     const [missingGroups, topUpGroups] = await Promise.all([
       db.card.groupBy({
         by: ["game"],
@@ -2153,12 +2160,27 @@ export async function countManualCardHistoryCandidatesByGame(): Promise<ManualCa
       totalsByGame.set(group.game, (totalsByGame.get(group.game) ?? 0) + Number(group.total));
     }
 
-    return {
+    const counts = {
       total: [...totalsByGame.values()].reduce((sum, count) => sum + count, 0),
       pokemon: totalsByGame.get(POKEMON_GAME) ?? 0,
       onePiece: totalsByGame.get(ONE_PIECE_GAME) ?? 0,
     };
+    manualCardHistoryCandidateCountsSnapshot = counts;
+    return counts;
   });
+
+  manualCardHistoryCandidateCountsInFlight = pending;
+  return pending.finally(() => {
+    if (manualCardHistoryCandidateCountsInFlight === pending) {
+      manualCardHistoryCandidateCountsInFlight = null;
+    }
+  });
+}
+
+export function getManualCardHistoryCandidateCountsSnapshot(): Promise<ManualCardHistoryCandidateCounts> {
+  return manualCardHistoryCandidateCountsSnapshot
+    ? Promise.resolve(manualCardHistoryCandidateCountsSnapshot)
+    : countManualCardHistoryCandidatesByGame();
 }
 
 async function selectCardHistoryTopUpCandidates(take: number): Promise<string[]> {
