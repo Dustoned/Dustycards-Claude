@@ -23,9 +23,16 @@ const AUTO_PRICE_REFRESH_JOB_MAX_BATCHES = 12;
 const AUTO_PRICE_REFRESH_JOB_MAX_RUNTIME_MS = 1000 * 60 * 45;
 const AUTO_PRICE_REFRESH_JOB_HEARTBEAT_INTERVAL_MS = 1000 * 60;
 const AUTO_PRICE_REFRESH_JOB_RESUME_COOLDOWN_MS = 1000 * 60;
+const EXTERNAL_PRICE_REFRESH_WORKER_ENV = "DUSTYCARDS_EXTERNAL_PRICE_REFRESH_WORKER";
 
 let activeJob: Promise<void> | null = null;
 let lastResumeAttemptAt = 0;
+
+export function isExternalAutoPriceRefreshWorkerEnabled(): boolean {
+  return ["1", "true", "yes", "on"].includes(
+    (process.env[EXTERNAL_PRICE_REFRESH_WORKER_ENV] ?? "").trim().toLowerCase()
+  );
+}
 
 type AutoPriceRefreshJobRecord = NonNullable<
   Awaited<ReturnType<typeof db.syncJob.findUnique>>
@@ -149,45 +156,53 @@ async function runPersistedAutoPriceRefreshJob(jobId: string) {
   }
 }
 
-function launchJob(jobId: string) {
-  if (activeJob || areScraperRequestsDisabled()) {
-    return;
-  }
-
-  activeJob = runPersistedAutoPriceRefreshJob(jobId)
-    .catch(async (error: unknown) => {
-      if (error instanceof SyncConflictError) {
-        await db.syncJob.update({
-          where: { id: jobId },
-          data: {
-            status: "queued",
-            heartbeat_at: new Date(),
-          },
-        });
-        return;
-      }
-
-      const status = error instanceof SyncCancelledError ? "cancelled" : "failed";
-      const message = error instanceof Error ? error.message : String(error);
+async function executePersistedAutoPriceRefreshJob(jobId: string): Promise<void> {
+  try {
+    await runPersistedAutoPriceRefreshJob(jobId);
+  } catch (error: unknown) {
+    if (error instanceof SyncConflictError) {
       await db.syncJob.update({
         where: { id: jobId },
         data: {
-          status,
-          details_json: JSON.stringify({
-            version: 1,
-            kind: "auto-price-refresh",
-            batchId: jobId,
-            status,
-            error: message,
-          }),
-          finished_at: new Date(),
+          status: "queued",
           heartbeat_at: new Date(),
         },
       });
-    })
-    .finally(() => {
-      activeJob = null;
+      return;
+    }
+
+    const status = error instanceof SyncCancelledError ? "cancelled" : "failed";
+    const message = error instanceof Error ? error.message : String(error);
+    await db.syncJob.update({
+      where: { id: jobId },
+      data: {
+        status,
+        details_json: JSON.stringify({
+          version: 1,
+          kind: "auto-price-refresh",
+          batchId: jobId,
+          status,
+          error: message,
+        }),
+        finished_at: new Date(),
+        heartbeat_at: new Date(),
+      },
     });
+  }
+}
+
+function launchJob(jobId: string) {
+  if (
+    activeJob ||
+    areScraperRequestsDisabled() ||
+    isExternalAutoPriceRefreshWorkerEnabled()
+  ) {
+    return;
+  }
+
+  activeJob = executePersistedAutoPriceRefreshJob(jobId).finally(() => {
+    activeJob = null;
+  });
 }
 
 function isFreshRunningJob(job: AutoPriceRefreshJobRecord | null, now = new Date()): boolean {
@@ -236,7 +251,11 @@ function getJobDetails(job: AutoPriceRefreshJobRecord | null): AutoPriceRefreshL
 }
 
 async function resumeRecoverableAutoPriceRefreshJob(): Promise<void> {
-  if (activeJob || areScraperRequestsDisabled()) {
+  if (
+    activeJob ||
+    areScraperRequestsDisabled() ||
+    isExternalAutoPriceRefreshWorkerEnabled()
+  ) {
     return;
   }
 
@@ -266,6 +285,87 @@ async function resumeRecoverableAutoPriceRefreshJob(): Promise<void> {
   });
 
   launchJob(job.id);
+}
+
+/**
+ * Drain current card-price work in a dedicated OS process. Production enables
+ * this mode so scraper/network waits and synchronous SQLite bookkeeping never
+ * occupy the Next.js event loop that serves collector pages.
+ */
+export async function runExternalAutoPriceRefreshWorker(): Promise<{
+  started: boolean;
+  running: boolean;
+  pendingCards: number;
+  status: string | null;
+}> {
+  if (areScraperRequestsDisabled()) {
+    return { started: false, running: false, pendingCards: 0, status: "paused" };
+  }
+
+  const now = new Date();
+  const [existing, snapshot] = await Promise.all([
+    db.syncJob.findUnique({ where: { type: AUTO_PRICE_REFRESH_SYNC_TYPE } }),
+    getAutoPriceRefreshSnapshot(),
+  ]);
+  const pendingCards =
+    snapshot.dueCards + snapshot.missingPriceCards + snapshot.submittedCardCandidates;
+
+  if (activeJob || isFreshRunningJob(existing, now)) {
+    return {
+      started: false,
+      running: true,
+      pendingCards,
+      status: existing?.status ?? "running",
+    };
+  }
+
+  if (pendingCards === 0 && isCoolingDown(existing, now)) {
+    return {
+      started: false,
+      running: false,
+      pendingCards,
+      status: existing?.status ?? null,
+    };
+  }
+
+  const startedAt = resolveAutoPriceRefreshStartedAt(existing, now);
+  const job = existing
+    ? await db.syncJob.update({
+        where: { id: existing.id },
+        data: {
+          status: "queued",
+          started_at: startedAt,
+          finished_at: null,
+          heartbeat_at: now,
+        },
+      })
+    : await db.syncJob.create({
+        data: {
+          type: AUTO_PRICE_REFRESH_SYNC_TYPE,
+          status: "queued",
+          started_at: startedAt,
+          heartbeat_at: now,
+        },
+      });
+
+  activeJob = executePersistedAutoPriceRefreshJob(job.id);
+  try {
+    await activeJob;
+  } finally {
+    activeJob = null;
+  }
+
+  const completed = await db.syncJob.findUnique({
+    where: { type: AUTO_PRICE_REFRESH_SYNC_TYPE },
+    select: { status: true },
+  });
+  const status = completed?.status ?? null;
+  return {
+    started: true,
+    running: status === "queued" || status === "running",
+    pendingCards,
+    status,
+  };
 }
 
 export async function startAutoPriceRefreshJob(): Promise<{

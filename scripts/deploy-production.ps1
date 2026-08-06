@@ -403,6 +403,8 @@ if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
   echo "Migration state unknown while app is live; stopping services and retrying check."
   systemctl stop dustycards-sync-scheduler.timer 2>/dev/null || true
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
+  systemctl stop dustycards-price-refresh.timer 2>/dev/null || true
+  systemctl stop dustycards-price-refresh.service 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.timer 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
   systemctl stop dustycards-daily-backup.service 2>/dev/null || true
@@ -450,6 +452,8 @@ if [ "$PENDING_MIGRATIONS" -gt 0 ] 2>/dev/null; then
   echo "Pending migrations: $PENDING_MIGRATIONS — running prisma migrate deploy."
   systemctl stop dustycards-sync-scheduler.timer 2>/dev/null || true
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
+  systemctl stop dustycards-price-refresh.timer 2>/dev/null || true
+  systemctl stop dustycards-price-refresh.service 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.timer 2>/dev/null || true
   systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
   systemctl stop dustycards-daily-backup.service 2>/dev/null || true
@@ -471,6 +475,7 @@ Environment=APP_BUILD=$app_build
 Environment=DUSTYCARDS_NEXT_DIST_DIR=$release_dist_dir
 Environment=DUSTYCARDS_IMAGE_CACHE_DIR=$image_cache_dir
 Environment=DUSTYCARDS_TIMING=1
+Environment=DUSTYCARDS_EXTERNAL_PRICE_REFRESH_WORKER=1
 EOF
 cat > /etc/systemd/system/dustycards.service.d/20-resource-priority.conf <<'EOF'
 [Service]
@@ -560,6 +565,29 @@ Group=dustycards
 WorkingDirectory=$RemoteAppPath
 EnvironmentFile=$RemoteAppPath/.env
 ExecStart=/bin/bash -lc '/usr/bin/curl -fsS --max-time 120 -X POST -H "x-dustycards-scheduler-secret: \${DUSTYCARDS_SYNC_SCHEDULER_SECRET}" "\${DUSTYCARDS_SYNC_SCHEDULER_URL:-http://127.0.0.1:3000}/api/internal/sync-scheduler"'
+EOF
+
+cat > /etc/systemd/system/dustycards-price-refresh.service <<EOF
+[Unit]
+Description=DustyCards dedicated card price refresh worker
+After=dustycards.service network-online.target
+Wants=dustycards.service network-online.target
+
+[Service]
+Type=oneshot
+User=dustycards
+Group=dustycards
+WorkingDirectory=$RemoteAppPath
+EnvironmentFile=$RemoteAppPath/.env
+Environment=DUSTYCARDS_EXTERNAL_PRICE_REFRESH_WORKER=1
+ExecStart=/usr/bin/node --no-warnings scripts/card-price-refresh-worker.mjs
+Nice=10
+CPUQuota=70%
+CPUWeight=50
+IOWeight=50
+MemoryHigh=1G
+MemoryMax=1536M
+TimeoutStartSec=55min
 EOF
 
 cat > /etc/systemd/system/dustycards-reprint-backlog.service <<EOF
@@ -686,6 +714,21 @@ Unit=dustycards-sync-scheduler.service
 WantedBy=timers.target
 EOF
 
+cat > /etc/systemd/system/dustycards-price-refresh.timer <<'EOF'
+[Unit]
+Description=Keep DustyCards card prices current independently of website traffic
+
+[Timer]
+OnBootSec=30s
+OnUnitInactiveSec=1min
+AccuracySec=10s
+Persistent=true
+Unit=dustycards-price-refresh.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 # Product launch dates come straight from the official Pokemon gallery. This
 # intentionally runs only twice a month and only checks the current/next year;
 # already cached product pages are not downloaded again. It consumes no Tavily
@@ -770,6 +813,7 @@ EOF
 
 systemctl daemon-reload
 systemctl enable --now dustycards-sync-scheduler.timer
+systemctl enable --now dustycards-price-refresh.timer
 systemctl enable --now dustycards-sealed-release-refresh.timer
 systemctl enable --now dustycards-daily-backup.timer
 systemctl enable --now dustycards-runtime-maintenance.timer
@@ -784,6 +828,7 @@ systemctl enable --now dustycards-reprint-backlog.timer
 # this exact instant. The timer (enabled above) runs it every 5 min regardless.
 systemctl start dustycards-sync-scheduler.service || true
 systemctl is-active dustycards-sync-scheduler.timer
+systemctl is-active dustycards-price-refresh.timer
 systemctl is-active dustycards-sealed-release-refresh.timer
 systemctl is-active dustycards-daily-backup.timer
 systemctl is-active dustycards-runtime-maintenance.timer
