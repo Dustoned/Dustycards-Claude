@@ -206,16 +206,47 @@ export interface SealedProductPriceFields {
   cm_lowest_it: number | null;
 }
 
+export const SEALED_EU_MARKET_PRICE_SOURCES = [
+  "cm_lowest_eu",
+  "cm_lowest",
+  "cm_lowest_de",
+  "cm_lowest_fr",
+  "cm_lowest_es",
+  "cm_lowest_it",
+] as const;
+
+export type SealedEuMarketPriceSource =
+  (typeof SEALED_EU_MARKET_PRICE_SOURCES)[number];
+
+export interface SealedEuMarketPriceSelection {
+  source: SealedEuMarketPriceSource;
+  value: number;
+}
+
+export function getSealedMarketPriceForSource(
+  price: SealedProductPriceFields | null | undefined,
+  source: SealedEuMarketPriceSource
+): number | null {
+  return price?.[source] ?? null;
+}
+
+export function getSealedEuMarketPriceSelection(
+  price: SealedProductPriceFields | null | undefined
+): SealedEuMarketPriceSelection | null {
+  if (!price) return null;
+
+  for (const source of SEALED_EU_MARKET_PRICE_SOURCES) {
+    const value = getSealedMarketPriceForSource(price, source);
+    if (value != null) {
+      return { source, value };
+    }
+  }
+
+  return null;
+}
+
 export function getSealedEuMarketPrice(price: SealedProductPriceFields): number | null {
-  return (
-    price.cm_lowest_eu ??
-    price.cm_lowest ??
-    price.cm_lowest_de ??
-    price.cm_lowest_fr ??
-    price.cm_lowest_es ??
-    price.cm_lowest_it ??
-    null
-  );
+  return getSealedEuMarketPriceSelection(price)?.value ?? null;
 }
 
 export function getSealedProductPrice(product: {

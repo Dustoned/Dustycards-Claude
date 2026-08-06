@@ -74,6 +74,10 @@ function getDriverMetaLabel(item: CollectionValueDriverItem): string {
   const detail = item.detail || (item.cardNumber ? `#${item.cardNumber}` : null);
   const quantity = item.quantity > 1 ? `x${item.quantity}` : null;
 
+  if (item.kind === "sealed") {
+    return [`x${item.quantity}`, episode].filter(Boolean).join(" / ");
+  }
+
   return [detail, episode, quantity].filter(Boolean).join(" / ");
 }
 

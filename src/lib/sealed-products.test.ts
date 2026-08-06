@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
+  getSealedEuMarketPriceSelection,
+  getSealedMarketPriceForSource,
   getSealedProductPrice,
   isCollectionSealedOriginProduct,
   selectCardDetailSealedProducts,
@@ -18,6 +20,25 @@ describe("getSealedProductPrice", () => {
 
     expect(getSealedProductPrice({ price })).toBe(120);
     expect(getSealedProductPrice({ price: { ...price, cm_lowest_eu: null } })).toBe(150);
+  });
+
+  it("keeps the selected source available for same-source history comparisons", () => {
+    const price = {
+      cm_lowest: 150,
+      cm_lowest_eu: 120,
+      cm_lowest_de: 110,
+      cm_lowest_fr: null,
+      cm_lowest_es: null,
+      cm_lowest_it: 90,
+    };
+
+    expect(getSealedEuMarketPriceSelection(price)).toEqual({
+      source: "cm_lowest_eu",
+      value: 120,
+    });
+    expect(getSealedMarketPriceForSource(price, "cm_lowest_eu")).toBe(120);
+    expect(getSealedMarketPriceForSource(price, "cm_lowest_it")).toBe(90);
+    expect(getSealedMarketPriceForSource(price, "cm_lowest_fr")).toBeNull();
   });
 });
 

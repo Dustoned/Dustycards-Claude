@@ -30,8 +30,13 @@ import {
 } from "@/lib/games";
 import { startPerformanceTimer } from "@/lib/performance-timing";
 import {
+  getSealedEuMarketPriceSelection,
+  getSealedMarketPriceForSource,
+  SEALED_EU_MARKET_PRICE_SOURCES,
+  type SealedEuMarketPriceSource,
+} from "@/lib/sealed-products";
+import {
   getCardMarketValue,
-  getSealedCardMarketValue,
   type EpisodePriceHistorySnapshot,
   type EpisodeSealedPriceHistorySnapshot,
 } from "@/lib/price-history";
@@ -1357,7 +1362,13 @@ function getCollectionCardCurrentValue(
   }).value;
 }
 
-function buildSealedViewItem(record: CollectionSealedRecord): CollectionSealedViewItem {
+type CollectionSealedValueDriverViewItem = CollectionSealedViewItem & {
+  current_value_source: SealedEuMarketPriceSource | null;
+};
+
+function buildSealedViewItem(record: CollectionSealedRecord): CollectionSealedValueDriverViewItem {
+  const currentMarketPrice = getSealedEuMarketPriceSelection(record.product);
+
   return {
     id: record.id,
     product_id: record.product.id,
@@ -1369,7 +1380,8 @@ function buildSealedViewItem(record: CollectionSealedRecord): CollectionSealedVi
     cardmarket_url: record.product.cardmarket_url,
     quantity: record.quantity,
     purchase_price_per_item: record.purchase_price_per_item,
-    current_value_per_item: getCollectionSealedMarketValue(record.product),
+    current_value_per_item: currentMarketPrice?.value ?? null,
+    current_value_source: currentMarketPrice?.source ?? null,
   };
 }
 
@@ -1402,6 +1414,27 @@ function buildCardBaselineValueMap(
   return values;
 }
 
+function getSealedSourceMapKey(productId: string, source: SealedEuMarketPriceSource): string {
+  return `${productId}:${source}`;
+}
+
+function getSealedValueDriverSourceLabel(source: SealedEuMarketPriceSource): string {
+  switch (source) {
+    case "cm_lowest_eu":
+      return "Sealed EU";
+    case "cm_lowest":
+      return "Sealed Market";
+    case "cm_lowest_de":
+      return "Sealed DE";
+    case "cm_lowest_fr":
+      return "Sealed FR";
+    case "cm_lowest_es":
+      return "Sealed ES";
+    case "cm_lowest_it":
+      return "Sealed IT";
+  }
+}
+
 function buildSealedBaselineValueMap(
   rows: EpisodeSealedPriceHistorySnapshot[],
   baselineDate: string
@@ -1415,11 +1448,11 @@ function buildSealedBaselineValueMap(
       continue;
     }
 
-    const value = getSealedCardMarketValue(row);
-    if (value == null) {
-      values.delete(row.product_id);
-    } else {
-      values.set(row.product_id, { value, date: dateKey });
+    for (const source of SEALED_EU_MARKET_PRICE_SOURCES) {
+      const value = getSealedMarketPriceForSource(row, source);
+      if (value != null) {
+        values.set(getSealedSourceMapKey(row.product_id, source), { value, date: dateKey });
+      }
     }
   }
 
@@ -1544,11 +1577,14 @@ function buildLatestSealedSnapshotDateMap(
   const values = new Map<string, string>();
 
   for (const row of rows) {
-    if (getSealedCardMarketValue(row) == null) continue;
     const dateKey = toHistoryDateKey(row.fetched_at);
-    const existing = values.get(row.product_id);
-    if (!existing || dateKey > existing) {
-      values.set(row.product_id, dateKey);
+    for (const source of SEALED_EU_MARKET_PRICE_SOURCES) {
+      if (getSealedMarketPriceForSource(row, source) == null) continue;
+      const key = getSealedSourceMapKey(row.product_id, source);
+      const existing = values.get(key);
+      if (!existing || dateKey > existing) {
+        values.set(key, dateKey);
+      }
     }
   }
 
@@ -1570,14 +1606,6 @@ function buildCardValueDriverDetail(item: CollectionCardViewItem): string {
     : null;
 
   return [number, grading].filter(Boolean).join(" / ");
-}
-
-function buildSealedValueDriverDetail(item: CollectionSealedViewItem): string {
-  const episode = item.episode_code
-    ? `${item.episode_name} (${item.episode_code})`
-    : item.episode_name;
-
-  return [`x${item.quantity}`, episode].filter(Boolean).join(" / ");
 }
 
 function pickCollectionValueDriverPreviousPoint(
@@ -1660,7 +1688,7 @@ function getCollectionValueDriverCardSource(item: CollectionCardViewItem): strin
     : "Graded";
 }
 
-function buildCollectionValueDrivers({
+export function buildCollectionValueDrivers({
   cards,
   sealed,
   cardHistory,
@@ -1672,7 +1700,7 @@ function buildCollectionValueDrivers({
   windowDays = COLLECTION_VALUE_DRIVER_WINDOW_DAYS,
 }: {
   cards: CollectionCardViewItem[];
-  sealed: CollectionSealedViewItem[];
+  sealed: CollectionSealedValueDriverViewItem[];
   cardHistory: EpisodePriceHistorySnapshot[];
   sealedHistory: EpisodeSealedPriceHistorySnapshot[];
   gradedHistory?: GradedHistorySnapshotRow[];
@@ -1808,13 +1836,17 @@ function buildCollectionValueDrivers({
   }
 
   for (const item of sealed) {
-    const latestSnapshotDate = sealedLatestSnapshotDates.get(item.product_id) ?? null;
+    const currentValueSource = item.current_value_source;
+    if (!currentValueSource) continue;
+    const sourceKey = getSealedSourceMapKey(item.product_id, currentValueSource);
+    const latestSnapshotDate = sealedLatestSnapshotDates.get(sourceKey) ?? null;
     if (isValueDriverSnapshotStale(latestSnapshotDate, staleBeforeDate)) continue;
-    const baseline = sealedBaselineValues.get(item.product_id);
+    const baseline = sealedBaselineValues.get(sourceKey);
     if (!baseline || isValueDriverBaselineTooOld(baseline.date, minBaselineDate)) continue;
     if (item.current_value_per_item == null) continue;
     const currentItemValue = item.current_value_per_item * item.quantity;
     const previousItemValue = baseline.value * item.quantity;
+    const sourceLabel = getSealedValueDriverSourceLabel(currentValueSource);
 
     addCollectionValueDriverDraft(drafts, {
       id: `sealed:${item.product_id}`,
@@ -1828,12 +1860,12 @@ function buildCollectionValueDrivers({
       name: item.name,
       imageUrl: item.image_url,
       href: getExpansionHref(item.episode_id),
-      detail: buildSealedValueDriverDetail(item),
+      detail: "",
       quantity: item.quantity,
       previousValue: previousItemValue,
       currentValue: currentItemValue,
-      currentSource: "Sealed",
-      previousSource: "Sealed",
+      currentSource: sourceLabel,
+      previousSource: sourceLabel,
       latestSnapshotDate,
       stale: false,
     });
