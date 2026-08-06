@@ -12,9 +12,12 @@ export default function ProgressiveTradeOpportunitiesPanel({
   endpoint: string;
   game: TradingCardGameFilter;
 }) {
-  const [opportunities, setOpportunities] = useState<SocialTradeOpportunity[]>([]);
+  const [requested, setRequested] = useState(false);
+  const [opportunities, setOpportunities] = useState<SocialTradeOpportunity[] | null>(null);
 
   useEffect(() => {
+    if (!requested) return;
+
     const controller = new AbortController();
 
     void fetch(endpoint, { signal: controller.signal })
@@ -33,7 +36,14 @@ export default function ProgressiveTradeOpportunitiesPanel({
       });
 
     return () => controller.abort();
-  }, [endpoint]);
+  }, [endpoint, requested]);
 
-  return <TradeOpportunitiesPanel opportunities={opportunities} game={game} />;
+  return (
+    <TradeOpportunitiesPanel
+      opportunities={opportunities ?? []}
+      game={game}
+      friendsPending={requested && opportunities == null}
+      onFriendsOpen={() => setRequested(true)}
+    />
+  );
 }

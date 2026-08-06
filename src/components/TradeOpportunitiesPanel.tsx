@@ -501,9 +501,13 @@ function FriendTradeMatches({ opportunities }: { opportunities: SocialTradeOppor
 export default function TradeOpportunitiesPanel({
   opportunities,
   game,
+  friendsPending = false,
+  onFriendsOpen,
 }: {
   opportunities: SocialTradeOpportunity[];
   game: TradingCardGameFilter;
+  friendsPending?: boolean;
+  onFriendsOpen?: () => void;
 }) {
   const [mode, setMode] = useState<PanelMode>("compare");
 
@@ -523,11 +527,26 @@ export default function TradeOpportunitiesPanel({
 
       <div className="mt-3 grid grid-cols-2 gap-1.5">
         <button type="button" onClick={() => setMode("compare")} aria-pressed={mode === "compare"} className={`h-9 rounded-xl border text-[10px] font-black transition-colors ${mode === "compare" ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)]" : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"}`}>Compare two cards</button>
-        <button type="button" onClick={() => setMode("friends")} aria-pressed={mode === "friends"} className={`h-9 rounded-xl border text-[10px] font-black transition-colors ${mode === "friends" ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)]" : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"}`}>Friend trades</button>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("friends");
+            onFriendsOpen?.();
+          }}
+          aria-pressed={mode === "friends"}
+          className={`h-9 rounded-xl border text-[10px] font-black transition-colors ${mode === "friends" ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)]" : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"}`}
+        >
+          Friend trades
+        </button>
       </div>
 
       {mode === "compare" ? (
         <ManualTradeCompare game={game} />
+      ) : friendsPending ? (
+        <div className="mt-3 rounded-2xl border border-violet-300/10 bg-violet-500/[0.04] px-4 py-5 text-center">
+          <p className="text-xs font-bold text-white/58">Comparing friend collections…</p>
+          <p className="mt-1 text-[10px] text-white/34">The free card comparison remains available.</p>
+        </div>
       ) : (
         <FriendTradeMatches opportunities={opportunities} />
       )}
