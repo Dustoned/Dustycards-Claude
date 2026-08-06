@@ -1,8 +1,9 @@
 "use client";
 
-import { Check, Link2, Loader2, RefreshCw, Unlink } from "lucide-react";
+import { Check, Link2, Loader2, Maximize2, RefreshCw, Unlink } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import CachedImage from "@/components/CachedImage";
+import UpcomingCardImageViewer from "@/components/UpcomingCardImageViewer";
 
 type ReviewCard = {
   id: string;
@@ -19,12 +20,31 @@ type ReviewItem = {
   imageSimilarity: number;
 };
 
-function ReviewCardView({ card }: { card: ReviewCard }) {
+function ReviewCardView({
+  card,
+  onPreview,
+}: {
+  card: ReviewCard;
+  onPreview: (card: ReviewCard) => void;
+}) {
   return (
     <div className="flex min-w-0 items-center gap-2.5">
-      <span className="relative aspect-[63/88] w-12 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20">
-        {card.image_url ? <CachedImage sourceUrl={card.image_url} alt="" fill sizes="48px" className="object-contain" unoptimized /> : null}
-      </span>
+      <button
+        type="button"
+        onClick={() => onPreview(card)}
+        disabled={!card.image_url}
+        aria-label={`Open quick view for ${card.name}`}
+        className="group relative aspect-[63/88] w-12 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:cursor-default"
+      >
+        {card.image_url ? (
+          <>
+            <CachedImage sourceUrl={card.image_url} alt="" fill sizes="48px" className="object-contain transition-transform group-hover:scale-[1.03]" unoptimized />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
+              <Maximize2 className="h-4 w-4" />
+            </span>
+          </>
+        ) : null}
+      </button>
       <span className="min-w-0">
         <strong className="block truncate text-xs text-white/84">{card.name}</strong>
         <span className="mt-0.5 block truncate text-[10px] text-white/38">{card.episode.name} {card.card_number ? `#${card.card_number}` : ""}</span>
@@ -38,6 +58,7 @@ export default function ReprintReviewSection() {
   const [loading, setLoading] = useState(true);
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [previewCard, setPreviewCard] = useState<ReviewCard | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,9 +124,9 @@ export default function ReprintReviewSection() {
             return (
               <article key={key} className="rounded-2xl border border-white/8 bg-black/16 p-3">
                 <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-                  <ReviewCardView card={item.source} />
+                  <ReviewCardView card={item.source} onPreview={setPreviewCard} />
                   <Link2 className="hidden h-4 w-4 text-violet-200/42 sm:block" />
-                  <ReviewCardView card={item.target} />
+                  <ReviewCardView card={item.target} onPreview={setPreviewCard} />
                 </div>
                 <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/7 pt-3">
                   <span className="text-[9px] font-bold uppercase tracking-[0.09em] text-white/30">Visual candidate · {Math.round(item.imageSimilarity * 100)}% colour and artwork agreement</span>
@@ -119,6 +140,22 @@ export default function ReprintReviewSection() {
           })}
         </div>
       )}
+
+      {previewCard?.image_url ? (
+        <UpcomingCardImageViewer
+          item={{
+            id: `reprint-review:${previewCard.id}`,
+            name: previewCard.name,
+            imageUrl: previewCard.image_url,
+            cardNumber: previewCard.card_number,
+            rarity: null,
+            episodeId: null,
+            episodeName: previewCard.episode.name,
+            episodeCode: null,
+          }}
+          onClose={() => setPreviewCard(null)}
+        />
+      ) : null}
     </section>
   );
 }

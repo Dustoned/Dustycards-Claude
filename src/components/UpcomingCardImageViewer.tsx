@@ -8,11 +8,23 @@ const CardThreeViewer = dynamic(
   { ssr: false }
 );
 
+export type UpcomingCardImageViewerItem = Pick<
+  UpcomingSingleItem,
+  | "id"
+  | "name"
+  | "imageUrl"
+  | "cardNumber"
+  | "rarity"
+  | "episodeId"
+  | "episodeName"
+  | "episodeCode"
+>;
+
 export default function UpcomingCardImageViewer({
   item,
   onClose,
 }: {
-  item: UpcomingSingleItem;
+  item: UpcomingCardImageViewerItem;
   onClose: () => void;
 }) {
   if (!item.imageUrl) return null;

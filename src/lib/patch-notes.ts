@@ -17,6 +17,16 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.3",
+    releasedAt: "August 6, 2026",
+    title: "Reprint review image quick view",
+    summary: "Reprint candidates can now be inspected in the full Upcoming card viewer.",
+    tone: "improved",
+    highlights: [
+      "Click either candidate image in Reprint Review to open the same large 3D and zoom preview used for Upcoming and Leaks.",
+    ],
+  },
+  {
     version: "3.12.2",
     releasedAt: "August 6, 2026",
     title: "80% trade value option",
