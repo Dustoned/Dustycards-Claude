@@ -44,15 +44,12 @@ import { getCachedImageUrl } from "@/lib/image-cache";
 import CollectionValueHistoryPanel from "@/components/CollectionValueHistoryPanel";
 import EmptyState from "@/components/EmptyState";
 import HomePageLoading from "@/components/HomePageLoading";
-import { getSocialTradeOpportunities } from "@/lib/social";
+import ProgressiveTradeOpportunitiesPanel from "@/components/ProgressiveTradeOpportunitiesPanel";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
 const BinderOverviewGrid = nextDynamic(() => import("@/components/BinderOverviewGrid"));
 const CreateBinderButton = nextDynamic(() => import("@/components/CreateBinderButton"));
-const TradeOpportunitiesPanel = nextDynamic(
-  () => import("@/components/TradeOpportunitiesPanel")
-);
 const SellingInventoryTabs = nextDynamic(
   () => import("@/components/SellingInventoryTabs")
 );
@@ -364,17 +361,12 @@ async function HomePageContent({
       : graded === "1"
         ? "graded"
         : "overview";
-  const [data, tradeOpportunities] = await Promise.all([
-    getCachedCollectionOverviewData({
-      userId: user.id,
-      activeTab,
-      game: activeGame,
-      deferDetailedRows: activeTab === "complete" || activeTab === "overview",
-    }),
-    activeTab === "selling"
-      ? getSocialTradeOpportunities(user.id, activeGame)
-      : Promise.resolve([]),
-  ]);
+  const data = await getCachedCollectionOverviewData({
+    userId: user.id,
+    activeTab,
+    game: activeGame,
+    deferDetailedRows: activeTab === "complete" || activeTab === "overview",
+  });
   const totalTrackedItems = data.overview.totalCards + data.overview.totalSealedUnits;
   const collectionRoi =
     data.overview.investment > 0 ? (data.overview.pnl / data.overview.investment) * 100 : null;
@@ -555,6 +547,13 @@ async function HomePageContent({
     return gameValue
       ? `/api/collection/value-history?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameValue)}`
       : "/api/collection/value-history";
+  }
+
+  function buildTradeOpportunitiesApiHref() {
+    const gameValue = getGameFilterSearchParamValue(activeGame);
+    return gameValue
+      ? `/api/social/trade-opportunities?${GAME_SEARCH_PARAM}=${encodeURIComponent(gameValue)}`
+      : "/api/social/trade-opportunities";
   }
 
   const gameSwitchItems = GAME_FILTER_OPTIONS.map((game) => ({
@@ -813,7 +812,10 @@ async function HomePageContent({
         activeTab === "selling" ? (
         data.forSaleCards.length === 0 && data.soldCards.length === 0 ? (
           <div className="space-y-3">
-            <TradeOpportunitiesPanel opportunities={tradeOpportunities} game={activeGame} />
+            <ProgressiveTradeOpportunitiesPanel
+              endpoint={buildTradeOpportunitiesApiHref()}
+              game={activeGame}
+            />
             <EmptyState
               title="Nothing marked for sale yet"
               description="Open a saved card, choose Edit, and enable For Sale. It will appear here with its estimated value and sale tracking."
@@ -823,7 +825,10 @@ async function HomePageContent({
           </div>
         ) : (
         <div className="space-y-3">
-          <TradeOpportunitiesPanel opportunities={tradeOpportunities} game={activeGame} />
+          <ProgressiveTradeOpportunitiesPanel
+            endpoint={buildTradeOpportunitiesApiHref()}
+            game={activeGame}
+          />
           <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">

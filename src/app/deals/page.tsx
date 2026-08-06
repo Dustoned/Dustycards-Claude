@@ -1,4 +1,4 @@
-import DealsBrowser from "@/app/deals/DealsBrowser";
+import DealsBrowserLoader from "@/app/deals/DealsBrowserLoader";
 import { requirePageUser } from "@/lib/page-auth";
 
 export const dynamic = "force-dynamic";
@@ -28,5 +28,5 @@ export default async function DealsPage({
 
   await requirePageUser(`/deals${query.size > 0 ? `?${query}` : ""}`);
 
-  return <DealsBrowser key={query.toString()} />;
+  return <DealsBrowserLoader key={query.toString()} />;
 }
