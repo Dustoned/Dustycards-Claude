@@ -462,6 +462,14 @@ if [ -n "$radar_warm_secret" ]; then
     -H "x-dustycards-scheduler-secret: $radar_warm_secret" \
     http://127.0.0.1:3000/api/internal/warm-signal-radar >/dev/null ||
     echo "Signal Radar warm-up failed; the first feed request will rebuild it." >&2
+
+  # Fill the new process's authenticated Home caches before a collector opens
+  # the freshly deployed app. This turns the 5-6 second first Home request into
+  # the same fast cache hit as later visits.
+  /usr/bin/curl -fsS --max-time 240 -X POST \
+    -H "x-dustycards-scheduler-secret: $radar_warm_secret" \
+    "http://127.0.0.1:3000/api/internal/warm-collection-overviews?force=1" >/dev/null ||
+    echo "Collection overview warm-up failed; Home will warm on first use." >&2
 else
   echo "Signal Radar warm-up skipped because the scheduler secret is unavailable." >&2
 fi
