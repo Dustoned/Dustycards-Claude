@@ -223,7 +223,9 @@ export async function startCardHistorySyncJob(options?: {
   };
 }
 
-export async function getCardHistorySyncJobSnapshot(): Promise<{
+export async function getCardHistorySyncJobSnapshot(options?: {
+  countPendingCards?: boolean;
+}): Promise<{
   running: boolean;
   pendingCards: number;
   startedAt: string | null;
@@ -231,7 +233,9 @@ export async function getCardHistorySyncJobSnapshot(): Promise<{
   error: string | null;
 }> {
   const [pendingCards, activeLog, job] = await Promise.all([
-    countManualCardHistoryCandidates(),
+    options?.countPendingCards === false
+      ? Promise.resolve(0)
+      : countManualCardHistoryCandidates(),
     findActiveCardHistorySyncLog(),
     db.syncJob.findUnique({
       where: { type: CARD_HISTORY_SYNC_TYPE },

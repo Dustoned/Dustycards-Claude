@@ -11,7 +11,7 @@ import {
 } from "@/lib/scraper-guard";
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import {
-  countManualCardHistoryCandidates,
+  countManualCardHistoryCandidatesByGame,
   countSealedHistoryTopUpCandidates,
   getAutoPriceRefreshSnapshot,
   getKnownUnavailablePriceSummary,
@@ -380,10 +380,8 @@ export default async function SettingsPage({
     pokemonAutoRefreshSnapshot,
     onePieceAutoRefreshSnapshot,
     tcggoUsageSnapshot,
-    cardHistorySyncJobSnapshot,
-    pendingCardHistoryCards,
-    pendingPokemonCardHistoryCards,
-    pendingOnePieceCardHistoryCards,
+    cardHistorySyncJobRuntimeSnapshot,
+    pendingCardHistoryCandidateCounts,
     pendingSealedHistoryProducts,
     knownUnavailablePriceSummary,
     pricedCardsMissingCheckedAt,
@@ -466,10 +464,8 @@ export default async function SettingsPage({
     getAutoPriceRefreshSnapshot({ game: POKEMON_GAME }),
     getAutoPriceRefreshSnapshot({ game: ONE_PIECE_GAME }),
     getTcggoUsageSnapshot(),
-    getCardHistorySyncJobSnapshot(),
-    countManualCardHistoryCandidates(),
-    countManualCardHistoryCandidates({ game: POKEMON_GAME }),
-    countManualCardHistoryCandidates({ game: ONE_PIECE_GAME }),
+    getCardHistorySyncJobSnapshot({ countPendingCards: false }),
+    countManualCardHistoryCandidatesByGame(),
     countSealedHistoryTopUpCandidates(),
     getKnownUnavailablePriceSummary(),
     db.card.count({
@@ -582,6 +578,14 @@ export default async function SettingsPage({
     listBackups().catch(() => ({ dir: null, backups: [] as BackupFileInfo[] })),
     db.feedback.count({ where: { status: "new" } }),
   ]));
+
+  const pendingCardHistoryCards = pendingCardHistoryCandidateCounts.total;
+  const pendingPokemonCardHistoryCards = pendingCardHistoryCandidateCounts.pokemon;
+  const pendingOnePieceCardHistoryCards = pendingCardHistoryCandidateCounts.onePiece;
+  const cardHistorySyncJobSnapshot = {
+    ...cardHistorySyncJobRuntimeSnapshot,
+    pendingCards: pendingCardHistoryCards,
+  };
 
   const relevantLogs = [
     activeSync,
