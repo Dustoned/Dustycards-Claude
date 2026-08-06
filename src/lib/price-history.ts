@@ -77,6 +77,10 @@ export type CardMarketHistorySeriesKey =
 export interface EpisodePriceHistorySnapshot extends CardMarketPriceSnapshot {
   card_id: string;
   fetched_at: Date | string;
+  // Current snapshots move fetched_at forward when the quote is observed
+  // unchanged. changed_at preserves when that value actually became valid,
+  // allowing weekly comparisons to reconstruct the price at the window start.
+  changed_at?: Date | string | null;
 }
 
 export interface EpisodeSetPriceHistoryPoint {

@@ -1026,6 +1026,7 @@ export async function getCardHistoryRows(cardIds: string[], since?: string) {
         `SELECT
           card_id,
           fetched_at,
+          changed_at,
           cm_en_lowest_nm,
           cm_de_lowest_nm,
           cm_fr_lowest_nm,
@@ -1036,6 +1037,7 @@ export async function getCardHistoryRows(cardIds: string[], since?: string) {
           SELECT
             p.card_id,
             p.fetched_at,
+            p.changed_at,
             p.cm_en_lowest_nm,
             p.cm_de_lowest_nm,
             p.cm_fr_lowest_nm,
@@ -1394,20 +1396,40 @@ function buildCardBaselineValueMap(
   rows: EpisodePriceHistorySnapshot[],
   baselineDate: string
 ): Map<string, ValueDriverBaseline> {
-  const values = new Map<string, ValueDriverBaseline>();
-  const sorted = [...rows].sort((a, b) => toHistoryMillis(a.fetched_at) - toHistoryMillis(b.fetched_at));
+  const values = new Map<
+    string,
+    ValueDriverBaseline & { effectiveDate: string; observedDate: string }
+  >();
 
-  for (const row of sorted) {
-    const dateKey = toHistoryDateKey(row.fetched_at);
-    if (dateKey > baselineDate) {
-      continue;
-    }
+  for (const row of rows) {
+    const observedDate = toHistoryDateKey(row.fetched_at);
+    const effectiveDate = toHistoryDateKey(row.changed_at ?? row.fetched_at);
+    if (effectiveDate > baselineDate) continue;
 
     const value = getCardMarketValue(row);
-    if (value == null) {
-      values.delete(row.card_id);
-    } else {
-      values.set(row.card_id, { value, date: dateKey });
+    if (value == null) continue;
+
+    // A row whose value became effective before the window and was still
+    // observed after it spans the baseline date. Unchanged refreshes update
+    // fetched_at in place, so ignoring changed_at made every actively checked
+    // chase card look as if it had no weekly baseline.
+    const candidateDate = observedDate >= baselineDate ? baselineDate : observedDate;
+    const existing = values.get(row.card_id);
+    const shouldReplace =
+      !existing ||
+      candidateDate > existing.date ||
+      (candidateDate === existing.date && effectiveDate > existing.effectiveDate) ||
+      (candidateDate === existing.date &&
+        effectiveDate === existing.effectiveDate &&
+        observedDate > existing.observedDate);
+
+    if (shouldReplace) {
+      values.set(row.card_id, {
+        value,
+        date: candidateDate,
+        effectiveDate,
+        observedDate,
+      });
     }
   }
 
