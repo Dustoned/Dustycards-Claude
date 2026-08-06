@@ -7,6 +7,7 @@ import { buildOnDemandExternalCardSignal } from "@/lib/external-signal-intellige
 import { getExternalSignalRadarDetailContext } from "@/lib/external-signal-persisted";
 import { normalizeTradingCardGame } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
+import { readSignalRadarSnapshot } from "@/lib/signal-radar-snapshot-store";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export const dynamic = "force-dynamic";
@@ -53,24 +54,41 @@ export default async function SignalRadarCardPage({
     rarity: card.rarity,
   } as const;
   const initialResearchPromise = getCachedExternalCardResearch(researchInput);
-  const radarContext = await getExternalSignalRadarDetailContext(card.id, game);
+  // The background Radar job already persists the complete enriched signal.
+  // Rebuilding that same market intelligence on the first detail visit ran
+  // several cohort-wide queries and made some cold card pages take 4-5s.
+  // Prefer the durable snapshot for ranked cards; retain the focused fallback
+  // for direct links to cards that are not part of the current Radar cohort.
+  const storedRadar = await readSignalRadarSnapshot(game);
+  const storedSignal = storedRadar?.data.signals.find((item) => item.cardId === card.id) ?? null;
+  const radarContextPromise = storedSignal
+    ? Promise.resolve({
+        generatedAt: storedRadar?.data.generatedAt ?? new Date().toISOString(),
+        rank: storedSignal.rank,
+        runId: null,
+      })
+    : getExternalSignalRadarDetailContext(card.id, game);
+  const radarContext = await radarContextPromise;
+  const focusedSignalPromise = storedSignal
+    ? Promise.resolve(storedSignal)
+    : buildOnDemandExternalCardSignal({
+        id: card.id,
+        game,
+        name: card.name,
+        imageUrl: card.image_url,
+        cardNumber: card.card_number,
+        episodeName: card.episode_name,
+        episodeCode: card.episode_code,
+        rarity: card.rarity,
+        currentPrice: card.price?.cm_en_lowest_nm ?? null,
+      }, {
+        observationRunId: radarContext.runId,
+      });
   const [focusedSignal, initialResearch] = await Promise.all([
-    buildOnDemandExternalCardSignal({
-      id: card.id,
-      game,
-      name: card.name,
-      imageUrl: card.image_url,
-      cardNumber: card.card_number,
-      episodeName: card.episode_name,
-      episodeCode: card.episode_code,
-      rarity: card.rarity,
-      currentPrice: card.price?.cm_en_lowest_nm ?? null,
-    }, {
-      observationRunId: radarContext.runId,
-    }),
+    focusedSignalPromise,
     initialResearchPromise,
   ]);
-  const signal = radarContext.rank != null
+  const signal = radarContext.rank != null && focusedSignal.rank !== radarContext.rank
     ? { ...focusedSignal, rank: radarContext.rank }
     : focusedSignal;
 
