@@ -3350,22 +3350,16 @@ export async function countDueSubmittedCardSubmissions(options?: {
   const intervalMs = Math.max(options?.intervalMs ?? 0, 0);
   const dueBefore = new Date(now.getTime() - intervalMs);
   const rows = await db.$queryRaw<Array<{ count: number | bigint }>>`
-    WITH latest_prices AS (
-      SELECT card_id, MAX(fetched_at) AS latest_fetched_at
-      FROM "Price"
-      GROUP BY card_id
-    )
     SELECT COUNT(*) AS count
     FROM "CardSubmission" s
     INNER JOIN "Card" c ON c.id = s.card_id
-    LEFT JOIN latest_prices lp ON lp.card_id = s.card_id
     WHERE s.status = 'added'
       AND s.card_id IS NOT NULL
       AND s.cardmarket_url IS NOT NULL
       AND c.is_user_submitted = 1
       AND (${options?.game ?? null} IS NULL OR c.game = ${options?.game ?? null})
       AND MAX(
-        COALESCE(lp.latest_fetched_at, '1970-01-01T00:00:00.000Z'),
+        COALESCE(c.price_source_checked_at, '1970-01-01T00:00:00.000Z'),
         COALESCE(s.last_scraped_at, '1970-01-01T00:00:00.000Z'),
         s.updated_at,
         s.created_at
@@ -3409,31 +3403,25 @@ export async function refreshDueSubmittedCardSubmissions(options?: {
       latestFetchedAt: Date | string | null;
     }>
   >`
-    WITH latest_prices AS (
-      SELECT card_id, MAX(fetched_at) AS latest_fetched_at
-      FROM "Price"
-      GROUP BY card_id
-    )
     SELECT
       s.id,
       s.card_id AS "cardId",
-      lp.latest_fetched_at AS "latestFetchedAt"
+      c.price_source_checked_at AS "latestFetchedAt"
     FROM "CardSubmission" s
     INNER JOIN "Card" c ON c.id = s.card_id
-    LEFT JOIN latest_prices lp ON lp.card_id = s.card_id
     WHERE s.status = 'added'
       AND s.card_id IS NOT NULL
       AND s.cardmarket_url IS NOT NULL
       AND c.is_user_submitted = 1
       AND (${options?.game ?? null} IS NULL OR c.game = ${options?.game ?? null})
       AND MAX(
-        COALESCE(lp.latest_fetched_at, '1970-01-01T00:00:00.000Z'),
+        COALESCE(c.price_source_checked_at, '1970-01-01T00:00:00.000Z'),
         COALESCE(s.last_scraped_at, '1970-01-01T00:00:00.000Z'),
         s.updated_at,
         s.created_at
       ) < ${dueBefore}
     ORDER BY MAX(
-      COALESCE(lp.latest_fetched_at, '1970-01-01T00:00:00.000Z'),
+      COALESCE(c.price_source_checked_at, '1970-01-01T00:00:00.000Z'),
       COALESCE(s.last_scraped_at, '1970-01-01T00:00:00.000Z'),
       s.updated_at,
       s.created_at
