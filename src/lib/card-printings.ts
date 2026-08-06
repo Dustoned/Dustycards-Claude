@@ -3,7 +3,7 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v7-review70-exact";
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v8-review70-rules";
 const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.82;
 const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.84;
 const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.7;
@@ -401,21 +401,31 @@ export function getPrintingMatchDetails(
     normalizeText(current.illustrator) === normalizeText(candidate.illustrator);
   if (!sameIllustrator) return null;
 
+  const currentLineage = buildCardLineageFingerprint(current);
+  const candidateLineage = buildCardLineageFingerprint(candidate);
+  const matchingLineage =
+    currentLineage != null &&
+    currentLineage === candidateLineage;
+
+  // When both providers expose attacks, abilities or an effect, a different
+  // rules lineage means these are different cards despite similar colours or
+  // the same illustrator. Never send that obvious mismatch to manual review.
+  if (currentLineage != null && candidateLineage != null && !matchingLineage) {
+    return null;
+  }
+
   if (imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY) {
     return { matchType: "reprint", method: "strong-art", imageSimilarity };
   }
 
-  const currentLineage = buildCardLineageFingerprint(current);
-  const candidateLineage = buildCardLineageFingerprint(candidate);
   if (
-    currentLineage != null &&
-    currentLineage === candidateLineage &&
+    matchingLineage &&
     imageSimilarity >= MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY
   ) {
     return { matchType: "reprint", method: "lineage-and-art", imageSimilarity };
   }
 
-  if (imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY) {
+  if (matchingLineage && imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY) {
     return { matchType: "reprint", method: "likely-art", imageSimilarity };
   }
 

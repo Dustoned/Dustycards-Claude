@@ -181,13 +181,19 @@ describe("card printings", () => {
       getPrintingMatchType(
         { category: "Pokémon", name: "Gengar", illustrator: "Yukiko Baba", hp: 90 },
         { category: "Pokemon", name: "Gengar", illustrator: "Yukiko Baba", hp: 90 },
-        0.9
+        0.95
       )
     ).toBe("reprint");
   });
 
   it("sends same-artist artwork matches from 70% to manual review", () => {
-    const left = { category: "Pokemon", name: "Eevee & Snorlax-GX", illustrator: "5ban Graphics", hp: 270 };
+    const left = {
+      category: "Pokemon",
+      name: "Eevee & Snorlax-GX",
+      illustrator: "5ban Graphics",
+      hp: 270,
+      attacks: [{ name: "Dump Truck Press", damage: "120+" }],
+    };
     const right = { ...left, hp: 280 };
 
     expect(getPrintingMatchDetails(left, right, 0.7)).toMatchObject({
@@ -195,6 +201,22 @@ describe("card printings", () => {
       method: "likely-art",
     });
     expect(getPrintingMatchDetails(left, right, 0.699)).toBeNull();
+  });
+
+  it("rejects manual-review candidates with different attacks", () => {
+    const left = {
+      category: "Pokemon",
+      name: "Rayquaza",
+      illustrator: "5ban Graphics",
+      hp: 120,
+      attacks: [{ name: "Dragon Pulse", damage: "40" }, { name: "Shred", damage: "90" }],
+    };
+    const right = {
+      ...left,
+      attacks: [{ name: "Amazing Burst", damage: "80×" }],
+    };
+
+    expect(getPrintingMatchDetails(left, right, 0.75)).toBeNull();
   });
 
   it("compares same-length perceptual hashes", () => {

@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.12",
+    releasedAt: "August 7, 2026",
+    title: "Rules-aware reprint candidates",
+    summary: "Visual similarity no longer promotes cards with different attacks or abilities.",
+    tone: "fixed",
+    highlights: [
+      "70% review candidates must also share the same attack, Ability or effect lineage.",
+      "Same-name cards such as unrelated Rayquaza or Oranguru printings are filtered before manual review when their moves differ.",
+      "High-confidence artwork matching remains available when a provider lacks rules data entirely.",
+    ],
+  },
+  {
     version: "3.12.11",
     releasedAt: "August 7, 2026",
     title: "Exact-card reprint review reset",
