@@ -28,30 +28,44 @@ describe("reprint review grouping", () => {
     })).toEqual(["a-to-c", "a-to-d"]);
   });
 
-  it("uses approved decisions to merge groups and hides internal comparisons", () => {
+  it("retires both complete groups after an approved decision", () => {
     expect(collapseReprintReviewCandidates({
       candidates: [
         candidate("a", "b", "already-approved"),
-        candidate("a", "c", "first-cross-pair"),
-        candidate("b", "c", "redundant-cross-pair"),
+        candidate("a", "c", "reviewed-source"),
+        candidate("b", "d", "reviewed-target"),
+        candidate("e", "f", "untouched"),
       ],
       confirmedPairs: [],
       decisions: [{ sourceCardId: "a", targetCardId: "b", decision: "include" }],
-    })).toEqual(["first-cross-pair"]);
+    })).toEqual(["untouched"]);
   });
 
-  it("applies one rejection to every redundant comparison between two groups", () => {
+  it("retires both sides after a rejection instead of offering new pairings", () => {
     expect(collapseReprintReviewCandidates({
       candidates: [
         candidate("a", "c", "excluded"),
         candidate("b", "d", "also-excluded"),
-        candidate("a", "e", "different-group"),
+        candidate("a", "e", "reviewed-source"),
+        candidate("c", "f", "reviewed-target"),
+        candidate("g", "h", "untouched"),
       ],
       confirmedPairs: [
         { sourceCardId: "a", targetCardId: "b" },
         { sourceCardId: "c", targetCardId: "d" },
       ],
       decisions: [{ sourceCardId: "a", targetCardId: "c", decision: "exclude" }],
-    })).toEqual(["different-group"]);
+    })).toEqual(["untouched"]);
+  });
+
+  it("retires every confirmed reprint of a reviewed card", () => {
+    expect(collapseReprintReviewCandidates({
+      candidates: [
+        candidate("confirmed-copy", "new-card", "same-group-resurfaced"),
+        candidate("fresh-a", "fresh-b", "untouched"),
+      ],
+      confirmedPairs: [{ sourceCardId: "reviewed-card", targetCardId: "confirmed-copy" }],
+      decisions: [{ sourceCardId: "reviewed-card", targetCardId: "other-card", decision: "exclude" }],
+    })).toEqual(["untouched"]);
   });
 });

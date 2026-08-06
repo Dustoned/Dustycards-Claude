@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.9",
+    releasedAt: "August 6, 2026",
+    title: "Reviewed cards stay reviewed",
+    summary: "A card now leaves Reprint Review permanently as soon as a decision is made.",
+    tone: "fixed",
+    highlights: [
+      "Both cards disappear after Same card or Not a reprint, including every already-confirmed reprint in their groups.",
+      "Reviewed cards can no longer return against another card or as the reversed comparison.",
+    ],
+  },
+  {
     version: "3.12.8",
     releasedAt: "August 6, 2026",
     title: "Reprint Review remembers complete groups",

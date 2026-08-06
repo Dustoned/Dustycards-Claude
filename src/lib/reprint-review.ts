@@ -20,9 +20,9 @@ function pairKey(left: string, right: string): string {
 }
 
 /**
- * Treat every already-confirmed reprint as one equivalence group, then return
- * at most one visual comparison between two different groups. An exclusion
- * between two groups suppresses every redundant cross-comparison too.
+ * Treat every already-confirmed reprint as one equivalence group. Once a
+ * decision has involved a card, retire that complete group from manual review
+ * so neither endpoint can resurface in another pairing or in reverse.
  */
 export function collapseReprintReviewCandidates<T>(input: {
   candidates: ReprintReviewCandidate<T>[];
@@ -61,6 +61,12 @@ export function collapseReprintReviewCandidates<T>(input: {
     }
   }
 
+  const reviewedGroupRoots = new Set<string>();
+  for (const decision of input.decisions) {
+    reviewedGroupRoots.add(find(decision.sourceCardId));
+    reviewedGroupRoots.add(find(decision.targetCardId));
+  }
+
   const excludedGroupPairs = new Set<string>();
   for (const decision of input.decisions) {
     if (decision.decision !== "exclude") continue;
@@ -78,6 +84,7 @@ export function collapseReprintReviewCandidates<T>(input: {
     const sourceRoot = find(candidate.sourceCardId);
     const targetRoot = find(candidate.targetCardId);
     if (sourceRoot === targetRoot) continue;
+    if (reviewedGroupRoots.has(sourceRoot) || reviewedGroupRoots.has(targetRoot)) continue;
 
     const key = pairKey(sourceRoot, targetRoot);
     if (excludedGroupPairs.has(key) || seenGroupPairs.has(key)) continue;
