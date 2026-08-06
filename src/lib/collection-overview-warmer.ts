@@ -53,6 +53,15 @@ export async function warmCollectionOverviewCaches(): Promise<CollectionOverview
           game,
           deferDetailedRows: true,
         });
+        // Social opens the first accepted friend's full overview. Warm the
+        // detailed variant too, otherwise that first post-deploy visit can
+        // synchronously rebuild a large collection while every other request
+        // waits behind it.
+        await getCachedCollectionOverviewData({
+          userId: user.id,
+          activeTab: "overview",
+          game,
+        });
         summary.views += 1;
       } catch {
         summary.errors += 1;

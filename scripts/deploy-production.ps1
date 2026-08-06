@@ -66,7 +66,6 @@ tar -czf $archive `
   --exclude="screenshots-ui" `
   --exclude=".env*" `
   --exclude="*.log" `
-  --exclude="*.png" `
   --exclude="*.db" `
   --exclude="./*.db" `
   --exclude="dustycards.db" `
