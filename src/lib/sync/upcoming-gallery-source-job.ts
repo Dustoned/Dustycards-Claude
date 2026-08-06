@@ -66,16 +66,6 @@ export const UPCOMING_GALLERY_SOURCES: readonly UpcomingGallerySourceDefinition[
     imagePathPattern: /\/30th[-_]/i,
   },
   {
-    url: "https://billsarchive.com/30th-celebration-promos.html",
-    sourceType: "community",
-    title: "30th Celebration Promo Card Gallery",
-    description: "English MEP promo-card gallery for the upcoming 30th Celebration products.",
-    episodeName: "30th Celebration Promos",
-    releaseDate: "2026-09-16",
-    minimumReveals: 10,
-    imagePathPattern: /\/(?:MEP[_-]EN|30th_EN_101)/i,
-  },
-  {
     url: "https://billsarchive.com/30th-celebration-futuristic-rares.html",
     sourceType: "community",
     title: "30th Celebration Futuristic Rare Gallery",
@@ -84,16 +74,6 @@ export const UPCOMING_GALLERY_SOURCES: readonly UpcomingGallerySourceDefinition[
     releaseDate: "2026-09-16",
     minimumReveals: 2,
     imagePathPattern: /\/30tha[-_]/i,
-  },
-  {
-    url: "https://www.pokemon.com/us/news/pokemon-tcg-30th-celebration-product-showcase",
-    sourceType: "official",
-    title: "Pokemon TCG 30th Celebration Product Showcase",
-    description: "Official product and promo artwork for the 30th Celebration release waves.",
-    episodeName: "30th Celebration Promos",
-    releaseDate: "2026-09-16",
-    minimumReveals: 0,
-    extractOfficialPortraits: true,
   },
   {
     url: "https://www.pokemon.com/us/pokemon-news/pikachu-promo-cards-revealed-ahead-of-the-2026-world-championships",
