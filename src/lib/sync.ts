@@ -2120,6 +2120,47 @@ export async function countCardHistoryTopUpCandidates(options?: { game?: Trading
   return Number(rows[0]?.total ?? 0);
 }
 
+export interface ManualCardHistoryCandidateCounts {
+  total: number;
+  pokemon: number;
+  onePiece: number;
+}
+
+export async function countManualCardHistoryCandidatesByGame(): Promise<ManualCardHistoryCandidateCounts> {
+  return timeAsync("sync.card-history-candidates.count-by-game", async () => {
+    const [missingGroups, topUpGroups] = await Promise.all([
+      db.card.groupBy({
+        by: ["game"],
+        where: buildManualCardHistoryCardWhere(),
+        _count: { _all: true },
+      }),
+      (async () => {
+        const { anchorCutoffIso, gapCutoffIso } = cardHistoryTopUpCutoffs();
+        return db.$queryRawUnsafe<Array<{ game: string; total: number | bigint }>>(
+          `SELECT c.game, COUNT(*) AS total${cardHistoryTopUpSql()} GROUP BY c.game`,
+          anchorCutoffIso,
+          anchorCutoffIso,
+          gapCutoffIso
+        );
+      })(),
+    ]);
+
+    const totalsByGame = new Map<string, number>();
+    for (const group of missingGroups) {
+      totalsByGame.set(group.game, group._count._all);
+    }
+    for (const group of topUpGroups) {
+      totalsByGame.set(group.game, (totalsByGame.get(group.game) ?? 0) + Number(group.total));
+    }
+
+    return {
+      total: [...totalsByGame.values()].reduce((sum, count) => sum + count, 0),
+      pokemon: totalsByGame.get(POKEMON_GAME) ?? 0,
+      onePiece: totalsByGame.get(ONE_PIECE_GAME) ?? 0,
+    };
+  });
+}
+
 async function selectCardHistoryTopUpCandidates(take: number): Promise<string[]> {
   if (take <= 0) return [];
   const { anchorCutoffIso, gapCutoffIso } = cardHistoryTopUpCutoffs();
@@ -2136,13 +2177,10 @@ async function selectCardHistoryTopUpCandidates(take: number): Promise<string[]>
 export async function countManualCardHistoryCandidates(options?: {
   game?: TradingCardGame;
 }): Promise<number> {
-  return timeAsync("sync.card-history-candidates.count", async () => {
-    const [missing, topUps] = await Promise.all([
-      db.card.count({ where: buildManualCardHistoryCardWhere(options) }),
-      countCardHistoryTopUpCandidates(options),
-    ]);
-    return missing + topUps;
-  });
+  const counts = await countManualCardHistoryCandidatesByGame();
+  if (options?.game === POKEMON_GAME) return counts.pokemon;
+  if (options?.game === ONE_PIECE_GAME) return counts.onePiece;
+  return counts.total;
 }
 
 async function selectManualCardHistoryCandidates(options?: { take?: number }): Promise<string[]> {
