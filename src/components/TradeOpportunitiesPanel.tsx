@@ -366,7 +366,7 @@ function TradeColumn({
       ) : null}
       {cards.length > 0 ? (
         visibleCards.length > 0 ? (
-        <div className="grid max-h-[22rem] gap-1.5 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+        <div className="grid max-h-[46rem] grid-cols-2 gap-2 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3">
           {visibleCards.map((card) => {
             const selected = card.id === selectedCardId;
             const isSuggested = suggested.has(card.id);
@@ -376,27 +376,29 @@ function TradeColumn({
                 type="button"
                 aria-pressed={selected}
                 onClick={() => onSelect(card.id)}
-                className={`flex min-w-0 items-center gap-2 rounded-xl border p-1.5 text-left transition-colors ${
+                className={`group relative flex min-w-0 flex-col overflow-hidden rounded-xl border p-1.5 text-left transition-colors ${
                   selected
                     ? "border-violet-300/36 bg-violet-500/[0.14] ring-1 ring-violet-300/18"
                     : "border-white/6 bg-white/[0.025] hover:border-white/14 hover:bg-white/[0.05]"
                 }`}
               >
-                <span className="relative aspect-[63/88] w-8 shrink-0 overflow-hidden rounded-md">
-                  {card.imageUrl ? <CachedImage sourceUrl={card.imageUrl} alt="" fill sizes="32px" className="object-contain" unoptimized /> : null}
+                <span className="relative aspect-[63/88] w-full shrink-0 overflow-hidden rounded-lg bg-black/20">
+                  {card.imageUrl ? <CachedImage sourceUrl={card.imageUrl} alt="" fill sizes="(max-width: 640px) 42vw, (max-width: 1024px) 28vw, (max-width: 1536px) 20vw, 210px" className="object-contain transition-transform duration-200 group-hover:scale-[1.015]" unoptimized /> : null}
                 </span>
-                <span className="min-w-0 flex-1">
-                  <strong className="block truncate text-[10px] text-white/76">{card.name}</strong>
-                  <small className="block truncate text-[8px] text-white/32">
+                <span className="flex w-full min-w-0 items-start justify-between gap-2 px-0.5 pb-0.5 pt-1.5">
+                  <span className="min-w-0 flex-1">
+                    <strong className="block truncate text-[11px] text-white/82">{card.name}</strong>
+                    <small className="block truncate text-[9px] text-white/38">
                     {card.episodeName} {card.cardNumber ? `#${card.cardNumber}` : ""}
-                  </small>
-                  {isSuggested ? <small className="mt-0.5 block text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200/68">Wanted match</small> : null}
+                    </small>
+                    {isSuggested ? <small className="mt-1 block text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200/72">Wanted match</small> : null}
+                  </span>
+                  <span className="shrink-0 text-right text-[10px] font-black tabular-nums text-white/64">
+                    {card.value == null ? "--" : formatCollectionCurrency(card.value)}
+                    {card.availableCopies > 1 ? <small className="block text-[8px] text-white/34">x{card.availableCopies}</small> : null}
+                  </span>
                 </span>
-                <span className="shrink-0 text-right text-[9px] font-black tabular-nums text-white/54">
-                  {card.value == null ? "--" : formatCollectionCurrency(card.value)}
-                  {card.availableCopies > 1 ? <small className="block text-[8px] text-white/30">x{card.availableCopies}</small> : null}
-                </span>
-                <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border ${selected ? "border-violet-200/50 bg-violet-500 text-white" : "border-white/10 text-transparent"}`}>
+                <span className={`absolute right-2 top-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border shadow-lg backdrop-blur-sm ${selected ? "border-violet-200/60 bg-violet-500 text-white" : "border-white/18 bg-black/55 text-transparent"}`}>
                   <Check className="h-3 w-3" aria-hidden="true" />
                 </span>
               </button>

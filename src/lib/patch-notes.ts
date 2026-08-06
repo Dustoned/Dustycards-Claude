@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.6",
+    releasedAt: "August 6, 2026",
+    title: "Accurate trade matches and safer reprint review",
+    summary: "Friend trades now use explicit wants and Reprint Review accepts broader visual candidates without publishing them first.",
+    tone: "fixed",
+    highlights: [
+      "Friend Trades now labels only manually selected personal wants as Wanted matches; automatic missing-binder goals no longer create misleading labels.",
+      "Friend collection cards use a large image-led grid instead of tiny list rows.",
+      "Reprint Review now receives same-artist visual candidates from 80% similarity, including same-set printings, while unreviewed candidates stay off card detail pages.",
+      "Completed Sold records stay separate from active For Sale inventory.",
+    ],
+  },
+  {
     version: "3.12.5",
     releasedAt: "August 6, 2026",
     title: "Complete Signal Radar card detail",

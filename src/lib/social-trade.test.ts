@@ -103,6 +103,7 @@ describe("social trade opportunities", () => {
     }
     for (const call of mocks.wantsFindMany.mock.calls) {
       expect(call[0].where.card).toEqual({ game: "pokemon" });
+      expect(call[0].where.source).toBe("manual");
     }
   });
 });

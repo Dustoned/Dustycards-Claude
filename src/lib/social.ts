@@ -4,6 +4,7 @@ import {
   isSpecificTradingCardGame,
   type TradingCardGameFilter,
 } from "@/lib/games";
+import { WANT_SOURCE_MANUAL } from "@/lib/wantlist-planner";
 
 export type SocialConnectionStatus = "pending" | "accepted";
 export type SocialFullAccessStatus = "none" | "pending" | "accepted";
@@ -410,6 +411,7 @@ export async function getSocialTradeMatches(
       where: {
         user_id: currentUserId,
         dismissed_at: null,
+        source: WANT_SOURCE_MANUAL,
         ...(isSpecificTradingCardGame(game) ? { card: { game } } : {}),
       },
       select: { card_id: true },
@@ -418,6 +420,7 @@ export async function getSocialTradeMatches(
       where: {
         user_id: friendUserId,
         dismissed_at: null,
+        source: WANT_SOURCE_MANUAL,
         ...(isSpecificTradingCardGame(game) ? { card: { game } } : {}),
       },
       select: { card_id: true },

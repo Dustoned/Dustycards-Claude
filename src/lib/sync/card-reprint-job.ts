@@ -126,7 +126,6 @@ function getStoredArtworkHash(card: ReprintCandidateCard): ArtworkHash | null {
 function shouldRefreshEvidence(card: ReprintCandidateCard, now: Date): boolean {
   const evidence = card.printingEvidence;
   if (!evidence || evidence.image_url !== card.image_url) return true;
-  if (evidence.match_version !== CARD_REPRINT_MODEL_VERSION) return true;
   if (!getStoredArtworkHash(card)) return true;
   if (!parseIdentity(evidence.identity_json) && evidence.source_status !== "image-only") {
     return true;
@@ -378,14 +377,9 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
         imageSimilarity
       );
       if (!match) continue;
-      // Same-set cards can deliberately share a name and illustrator while
-      // showing different artwork (Ditto is the classic example). A merely
-      // likely visual match is useful across releases, but within one set it
-      // still needs rules/lineage or a strong artwork match.
-      if (
-        match.method === "likely-art" &&
-        cards[left].episode.id === cards[right].episode.id
-      ) continue;
+      // A likely-art match is only a review candidate and is deliberately not
+      // shown as a reprint until an admin accepts it. Keep same-set candidates
+      // too: alternate-number printings can be legitimate reprints.
       directMatches.set(`${left}:${right}`, {
         method: match.method,
         imageSimilarity,

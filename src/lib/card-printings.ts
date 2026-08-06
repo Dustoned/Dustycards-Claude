@@ -3,10 +3,10 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v4-color";
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v5-review80";
 const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.82;
 const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.84;
-const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.88;
+const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.8;
 const STRONG_REPRINT_IMAGE_SIMILARITY = 0.92;
 const COLOR_SIGNATURE_PREFIX = "rgb1:";
 const MAX_CACHED_ARTWORK_HASHES = 512;
@@ -689,6 +689,9 @@ export async function loadRelatedCardPrintings(
     where: {
       source_card_id: current.id,
       model_version: CARD_REPRINT_MODEL_VERSION,
+      // Low-confidence visual candidates belong in the admin review queue.
+      // They only become visible reprints after an explicit include decision.
+      match_method: { not: "likely-art" },
     },
     select: {
       match_method: true,
