@@ -160,7 +160,7 @@ async function findPendingAnchor(now: Date): Promise<PendingAnchor | null> {
         OR evidence.matched_at IS NULL
         OR evidence.image_url <> c.image_url
         OR evidence.source_checked_at < ?
-        OR (evidence.match_status = 'partial' AND evidence.source_checked_at < ?)
+        OR (evidence.source_status = 'missing-image' AND evidence.source_checked_at < ?)
       )
     ORDER BY
       evidence.card_id IS NOT NULL,
@@ -209,7 +209,7 @@ export async function getCardReprintBacklogProgress(
         OR evidence.matched_at IS NULL
         OR evidence.image_url <> c.image_url
         OR evidence.source_checked_at < ?
-        OR (evidence.match_status = 'partial' AND evidence.source_checked_at < ?)
+        OR (evidence.source_status = 'missing-image' AND evidence.source_checked_at < ?)
       )
     `,
     CARD_REPRINT_MODEL_VERSION,

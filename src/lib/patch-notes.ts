@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.15",
+    releasedAt: "August 7, 2026",
+    title: "Reprint scan completes its tail",
+    summary: "One missing image can no longer make an otherwise processed family block the remaining scan.",
+    tone: "fixed",
+    highlights: [
+      "Fast retries now target only the card whose image evidence is actually missing.",
+      "Completed family members no longer re-enter the backlog merely because another member has incomplete artwork.",
+      "The full review scan can continue past mixed-evidence families until the backlog reaches zero.",
+    ],
+  },
+  {
     version: "3.12.14",
     releasedAt: "August 7, 2026",
     title: "Variant rules recovery",
