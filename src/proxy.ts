@@ -9,6 +9,7 @@ const PUBLIC_API_PREFIXES = [
   "/api/auth",
   "/api/internal/sync-scheduler",
   "/api/internal/sync-pricedex-pull-rates",
+  "/api/internal/warm-collection-overviews",
   "/api/internal/warm-signal-radar",
 ];
 

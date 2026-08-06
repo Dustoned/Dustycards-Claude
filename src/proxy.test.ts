@@ -21,6 +21,7 @@ describe("scheduler-authenticated internal APIs", () => {
   it.each([
     "/api/internal/sync-scheduler",
     "/api/internal/sync-pricedex-pull-rates",
+    "/api/internal/warm-collection-overviews",
     "/api/internal/warm-signal-radar",
   ])("lets %s reach its own secret check without a session cookie", (pathname) => {
     expect(isPublicPath(pathname)).toBe(true);
