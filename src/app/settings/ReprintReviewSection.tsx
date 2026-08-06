@@ -72,8 +72,8 @@ export default function ReprintReviewSection() {
   const [error, setError] = useState<string | null>(null);
   const [previewCard, setPreviewCard] = useState<ReviewCard | null>(null);
 
-  const load = useCallback(async () => {
-    setLoading(true);
+  const load = useCallback(async (showLoading = true) => {
+    if (showLoading) setLoading(true);
     setError(null);
     try {
       const response = await fetch("/api/admin/reprint-review", { cache: "no-store" });
@@ -83,7 +83,7 @@ export default function ReprintReviewSection() {
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not load review queue");
     } finally {
-      setLoading(false);
+      if (showLoading) setLoading(false);
     }
   }, []);
 
@@ -105,6 +105,7 @@ export default function ReprintReviewSection() {
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not save review");
       setItems((current) => current.filter((candidate) => candidate !== item));
+      await load(false);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Could not save review");
     } finally {
@@ -132,7 +133,6 @@ export default function ReprintReviewSection() {
         <div className="mt-4 grid gap-3">
           {items.map((item) => {
             const key = `${item.source.id}:${item.target.id}`;
-            const busy = busyKey === key;
             return (
               <article key={key} className="rounded-2xl border border-white/8 bg-black/16 p-3 sm:p-5">
                 <div className="relative mx-auto grid w-full max-w-3xl grid-cols-2 items-start gap-3 sm:gap-10">
@@ -147,8 +147,8 @@ export default function ReprintReviewSection() {
                     Visual candidate · {Math.round(item.imageSimilarity * 100)}% colour and artwork agreement
                   </p>
                   <div className="mx-auto mt-3 grid w-full max-w-xl grid-cols-2 gap-2">
-                    <button type="button" onClick={() => void decide(item, "exclude")} disabled={busy} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-rose-300/14 bg-rose-500/[0.06] px-3 text-[11px] font-black text-rose-100 transition hover:bg-rose-500/[0.11]"><Unlink className="h-3.5 w-3.5" /> Not a reprint</button>
-                    <button type="button" onClick={() => void decide(item, "include")} disabled={busy} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-300/14 bg-emerald-500/[0.07] px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-500/[0.12]"><Link2 className="h-3.5 w-3.5" /> Same card</button>
+                    <button type="button" onClick={() => void decide(item, "exclude")} disabled={busyKey !== null} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-rose-300/14 bg-rose-500/[0.06] px-3 text-[11px] font-black text-rose-100 transition hover:bg-rose-500/[0.11]"><Unlink className="h-3.5 w-3.5" /> Not a reprint</button>
+                    <button type="button" onClick={() => void decide(item, "include")} disabled={busyKey !== null} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-300/14 bg-emerald-500/[0.07] px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-500/[0.12]"><Link2 className="h-3.5 w-3.5" /> Same card</button>
                   </div>
                 </div>
               </article>

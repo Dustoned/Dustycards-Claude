@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import { CARD_REPRINT_MODEL_VERSION } from "@/lib/card-printings";
 import { db } from "@/lib/db";
+import { collapseReprintReviewCandidates } from "@/lib/reprint-review";
 
 export const dynamic = "force-dynamic";
 
@@ -12,39 +13,58 @@ function pair(left: string, right: string) {
 export async function GET() {
   try {
     await requireAdmin();
-    const [relations, overrides] = await Promise.all([
+    const [relations, confirmedRelations, overrides] = await Promise.all([
       db.cardPrintingRelation.findMany({
         where: {
           model_version: CARD_REPRINT_MODEL_VERSION,
           match_method: "likely-art",
         },
         orderBy: [{ image_similarity: "asc" }, { matched_at: "desc" }],
-        take: 500,
+        take: 2_000,
         include: {
           sourceCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
           targetCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
         },
       }),
-      db.cardPrintingOverride.findMany({ select: { source_card_id: true, target_card_id: true } }),
+      db.cardPrintingRelation.findMany({
+        where: {
+          model_version: CARD_REPRINT_MODEL_VERSION,
+          match_method: { not: "likely-art" },
+        },
+        select: { source_card_id: true, target_card_id: true },
+      }),
+      db.cardPrintingOverride.findMany({
+        select: { source_card_id: true, target_card_id: true, decision: true },
+      }),
     ]);
-    const reviewed = new Set(overrides.map((item) => pair(item.source_card_id, item.target_card_id).join("\u0000")));
-    const seen = new Set<string>();
-    const items = [];
-    for (const relation of relations) {
+    const candidates = relations.map((relation) => {
       const [sourceId, targetId] = pair(relation.source_card_id, relation.target_card_id);
-      const key = `${sourceId}\u0000${targetId}`;
-      if (seen.has(key) || reviewed.has(key)) continue;
-      seen.add(key);
       const source = relation.source_card_id === sourceId ? relation.sourceCard : relation.targetCard;
       const target = relation.target_card_id === targetId ? relation.targetCard : relation.sourceCard;
-      items.push({
-        source,
-        target,
-        matchMethod: relation.match_method,
-        imageSimilarity: relation.image_similarity,
-      });
-      if (items.length >= 100) break;
-    }
+      return {
+        sourceCardId: sourceId,
+        targetCardId: targetId,
+        value: {
+          source,
+          target,
+          matchMethod: relation.match_method,
+          imageSimilarity: relation.image_similarity,
+        },
+      };
+    });
+    const items = collapseReprintReviewCandidates({
+      candidates,
+      confirmedPairs: confirmedRelations.map((relation) => ({
+        sourceCardId: relation.source_card_id,
+        targetCardId: relation.target_card_id,
+      })),
+      decisions: overrides.map((override) => ({
+        sourceCardId: override.source_card_id,
+        targetCardId: override.target_card_id,
+        decision: override.decision,
+      })),
+      limit: 100,
+    });
     return NextResponse.json({ ok: true, count: items.length, items });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Could not load reprint review" }, { status: 500 });

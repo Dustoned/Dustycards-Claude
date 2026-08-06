@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.8",
+    releasedAt: "August 6, 2026",
+    title: "Reprint Review remembers complete groups",
+    summary: "Approved reprints now behave as one group throughout the manual review queue.",
+    tone: "fixed",
+    highlights: [
+      "The queue shows at most one comparison between two confirmed reprint groups, so the same relationship is not asked again through another printing or in reverse.",
+      "A rejection applies to the two complete confirmed groups instead of resurfacing through another equivalent card.",
+      "After every decision, the visible queue is recalculated immediately so already-loaded redundant comparisons disappear too.",
+    ],
+  },
+  {
     version: "3.12.7",
     releasedAt: "August 6, 2026",
     title: "Fast large-card friend trades",
