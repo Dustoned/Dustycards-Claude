@@ -37,14 +37,14 @@ export {
 
 // Fresh window: callers within this TTL get a no-op cache hit.
 const MOVERS_FRESH_TTL_MS = 60_000;
-// Stale window: callers up to this age get the stale value immediately while a
-// background refresh refills the cache. Anything older blocks on a fresh fetch.
+// Stale window for datasets without a durable snapshot. Durable market
+// snapshots are re-read from disk after this window instead of being rebuilt
+// inside the web process.
 const MOVERS_STALE_TTL_MS = 5 * 60_000;
-// Durable snapshots keep deploys and cold starts fast. Shared all-card market
-// snapshots are refreshed by the low-priority maintenance worker so the web
-// process never blocks every visitor on the multi-million-row calculation.
-const MOVERS_SNAPSHOT_MAX_AGE_MS = 72 * 60 * 60_000;
-const MOVERS_SNAPSHOT_REFRESH_DELAY_MS = 8_000;
+// Durable snapshots keep deploys and cold starts fast. Their expensive refresh
+// belongs to the low-priority maintenance worker. Running it from this process
+// blocks unrelated page and static-asset requests because the SQLite adapter is
+// synchronous.
 
 interface CachedMoversEntry<T> {
   /** Absolute timestamp at which the entry stops being fresh. */
@@ -104,6 +104,16 @@ export function applyMoverOwnedCounts(
     strongest7d: applyOwnedCount(data.strongest7d, ownedCounts),
     strongest30d: applyOwnedCount(data.strongest30d, ownedCounts),
   };
+}
+
+export function usesSharedMoversSnapshot(
+  activeScope: MoversScope,
+  activeItemScope: MoversItemScope
+): boolean {
+  return (
+    activeItemScope === "all" &&
+    (activeScope === "all" || activeScope === "graded" || activeScope === "grading")
+  );
 }
 
 async function personalizeSharedMovers(
@@ -173,7 +183,7 @@ function getCachedMovers(
   userId: string,
   game: TradingCardGameFilter
 ): Promise<CollectionMoversData | SealedMoversData> {
-  const useSharedSnapshot = activeScope === "all" && activeItemScope === "all";
+  const useSharedSnapshot = usesSharedMoversSnapshot(activeScope, activeItemScope);
   const cacheUserId = useSharedSnapshot ? SHARED_MOVERS_SNAPSHOT_USER_ID : userId;
   const key = `${cacheUserId}:${game}:${activePriceSource}:${activeScope}:${activeItemScope}`;
   const now = Date.now();
@@ -226,7 +236,12 @@ function getCachedMovers(
   }
 
   if (cached && cached.staleAt > now) {
-    if (useSharedSnapshot) {
+    if (snapshotKey) {
+      // Every non-sealed market mode persists a durable snapshot. Never start
+      // its multi-million-row refresh from a visitor request; keep the current
+      // result hot and let maintenance replace the file out of band.
+      cached.expiresAt = now + MOVERS_STALE_TTL_MS;
+      cached.staleAt = now + MOVERS_STALE_TTL_MS;
       return personalize(cached.promise);
     }
     refreshInBackground(moversPageCache, key, cached, fetcher);
@@ -244,27 +259,11 @@ function getCachedMovers(
         ? await readMoversSnapshot(legacySnapshotKey)
         : null;
     const snapshot = sharedSnapshot ?? legacySnapshot;
-    const writtenAt = snapshot ? Date.parse(snapshot.writtenAt) : Number.NaN;
-    if (
-      snapshot &&
-      Number.isFinite(writtenAt) &&
-      Date.now() - writtenAt <= MOVERS_SNAPSHOT_MAX_AGE_MS
-    ) {
+    if (snapshot) {
       const snapshotEntry = moversPageCache.get(key);
       if (snapshotEntry) {
-        snapshotEntry.expiresAt = Date.now() + MOVERS_SNAPSHOT_REFRESH_DELAY_MS;
+        snapshotEntry.expiresAt = Date.now() + MOVERS_STALE_TTL_MS;
         snapshotEntry.staleAt = Date.now() + MOVERS_STALE_TTL_MS;
-        if (useSharedSnapshot) {
-          snapshotEntry.expiresAt = Date.now() + MOVERS_STALE_TTL_MS;
-          snapshotEntry.staleAt = Date.now() + MOVERS_STALE_TTL_MS;
-        } else {
-          const refreshTimer = setTimeout(() => {
-            if (moversPageCache.get(key) === snapshotEntry) {
-              refreshInBackground(moversPageCache, key, snapshotEntry, fetcher);
-            }
-          }, MOVERS_SNAPSHOT_REFRESH_DELAY_MS);
-          refreshTimer.unref?.();
-        }
       }
       if (useSharedSnapshot && !sharedSnapshot) {
         void writeMoversSnapshot(

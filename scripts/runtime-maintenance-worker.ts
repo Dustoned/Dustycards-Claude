@@ -38,29 +38,86 @@ interface MaintenanceSummary {
   };
 }
 
-async function refreshSharedMoversSnapshots(): Promise<MaintenanceSummary["moversSnapshots"]> {
+interface CollectionMoversSnapshotTarget {
+  userId: string;
+  game: typeof POKEMON_GAME | typeof ONE_PIECE_GAME;
+}
+
+function getCollectionMoversSnapshotTargets(
+  database: BetterSqlite3.Database
+): CollectionMoversSnapshotTarget[] {
+  const rows = database
+    .prepare(
+      `SELECT DISTINCT cc.user_id AS user_id, c.game AS game
+       FROM "CollectionCard" cc
+       INNER JOIN "Card" c ON c.id = cc.card_id
+       WHERE cc.user_id IS NOT NULL
+         AND cc.for_sale = 0
+         AND cc.sold_at IS NULL
+         AND c.game IN (?, ?)
+       ORDER BY c.game ASC, cc.user_id ASC`
+    )
+    .all(POKEMON_GAME, ONE_PIECE_GAME) as Array<{ user_id: string; game: string }>;
+
+  return rows.flatMap((row) =>
+    row.game === POKEMON_GAME || row.game === ONE_PIECE_GAME
+      ? [{ userId: row.user_id, game: row.game }]
+      : []
+  );
+}
+
+async function refreshMoversSnapshots(
+  collectionTargets: CollectionMoversSnapshotTarget[]
+): Promise<MaintenanceSummary["moversSnapshots"]> {
   const result: MaintenanceSummary["moversSnapshots"] = { refreshed: [], errors: [] };
   const sources: PriceSource[] = ["cm_en", "tcp"];
   const games = [POKEMON_GAME, ONE_PIECE_GAME] as const;
+  const sharedScopes = ["all", "graded", "grading"] as const;
 
   for (const game of games) {
     for (const source of sources) {
-      const key = `${game}:${source}:all`;
-      try {
-        const data = await getMovers(source, "all", "all", null, game);
-        await writeMoversSnapshot(
-          {
-            userId: SHARED_MOVERS_SNAPSHOT_USER_ID,
-            game,
-            source,
-            scope: "all",
-            itemScope: "all",
-          },
-          data
-        );
-        result.refreshed.push(key);
-      } catch (error) {
-        result.errors.push(`${key}: ${error instanceof Error ? error.message : String(error)}`);
+      for (const scope of sharedScopes) {
+        const key = `${game}:${source}:${scope}:all`;
+        try {
+          const data = await getMovers(source, scope, "all", null, game);
+          await writeMoversSnapshot(
+            {
+              userId: SHARED_MOVERS_SNAPSHOT_USER_ID,
+              game,
+              source,
+              scope,
+              itemScope: "all",
+            },
+            data
+          );
+          result.refreshed.push(key);
+        } catch (error) {
+          result.errors.push(`${key}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    }
+  }
+
+  for (const [targetIndex, target] of collectionTargets.entries()) {
+    for (const source of sources) {
+      for (const scope of ["collection", "graded", "grading"] as const) {
+        const key = `collection-${targetIndex + 1}:${target.game}:${source}:${scope}`;
+        try {
+          const data = await getMovers(source, scope, "collection", target.userId, target.game);
+          await writeMoversSnapshot(
+            {
+              userId: target.userId,
+              game: target.game,
+              source,
+              scope,
+              itemScope: "collection",
+            },
+            data
+          );
+          result.refreshed.push(key);
+        } catch (error) {
+          result.errors.push(`${key}: ${error instanceof Error ? error.message : String(error)}`);
+        }
       }
     }
   }
@@ -219,6 +276,7 @@ async function main(): Promise<MaintenanceSummary> {
     moversSnapshots: { refreshed: [], errors: [] },
   };
   let protectedSourceUrls = new Set<string>();
+  let collectionMoversSnapshotTargets: CollectionMoversSnapshotTarget[] = [];
 
   try {
     if (hasActiveUsers(database)) {
@@ -242,12 +300,13 @@ async function main(): Promise<MaintenanceSummary> {
     }
     protectedSourceUrls = collectProtectedImageUrls(database);
     summary.protectedImageSources = protectedSourceUrls.size;
+    collectionMoversSnapshotTargets = getCollectionMoversSnapshotTargets(database);
   } finally {
     database.close();
   }
 
   if (!summary.skipped) {
-    summary.moversSnapshots = await refreshSharedMoversSnapshots();
+    summary.moversSnapshots = await refreshMoversSnapshots(collectionMoversSnapshotTargets);
     const imageCacheDir = path.resolve(
       process.env.DUSTYCARDS_IMAGE_CACHE_DIR?.trim() ||
         path.join(process.cwd(), "data", "image-cache")
