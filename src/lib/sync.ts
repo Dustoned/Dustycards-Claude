@@ -3246,19 +3246,52 @@ interface AutoPriceRefreshSnapshotResult {
 // its actual batch from fresh data when it starts, so this cache only affects
 // status counts and the next-batch preview.
 const AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS = 10 * 60_000;
+const AUTO_PRICE_SNAPSHOT_REVISION_KEY = "auto-price-refresh-snapshot-revision";
 const autoPriceSnapshotCache = new Map<
   string,
-  { at: number; promise: Promise<AutoPriceRefreshSnapshotResult>; settled: boolean }
+  {
+    at: number;
+    revision: string | null;
+    promise: Promise<AutoPriceRefreshSnapshotResult>;
+    settled: boolean;
+  }
 >();
+
+async function getAutoPriceSnapshotRevision(): Promise<string | null> {
+  return db.appSetting
+    .findUnique({
+      where: { key: AUTO_PRICE_SNAPSHOT_REVISION_KEY },
+      select: { value: true },
+    })
+    .then((setting) => setting?.value ?? null)
+    .catch(() => null);
+}
+
+/**
+ * Notify every app process that a standalone worker changed the price queue.
+ * The durable revision prevents the web process from showing its otherwise
+ * valid ten-minute in-memory preview after an external worker drained it.
+ */
+export async function invalidateAutoPriceRefreshSnapshotCache(): Promise<void> {
+  autoPriceSnapshotCache.clear();
+  const revision = `${Date.now()}-${process.pid}-${Math.random().toString(36).slice(2)}`;
+  await db.appSetting.upsert({
+    where: { key: AUTO_PRICE_SNAPSHOT_REVISION_KEY },
+    create: { key: AUTO_PRICE_SNAPSHOT_REVISION_KEY, value: revision },
+    update: { value: revision },
+  });
+}
 
 export async function getAutoPriceRefreshSnapshot(options?: {
   game?: TradingCardGame;
 }): Promise<AutoPriceRefreshSnapshotResult> {
   const cacheKey = options?.game ?? "all";
+  const revision = await getAutoPriceSnapshotRevision();
   const cachedSnapshot = autoPriceSnapshotCache.get(cacheKey);
   const cacheNowMs = Date.now();
   if (
     cachedSnapshot &&
+    cachedSnapshot.revision === revision &&
     (!cachedSnapshot.settled || cacheNowMs - cachedSnapshot.at < AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS)
   ) {
     return cachedSnapshot.promise;
@@ -3266,6 +3299,7 @@ export async function getAutoPriceRefreshSnapshot(options?: {
 
   const cacheEntry = {
     at: cacheNowMs,
+    revision,
     promise: Promise.resolve(null as unknown as AutoPriceRefreshSnapshotResult),
     settled: false,
   };

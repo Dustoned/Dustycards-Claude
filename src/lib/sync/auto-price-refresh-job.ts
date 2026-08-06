@@ -2,6 +2,7 @@ import { db } from "@/lib/db";
 import { areScraperRequestsDisabled } from "@/lib/scraper-guard";
 import {
   getAutoPriceRefreshSnapshot,
+  invalidateAutoPriceRefreshSnapshotCache,
   runAutoPriceRefresh,
   SyncCancelledError,
   SyncConflictError,
@@ -94,6 +95,7 @@ async function updateJobFromResult(
         : { finished_at: now }),
     },
   });
+  await invalidateAutoPriceRefreshSnapshotCache().catch(() => undefined);
 }
 
 async function runPersistedAutoPriceRefreshJob(jobId: string) {
