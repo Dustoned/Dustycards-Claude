@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-const { authMock, feedMock, sealedRadarMock, syncMock } = vi.hoisted(() => ({
+const { authMock, dataQualityMock, feedMock, sealedRadarMock, syncMock } = vi.hoisted(() => ({
   authMock: { isAuthorizedSchedulerRequest: vi.fn() },
+  dataQualityMock: { refreshEmptyCardHistoryCount: vi.fn() },
   feedMock: {
     getSharedSignalRadarFeedData: vi.fn(),
   },
@@ -15,6 +16,7 @@ const { authMock, feedMock, sealedRadarMock, syncMock } = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/scheduler-secret", () => authMock);
+vi.mock("@/lib/data-quality", () => dataQualityMock);
 vi.mock("@/lib/signal-radar-feed-server", () => feedMock);
 vi.mock("@/lib/sealed-signal-radar-server", () => sealedRadarMock);
 vi.mock("@/lib/sync", () => syncMock);
@@ -38,6 +40,7 @@ describe("Signal Radar warm-up endpoint", () => {
       pokemon: 8,
       onePiece: 4,
     });
+    dataQualityMock.refreshEmptyCardHistoryCount.mockResolvedValue(321);
   });
 
   it("warms both independent Radar paths", async () => {
@@ -53,6 +56,7 @@ describe("Signal Radar warm-up endpoint", () => {
       signals: 2,
       chaseCards: 1,
       historyCandidates: { total: 12, pokemon: 8, onePiece: 4 },
+      emptyCardHistories: 321,
     });
     expect(feedMock.getSharedSignalRadarFeedData).toHaveBeenCalledWith(
       { gameFilter: "all", episodeId: null },
@@ -75,5 +79,6 @@ describe("Signal Radar warm-up endpoint", () => {
     expect(feedMock.getSharedSignalRadarFeedData).not.toHaveBeenCalled();
     expect(sealedRadarMock.refreshSharedSealedSignalRadarData).not.toHaveBeenCalled();
     expect(syncMock.countManualCardHistoryCandidatesByGame).not.toHaveBeenCalled();
+    expect(dataQualityMock.refreshEmptyCardHistoryCount).not.toHaveBeenCalled();
   });
 });
