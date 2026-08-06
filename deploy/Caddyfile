@@ -6,6 +6,34 @@
 	}
 }
 
+(dustycards_routes) {
+	# DustyCards has no PHP surface. Reject common exploit scans at the edge so
+	# they never occupy the single Next.js web process.
+	@blocked_php path_regexp blocked_php (?i)\.php(?:/|$)
+	handle @blocked_php {
+		respond 404
+	}
+
+	# Static browser runtime files must remain available even while a database
+	# request is busy. Serving these directly also prevents the PWA from showing
+	# a misleading reconnect/reopen state during a slow dynamic response.
+	handle_path /_next/static/* {
+		root * /opt/dustycards/app/.next/static
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
+	handle /dustycards-sw.js {
+		root * /opt/dustycards/app/public
+		header Cache-Control "no-cache, no-store, must-revalidate"
+		file_server
+	}
+
+	handle {
+		import dustycards_proxy
+	}
+}
+
 (dustycards_access_log) {
 	log {
 		output file /var/log/caddy/dustycards-access.log {
@@ -19,10 +47,10 @@
 
 dustycards.myftp.org, dustycards.93-190-187-221.sslip.io {
 	import dustycards_access_log
-	import dustycards_proxy
+	import dustycards_routes
 }
 
 :80 {
 	import dustycards_access_log
-	import dustycards_proxy
+	import dustycards_routes
 }

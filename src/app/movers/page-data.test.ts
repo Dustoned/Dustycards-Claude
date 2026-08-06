@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { applyMoverOwnedCounts } from "@/app/movers/page-data";
+import {
+  applyMoverOwnedCounts,
+  usesSharedMoversSnapshot,
+} from "@/app/movers/page-data";
 import type { CollectionMoverItem, CollectionMoversData } from "@/lib/movers";
 
 function mover(cardId: string, ownedCount: number): CollectionMoverItem {
@@ -34,5 +37,19 @@ describe("applyMoverOwnedCounts", () => {
     expect(personalized.strongest30d?.ownedCount).toBe(0);
     expect(sharedMover.ownedCount).toBe(99);
     expect(unownedMover.ownedCount).toBe(99);
+  });
+});
+
+describe("usesSharedMoversSnapshot", () => {
+  it("keeps every all-card market calculation outside user requests", () => {
+    expect(usesSharedMoversSnapshot("all", "all")).toBe(true);
+    expect(usesSharedMoversSnapshot("graded", "all")).toBe(true);
+    expect(usesSharedMoversSnapshot("grading", "all")).toBe(true);
+  });
+
+  it("keeps collection-specific and sealed views private", () => {
+    expect(usesSharedMoversSnapshot("collection", "collection")).toBe(false);
+    expect(usesSharedMoversSnapshot("graded", "collection")).toBe(false);
+    expect(usesSharedMoversSnapshot("sealed", "all")).toBe(false);
   });
 });
