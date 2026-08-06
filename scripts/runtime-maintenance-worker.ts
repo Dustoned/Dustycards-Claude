@@ -3,6 +3,13 @@ import path from "node:path";
 import { trimImageCache } from "@/lib/image-cache-maintenance";
 import { LIVE_DB_PATH } from "@/lib/db-paths";
 import { readStoredUpcomingReveals } from "@/lib/upcoming-source-reveals";
+import { getMovers } from "@/lib/movers";
+import {
+  SHARED_MOVERS_SNAPSHOT_USER_ID,
+  writeMoversSnapshot,
+} from "@/lib/movers-snapshot-store";
+import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
+import type { PriceSource } from "@/lib/user-settings";
 
 const ACTIVE_USER_WINDOW_MS = 3 * 60_000;
 const RECENT_DETAIL_DAYS = 14;
@@ -25,6 +32,40 @@ interface MaintenanceSummary {
   analyzed: boolean;
   protectedImageSources: number;
   imageCache: Awaited<ReturnType<typeof trimImageCache>> | null;
+  moversSnapshots: {
+    refreshed: string[];
+    errors: string[];
+  };
+}
+
+async function refreshSharedMoversSnapshots(): Promise<MaintenanceSummary["moversSnapshots"]> {
+  const result: MaintenanceSummary["moversSnapshots"] = { refreshed: [], errors: [] };
+  const sources: PriceSource[] = ["cm_en", "tcp"];
+  const games = [POKEMON_GAME, ONE_PIECE_GAME] as const;
+
+  for (const game of games) {
+    for (const source of sources) {
+      const key = `${game}:${source}:all`;
+      try {
+        const data = await getMovers(source, "all", "all", null, game);
+        await writeMoversSnapshot(
+          {
+            userId: SHARED_MOVERS_SNAPSHOT_USER_ID,
+            game,
+            source,
+            scope: "all",
+            itemScope: "all",
+          },
+          data
+        );
+        result.refreshed.push(key);
+      } catch (error) {
+        result.errors.push(`${key}: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
+
+  return result;
 }
 
 function sleep(ms: number): Promise<void> {
@@ -175,6 +216,7 @@ async function main(): Promise<MaintenanceSummary> {
     analyzed: false,
     protectedImageSources: 0,
     imageCache: null,
+    moversSnapshots: { refreshed: [], errors: [] },
   };
   let protectedSourceUrls = new Set<string>();
 
@@ -205,6 +247,7 @@ async function main(): Promise<MaintenanceSummary> {
   }
 
   if (!summary.skipped) {
+    summary.moversSnapshots = await refreshSharedMoversSnapshots();
     const imageCacheDir = path.resolve(
       process.env.DUSTYCARDS_IMAGE_CACHE_DIR?.trim() ||
         path.join(process.cwd(), "data", "image-cache")
