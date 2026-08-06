@@ -17,6 +17,16 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.4",
+    releasedAt: "August 6, 2026",
+    title: "Side-by-side reprint comparison",
+    summary: "Reprint Review now prioritizes the two artworks being compared.",
+    tone: "improved",
+    highlights: [
+      "Every candidate pair shows two large card images side by side, with the review buttons centered directly underneath.",
+    ],
+  },
+  {
     version: "3.12.3",
     releasedAt: "August 6, 2026",
     title: "Reprint review image quick view",

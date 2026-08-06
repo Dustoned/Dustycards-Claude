@@ -23,31 +23,43 @@ type ReviewItem = {
 function ReviewCardView({
   card,
   onPreview,
+  label,
 }: {
   card: ReviewCard;
   onPreview: (card: ReviewCard) => void;
+  label: string;
 }) {
   return (
-    <div className="flex min-w-0 items-center gap-2.5">
+    <div className="flex min-w-0 flex-col items-center">
+      <span className="mb-2 text-[9px] font-black uppercase tracking-[0.12em] text-white/32">
+        {label}
+      </span>
       <button
         type="button"
         onClick={() => onPreview(card)}
         disabled={!card.image_url}
         aria-label={`Open quick view for ${card.name}`}
-        className="group relative aspect-[63/88] w-12 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20 transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:cursor-default"
+        className="group relative aspect-[63/88] w-full max-w-72 overflow-hidden rounded-xl border border-white/10 bg-black/24 shadow-[0_18px_45px_rgba(0,0,0,0.3)] transition hover:border-violet-300/35 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-300/60 disabled:cursor-default"
       >
         {card.image_url ? (
           <>
-            <CachedImage sourceUrl={card.image_url} alt="" fill sizes="48px" className="object-contain transition-transform group-hover:scale-[1.03]" unoptimized />
+            <CachedImage
+              sourceUrl={card.image_url}
+              alt=""
+              fill
+              sizes="(max-width: 639px) 44vw, 288px"
+              className="object-contain transition-transform group-hover:scale-[1.025]"
+              unoptimized
+            />
             <span className="absolute inset-0 flex items-center justify-center bg-black/0 text-white opacity-0 transition group-hover:bg-black/35 group-hover:opacity-100 group-focus-visible:bg-black/35 group-focus-visible:opacity-100">
-              <Maximize2 className="h-4 w-4" />
+              <Maximize2 className="h-7 w-7" />
             </span>
           </>
         ) : null}
       </button>
-      <span className="min-w-0">
-        <strong className="block truncate text-xs text-white/84">{card.name}</strong>
-        <span className="mt-0.5 block truncate text-[10px] text-white/38">{card.episode.name} {card.card_number ? `#${card.card_number}` : ""}</span>
+      <span className="mt-3 min-w-0 max-w-full text-center">
+        <strong className="block truncate text-sm text-white/88">{card.name}</strong>
+        <span className="mt-1 block truncate text-[10px] text-white/40">{card.episode.name} {card.card_number ? `#${card.card_number}` : ""}</span>
       </span>
     </div>
   );
@@ -117,23 +129,27 @@ export default function ReprintReviewSection() {
       {loading ? <div className="flex items-center gap-2 py-8 text-sm text-white/42"><Loader2 className="h-4 w-4 animate-spin" /> Loading review queue...</div> : items.length === 0 ? (
         <div className="mt-4 flex items-center gap-2 rounded-2xl border border-emerald-300/12 bg-emerald-500/[0.05] px-3 py-4 text-sm font-semibold text-emerald-100/72"><Check className="h-4 w-4" /> No uncertain pairs waiting.</div>
       ) : (
-        <div className="mt-4 grid gap-2">
+        <div className="mt-4 grid gap-3">
           {items.map((item) => {
             const key = `${item.source.id}:${item.target.id}`;
             const busy = busyKey === key;
             return (
-              <article key={key} className="rounded-2xl border border-white/8 bg-black/16 p-3">
-                <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:items-center">
-                  <ReviewCardView card={item.source} onPreview={setPreviewCard} />
-                  <Link2 className="hidden h-4 w-4 text-violet-200/42 sm:block" />
-                  <ReviewCardView card={item.target} onPreview={setPreviewCard} />
-                </div>
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-white/7 pt-3">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.09em] text-white/30">Visual candidate · {Math.round(item.imageSimilarity * 100)}% colour and artwork agreement</span>
-                  <span className="flex gap-1.5">
-                    <button type="button" onClick={() => void decide(item, "exclude")} disabled={busy} className="inline-flex h-8 items-center gap-1 rounded-lg border border-rose-300/14 bg-rose-500/[0.06] px-2.5 text-[10px] font-black text-rose-100"><Unlink className="h-3 w-3" /> Not a reprint</button>
-                    <button type="button" onClick={() => void decide(item, "include")} disabled={busy} className="inline-flex h-8 items-center gap-1 rounded-lg border border-emerald-300/14 bg-emerald-500/[0.07] px-2.5 text-[10px] font-black text-emerald-100"><Link2 className="h-3 w-3" /> Same card</button>
+              <article key={key} className="rounded-2xl border border-white/8 bg-black/16 p-3 sm:p-5">
+                <div className="relative mx-auto grid w-full max-w-3xl grid-cols-2 items-start gap-3 sm:gap-10">
+                  <ReviewCardView card={item.source} onPreview={setPreviewCard} label="Source card" />
+                  <span className="absolute left-1/2 top-1/2 z-10 flex h-8 w-8 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-violet-300/16 bg-zinc-950/90 text-violet-200/55 shadow-lg">
+                    <Link2 className="h-3.5 w-3.5" />
                   </span>
+                  <ReviewCardView card={item.target} onPreview={setPreviewCard} label="Candidate" />
+                </div>
+                <div className="mt-4 border-t border-white/7 pt-4">
+                  <p className="text-center text-[9px] font-bold uppercase tracking-[0.09em] text-white/30">
+                    Visual candidate · {Math.round(item.imageSimilarity * 100)}% colour and artwork agreement
+                  </p>
+                  <div className="mx-auto mt-3 grid w-full max-w-xl grid-cols-2 gap-2">
+                    <button type="button" onClick={() => void decide(item, "exclude")} disabled={busy} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-rose-300/14 bg-rose-500/[0.06] px-3 text-[11px] font-black text-rose-100 transition hover:bg-rose-500/[0.11]"><Unlink className="h-3.5 w-3.5" /> Not a reprint</button>
+                    <button type="button" onClick={() => void decide(item, "include")} disabled={busy} className="inline-flex h-11 items-center justify-center gap-1.5 rounded-xl border border-emerald-300/14 bg-emerald-500/[0.07] px-3 text-[11px] font-black text-emerald-100 transition hover:bg-emerald-500/[0.12]"><Link2 className="h-3.5 w-3.5" /> Same card</button>
+                  </div>
                 </div>
               </article>
             );
