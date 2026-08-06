@@ -119,27 +119,60 @@ async function getDesktopSidebarSummary(
   email: string,
   role: DesktopSidebarSummary["role"]
 ): Promise<DesktopSidebarSummary> {
-  const [cards, forSaleCards, binders, wants, sealed, feedbackCount, pendingAccountCount, activeUsers] = await Promise.all([
-    db.collectionCard.count({ where: { user_id: userId, for_sale: false, sold_at: null } }),
-    db.collectionCard.count({ where: { user_id: userId, for_sale: true, sold_at: null } }),
-    db.collectionBinder.count({ where: { user_id: userId } }),
-    db.collectionWant.count({ where: { user_id: userId, dismissed_at: null } }),
-    db.collectionSealed.aggregate({
-      where: { user_id: userId },
-      _sum: { quantity: true },
-    }),
-    role === "admin" ? db.feedback.count({ where: { status: "new" } }) : Promise.resolve(0),
-    role === "admin"
-      ? db.user.count({ where: { disabled: true, approval_requested_at: { not: null } } })
-      : Promise.resolve(0),
+  type SummaryRow = {
+    cards: bigint | number;
+    for_sale_cards: bigint | number;
+    binders: bigint | number;
+    wants: bigint | number;
+    sealed_units: bigint | number | null;
+    feedback_count: bigint | number;
+    pending_account_count: bigint | number;
+  };
+  const [rows, activeUsers] = await Promise.all([
+    db.$queryRawUnsafe<SummaryRow[]>(
+      `SELECT
+         (SELECT COUNT(*) FROM "CollectionCard"
+          WHERE user_id = ? AND for_sale = 0 AND sold_at IS NULL) AS cards,
+         (SELECT COUNT(*) FROM "CollectionCard"
+          WHERE user_id = ? AND for_sale = 1 AND sold_at IS NULL) AS for_sale_cards,
+         (SELECT COUNT(*) FROM "CollectionBinder" WHERE user_id = ?) AS binders,
+         (SELECT COUNT(*) FROM "CollectionWant"
+          WHERE user_id = ? AND dismissed_at IS NULL) AS wants,
+         (SELECT COALESCE(SUM(quantity), 0) FROM "CollectionSealed"
+          WHERE user_id = ?) AS sealed_units,
+         CASE WHEN ? = 'admin'
+           THEN (SELECT COUNT(*) FROM "Feedback" WHERE status = 'new')
+           ELSE 0
+         END AS feedback_count,
+         CASE WHEN ? = 'admin'
+           THEN (SELECT COUNT(*) FROM "User"
+                 WHERE disabled = 1 AND approval_requested_at IS NOT NULL)
+           ELSE 0
+         END AS pending_account_count`,
+      userId,
+      userId,
+      userId,
+      userId,
+      userId,
+      role,
+      role
+    ),
     role === "admin" ? getAdminActiveUsersSnapshot() : Promise.resolve(null),
   ]);
+  const summary = rows[0];
+  const cards = Number(summary?.cards ?? 0);
+  const forSaleCards = Number(summary?.for_sale_cards ?? 0);
+  const binders = Number(summary?.binders ?? 0);
+  const wants = Number(summary?.wants ?? 0);
+  const sealedUnits = Number(summary?.sealed_units ?? 0);
+  const feedbackCount = Number(summary?.feedback_count ?? 0);
+  const pendingAccountCount = Number(summary?.pending_account_count ?? 0);
 
   return {
     cards,
     forSaleCards,
     binders,
-    sealedUnits: sealed._sum.quantity ?? 0,
+    sealedUnits,
     wants,
     email,
     role,
@@ -149,16 +182,99 @@ async function getDesktopSidebarSummary(
   };
 }
 
+function AppHeader({
+  authenticated,
+  role,
+  summary,
+}: {
+  authenticated: boolean;
+  role: DesktopSidebarSummary["role"] | null;
+  summary?: DesktopSidebarSummary | null;
+}) {
+  return (
+    <header
+      data-app-header
+      className="fixed left-0 right-0 top-0 z-50 border-b border-[rgb(var(--dc-border-rgb)/0.72)] bg-[var(--dc-overlay)] backdrop-blur-xl"
+    >
+      <div
+        data-app-header-container
+        className="page-container relative mx-auto px-3 sm:px-6 lg:px-8"
+      >
+        <div
+          data-app-header-primary-row
+          className="flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)]"
+        >
+          <Link
+            href="/"
+            prefetch={authenticated ? null : false}
+            data-app-brand
+            className="flex shrink-0 items-center gap-2.5 font-bold tracking-tight text-white transition-opacity hover:opacity-80 [font-size:var(--ui-brand-size)]"
+          >
+            {authenticated ? (
+              <span className="relative hidden h-8 w-8 shrink-0 xl:block">
+                <Image
+                  src="/assets/dustycards-master-ball-d.webp"
+                  alt=""
+                  fill
+                  priority
+                  sizes="32px"
+                  className="object-contain drop-shadow-[0_0_10px_rgb(var(--dc-primary-rgb)/0.55)]"
+                />
+              </span>
+            ) : null}
+            <span>DustyCards</span>
+          </Link>
+          {authenticated ? (
+            <>
+              <HeaderMobileMenu />
+              <div className="flex-1 lg:hidden" />
+              <div className="xl:hidden">
+                <ActionCenterButton initialCount={summary?.attentionCount ?? 0} />
+              </div>
+              {role === "admin" ? (
+                <div className="xl:hidden">
+                  <AdminActiveUsersButton initialCount={summary?.activeUserCount ?? 0} />
+                </div>
+              ) : null}
+              <HeaderSearch />
+            </>
+          ) : (
+            <div className="flex-1" />
+          )}
+        </div>
+        {summary ? (
+          <div data-app-desktop-navigation-row>
+            <HeaderNav summary={summary} />
+          </div>
+        ) : null}
+      </div>
+    </header>
+  );
+}
+
+async function AuthenticatedChrome({
+  summaryPromise,
+}: {
+  summaryPromise: Promise<DesktopSidebarSummary>;
+}) {
+  const summary = await summaryPromise;
+  return (
+    <>
+      <DesktopSidebar summary={summary} />
+      <AppHeader authenticated role={summary.role} summary={summary} />
+      <MobileBottomNav summary={summary} />
+    </>
+  );
+}
+
 async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
   const browserAutoPriceRefreshEnabled = isBrowserAutoPriceRefreshEnabled();
   const [headerStore, currentUser] = await Promise.all([headers(), getCurrentUser()]);
-  const [initialSettings, sidebarSummary] = await Promise.all([
-    getServerUserSettings(currentUser?.id),
-    currentUser
-      ? getDesktopSidebarSummary(currentUser.id, currentUser.email, currentUser.role)
-      : Promise.resolve(null),
-  ]);
+  const initialSettings = await getServerUserSettings(currentUser?.id);
   const initialMobileViewport = detectInitialMobileViewport(headerStore);
+  const sidebarSummaryPromise = currentUser
+    ? getDesktopSidebarSummary(currentUser.id, currentUser.email, currentUser.role)
+    : null;
 
   return (
     <div
@@ -180,72 +296,21 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
         <MobileHoverTooltip />
         {currentUser ? <MobileEdgeBackGesture /> : null}
         {currentUser ? <MobilePullToRefresh /> : null}
-        {currentUser && <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} />}
-        {currentUser && sidebarSummary ? <DesktopSidebar summary={sidebarSummary} /> : null}
-        <header
-          data-app-header
-          className="fixed left-0 right-0 top-0 z-50 border-b border-[rgb(var(--dc-border-rgb)/0.72)] bg-[var(--dc-overlay)] backdrop-blur-xl"
-        >
-          <div
-            data-app-header-container
-            className="page-container relative mx-auto px-3 sm:px-6 lg:px-8"
+        {currentUser ? <AutoPriceRefreshBoot enabled={browserAutoPriceRefreshEnabled} /> : null}
+        {currentUser && sidebarSummaryPromise ? (
+          <Suspense
+            fallback={
+              <AppHeader authenticated role={currentUser.role} summary={null} />
+            }
           >
-            <div
-              data-app-header-primary-row
-              className="flex h-[var(--ui-header-height)] items-center gap-[var(--ui-header-gap)]"
-            >
-              <Link
-                href="/"
-                prefetch={currentUser ? null : false}
-                data-app-brand
-                className="flex shrink-0 items-center gap-2.5 font-bold tracking-tight text-white transition-opacity hover:opacity-80 [font-size:var(--ui-brand-size)]"
-              >
-                {currentUser ? (
-                  <span className="relative hidden h-8 w-8 shrink-0 xl:block">
-                    <Image
-                      src="/assets/dustycards-master-ball-d.webp"
-                      alt=""
-                      fill
-                      priority
-                      sizes="32px"
-                      className="object-contain drop-shadow-[0_0_10px_rgb(var(--dc-primary-rgb)/0.55)]"
-                    />
-                  </span>
-                ) : null}
-                <span>DustyCards</span>
-              </Link>
-            {currentUser ? (
-              <>
-                <HeaderMobileMenu />
-                <div className="flex-1 lg:hidden" />
-                <div className="xl:hidden">
-                  <ActionCenterButton initialCount={sidebarSummary?.attentionCount ?? 0} />
-                </div>
-                {sidebarSummary?.role === "admin" ? (
-                  <div className="xl:hidden">
-                    <AdminActiveUsersButton initialCount={sidebarSummary.activeUserCount ?? 0} />
-                  </div>
-                ) : null}
-                <HeaderSearch />
-              </>
-            ) : (
-              <div className="flex-1" />
-            )}
-            </div>
-            {currentUser && sidebarSummary ? (
-              <div data-app-desktop-navigation-row>
-                <HeaderNav summary={sidebarSummary} />
-              </div>
-            ) : null}
-          </div>
-        </header>
-        <main
-          data-app-main
-          className="flex-1"
-        >
+            <AuthenticatedChrome summaryPromise={sidebarSummaryPromise} />
+          </Suspense>
+        ) : (
+          <AppHeader authenticated={false} role={null} />
+        )}
+        <main data-app-main className="flex-1">
           {children}
         </main>
-        {currentUser && <MobileBottomNav summary={sidebarSummary} />}
       </SettingsProvider>
     </div>
   );

@@ -2,7 +2,10 @@ import { promises as fs } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
-import { trimResponsiveImageCache } from "@/lib/image-cache-maintenance";
+import {
+  trimImageCache,
+  trimResponsiveImageCache,
+} from "@/lib/image-cache-maintenance";
 
 const tempDirs: string[] = [];
 
@@ -75,5 +78,42 @@ describe("trimResponsiveImageCache", () => {
     await expect(
       trimResponsiveImageCache(dir, { maxEntries: 10, maxBytes: 1_000 })
     ).resolves.toEqual({ entries: 0, bytes: 0, removedEntries: 0, removedBytes: 0 });
+  });
+});
+
+describe("trimImageCache", () => {
+  it("enforces responsive and total budgets while keeping the newest pairs", async () => {
+    const dir = await makeCacheDir();
+    await writeEntry(dir, "old-original", {
+      bytes: 40,
+      responsive: false,
+      modifiedAt: 1_000,
+    });
+    await writeEntry(dir, "old-responsive", {
+      bytes: 20,
+      responsive: true,
+      modifiedAt: 2_000,
+    });
+    await writeEntry(dir, "new-original", {
+      bytes: 30,
+      responsive: false,
+      modifiedAt: 3_000,
+    });
+
+    const result = await trimImageCache(dir, {
+      maxEntries: 1,
+      maxBytes: 35,
+      maxResponsiveEntries: 0,
+      maxResponsiveBytes: 0,
+    });
+
+    expect(result).toMatchObject({
+      entries: 1,
+      bytes: 30,
+      responsiveEntries: 0,
+      removedEntries: 2,
+      removedResponsiveEntries: 1,
+    });
+    await expect(fs.stat(path.join(dir, "new-original.img"))).resolves.toBeDefined();
   });
 });

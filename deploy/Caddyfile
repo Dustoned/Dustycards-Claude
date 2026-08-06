@@ -1,0 +1,28 @@
+(dustycards_proxy) {
+	reverse_proxy 127.0.0.1:3000 {
+		header_up Host {host}
+		header_up X-Forwarded-Host {host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+}
+
+(dustycards_access_log) {
+	log {
+		output file /var/log/caddy/dustycards-access.log {
+			roll_size 25MiB
+			roll_keep 5
+			roll_keep_for 168h
+		}
+		format json
+	}
+}
+
+dustycards.myftp.org, dustycards.93-190-187-221.sslip.io {
+	import dustycards_access_log
+	import dustycards_proxy
+}
+
+:80 {
+	import dustycards_access_log
+	import dustycards_proxy
+}

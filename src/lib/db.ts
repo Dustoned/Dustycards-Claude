@@ -31,7 +31,10 @@ function enableWalMode() {
 function createClient() {
   ensureLiveDbFile();
   enableWalMode();
-  const adapter = new PrismaBetterSqlite3({ url: LIVE_DB_PATH });
+  const adapter = new PrismaBetterSqlite3({
+    url: LIVE_DB_PATH,
+    timeout: 5_000,
+  });
   return new PrismaClient({ adapter } as never);
 }
 
@@ -283,6 +286,30 @@ if (cachedPrisma && !isClientSchemaCompatible(cachedPrisma)) {
 }
 
 export const db = globalForPrisma.prisma ?? createClient();
+
+let runtimeConfiguration: Promise<void> | null = null;
+
+/**
+ * Applies connection-local SQLite settings to Prisma's long-lived production
+ * connection. WAL itself is persistent, while cache, mmap, timeout and temp
+ * storage must be configured on the actual adapter connection on every boot.
+ */
+export function configureDatabaseConnection(): Promise<void> {
+  if (runtimeConfiguration) return runtimeConfiguration;
+
+  runtimeConfiguration = (async () => {
+    await db.$executeRawUnsafe("PRAGMA busy_timeout = 5000");
+    await db.$executeRawUnsafe("PRAGMA synchronous = NORMAL");
+    await db.$executeRawUnsafe("PRAGMA cache_size = -65536");
+    await db.$executeRawUnsafe("PRAGMA mmap_size = 134217728");
+    await db.$executeRawUnsafe("PRAGMA temp_store = MEMORY");
+  })().catch((error) => {
+    runtimeConfiguration = null;
+    throw error;
+  });
+
+  return runtimeConfiguration;
+}
 
 if (process.env.NODE_ENV !== "production") {
   globalForPrisma.prisma = db;

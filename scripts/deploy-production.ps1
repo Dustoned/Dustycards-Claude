@@ -99,8 +99,9 @@ RemoteAppPath=__REMOTE_APP_PATH__
 DeploySha="${DUSTYCARDS_DEPLOY_SHA:-}"
 DeployArchive="${DUSTYCARDS_DEPLOY_ARCHIVE:-/tmp/dustycards-deploy.tar.gz}"
 
-mkdir -p /opt/dustycards /opt/dustycards/backups
+mkdir -p /opt/dustycards /opt/dustycards/backups /opt/dustycards/cache
 install -d -o dustycards -g dustycards -m 0755 /opt/dustycards/backups
+install -d -o dustycards -g dustycards -m 0755 /opt/dustycards/cache
 touch /opt/dustycards/backup.lock
 chown root:dustycards /opt/dustycards/backup.lock
 chmod 0660 /opt/dustycards/backup.lock
@@ -175,9 +176,6 @@ NODE
   prune_predeploy_backups 2
 }
 
-# Make headroom before VACUUM INTO instead of waiting until after it succeeds.
-prune_predeploy_backups 1
-
 cleanup_remote_junk() {
   [ -d "$RemoteAppPath" ] || return 0
 
@@ -222,13 +220,13 @@ cleanup_remote_junk() {
 }
 
 cleanup_remote_junk
-exec 8>/opt/dustycards/backup.lock
-flock -w 900 8
-create_predeploy_backup
-flock -u 8
 
 release_dir="$(mktemp -d /tmp/dustycards-release.XXXXXX)"
+services_stopped=0
 cleanup() {
+  if [ "$services_stopped" -eq 1 ]; then
+    systemctl start dustycards 2>/dev/null || true
+  fi
   rm -rf "$release_dir"
   rm -f -- "$DeployArchive"
   rm -f /tmp/dustycards-deploy.sh
@@ -257,6 +255,28 @@ chmod 0755 "$RemoteAppPath"
 # unprivileged app user. Keep the directory writable after root-run deploys.
 install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/data"
 
+# Runtime images live outside the source tree. The first deployment moves the
+# existing cache on the same filesystem and leaves a compatibility symlink.
+image_cache_dir="/opt/dustycards/cache/image-cache"
+legacy_image_cache_dir="$RemoteAppPath/data/image-cache"
+if [ -d "$legacy_image_cache_dir" ] && [ ! -L "$legacy_image_cache_dir" ] && [ ! -e "$image_cache_dir" ]; then
+  mv -- "$legacy_image_cache_dir" "$image_cache_dir"
+fi
+install -d -o dustycards -g dustycards -m 0755 "$image_cache_dir"
+if [ ! -e "$legacy_image_cache_dir" ]; then
+  ln -s "$image_cache_dir" "$legacy_image_cache_dir"
+fi
+chown -R dustycards:dustycards "$image_cache_dir"
+
+# Keep proxy-level response timings with bounded rotation. Validate before
+# replacing the live configuration and reload without dropping connections.
+if [ -f "$RemoteAppPath/deploy/Caddyfile" ]; then
+  caddy validate --config "$RemoteAppPath/deploy/Caddyfile" --adapter caddyfile
+  install -d -o caddy -g caddy -m 0755 /var/log/caddy
+  install -m 0644 "$RemoteAppPath/deploy/Caddyfile" /etc/caddy/Caddyfile
+  systemctl reload caddy
+fi
+
 cd "$RemoteAppPath"
 if [ -f .env ]; then
   node - <<'NODE'
@@ -277,36 +297,59 @@ if ! grep -q '^DUSTYCARDS_SYNC_SCHEDULER_SECRET=' .env; then
 fi
 
 npm install --no-audit --no-fund
+npx prisma generate
+
+# Build the immutable Next release while the previous process remains online.
+# Migration downtime is then limited to the schema change and one restart.
+release_build="${DeploySha:-$(date -u +%Y%m%dT%H%M%SZ)}"
+release_dist_dir=".next-releases/$release_build"
+rm -rf -- "$RemoteAppPath/$release_dist_dir"
+install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/.next-releases"
+DUSTYCARDS_IMAGE_CACHE_DIR="$image_cache_dir" \
+DUSTYCARDS_NEXT_DIST_DIR="$release_dist_dir" \
+NEXT_PUBLIC_APP_BUILD="$release_build" \
+  APP_BUILD="$release_build" \
+  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}" \
+  npm run build
+
+# The build runs as root, while Next writes image/fetch caches as dustycards.
+install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/$release_dist_dir/cache"
+chown -R dustycards:dustycards "$RemoteAppPath/$release_dist_dir/cache"
+cleanup_remote_junk
 
 # Only run `prisma migrate deploy` when there is actually an unapplied
 # migration. The migrate engine opens its own connection with no busy timeout,
 # so against the live WAL database it fails with "database is locked" on
-# code-only deploys (which are the common case). A read-only better-sqlite3
-# check never blocks in WAL mode; if it cannot determine the state it falls
-# back to running migrate deploy.
+# code-only deploys (which are the common case). A normal handle sees the live
+# WAL; this check executes read statements only.
 PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
   const Database = require("better-sqlite3");
   const fs = require("fs");
+  const dirs = fs.readdirSync("prisma/migrations", { withFileTypes: true })
+    .filter((d) => d.isDirectory()).map((d) => d.name);
+  if (!fs.existsSync("dustycards.db")) {
+    console.log(dirs.length);
+    process.exit(0);
+  }
   let applied = new Set();
-  const db = new Database(process.cwd() + "/dustycards.db", { readonly: true });
+  const db = new Database(process.cwd() + "/dustycards.db", { timeout: 5000 });
   try {
+    db.pragma("busy_timeout = 5000");
+    const table = db.prepare("SELECT name FROM sqlite_master WHERE type = '\''table'\'' AND name = '\''_prisma_migrations'\''").get();
+    if (!table) {
+      console.log(dirs.length);
+      process.exit(0);
+    }
     applied = new Set(
       db.prepare("SELECT migration_name FROM _prisma_migrations WHERE finished_at IS NOT NULL")
         .all().map((r) => r.migration_name)
     );
   } finally { db.close(); }
-  const dirs = fs.readdirSync("prisma/migrations", { withFileTypes: true })
-    .filter((d) => d.isDirectory()).map((d) => d.name);
   console.log(dirs.filter((d) => !applied.has(d)).length);
 ' 2>/dev/null) || PENDING_MIGRATIONS="unknown"
 
-# Only run migrate when the check found a DEFINITE positive count of pending
-# migrations. A read-only better-sqlite3 open of the live WAL database can fail
-# with "database disk image is malformed" (it cannot read the pending WAL),
-# which made the check return "unknown" and previously forced a `prisma migrate
-# deploy` that then died on "database is locked" and aborted the whole deploy.
-# When the count is 0 or undeterminable, skip: migrations are hand-applied for
-# this project, so running migrate against the live WAL db only causes locks.
+# If the live check is inconclusive, stop only after the new build is complete
+# and retry. The cleanup trap restarts the previous build if a later step fails.
 if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
   echo "Migration state unknown while app is live; stopping services and retrying check."
   systemctl stop dustycards-sync-scheduler.timer 2>/dev/null || true
@@ -316,6 +359,7 @@ if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
   systemctl stop dustycards-daily-backup.service 2>/dev/null || true
   systemctl stop dustycards-reprint-backlog.service 2>/dev/null || true
   systemctl stop dustycards 2>/dev/null || true
+  services_stopped=1
   PENDING_MIGRATIONS=$(NODE_PATH="$RemoteAppPath/node_modules" node -e '
     const Database = require("better-sqlite3");
     const fs = require("fs");
@@ -347,6 +391,13 @@ if [ "$PENDING_MIGRATIONS" = "unknown" ]; then
 fi
 
 if [ "$PENDING_MIGRATIONS" -gt 0 ] 2>/dev/null; then
+  # Multi-GB pre-deploy backups are needed only for schema changes. Code-only
+  # releases no longer create one and no longer flood the disk on every push.
+  prune_predeploy_backups 1
+  exec 8>/opt/dustycards/backup.lock
+  flock -w 900 8
+  create_predeploy_backup
+  flock -u 8
   echo "Pending migrations: $PENDING_MIGRATIONS — running prisma migrate deploy."
   systemctl stop dustycards-sync-scheduler.timer 2>/dev/null || true
   systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
@@ -355,25 +406,11 @@ if [ "$PENDING_MIGRATIONS" -gt 0 ] 2>/dev/null; then
   systemctl stop dustycards-daily-backup.service 2>/dev/null || true
   systemctl stop dustycards-reprint-backlog.service 2>/dev/null || true
   systemctl stop dustycards 2>/dev/null || true
+  services_stopped=1
   npx prisma migrate deploy
 else
   echo "No definite pending migrations ($PENDING_MIGRATIONS); skipping prisma migrate deploy."
 fi
-
-npx prisma generate
-# Keep the Next.js/Turbopack build below the physical-RAM ceiling. Production
-# also has swap as a safety net, but a bounded heap prevents another build from
-# starving sshd and systemd-journald.
-release_build="${DeploySha:-$(date -u +%Y%m%dT%H%M%SZ)}"
-release_dist_dir=".next-releases/$release_build"
-rm -rf -- "$RemoteAppPath/$release_dist_dir"
-install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/.next-releases"
-DUSTYCARDS_NEXT_DIST_DIR="$release_dist_dir" \
-NEXT_PUBLIC_APP_BUILD="$release_build" \
-  APP_BUILD="$release_build" \
-  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}" \
-  npm run build
-cleanup_remote_junk
 
 # Give both the server-rendered shell and /api/app-version the exact same,
 # immutable release id. The installed iOS app can then detect a new deploy even
@@ -383,14 +420,18 @@ cat > /etc/systemd/system/dustycards.service.d/10-release-build.conf <<EOF
 [Service]
 Environment=APP_BUILD=$release_build
 Environment=DUSTYCARDS_NEXT_DIST_DIR=$release_dist_dir
+Environment=DUSTYCARDS_IMAGE_CACHE_DIR=$image_cache_dir
+Environment=DUSTYCARDS_TIMING=1
 EOF
 cat > /etc/systemd/system/dustycards.service.d/20-resource-priority.conf <<'EOF'
 [Service]
 CPUWeight=1000
 IOWeight=1000
+TimeoutStopSec=30
 EOF
 systemctl daemon-reload
 systemctl restart dustycards
+services_stopped=0
 systemctl is-active dustycards
 
 health_ok=0
@@ -492,6 +533,50 @@ MemoryMax=1G
 TimeoutStartSec=3h
 EOF
 
+cat > /etc/systemd/system/dustycards-runtime-maintenance.service <<EOF
+[Unit]
+Description=DustyCards low-priority database and image-cache maintenance
+After=dustycards.service network-online.target
+Wants=dustycards.service network-online.target
+
+[Service]
+Type=oneshot
+User=dustycards
+Group=dustycards
+WorkingDirectory=$RemoteAppPath
+EnvironmentFile=$RemoteAppPath/.env
+Environment=DUSTYCARDS_IMAGE_CACHE_DIR=$image_cache_dir
+ExecStart=/usr/bin/node --no-warnings scripts/runtime-maintenance-worker.mjs
+Nice=19
+IOSchedulingClass=idle
+CPUQuota=20%
+CPUWeight=5
+IOWeight=5
+MemoryHigh=512M
+MemoryMax=768M
+TimeoutStartSec=3h
+EOF
+
+cat > /etc/systemd/system/dustycards-live-performance-probe.service <<EOF
+[Unit]
+Description=DustyCards live latency probe
+After=network-online.target caddy.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=dustycards
+Group=dustycards
+WorkingDirectory=$RemoteAppPath
+EnvironmentFile=$RemoteAppPath/.env
+ExecStart=/usr/bin/node scripts/live-performance-probe.mjs
+Nice=10
+CPUWeight=10
+IOWeight=10
+MemoryMax=128M
+TimeoutStartSec=30
+EOF
+
 cat > /etc/systemd/system/dustycards-sync-scheduler.timer <<'EOF'
 [Unit]
 Description=Run DustyCards sync scheduler every five minutes
@@ -548,6 +633,33 @@ Unit=dustycards-daily-backup.service
 WantedBy=timers.target
 EOF
 
+cat > /etc/systemd/system/dustycards-runtime-maintenance.timer <<'EOF'
+[Unit]
+Description=Run bounded DustyCards maintenance during the quiet window
+
+[Timer]
+OnCalendar=*-*-* 03:10:00
+RandomizedDelaySec=20min
+Unit=dustycards-runtime-maintenance.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
+cat > /etc/systemd/system/dustycards-live-performance-probe.timer <<'EOF'
+[Unit]
+Description=Measure DustyCards live latency every two minutes
+
+[Timer]
+OnBootSec=90s
+OnUnitActiveSec=2min
+AccuracySec=15s
+Unit=dustycards-live-performance-probe.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 cat > /etc/systemd/system/dustycards-sealed-release-refresh.timer <<'EOF'
 [Unit]
 Description=Refresh official sealed release dates twice monthly
@@ -566,6 +678,8 @@ systemctl daemon-reload
 systemctl enable --now dustycards-sync-scheduler.timer
 systemctl enable --now dustycards-sealed-release-refresh.timer
 systemctl enable --now dustycards-daily-backup.timer
+systemctl enable --now dustycards-runtime-maintenance.timer
+systemctl enable --now dustycards-live-performance-probe.timer
 systemctl enable dustycards-reprint-backlog.service
 systemctl restart dustycards-reprint-backlog.service || true
 # Kick off one sync immediately, but do not fail the deploy if it does: the app
@@ -575,6 +689,8 @@ systemctl start dustycards-sync-scheduler.service || true
 systemctl is-active dustycards-sync-scheduler.timer
 systemctl is-active dustycards-sealed-release-refresh.timer
 systemctl is-active dustycards-daily-backup.timer
+systemctl is-active dustycards-runtime-maintenance.timer
+systemctl is-active dustycards-live-performance-probe.timer
 
 # Production follows GitHub over an outbound connection. This removes inbound
 # SSH from the normal release path: a push to main is picked up within a minute
@@ -601,10 +717,14 @@ marker="/opt/dustycards/deployed-sha"
 exec 8>/opt/dustycards/auto-deploy.lock
 flock -n 8 || exit 0
 
-GIT_TERMINAL_PROMPT=0 git -C "$repo" fetch --quiet --prune origin main
-target_sha="$(git -C "$repo" rev-parse origin/main)"
+target_sha="$(GIT_TERMINAL_PROMPT=0 git -C "$repo" ls-remote origin refs/heads/main | awk 'NR == 1 { print $1 }')"
+[ -n "$target_sha" ] || { echo "Could not resolve origin/main" >&2; exit 1; }
 deployed_sha="$(cat "$marker" 2>/dev/null || true)"
 [ "$target_sha" = "$deployed_sha" ] && exit 0
+
+GIT_TERMINAL_PROMPT=0 git -C "$repo" fetch --quiet --prune origin main
+fetched_sha="$(git -C "$repo" rev-parse origin/main)"
+[ "$target_sha" = "$fetched_sha" ] || { echo "Fetched SHA does not match remote SHA" >&2; exit 1; }
 
 archive="/tmp/dustycards-auto-${target_sha}.tar.gz"
 rm -f -- "$archive"
@@ -636,12 +756,12 @@ EOF
 
 cat > /etc/systemd/system/dustycards-auto-deploy.timer <<'EOF'
 [Unit]
-Description=Check GitHub for a DustyCards release every minute
+Description=Check GitHub for a DustyCards release every five minutes
 
 [Timer]
 OnBootSec=2min
-OnUnitActiveSec=1min
-AccuracySec=15s
+OnUnitActiveSec=5min
+AccuracySec=30s
 Persistent=true
 Unit=dustycards-auto-deploy.service
 

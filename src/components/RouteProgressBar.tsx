@@ -10,6 +10,42 @@ import {
 const STATUS_DELAY_MS = 550;
 const SLOW_NAVIGATION_MS = 3_500;
 const RECOVERY_ACTION_MS = 8_000;
+const DIRECT_RECOVERY_COOLDOWN_MS = 60_000;
+const DIRECT_RECOVERY_STORAGE_PREFIX = "dustycards:direct-route-recovery:";
+
+export function shouldAttemptDirectRouteRecovery(
+  lastAttemptAt: number | null,
+  now: number,
+  cooldownMs = DIRECT_RECOVERY_COOLDOWN_MS
+): boolean {
+  return lastAttemptAt == null || now - lastAttemptAt >= cooldownMs;
+}
+
+function directRecoveryStorageKey(href: string): string {
+  try {
+    const target = new URL(href, window.location.origin);
+    return `${DIRECT_RECOVERY_STORAGE_PREFIX}${target.pathname}${target.search}`;
+  } catch {
+    return `${DIRECT_RECOVERY_STORAGE_PREFIX}${href}`;
+  }
+}
+
+function readDirectRecoveryAttempt(href: string): number | null {
+  try {
+    const value = Number(window.sessionStorage.getItem(directRecoveryStorageKey(href)));
+    return Number.isFinite(value) && value > 0 ? value : null;
+  } catch {
+    return null;
+  }
+}
+
+function markDirectRecoveryAttempt(href: string, now: number) {
+  try {
+    window.sessionStorage.setItem(directRecoveryStorageKey(href), String(now));
+  } catch {
+    // A private browser can disable session storage; navigation still works.
+  }
+}
 
 export function isRouteProgressNavigation(
   href: string,
@@ -73,9 +109,9 @@ export function hasRouteProgressReachedDestination(
 }
 
 // Gives every internal navigation one consistent lifecycle: immediate visual
-// feedback and a clear slow-route message. It deliberately observes the App
-// Router instead of starting a second navigation: retrying the same destination
-// cancels a still-valid React Server Component response on slower phones.
+// feedback and a clear slow-route message. A genuinely stuck RSC transition is
+// recovered once with a normal document navigation; a short session guard
+// prevents reload loops if the destination itself is unavailable.
 export default function RouteProgressBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -181,7 +217,18 @@ export default function RouteProgressBar() {
             return;
           }
 
+          const href = pendingHrefRef.current;
+          const now = Date.now();
+          const lastAttemptAt = readDirectRecoveryAttempt(href);
           setShowStatus(true);
+
+          if (shouldAttemptDirectRouteRecovery(lastAttemptAt, now)) {
+            markDirectRecoveryAttempt(href, now);
+            setMessage(label ? `Reopening ${label}â€¦` : "Reopening pageâ€¦");
+            window.location.assign(href);
+            return;
+          }
+
           setShowRecovery(true);
           setMessage(label ? `${label} is still loading` : "This page is still loading");
         }, RECOVERY_ACTION_MS)

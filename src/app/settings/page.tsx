@@ -65,6 +65,8 @@ function normalizeAdminSettingsSection(value: string | undefined): AdminSettings
 
 type SchedulerTickDetails = {
   checkedAt?: string;
+  deferred?: boolean;
+  deferredReason?: "active-users" | "system-load";
   priceRefresh?: {
     started?: boolean;
     running?: boolean;
@@ -764,7 +766,11 @@ export default async function SettingsPage({
       schedulerLastTickAt.getTime() >= settingsCheckedAt.getTime() - SCHEDULER_STALE_MS
   );
   const schedulerLastActionLabel =
-    schedulerDetails?.maintenance?.normalizedPriceCheckedAtCards
+    schedulerDetails?.deferredReason === "active-users"
+      ? "Deferred maintenance while collectors are active"
+      : schedulerDetails?.deferredReason === "system-load"
+        ? "Deferred maintenance while the server is busy"
+        : schedulerDetails?.maintenance?.normalizedPriceCheckedAtCards
       ? `Normalized ${schedulerDetails.maintenance.normalizedPriceCheckedAtCards.toLocaleString(
           "en-US"
         )} price check timestamps`

@@ -612,7 +612,6 @@ model CardGradedPrice {
   card Card @relation(fields: [card_id], references: [id], onDelete: Cascade)
 
   @@unique([card_id, label])
-  @@index([card_id])
 }
 
 model CardGradedPriceSnapshot {
@@ -624,7 +623,6 @@ model CardGradedPriceSnapshot {
 
   card Card @relation(fields: [card_id], references: [id], onDelete: Cascade)
 
-  @@index([card_id])
   @@index([card_id, label, fetched_at])
   @@index([fetched_at])
 }
@@ -644,7 +642,6 @@ model CardEbaySoldGradedPrice {
   card Card @relation(fields: [card_id], references: [id], onDelete: Cascade)
 
   @@unique([card_id, source, label])
-  @@index([card_id])
   @@index([card_id, source])
   @@index([company, grade])
 }
@@ -663,7 +660,6 @@ model CardEbaySoldGradedPriceSnapshot {
 
   card Card @relation(fields: [card_id], references: [id], onDelete: Cascade)
 
-  @@index([card_id])
   @@index([card_id, source, label, fetched_at])
   @@index([fetched_at])
 }
@@ -1026,8 +1022,6 @@ model Price {
 
   card Card @relation(fields: [card_id], references: [id])
 
-  @@index([card_id])
-  @@index([card_id, fetched_at])
   @@index([card_id, fetched_at, id])
   @@index([fetched_at])
   @@index([source, fetched_at])
