@@ -40,6 +40,7 @@ import {
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { FAST_SUDDEN_DROP_MIN_AMOUNT } from "@/lib/home-sudden-drops-server";
+import { getCachedImageUrl } from "@/lib/image-cache";
 import CollectionValueHistoryPanel from "@/components/CollectionValueHistoryPanel";
 import EmptyState from "@/components/EmptyState";
 import HomePageLoading from "@/components/HomePageLoading";
@@ -190,7 +191,7 @@ function TopSetsProgressPanel({
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
-                    src={logoUrl}
+                    src={getCachedImageUrl(logoUrl) ?? logoUrl}
                     alt={binder.name}
                     loading="lazy"
                     decoding="async"
