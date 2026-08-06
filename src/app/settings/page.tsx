@@ -15,7 +15,11 @@ import { getCardHistorySyncJobSnapshot } from "@/lib/sync/card-history-job";
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { listBackups, type BackupFileInfo } from "@/lib/backups";
-import { KNOWN_UNAVAILABLE_PRICE_STATUS, STALE_PRICE_AGE_MS } from "@/lib/data-quality";
+import {
+  getEmptyCardHistoryCountSnapshot,
+  KNOWN_UNAVAILABLE_PRICE_STATUS,
+  STALE_PRICE_AGE_MS,
+} from "@/lib/data-quality";
 import { requirePageUser } from "@/lib/page-auth";
 import { getFirecrawlConfigSnapshot } from "@/lib/firecrawl";
 import AutomationSection from "./AutomationSection";
@@ -534,12 +538,7 @@ export default async function SettingsPage({
         ],
       },
     }),
-    db.$queryRaw<Array<{ empty_history: bigint | number }>>`
-      SELECT COUNT(*) AS empty_history
-      FROM (
-        SELECT card_id FROM "Price" GROUP BY card_id HAVING COUNT(*) = 1
-      )
-    `,
+    getEmptyCardHistoryCountSnapshot().then((count) => [{ empty_history: count }]),
     db.sealedProduct.count(),
     db.sealedProduct.count({
       where: {
