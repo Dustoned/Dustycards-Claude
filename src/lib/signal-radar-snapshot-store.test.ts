@@ -4,12 +4,15 @@ import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import type { ExternalSignalRadarData } from "@/lib/external-signal-radar";
+import type { SealedSignalRadarData } from "@/lib/sealed-signal-radar";
 import {
+  readSealedSignalRadarSnapshot,
   readSignalRadarChaseSnapshot,
   readSignalRadarSnapshot,
   scopeSignalRadarData,
   writeSignalRadarChaseSnapshot,
   writeSignalRadarSnapshots,
+  writeSealedSignalRadarSnapshot,
 } from "@/lib/signal-radar-snapshot-store";
 
 let snapshotRoot = "";
@@ -89,5 +92,30 @@ describe("Signal Radar durable snapshot store", () => {
 
     expect(stored?.writtenAt).toBe("2026-07-29T20:06:00.000Z");
     expect(stored?.data?.cards[0]?.cardId).toBe("chase-1");
+  });
+
+  it("stores sealed Radar data separately for each game filter", async () => {
+    const sealed = {
+      generatedAt: "2026-08-06T14:00:00.000Z",
+      items: [],
+      trackedProducts: 10,
+      eligibleProducts: 8,
+      establishedProducts: 4,
+      buildingProducts: 2,
+      learningProducts: 2,
+      ready90dProducts: 3,
+      updatedAt: "2026-08-06T13:00:00.000Z",
+    } satisfies SealedSignalRadarData;
+
+    await writeSealedSignalRadarSnapshot(
+      "pokemon",
+      sealed,
+      new Date("2026-08-06T14:05:00.000Z")
+    );
+    const stored = await readSealedSignalRadarSnapshot("pokemon");
+
+    expect(stored?.writtenAt).toBe("2026-08-06T14:05:00.000Z");
+    expect(stored?.data.trackedProducts).toBe(10);
+    expect(await readSealedSignalRadarSnapshot("one-piece")).toBeNull();
   });
 });

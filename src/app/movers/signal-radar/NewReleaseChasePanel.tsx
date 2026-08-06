@@ -240,6 +240,7 @@ function ChaseCard({
     >
       <CardListTileLink
         href={detailHref}
+        prefetch={false}
         label={`Open full chase analysis for ${card.name}`}
         data-chase-card-link
       />
@@ -481,6 +482,7 @@ export default function NewReleaseChasePanel({
 
         <Link
           href={getExpansionHref(data.episode.id)}
+          prefetch={false}
           className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.045] px-4 text-xs font-bold text-white/68 transition hover:border-violet-300/22 hover:bg-violet-400/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
         >
           Open {data.episode.code ?? "set"}
