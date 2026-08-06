@@ -4058,7 +4058,7 @@ export function CardModalActiveListingsPanel({
     <section
       className={`${
         compact
-          ? "card-detail-sealed-strip min-w-0 rounded-[20px] border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-elevated-rgb)/0.82),rgb(var(--dc-surface-primary-rgb)/0.92))] p-3 shadow-[inset_0_1px_0_var(--dc-sheen)]"
+          ? "card-detail-sealed-strip min-w-0 p-3"
           : CARD_MODAL_SUPPORT_PANEL_CLASS
       } flex flex-col ${className}`}
     >

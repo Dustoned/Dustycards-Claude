@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
 import CollectionInstantTabs from "@/components/CollectionInstantTabs";
+import { CollectionPriceVisibilityButton } from "@/components/CollectionPricePrivacy";
 import GameFilterSwitch from "@/components/GameFilterSwitch";
 import ProgressiveHomeOverviewInsights from "@/components/ProgressiveHomeOverviewInsights";
 import ProgressiveCollectionOverviewSections, {
@@ -662,19 +663,20 @@ async function HomePageContent({
               </p>
             </div>
 
-            {settings.onePieceLibraryEnabled ? (
-              <div className="shrink-0 sm:ml-auto">
+            <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+              {settings.onePieceLibraryEnabled ? (
                 <GameFilterSwitch
                   items={gameSwitchItems}
                   ariaLabel="Collection library"
                   className="max-w-[21rem]"
                 />
-              </div>
-            ) : null}
+              ) : null}
+              <CollectionPriceVisibilityButton compact />
+            </div>
           </div>
 
           <section className="grid min-w-0 gap-2.5 sm:gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
-            <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 lg:p-4">
+            <div data-collection-summary-financial className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 lg:p-4">
               <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
                 {showCollectionChart ? (
                   <CollectionValueHistoryPanel
@@ -699,7 +701,17 @@ async function HomePageContent({
 
             <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:gap-2 xl:grid-rows-3">
               {summaryCards.map((stat) => (
-                <HeaderStatCard key={stat.label} {...stat} />
+                <div
+                  key={stat.label}
+                  className="contents"
+                  data-collection-summary-financial={
+                    stat.label === "Overall Spend" || stat.label === "Total Profit"
+                      ? "true"
+                      : undefined
+                  }
+                >
+                  <HeaderStatCard {...stat} />
+                </div>
               ))}
             </div>
           </section>

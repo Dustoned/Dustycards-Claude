@@ -1834,6 +1834,11 @@ html.widescreen .settings-page {
 .card-detail-experience {
   --card-detail-media-max: 28rem;
   --card-detail-title-size: clamp(2rem, 4.8vw, 3rem);
+  --card-detail-surface-radius: 1.35rem;
+  --card-detail-control-radius: 0.9rem;
+  --card-detail-control-height: 2.75rem;
+  --card-detail-surface-border: rgb(var(--dc-border-rgb) / 0.88);
+  --card-detail-surface-fill: linear-gradient(145deg, rgb(var(--dc-surface-elevated-rgb) / 0.9), rgb(var(--dc-surface-primary-rgb) / 0.9));
   --card-detail-route-header-offset: 0rem;
   --card-detail-mobile-action-reserve: calc(4.25rem + env(safe-area-inset-bottom, 0px));
   --card-detail-safe-area-left: env(safe-area-inset-left, 0px);
@@ -2180,7 +2185,7 @@ html.widescreen .settings-page {
 .card-detail-media-actions {
   display: none;
   width: min(100%, var(--card-detail-media-max));
-  margin-top: 0.8rem;
+  margin-top: 1rem;
 }
 
 .card-detail-market-hero {
@@ -2191,9 +2196,9 @@ html.widescreen .settings-page {
   grid-area: identity;
   min-width: 0;
   align-self: start;
-  border: 1px solid rgb(var(--dc-border-rgb) / 0.88);
-  border-radius: 1.5rem;
-  background: linear-gradient(145deg, rgb(var(--dc-surface-elevated-rgb) / 0.9), rgb(var(--dc-surface-primary-rgb) / 0.88));
+  border: 1px solid var(--card-detail-surface-border);
+  border-radius: var(--card-detail-surface-radius);
+  background: var(--card-detail-surface-fill);
   padding: clamp(1rem, 3.5vw, 1.6rem);
   box-shadow: inset 0 1px var(--dc-sheen), 0 24px 70px var(--dc-shadow-color);
 }
@@ -2333,7 +2338,7 @@ html.widescreen .settings-page {
   min-width: 0;
   min-height: 5.25rem;
   border: 1px solid rgb(var(--dc-border-rgb) / 0.86);
-  border-radius: 1rem;
+  border-radius: var(--card-detail-control-radius);
   background: rgb(var(--dc-surface-elevated-rgb) / 0.62);
   padding: 0.8rem;
 }
@@ -2410,6 +2415,13 @@ html.widescreen .settings-page {
   box-shadow: none !important;
 }
 
+.card-detail-sealed-strip {
+  border: 1px solid var(--card-detail-surface-border);
+  border-radius: var(--card-detail-surface-radius);
+  background: var(--card-detail-surface-fill);
+  box-shadow: inset 0 1px var(--dc-sheen);
+}
+
 .card-detail-tabs-shell {
   grid-area: tabs;
   position: sticky;
@@ -2417,8 +2429,8 @@ html.widescreen .settings-page {
   z-index: 35;
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgb(var(--dc-border-rgb) / 0.88);
-  border-radius: 1.15rem;
+  border: 1px solid var(--card-detail-surface-border);
+  border-radius: var(--card-detail-surface-radius);
   background: rgb(var(--dc-surface-primary-rgb) / 0.88);
   padding: 0.35rem;
   box-shadow: 0 14px 40px var(--dc-shadow-color);
@@ -2440,12 +2452,12 @@ html.widescreen .settings-page {
 
 .card-detail-tab {
   display: inline-flex;
-  min-height: 2.75rem;
+  min-height: var(--card-detail-control-height);
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
-  border-radius: 0.85rem;
+  border-radius: var(--card-detail-control-radius);
   padding: 0.55rem 0.85rem;
   font-size: 0.78rem;
   font-weight: 720;
@@ -2569,9 +2581,9 @@ html.widescreen .settings-page {
 .card-detail-surface {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgb(var(--dc-border-rgb) / 0.88);
-  border-radius: 1.35rem;
-  background: linear-gradient(145deg, rgb(var(--dc-surface-elevated-rgb) / 0.88), rgb(var(--dc-surface-primary-rgb) / 0.88));
+  border: 1px solid var(--card-detail-surface-border);
+  border-radius: var(--card-detail-surface-radius);
+  background: var(--card-detail-surface-fill);
   padding: clamp(1rem, 2.3vw, 1.35rem);
   box-shadow: inset 0 1px var(--dc-sheen);
 }
@@ -2723,17 +2735,18 @@ html.widescreen .settings-page {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.5rem;
+  min-height: var(--card-detail-control-height);
 }
 
 .card-detail-market-link {
   display: inline-flex;
-  min-height: 2.75rem;
+  min-height: var(--card-detail-control-height);
   min-width: 0;
   align-items: center;
   justify-content: center;
   gap: 0.45rem;
   border: 1px solid rgb(var(--dc-border-rgb) / 0.9);
-  border-radius: 0.9rem;
+  border-radius: var(--card-detail-control-radius);
   background: rgb(var(--dc-surface-elevated-rgb) / 0.66);
   padding-inline: 0.75rem;
   font-size: 0.76rem;
@@ -3166,7 +3179,7 @@ html.widescreen .settings-page {
 
 @container card-detail (min-width: 78rem) {
   .card-detail-layout {
-    grid-template-columns: minmax(18rem, var(--card-detail-media-max)) minmax(22rem, 0.95fr) minmax(28rem, 1.45fr);
+    grid-template-columns: minmax(18rem, var(--card-detail-media-max)) minmax(24rem, 1fr) minmax(30rem, 1.25fr);
     grid-template-areas:
       "toolbar toolbar toolbar"
       "media identity chart"
@@ -3638,3 +3651,12 @@ html[data-appearance-scheme="light"]
 }
 
 /* End light-appearance compatibility layer. */
+
+[data-collection-prices-hidden="true"]
+  [data-collection-summary-financial]
+  [data-collection-money="true"] {
+  filter: blur(0.38rem);
+  opacity: 0.7;
+  pointer-events: none;
+  user-select: none;
+}

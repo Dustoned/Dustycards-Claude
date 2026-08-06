@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { CollectionPricePrivacyProvider } from "@/components/CollectionPricePrivacy";
 import { emitCollectionUrlChange } from "@/components/useLiveCollectionTab";
 import type { CollectionPageTab } from "@/lib/collection-data";
 
@@ -165,7 +166,8 @@ export default function CollectionInstantTabs({
   const contentSlot = isOverview ? emptySlot : activeSlot();
 
   return (
-    <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
+    <CollectionPricePrivacyProvider>
+      <div className="page-container binder-bottom-safe mx-auto max-w-7xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
       <div className="flex w-full flex-col gap-3 sm:gap-5">
         {isOverview ? (
           overviewSlot
@@ -245,6 +247,7 @@ export default function CollectionInstantTabs({
 
         {contentSlot ? <div className="space-y-3">{contentSlot}</div> : null}
       </div>
-    </div>
+      </div>
+    </CollectionPricePrivacyProvider>
   );
 }

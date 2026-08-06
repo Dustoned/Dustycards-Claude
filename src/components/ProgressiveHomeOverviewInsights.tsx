@@ -97,7 +97,7 @@ function CollectionAllocationPanel({ segments }: { segments: HomeAllocationSegme
   if (segments.length === 0) return null;
 
   return (
-    <section className="binder-panel relative overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
+    <section data-collection-summary-financial className="binder-panel relative overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
       <h2 className="text-base font-black tracking-tight text-white">Collection Allocation</h2>
 
