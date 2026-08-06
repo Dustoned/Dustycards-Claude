@@ -4,6 +4,11 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { registerHooks } from "node:module";
 
+// A standalone Node process does not receive Next.js' automatic production
+// runtime flag. The scraper guard intentionally blocks non-production scripts,
+// so mark this dedicated production worker before importing the sync engine.
+process.env.NODE_ENV ||= "production";
+
 const projectRoot = path.resolve(import.meta.dirname, "..");
 const serverOnlyEmpty = pathToFileURL(
   path.join(projectRoot, "node_modules", "next", "dist", "compiled", "server-only", "empty.js")

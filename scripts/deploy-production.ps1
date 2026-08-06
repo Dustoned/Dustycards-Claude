@@ -579,6 +579,7 @@ User=dustycards
 Group=dustycards
 WorkingDirectory=$RemoteAppPath
 EnvironmentFile=$RemoteAppPath/.env
+Environment=NODE_ENV=production
 Environment=DUSTYCARDS_EXTERNAL_PRICE_REFRESH_WORKER=1
 ExecStart=/usr/bin/node --no-warnings scripts/card-price-refresh-worker.mjs
 Nice=10
