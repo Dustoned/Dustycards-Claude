@@ -553,6 +553,19 @@ RestartSec=30
 WantedBy=multi-user.target
 EOF
 
+cat > /etc/systemd/system/dustycards-reprint-backlog.timer <<'EOF'
+[Unit]
+Description=Run DustyCards reprint backlog in the quiet window
+
+[Timer]
+OnCalendar=*-*-* 03:45:00
+RandomizedDelaySec=15min
+Unit=dustycards-reprint-backlog.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 cat > /etc/systemd/system/dustycards-daily-backup.service <<EOF
 [Unit]
 Description=DustyCards low-priority daily database backup
@@ -723,8 +736,11 @@ systemctl enable --now dustycards-sealed-release-refresh.timer
 systemctl enable --now dustycards-daily-backup.timer
 systemctl enable --now dustycards-runtime-maintenance.timer
 systemctl enable --now dustycards-live-performance-probe.timer
-systemctl enable dustycards-reprint-backlog.service
-systemctl restart dustycards-reprint-backlog.service || true
+# Image comparison is intentionally never started by a deployment or web
+# scheduler. Even at low CPU priority, a batch already in flight could make the
+# first visitor wait. Run it only in the quiet nightly window instead.
+systemctl disable --now dustycards-reprint-backlog.service || true
+systemctl enable --now dustycards-reprint-backlog.timer
 # Kick off one sync immediately, but do not fail the deploy if it does: the app
 # has only just restarted and may not be ready to serve the sync endpoint in
 # this exact instant. The timer (enabled above) runs it every 5 min regardless.
@@ -734,6 +750,7 @@ systemctl is-active dustycards-sealed-release-refresh.timer
 systemctl is-active dustycards-daily-backup.timer
 systemctl is-active dustycards-runtime-maintenance.timer
 systemctl is-active dustycards-live-performance-probe.timer
+systemctl is-active dustycards-reprint-backlog.timer
 
 # Production follows GitHub over an outbound connection. This removes inbound
 # SSH from the normal release path: a push to main is picked up within a minute

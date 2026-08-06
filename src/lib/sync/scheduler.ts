@@ -41,7 +41,7 @@ import {
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { maybeRunMarketScoreJob } from "@/lib/sync/market-score-job";
 import {
-  maybeRunCardReprintJob,
+  getCardReprintJobSnapshot,
   type CardReprintJobSnapshot,
 } from "@/lib/sync/card-reprint-job";
 import { maybeRunUpcomingGallerySourceJob } from "@/lib/sync/upcoming-gallery-source-job";
@@ -205,9 +205,10 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
     now: checkedAt,
     skip: scraperDisabled || backgroundLoad.deferred,
   });
-  // Reprint relationships are precomputed in resumable batches. Card-detail
-  // requests only read stored matches and never wait for TCGdex or image work.
-  const reprints = maybeRunCardReprintJob(checkedAt);
+  // Reprint image comparison runs in its own quiet-window system service.
+  // Starting synchronous image/database work inside the web process made a
+  // visitor arriving mid-batch wait for the batch to finish.
+  const reprints = getCardReprintJobSnapshot();
   // Launch-market chase prices get first access to the scheduler. Their
   // direct CardMarket quote is more current than TCGGo's daily snapshot and
   // must land before a normal batch can select the same cards.
