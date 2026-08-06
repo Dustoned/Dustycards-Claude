@@ -23,6 +23,10 @@ import {
   type SealedProductPriceFields,
 } from "@/lib/sealed-products";
 import { createSwrCache } from "@/lib/server-swr-cache";
+import {
+  readSealedSignalRadarSnapshot,
+  writeSealedSignalRadarSnapshot,
+} from "@/lib/signal-radar-snapshot-store";
 import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 
 const DAY_MS = 24 * 60 * 60_000;
@@ -368,7 +372,24 @@ export async function getSealedSignalRadarData(
 export function getSharedSealedSignalRadarData(
   gameFilter: TradingCardGameFilter
 ): Promise<SealedSignalRadarData> {
-  return sealedRadarCache.get(gameFilter, () => getSealedSignalRadarData(gameFilter));
+  return sealedRadarCache.get(gameFilter, async () => {
+    const snapshot = await readSealedSignalRadarSnapshot(gameFilter);
+    if (snapshot) return snapshot.data;
+
+    const data = await getSealedSignalRadarData(gameFilter);
+    await writeSealedSignalRadarSnapshot(gameFilter, data);
+    return data;
+  });
+}
+
+export async function refreshSharedSealedSignalRadarData(
+  gameFilter: TradingCardGameFilter
+): Promise<SealedSignalRadarData> {
+  sealedRadarCache.delete(gameFilter);
+  const data = await getSealedSignalRadarData(gameFilter);
+  await writeSealedSignalRadarSnapshot(gameFilter, data);
+  sealedRadarCache.delete(gameFilter);
+  return getSharedSealedSignalRadarData(gameFilter).then(() => data);
 }
 
 export function clearSharedSealedSignalRadarCache(): void {

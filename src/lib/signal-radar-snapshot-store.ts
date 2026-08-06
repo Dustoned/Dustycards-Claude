@@ -5,6 +5,7 @@ import { mkdir, open, rename, writeFile } from "node:fs/promises";
 import path from "node:path";
 import type { ExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import type { ExternalSignalRadarData } from "@/lib/external-signal-radar";
+import type { SealedSignalRadarData } from "@/lib/sealed-signal-radar";
 import {
   ALL_GAMES,
   type TradingCardGame,
@@ -26,6 +27,12 @@ interface StoredSignalRadarChaseSnapshot {
   data: ExpansionChaseRadarData | null;
 }
 
+interface StoredSealedSignalRadarSnapshot {
+  version: number;
+  writtenAt: string;
+  data: SealedSignalRadarData;
+}
+
 export interface SignalRadarSnapshot {
   writtenAt: string;
   data: ExternalSignalRadarData;
@@ -34,6 +41,11 @@ export interface SignalRadarSnapshot {
 export interface SignalRadarChaseSnapshot {
   writtenAt: string;
   data: ExpansionChaseRadarData | null;
+}
+
+export interface SealedSignalRadarSnapshot {
+  writtenAt: string;
+  data: SealedSignalRadarData;
 }
 
 export interface SignalRadarChaseSnapshotKey {
@@ -58,6 +70,10 @@ function chaseSnapshotPath(key: SignalRadarChaseSnapshotKey): string {
   return path.join(snapshotDirectory(), `chase-${key.gameFilter}-${digest}.json`);
 }
 
+function sealedSnapshotPath(gameFilter: TradingCardGameFilter): string {
+  return path.join(snapshotDirectory(), `sealed-${gameFilter}.json`);
+}
+
 function isRadarData(value: unknown): value is ExternalSignalRadarData {
   if (!value || typeof value !== "object") return false;
   const candidate = value as Partial<ExternalSignalRadarData>;
@@ -67,6 +83,22 @@ function isRadarData(value: unknown): value is ExternalSignalRadarData {
     Array.isArray(candidate.sources) &&
     typeof candidate.unmatchedCount === "number" &&
     typeof candidate.scannedDeckCount === "number"
+  );
+}
+
+function isSealedRadarData(value: unknown): value is SealedSignalRadarData {
+  if (!value || typeof value !== "object") return false;
+  const candidate = value as Partial<SealedSignalRadarData>;
+  return (
+    typeof candidate.generatedAt === "string" &&
+    Array.isArray(candidate.items) &&
+    typeof candidate.trackedProducts === "number" &&
+    typeof candidate.eligibleProducts === "number" &&
+    typeof candidate.establishedProducts === "number" &&
+    typeof candidate.buildingProducts === "number" &&
+    typeof candidate.learningProducts === "number" &&
+    typeof candidate.ready90dProducts === "number" &&
+    (candidate.updatedAt === null || typeof candidate.updatedAt === "string")
   );
 }
 
@@ -191,6 +223,43 @@ export async function writeSignalRadarChaseSnapshot(
   const destination = chaseSnapshotPath(key);
   const temporary = `${destination}.${process.pid}.${randomUUID()}.tmp`;
   const payload: StoredSignalRadarChaseSnapshot = {
+    version: SNAPSHOT_VERSION,
+    writtenAt: now.toISOString(),
+    data,
+  };
+  await writeFile(temporary, JSON.stringify(payload), "utf8");
+  await rename(temporary, destination);
+}
+
+export async function readSealedSignalRadarSnapshot(
+  gameFilter: TradingCardGameFilter
+): Promise<SealedSignalRadarSnapshot | null> {
+  try {
+    const raw = await readRuntimeFile(sealedSnapshotPath(gameFilter));
+    const parsed = JSON.parse(raw) as Partial<StoredSealedSignalRadarSnapshot>;
+    if (
+      parsed.version !== SNAPSHOT_VERSION ||
+      typeof parsed.writtenAt !== "string" ||
+      !isSealedRadarData(parsed.data)
+    ) {
+      return null;
+    }
+    return { writtenAt: parsed.writtenAt, data: parsed.data };
+  } catch {
+    return null;
+  }
+}
+
+export async function writeSealedSignalRadarSnapshot(
+  gameFilter: TradingCardGameFilter,
+  data: SealedSignalRadarData,
+  now = new Date()
+): Promise<void> {
+  const directory = snapshotDirectory();
+  await mkdir(directory, { recursive: true });
+  const destination = sealedSnapshotPath(gameFilter);
+  const temporary = `${destination}.${process.pid}.${randomUUID()}.tmp`;
+  const payload: StoredSealedSignalRadarSnapshot = {
     version: SNAPSHOT_VERSION,
     writtenAt: now.toISOString(),
     data,

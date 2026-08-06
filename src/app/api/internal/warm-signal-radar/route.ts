@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { ALL_GAMES } from "@/lib/games";
+import { ALL_GAMES, ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import { isAuthorizedSchedulerRequest } from "@/lib/scheduler-secret";
 import {
   getSharedSignalRadarFeedData,
 } from "@/lib/signal-radar-feed-server";
+import { refreshSharedSealedSignalRadarData } from "@/lib/sealed-signal-radar-server";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -24,12 +25,18 @@ export async function POST(request: NextRequest) {
       },
       { refreshStaleChases: false }
     );
+    const sealedItems: Record<string, number> = {};
+    for (const gameFilter of [ALL_GAMES, POKEMON_GAME, ONE_PIECE_GAME] as const) {
+      const sealedRadar = await refreshSharedSealedSignalRadarData(gameFilter);
+      sealedItems[gameFilter] = sealedRadar.items.length;
+    }
 
     return NextResponse.json({
       ok: true,
       signals: signals.length,
       chaseCards: newReleaseChases?.cards.length ?? 0,
       generatedAt: newReleaseChases?.generatedAt ?? null,
+      sealedItems,
     });
   } catch (error) {
     return NextResponse.json(

@@ -8,8 +8,9 @@ import {
   SHARED_MOVERS_SNAPSHOT_USER_ID,
   writeMoversSnapshot,
 } from "@/lib/movers-snapshot-store";
-import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
+import { ALL_GAMES, ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import type { PriceSource } from "@/lib/user-settings";
+import { refreshSharedSealedSignalRadarData } from "@/lib/sealed-signal-radar-server";
 
 const ACTIVE_USER_WINDOW_MS = 3 * 60_000;
 const RECENT_DETAIL_DAYS = 14;
@@ -33,6 +34,10 @@ interface MaintenanceSummary {
   protectedImageSources: number;
   imageCache: Awaited<ReturnType<typeof trimImageCache>> | null;
   moversSnapshots: {
+    refreshed: string[];
+    errors: string[];
+  };
+  sealedRadarSnapshots: {
     refreshed: string[];
     errors: string[];
   };
@@ -122,6 +127,21 @@ async function refreshMoversSnapshots(
     }
   }
 
+  return result;
+}
+
+async function refreshSealedRadarSnapshots(): Promise<MaintenanceSummary["sealedRadarSnapshots"]> {
+  const result: MaintenanceSummary["sealedRadarSnapshots"] = { refreshed: [], errors: [] };
+  for (const gameFilter of [ALL_GAMES, POKEMON_GAME, ONE_PIECE_GAME] as const) {
+    try {
+      await refreshSharedSealedSignalRadarData(gameFilter);
+      result.refreshed.push(gameFilter);
+    } catch (error) {
+      result.errors.push(
+        `${gameFilter}: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
   return result;
 }
 
@@ -274,6 +294,7 @@ async function main(): Promise<MaintenanceSummary> {
     protectedImageSources: 0,
     imageCache: null,
     moversSnapshots: { refreshed: [], errors: [] },
+    sealedRadarSnapshots: { refreshed: [], errors: [] },
   };
   let protectedSourceUrls = new Set<string>();
   let collectionMoversSnapshotTargets: CollectionMoversSnapshotTarget[] = [];
@@ -307,6 +328,7 @@ async function main(): Promise<MaintenanceSummary> {
 
   if (!summary.skipped) {
     summary.moversSnapshots = await refreshMoversSnapshots(collectionMoversSnapshotTargets);
+    summary.sealedRadarSnapshots = await refreshSealedRadarSnapshots();
     const imageCacheDir = path.resolve(
       process.env.DUSTYCARDS_IMAGE_CACHE_DIR?.trim() ||
         path.join(process.cwd(), "data", "image-cache")
