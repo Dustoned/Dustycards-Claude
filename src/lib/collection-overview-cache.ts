@@ -3,9 +3,11 @@ import "server-only";
 import { db } from "@/lib/db";
 import {
   getCollectionOverviewData,
+  sanitizeSocialCollectionOverviewData,
   type CollectionOverviewData,
   type CollectionHistoryRange,
   type CollectionPageTab,
+  type SocialCollectionAccessOptions,
 } from "@/lib/collection-data";
 import { POKEMON_GAME, type TradingCardGameFilter } from "@/lib/games";
 import { getMarketDataFingerprint } from "@/lib/market-data-fingerprint";
@@ -116,4 +118,18 @@ export async function getCachedCollectionOverviewData(options: {
   }
 
   return promise;
+}
+
+export async function getCachedSocialCollectionOverviewData(options: {
+  userId: string;
+  game?: TradingCardGameFilter;
+  access?: SocialCollectionAccessOptions;
+}): Promise<CollectionOverviewData> {
+  const data = await getCachedCollectionOverviewData({
+    userId: options.userId,
+    activeTab: "overview",
+    game: options.game,
+  });
+
+  return sanitizeSocialCollectionOverviewData(data, options.access);
 }

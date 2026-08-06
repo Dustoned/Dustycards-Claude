@@ -2403,7 +2403,7 @@ export async function getCollectionOverviewData(
   return result;
 }
 
-interface SocialCollectionAccessOptions {
+export interface SocialCollectionAccessOptions {
   fullAccess?: boolean;
 }
 
@@ -2427,7 +2427,7 @@ function sanitizeSocialCollectionCard(
   };
 }
 
-function sanitizeSocialCollectionOverviewData(
+export function sanitizeSocialCollectionOverviewData(
   data: CollectionOverviewData,
   options: SocialCollectionAccessOptions = {}
 ): CollectionOverviewData {

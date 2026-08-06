@@ -30,6 +30,15 @@
 		file_server
 	}
 
+	# App icons are source-controlled public assets. Serve them at the edge so
+	# browser chrome and installed mobile shortcuts never wait behind a dynamic
+	# page render or an occupied Next.js process.
+	handle /icons/* {
+		root * /opt/dustycards/app/public
+		header Cache-Control "public, max-age=31536000, immutable"
+		file_server
+	}
+
 	handle {
 		import dustycards_proxy
 	}

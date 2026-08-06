@@ -21,9 +21,9 @@ import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
-  getSocialCollectionOverviewData,
   type CollectionOverviewData,
 } from "@/lib/collection-data";
+import { getCachedSocialCollectionOverviewData } from "@/lib/collection-overview-cache";
 import { getFeaturedCollectionCards } from "@/lib/featured-cards";
 import {
   GAME_FILTER_OPTIONS,
@@ -296,7 +296,11 @@ export default async function SocialPage({
   const activeFriend = socialData.activeFriend;
   const fullAccess = activeFriend?.hasFullAccess ?? false;
   const collection = activeFriend
-    ? await getSocialCollectionOverviewData(activeFriend.id, activeGame, { fullAccess })
+    ? await getCachedSocialCollectionOverviewData({
+        userId: activeFriend.id,
+        game: activeGame,
+        access: { fullAccess },
+      })
     : null;
 
   function buildSocialHref(tab: SocialCollectionTab, game: TradingCardGameFilter = activeGame) {
