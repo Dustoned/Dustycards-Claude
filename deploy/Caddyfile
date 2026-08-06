@@ -15,10 +15,11 @@
 	}
 
 	# Static browser runtime files must remain available even while a database
-	# request is busy. Serving these directly also prevents the PWA from showing
-	# a misleading reconnect/reopen state during a slow dynamic response.
+	# request is busy. The shared directory contains the current build plus
+	# recently deployed hashed assets, so an already-open tab does not lose a
+	# lazy JavaScript chunk or font at the exact moment a new release goes live.
 	handle_path /_next/static/* {
-		root * /opt/dustycards/app/.next/static
+		root * /opt/dustycards/cache/next-static
 		header Cache-Control "public, max-age=31536000, immutable"
 		file_server
 	}

@@ -268,6 +268,21 @@ if [ ! -e "$legacy_image_cache_dir" ]; then
 fi
 chown -R dustycards:dustycards "$image_cache_dir"
 
+# Caddy serves immutable browser assets without involving the Next web
+# process. Merge every retained release into one shared directory before the
+# proxy configuration is reloaded; this also backfills the directory on the
+# first deploy that introduces it. Hashed assets from recently replaced builds
+# remain available to tabs that were already open during a deployment.
+next_static_dir="/opt/dustycards/cache/next-static"
+install -d -o dustycards -g dustycards -m 0755 "$next_static_dir"
+if [ -d "$RemoteAppPath/.next-releases" ]; then
+  for retained_static_dir in "$RemoteAppPath"/.next-releases/*/static; do
+    [ -d "$retained_static_dir" ] || continue
+    cp -a -- "$retained_static_dir/." "$next_static_dir/"
+  done
+fi
+chown -R dustycards:dustycards "$next_static_dir"
+
 # Keep proxy-level response timings with bounded rotation. Validate before
 # replacing the live configuration and reload without dropping connections.
 if [ -f "$RemoteAppPath/deploy/Caddyfile" ]; then
@@ -311,6 +326,15 @@ NEXT_PUBLIC_APP_BUILD="$release_build" \
   APP_BUILD="$release_build" \
   NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}" \
   npm run build
+
+# Publish this build's hashed chunks, styles and fonts into the shared static
+# asset directory before activating the new process. Files copied by a fresh
+# build have a fresh mtime; assets unused for 30 days can be removed without
+# breaking normal deployment hand-offs or long-lived installed clients.
+cp -a -- "$RemoteAppPath/$release_dist_dir/static/." "$next_static_dir/"
+chown -R dustycards:dustycards "$next_static_dir"
+find "$next_static_dir" -type f -mtime +30 -delete
+find "$next_static_dir" -mindepth 1 -type d -empty -delete
 
 # The build runs as root, while Next writes image/fetch caches as dustycards.
 install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/$release_dist_dir/cache"
@@ -450,8 +474,11 @@ fi
 
 # The new process is healthy and no longer reads the legacy in-place build.
 # Keep the current and two previous immutable releases for a quick rollback while
-# removing older build output that would otherwise accumulate on the VPS.
+# removing older build output that would otherwise accumulate on the VPS. The
+# compatibility symlink keeps local tooling correct; Caddy uses the shared
+# static directory above so older open tabs remain valid across this switch.
 rm -rf -- "$RemoteAppPath/.next"
+ln -s "$release_dist_dir" "$RemoteAppPath/.next"
 node scripts/prune-next-release-builds.mjs --keep=3
 
 # Build the durable, user-independent Radar snapshot before real traffic lands.
