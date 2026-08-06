@@ -46,7 +46,7 @@ export function CardDetailGradeSelect({
         className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
       >
         {options.map((option) => (
-          <option key={option.value} value={option.value} className="bg-[#111214] text-white">
+          <option key={option.value} value={option.value} className="bg-[var(--dc-surface-primary)] text-[var(--dc-text-primary)]">
             {option.label}{option.detail ? ` - ${option.detail}` : ""}
           </option>
         ))}
@@ -70,7 +70,7 @@ export function CardDetailMarketControls({
       data-card-detail-market-mode={mode}
     >
       <div
-        className="dc-compact-segment card-detail-market-mode-toggle grid h-11 w-[10.5rem] min-w-[10.5rem] max-w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/25 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+        className="card-detail-market-mode-toggle flex h-11 max-w-full shrink-0 items-center gap-1"
         data-card-detail-market-toggle
       >
         {(["raw", "graded"] as const).map((option) => {
@@ -82,12 +82,12 @@ export function CardDetailMarketControls({
               disabled={disabled}
               aria-pressed={mode === option}
               onClick={() => onModeChange(option)}
-              className={`card-detail-market-mode-option min-w-0 rounded-[10px] px-1.5 text-center text-[11px] font-bold leading-none transition-colors ${
+              className={`card-detail-market-mode-option inline-flex min-h-10 min-w-[4.85rem] items-center justify-center rounded-xl border px-2 text-center text-[11px] font-bold leading-none transition-colors ${
                 mode === option
-                  ? "bg-violet-600 text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]"
+                  ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)]"
                   : disabled
-                    ? "cursor-not-allowed text-white/18"
-                    : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
+                    ? "cursor-not-allowed border-[rgb(var(--dc-border-rgb)/0.5)] bg-transparent text-[rgb(var(--dc-text-primary-rgb)/0.2)]"
+                    : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"
               }`}
             >
               {option === "raw" ? "Raw" : "Graded"}

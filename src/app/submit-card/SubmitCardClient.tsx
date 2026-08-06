@@ -729,7 +729,7 @@ export default function SubmitCardClient() {
                 )}
               </div>
               {suggestionsOpen && visibleNameSuggestions.length > 0 ? (
-                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 overflow-hidden rounded-xl border border-white/10 bg-[#111116] p-1 shadow-2xl shadow-black/45">
+                <div className="absolute left-0 right-0 top-[calc(100%+0.35rem)] z-30 overflow-hidden rounded-xl border border-[rgb(var(--dc-border-rgb)/0.88)] bg-[var(--dc-surface-glass-strong)] p-1 shadow-[0_24px_70px_var(--dc-shadow-color)]">
                   {visibleNameSuggestions.map((suggestion) => (
                     <button
                       key={suggestion}

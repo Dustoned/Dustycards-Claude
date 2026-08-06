@@ -441,8 +441,8 @@ describe("appearance CSS variables", () => {
 
     expect(element.dataset.appearance).toBe("porcelain-studio");
     expect(element.dataset.appearanceScheme).toBe("light");
-    expect(setProperty).toHaveBeenCalledWith("--dc-bg-main", "#F5F6FA");
-    expect(setAttribute).toHaveBeenCalledWith("content", "#F5F6FA");
+    expect(setProperty).toHaveBeenCalledWith("--dc-bg-main", "#F3F5F8");
+    expect(setAttribute).toHaveBeenCalledWith("content", "#F3F5F8");
   });
 });
 

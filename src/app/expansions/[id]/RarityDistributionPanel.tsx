@@ -71,20 +71,20 @@ export default function RarityDistributionPanel({
   const sourceLabel = profile.source === "pricedex" ? "ThePriceDex" : "Collectrics";
 
   return (
-    <section className="mb-5 overflow-visible rounded-2xl border border-white/9 bg-[linear-gradient(145deg,rgba(18,18,27,0.9),rgba(8,8,13,0.94))] p-4 shadow-[inset_0_1px_rgba(255,255,255,0.035)] sm:p-5">
+    <section className="mb-5 overflow-visible rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-primary)] p-4 text-[var(--dc-text-primary)] shadow-[0_16px_42px_var(--dc-shadow-color),inset_0_1px_0_var(--dc-sheen)] sm:p-5">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-violet-200/55">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--dc-primary)]">
             Set breakdown
           </p>
-          <h2 className="mt-1 text-base font-extrabold text-white sm:text-lg">
+          <h2 className="mt-1 text-base font-extrabold text-[var(--dc-text-primary)] sm:text-lg">
             Rarity distribution & pull rates
           </h2>
-          <p className="mt-1 text-xs text-white/42">
+          <p className="mt-1 text-xs text-[var(--dc-text-muted)]">
             See how {expansionName} is divided across its rarity tiers.
           </p>
         </div>
-        <div className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-violet-300/16 bg-violet-400/[0.07] px-3 text-xs font-extrabold tabular-nums text-violet-100">
+        <div className="inline-flex min-h-9 items-center gap-2 rounded-xl border border-[rgb(var(--dc-primary-rgb)/0.22)] bg-[rgb(var(--dc-primary-rgb)/0.1)] px-3 text-xs font-extrabold tabular-nums text-[var(--dc-primary)]">
           <Layers3 className="h-4 w-4" aria-hidden="true" />
           {total.toLocaleString("en-US")} cards
         </div>
@@ -92,7 +92,7 @@ export default function RarityDistributionPanel({
 
       <div className="relative mt-5">
         <div
-          className="flex h-12 w-full gap-1 rounded-2xl border border-white/9 bg-black/20 p-1 shadow-[inset_0_1px_10px_rgba(0,0,0,0.28)] sm:h-14"
+          className="flex h-12 w-full gap-1 rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.72)] p-1 shadow-[inset_0_1px_8px_var(--dc-shadow-color)] sm:h-14"
           aria-label={`${expansionName} rarity distribution`}
         >
           {rarities.map((rarity, index) => {
@@ -126,13 +126,13 @@ export default function RarityDistributionPanel({
                   </span>
                 ) : null}
                 <span
-                  className={`pointer-events-none absolute bottom-[calc(100%+0.65rem)] ${tooltipPosition} z-30 w-max max-w-[15rem] rounded-xl border border-white/12 bg-[#101017]/96 px-3 py-2.5 text-left opacity-0 shadow-[0_18px_45px_rgba(0,0,0,0.48)] backdrop-blur-xl transition duration-150 group-hover/rarity:opacity-100 group-focus-visible/rarity:opacity-100`}
+                  className={`pointer-events-none absolute bottom-[calc(100%+0.65rem)] ${tooltipPosition} z-30 w-max max-w-[15rem] rounded-xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass-strong)] px-3 py-2.5 text-left opacity-0 shadow-[0_18px_45px_var(--dc-shadow-color)] backdrop-blur-xl transition duration-150 group-hover/rarity:opacity-100 group-focus-visible/rarity:opacity-100`}
                 >
-                  <span className="flex items-center gap-2 text-xs font-extrabold text-white">
+                  <span className="flex items-center gap-2 text-xs font-extrabold text-[var(--dc-text-primary)]">
                     <span className={`h-2 w-2 rounded-full ${tone.dot}`} />
                     {rarity.rarity_name}
                   </span>
-                  <span className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-semibold text-white/46">
+                  <span className="mt-1.5 grid grid-cols-2 gap-x-4 gap-y-1 text-[10px] font-semibold text-[var(--dc-text-muted)]">
                     <span>{count} cards</span>
                     <span>{share.toFixed(1)}% of set</span>
                     {perBox ? <span>{perBox}</span> : null}
@@ -144,13 +144,13 @@ export default function RarityDistributionPanel({
             );
           })}
         </div>
-        <div className="mt-2.5 flex items-center justify-between gap-3 text-[9px] font-semibold text-white/28 sm:text-[10px]">
+        <div className="mt-2.5 flex items-center justify-between gap-3 text-[9px] font-semibold text-[var(--dc-text-muted)] sm:text-[10px]">
           <span>Hover or tap a segment for rarity and pull-rate details.</span>
           <span className="shrink-0 tabular-nums">{rarities.length} rarity tiers</span>
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-2 border-t border-white/7 pt-3 text-[10px] font-medium text-white/28">
+      <div className="mt-3 flex items-center gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.76)] pt-3 text-[10px] font-medium text-[var(--dc-text-muted)]">
         <Dices className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
         <span>Counts and pull-rate estimates from {sourceLabel}.</span>
         {profile.source_url ? (
@@ -158,7 +158,7 @@ export default function RarityDistributionPanel({
             href={profile.source_url}
             target="_blank"
             rel="noreferrer"
-            className="ml-auto shrink-0 font-semibold text-violet-200/62 transition hover:text-violet-100"
+            className="ml-auto shrink-0 font-semibold text-[var(--dc-primary)] transition hover:text-[var(--dc-primary-hover)]"
           >
             Source
           </a>

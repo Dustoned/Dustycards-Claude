@@ -177,7 +177,7 @@ function SealedDetailActionGroup({
           >
             <MoreHorizontal className="h-5 w-5" />
           </summary>
-          <div className="card-detail-overflow-menu absolute right-0 top-[calc(100%+0.55rem)] z-[245] w-56 overflow-hidden rounded-2xl border border-white/11 bg-[#111019]/98 p-1.5 shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
+          <div className="card-detail-overflow-menu absolute right-0 top-[calc(100%+0.55rem)] z-[245] w-56 overflow-hidden rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass-strong)] p-1.5 shadow-[0_22px_70px_var(--dc-shadow-color)] backdrop-blur-2xl">
             {collectionItem ? (
               <CollectionEditSealedButton
                 product={collectionProduct}
@@ -796,13 +796,32 @@ export default function SealedProductModal({ product, onClose }: Props) {
               navigation={{ label: "Back to Collection", onBack: onClose }}
               eyebrow="Sealed product"
               title={modalProduct.name}
-              subtitle={[
-                modalProduct.episode?.name,
-                modalProduct.episode?.code,
-                releaseDate,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              subtitle={
+                <span className="inline-flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5">
+                  {modalProduct.episode ? (
+                    <Link
+                      href={`${getExpansionHref(modalProduct.episode.id)}?tab=sealed`}
+                      prefetch={false}
+                      onClick={onClose}
+                      className="min-w-0 truncate text-[inherit] transition-colors hover:text-[var(--dc-primary)] hover:underline underline-offset-2"
+                    >
+                      {modalProduct.episode.name}
+                    </Link>
+                  ) : null}
+                  {modalProduct.episode?.code ? (
+                    <>
+                      <span>·</span>
+                      <span>{modalProduct.episode.code}</span>
+                    </>
+                  ) : null}
+                  {releaseDate ? (
+                    <>
+                      <span>·</span>
+                      <span>{releaseDate}</span>
+                    </>
+                  ) : null}
+                </span>
+              }
               badges={
                 <>
                   <span className="rounded-full border border-fuchsia-300/18 bg-fuchsia-400/[0.075] px-2.5 py-1 text-[11px] font-bold text-fuchsia-100/78">
@@ -936,6 +955,17 @@ export default function SealedProductModal({ product, onClose }: Props) {
                   onSelectHistorySeries={setSealedHistorySeries}
                   showPricingMetrics={false}
                 />
+              }
+              heroSupplement={
+                modalProduct.featured_cards.length > 0 || detailsLoading ? (
+                  <SealedFeaturedCardsSection
+                    product={modalProduct}
+                    loading={detailsLoading}
+                    openingCardId={openingFeaturedCardId}
+                    onOpenCard={(cardId) => void openFeaturedCard(cardId)}
+                    compact
+                  />
+                ) : null
               }
               actions={
                 <SealedDetailActionGroup

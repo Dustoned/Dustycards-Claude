@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import { appearancePaletteToCssVariables } from "@/lib/appearance-themes";
 import {
   DEFAULT_SETTINGS,
   initSettingsScript,
@@ -175,6 +176,10 @@ describe("user settings", () => {
     expect(setProperty).toHaveBeenCalledWith("--dc-bg-main", "#0D080D");
     expect(setProperty).toHaveBeenCalledWith("--app-bg", "#0D080D");
     expect(setProperty).toHaveBeenCalledWith("--dc-primary", "#D94F93");
+    const prepainted = Object.fromEntries(setProperty.mock.calls);
+    expect(prepainted).toMatchObject(
+      appearancePaletteToCssVariables(settings.appearance.custom)
+    );
   });
 
   it("prepaints the stored desktop navigation before hydration", () => {
@@ -232,8 +237,8 @@ describe("user settings", () => {
   });
 
   it.each([
-    ["porcelain-studio", "#F5F6FA", "#171927"],
-    ["blush-petal", "#FFF5FA", "#2C1725"],
+    ["porcelain-studio", "#F3F5F8", "#171B26"],
+    ["blush-petal", "#FFF6FA", "#2B1724"],
   ])("prepaints the %s light appearance before hydration", (preset, background, text) => {
     const setProperty = vi.fn();
     const classList = { add: vi.fn(), remove: vi.fn(), toggle: vi.fn() };

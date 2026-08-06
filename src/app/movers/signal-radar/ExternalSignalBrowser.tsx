@@ -306,36 +306,36 @@ export function PriceScenarioChart({
     >
       <defs>
         <linearGradient id={`scenario-${scenario.marketMode}-${detailed ? "detail" : "compact"}`} x1="0" x2="1">
-          <stop offset="0" stopColor="#8b5cf6" stopOpacity="0.28" />
-          <stop offset="0.55" stopColor="#7c3aed" stopOpacity="0.18" />
-          <stop offset="1" stopColor="#38bdf8" stopOpacity="0.08" />
+          <stop offset="0" stopColor="var(--dc-primary)" stopOpacity="0.28" />
+          <stop offset="0.55" stopColor="var(--dc-primary-hover)" stopOpacity="0.18" />
+          <stop offset="1" stopColor="var(--dc-cyan)" stopOpacity="0.08" />
         </linearGradient>
         <linearGradient id={`scenario-line-${scenario.marketMode}-${detailed ? "detail" : "compact"}`} x1="0" x2="1">
-          <stop offset="0" stopColor="#c4b5fd" />
-          <stop offset="1" stopColor="#38bdf8" />
+          <stop offset="0" stopColor="var(--dc-primary-soft)" />
+          <stop offset="1" stopColor="var(--dc-cyan)" />
         </linearGradient>
       </defs>
       {tickValues.map((tick) => (
         <g key={tick}>
-          <line x1={plot.left} x2={plot.right} y1={y(tick)} y2={y(tick)} stroke="rgba(255,255,255,0.075)" strokeWidth={detailed ? 1 : 0.5} strokeDasharray={detailed ? "4 5" : undefined} />
-          {detailed ? <text x={plot.left - 10} y={y(tick) + 4} textAnchor="end" fill="rgba(255,255,255,0.34)" fontSize="10">{compactPrice(tick)}</text> : null}
+          <line x1={plot.left} x2={plot.right} y1={y(tick)} y2={y(tick)} stroke="rgb(var(--dc-border-rgb) / 0.72)" strokeWidth={detailed ? 1 : 0.5} strokeDasharray={detailed ? "4 5" : undefined} />
+          {detailed ? <text x={plot.left - 10} y={y(tick) + 4} textAnchor="end" fill="rgb(var(--dc-text-muted-rgb) / 0.78)" fontSize="10">{compactPrice(tick)}</text> : null}
         </g>
       ))}
       <polygon points={band} fill={`url(#scenario-${scenario.marketMode}-${detailed ? "detail" : "compact"})`} />
       {detailed ? (
         <>
-          <polyline points={highValues.map((value, index) => `${x[index]},${y(value)}`).join(" ")} fill="none" stroke="rgba(56,189,248,0.42)" strokeWidth="1.25" strokeDasharray="5 5" />
-          <polyline points={lowValues.map((value, index) => `${x[index]},${y(value)}`).join(" ")} fill="none" stroke="rgba(251,113,133,0.36)" strokeWidth="1.25" strokeDasharray="5 5" />
+          <polyline points={highValues.map((value, index) => `${x[index]},${y(value)}`).join(" ")} fill="none" stroke="rgb(var(--dc-cyan-rgb) / 0.48)" strokeWidth="1.25" strokeDasharray="5 5" />
+          <polyline points={lowValues.map((value, index) => `${x[index]},${y(value)}`).join(" ")} fill="none" stroke="rgb(var(--dc-negative-rgb) / 0.42)" strokeWidth="1.25" strokeDasharray="5 5" />
         </>
       ) : null}
       <polyline points={line} fill="none" stroke={`url(#scenario-line-${scenario.marketMode}-${detailed ? "detail" : "compact"})`} strokeWidth={detailed ? 3 : 1.5} strokeLinecap="round" strokeLinejoin="round" />
       {baseValues.map((value, index) => (
         <g key={x[index]}>
-          <circle cx={x[index]} cy={y(value)} r={detailed ? 6 : 1.5} fill="rgba(5,7,12,0.9)" stroke={index === 0 ? "#f8fafc" : "#7dd3fc"} strokeWidth={detailed ? 2.5 : 0} />
-          {detailed ? <text x={x[index]} y={Math.max(11, y(value) - 11)} textAnchor="middle" fill="rgba(255,255,255,0.78)" fontSize="10" fontWeight="700">{compactPrice(value)}</text> : null}
+          <circle cx={x[index]} cy={y(value)} r={detailed ? 6 : 1.5} fill="var(--dc-surface-primary)" stroke={index === 0 ? "var(--dc-text-primary)" : "var(--dc-cyan)"} strokeWidth={detailed ? 2.5 : 0} />
+          {detailed ? <text x={x[index]} y={Math.max(11, y(value) - 11)} textAnchor="middle" fill="rgb(var(--dc-text-primary-rgb) / 0.78)" fontSize="10" fontWeight="700">{compactPrice(value)}</text> : null}
         </g>
       ))}
-      {detailed ? horizonLabels.map((label, index) => <text key={label} x={x[index]} y={176} textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="10" fontWeight="600">{label}</text>) : null}
+      {detailed ? horizonLabels.map((label, index) => <text key={label} x={x[index]} y={176} textAnchor="middle" fill="rgb(var(--dc-text-muted-rgb) / 0.82)" fontSize="10" fontWeight="600">{label}</text>) : null}
     </svg>
   );
 }
@@ -1103,7 +1103,7 @@ export function ExternalSignalDetailCard({
 
   return (
     <article
-      className="group relative min-w-0 overflow-hidden rounded-[1.6rem] border border-[rgb(var(--dc-border-rgb)/0.92)] p-3 shadow-[0_18px_55px_rgba(0,0,0,0.18)] transition duration-200 hover:border-violet-300/22 sm:p-4"
+      className="group relative min-w-0 overflow-hidden rounded-[1.6rem] border border-[rgb(var(--dc-border-rgb)/0.92)] p-3 shadow-[0_18px_55px_var(--dc-shadow-color)] transition duration-200 hover:border-violet-300/22 sm:p-4"
       style={{
         background:
           "linear-gradient(145deg, rgb(var(--dc-surface-elevated-rgb) / 0.98), rgb(var(--dc-surface-primary-rgb) / 0.98))",
@@ -1205,7 +1205,7 @@ export function ExternalSignalDetailCard({
 
           <div className="mt-2.5 h-1.5 overflow-hidden rounded-full bg-black/35">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-400 to-sky-400 shadow-[0_0_16px_rgba(139,92,246,0.38)]"
+              className="h-full rounded-full bg-gradient-to-r from-violet-500 via-fuchsia-400 to-sky-400 shadow-[0_0_16px_rgb(var(--dc-primary-rgb)/0.38)]"
               style={{ width: `${selectedScore ?? signal.externalScore}%` }}
             />
           </div>

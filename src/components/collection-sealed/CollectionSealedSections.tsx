@@ -260,7 +260,7 @@ function CollectionSealedTile({
           />
         ) : (
           <div className="flex h-full items-center justify-center">
-                            <Package className="h-10 w-10 text-white/24" />
+            <Package className="h-10 w-10 text-[var(--dc-text-disabled)]" />
           </div>
         )}
 
@@ -276,7 +276,7 @@ function CollectionSealedTile({
                 href={`${getExpansionHref(item.episode_id)}?tab=sealed`}
                 prefetch={false}
                 onClick={(event) => event.stopPropagation()}
-                className="min-w-0 truncate text-white/38 transition-colors hover:text-white/70 hover:underline underline-offset-2"
+                className="min-w-0 truncate text-[var(--dc-text-muted)] transition-colors hover:text-[var(--dc-text-primary)] hover:underline underline-offset-2"
               >
                 {item.episode_name}
                 {item.episode_code ? (

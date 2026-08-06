@@ -3,7 +3,7 @@ import type { CardSize } from "@/lib/user-settings";
 type SealedTileTone = "neutral" | "market" | "positive" | "negative" | "quantity";
 
 export function sealedTileRootClass(): string {
-  return "group flex cursor-pointer flex-col rounded-[16px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.06),rgba(255,255,255,0.024))] p-1.5 text-left shadow-[0_14px_34px_rgba(0,0,0,0.22)] outline-none transition-colors hover:border-white/14 hover:bg-white/[0.058] max-[640px]:rounded-[15px] max-[640px]:p-1";
+  return "group flex cursor-pointer flex-col rounded-[16px] border border-[rgb(var(--dc-border-rgb)/0.88)] bg-[var(--dc-surface-primary)] p-1.5 text-left shadow-[0_14px_34px_var(--dc-shadow-color),inset_0_1px_0_var(--dc-sheen)] outline-none transition-[border-color,background-color,transform] hover:-translate-y-0.5 hover:border-[rgb(var(--dc-primary-rgb)/0.24)] hover:bg-[var(--dc-surface-hover)] max-[640px]:rounded-[15px] max-[640px]:p-1";
 }
 
 export function sealedTileImageClass(cardSize: CardSize, selected = false): string {
@@ -15,22 +15,22 @@ export function sealedTileImageClass(cardSize: CardSize, selected = false): stri
         : "rounded-xl";
 
   const selectedClass = selected
-    ? "border-blue-400/80 shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/80"
-    : "border-transparent shadow-md shadow-black/20 group-hover:scale-[1.02] group-hover:shadow-xl group-hover:shadow-black/30";
+    ? "border-[rgb(var(--dc-primary-rgb)/0.72)] shadow-lg ring-2 ring-[rgb(var(--dc-primary-rgb)/0.62)]"
+    : "border-[rgb(var(--dc-border-rgb)/0.72)] shadow-md group-hover:scale-[1.02] group-hover:shadow-xl";
 
-  return `relative aspect-[16/10] w-full overflow-hidden border bg-black/28 transition-all duration-200 ${radius} ${selectedClass}`;
+  return `relative aspect-[16/10] w-full overflow-hidden border bg-[rgb(var(--dc-surface-elevated-rgb)/0.82)] transition-all duration-200 ${radius} ${selectedClass}`;
 }
 
 export function sealedTileImagePaddingClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "scale-[1.42] p-3 transition-transform duration-200 group-hover:scale-[1.48] max-[640px]:scale-[1.28] max-[640px]:p-2";
+    return "p-4 transition-transform duration-200 group-hover:scale-[1.02] max-[640px]:p-2.5";
   }
 
   if (cardSize === "medium") {
-    return "scale-[1.38] p-2.5 transition-transform duration-200 group-hover:scale-[1.45] max-[640px]:scale-[1.25] max-[640px]:p-1.5";
+    return "p-3.5 transition-transform duration-200 group-hover:scale-[1.02] max-[640px]:p-2";
   }
 
-  return "scale-[1.32] p-2 transition-transform duration-200 group-hover:scale-[1.38] max-[640px]:scale-[1.2] max-[640px]:p-1";
+  return "p-3 transition-transform duration-200 group-hover:scale-[1.02] max-[640px]:p-1.5";
 }
 
 export function sealedTileInfoClass(cardSize: CardSize): string {
@@ -47,14 +47,14 @@ export function sealedTileInfoClass(cardSize: CardSize): string {
 
 export function sealedTileTitleClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "line-clamp-2 text-[17px] font-bold leading-tight text-white max-[640px]:text-[12px]";
+    return "line-clamp-2 text-[17px] font-bold leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[12px]";
   }
 
   if (cardSize === "medium") {
-    return "line-clamp-2 text-[15px] font-bold leading-tight text-white max-[640px]:text-[12px]";
+    return "line-clamp-2 text-[15px] font-bold leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[12px]";
   }
 
-  return "line-clamp-2 text-[13px] font-bold leading-tight text-white max-[640px]:text-[11px]";
+  return "line-clamp-2 text-[13px] font-bold leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[11px]";
 }
 
 export function sealedTileMetaLineClass(cardSize: CardSize): string {
@@ -71,14 +71,14 @@ export function sealedTileMetaLineClass(cardSize: CardSize): string {
 
 export function sealedTilePriceClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "whitespace-nowrap text-[18px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
+    return "whitespace-nowrap text-[18px] font-bold tabular-nums leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[12px]";
   }
 
   if (cardSize === "medium") {
-    return "whitespace-nowrap text-[16px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
+    return "whitespace-nowrap text-[16px] font-bold tabular-nums leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[12px]";
   }
 
-  return "whitespace-nowrap text-[14px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[11px]";
+  return "whitespace-nowrap text-[14px] font-bold tabular-nums leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[11px]";
 }
 
 export function sealedTileNoPriceClass(cardSize: CardSize): string {
@@ -94,7 +94,7 @@ export function sealedTileNoPriceClass(cardSize: CardSize): string {
 }
 
 export function sealedTileActionButtonClass(): string {
-  return "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-white/12 bg-black/40 text-white shadow-sm shadow-black/30 backdrop-blur transition-colors hover:border-emerald-300/35 hover:bg-emerald-400/14 hover:text-emerald-100 disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:!h-7 max-[640px]:!w-7 max-[640px]:shadow-none";
+  return "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border !border-[rgb(var(--dc-border-rgb)/0.9)] !bg-[var(--dc-surface-elevated)] !text-[var(--dc-text-secondary)] shadow-sm backdrop-blur transition-colors hover:!border-[rgb(var(--dc-primary-rgb)/0.34)] hover:!bg-[rgb(var(--dc-primary-rgb)/0.12)] hover:!text-[var(--dc-primary)] disabled:cursor-not-allowed disabled:opacity-50 max-[640px]:!h-7 max-[640px]:!w-7 max-[640px]:shadow-none";
 }
 
 export function sealedTileActionIconClass(): string {
@@ -118,22 +118,22 @@ export function sealedTileBubbleClass(tone: SealedTileTone = "neutral"): string 
     "inline-flex min-h-8 min-w-0 items-center justify-between gap-1 rounded-lg border px-2 py-1 text-[11px] font-semibold leading-none shadow-sm shadow-black/5 max-[640px]:min-h-5 max-[640px]:px-1.5 max-[640px]:py-0.5 max-[640px]:text-[9px] dark:shadow-black/20 [&>span]:truncate";
 
   if (tone === "market") {
-    return `${base} border-emerald-400/18 bg-emerald-400/[0.08] text-emerald-200`;
+    return `${base} border-[rgb(var(--dc-success-rgb)/0.24)] bg-[var(--dc-success-bg)] text-[var(--dc-success)]`;
   }
 
   if (tone === "positive") {
-    return `${base} border-emerald-400/18 bg-emerald-400/[0.08] text-emerald-200`;
+    return `${base} border-[rgb(var(--dc-success-rgb)/0.24)] bg-[var(--dc-success-bg)] text-[var(--dc-success)]`;
   }
 
   if (tone === "negative") {
-    return `${base} border-rose-400/18 bg-rose-400/[0.08] text-rose-200`;
+    return `${base} border-[rgb(var(--dc-negative-rgb)/0.24)] bg-[var(--dc-negative-bg)] text-[var(--dc-negative)]`;
   }
 
   if (tone === "quantity") {
-    return `${base} border-violet-400/18 bg-violet-400/[0.08] text-violet-200`;
+    return `${base} border-[rgb(var(--dc-primary-rgb)/0.22)] bg-[rgb(var(--dc-primary-rgb)/0.1)] text-[var(--dc-primary)]`;
   }
 
-  return `${base} border-white/8 bg-white/[0.05] text-white/60`;
+  return `${base} border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[var(--dc-text-secondary)]`;
 }
 
 export function sealedTileBubbleLabelClass(): string {

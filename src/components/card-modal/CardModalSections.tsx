@@ -38,6 +38,7 @@ import CollectionWantButton from "@/components/CollectionWantButton";
 import { CardDetailMobileActionPortal } from "@/components/card-detail/CardDetailShell";
 import CardDetailMobileMarketAction from "@/components/card-detail/CardDetailMobileMarketAction";
 import CardPriceAlertButton from "@/components/card-detail/CardPriceAlertButton";
+import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import ReadableInfoTooltip from "@/components/card-detail/ReadableInfoTooltip";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import { DETAIL_MARKET_LINK_CLASS } from "@/components/detail-market-link-style";
@@ -78,13 +79,8 @@ const GradedSlabPreview = dynamic(() => import("@/components/GradedSlabPreview")
   ssr: false,
   loading: () => null,
 });
-const PriceHistoryPanel = dynamic(() => import("@/components/PriceHistoryPanel"), {
-  ssr: false,
-  loading: () => null,
-});
-
 const ACTIVE_SEGMENT_CLASS =
-  "border-violet-400/40 bg-violet-600 text-white";
+  "!border-[rgb(var(--dc-primary-rgb)/0.38)] !bg-[rgb(var(--dc-primary-rgb)/0.12)] !text-[var(--dc-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)]";
 
 type PriceStatusTone = "good" | "warning" | "danger" | "neutral";
 
@@ -1073,7 +1069,7 @@ function GradedSlabSelectControl({
           <option
             key={row.key}
             value={valueMode === "key" ? row.key : row.label}
-            className="bg-[#111214] text-white"
+            className="bg-[var(--dc-surface-primary)] text-[var(--dc-text-primary)]"
           >
             {row.label} - {row.sourceLabel}
           </option>
@@ -1392,16 +1388,14 @@ function GradedPricingPanel({
       : "eBay sold graded";
   const chartCurrency = chartRow?.chartCurrency ?? chartRow?.currency ?? "EUR";
   const sourceToggleClass =
-    "grid h-8 min-w-[12rem] grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/20 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] max-[640px]:h-7 max-[640px]:min-w-[9.25rem]";
+    "flex min-w-0 items-center gap-1";
   const sourceToggleButtonClass =
-    "min-w-0 rounded-[10px] px-2 text-center text-[11px] font-semibold leading-none transition-colors max-[640px]:px-1.5 max-[640px]:text-[10px]";
+    "inline-flex min-h-8 min-w-0 items-center justify-center rounded-lg border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] px-2.5 text-center text-[11px] font-bold leading-none text-[rgb(var(--dc-text-primary-rgb)/0.62)] transition-colors hover:border-[rgb(var(--dc-primary-rgb)/0.28)] hover:bg-[rgb(var(--dc-primary-rgb)/0.07)] hover:text-[var(--dc-text-primary)] max-[640px]:min-h-7 max-[640px]:px-2 max-[640px]:text-[10px]";
   const sourceToggleActiveClass =
-    "bg-white/[0.13] text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
+    "!border-[rgb(var(--dc-primary-rgb)/0.38)] !bg-[rgb(var(--dc-primary-rgb)/0.12)] !text-[var(--dc-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)]";
   const sourceSwitchControl = showSourceSwitch ? (
     <div
-      className={`dc-compact-segment card-modal-source-toggle ${
-        graphFirst ? "sm:min-w-[12rem]" : "min-w-[12rem]"
-      } ${sourceToggleClass}`}
+      className={`card-modal-source-toggle ${sourceToggleClass}`}
     >
       {[
         { key: "cardmarket" as const, label: "CardMarket", available: cardMarketRows.length > 0 },
@@ -1635,7 +1629,7 @@ export function CardModalDesktopActionGroup({
         >
           <MoreHorizontal className="h-5 w-5" />
         </summary>
-        <div className="card-detail-overflow-menu absolute right-0 top-[calc(100%+0.55rem)] z-[245] w-56 overflow-hidden rounded-2xl border border-white/11 bg-[#111019]/98 p-1.5 shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
+        <div className="card-detail-overflow-menu absolute right-0 top-[calc(100%+0.55rem)] z-[245] w-56 overflow-hidden rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass-strong)] p-1.5 shadow-[0_22px_70px_var(--dc-shadow-color)] backdrop-blur-2xl">
           {canManageCollectionItem && collectionItem ? (
             <CollectionEditCardButton
               card={collectionCard}
@@ -1902,7 +1896,7 @@ function MobileInfoRow({
   return (
     <div
       data-mobile-info-row
-      className={`flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-white/10 bg-[#0b0b0d] p-2.5 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.04)] ${
+      className={`flex min-h-[4.75rem] min-w-0 items-start gap-2.5 rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] p-2.5 shadow-[inset_0_1px_0_var(--dc-sheen)] ${
         wide ? "col-span-2" : ""
       }`}
     >
@@ -2043,10 +2037,10 @@ export function CardModalMobileShowcase({
   const showDemand = effectiveActiveTab === "demand";
   const showPreviousPrices = effectiveActiveTab === "previous-prices";
   const floatingButtonClass =
-    "!h-11 !w-11 !rounded-full !border-white/12 !bg-[#101218]/82 !p-0 !text-white/86 !backdrop-blur-xl hover:!border-violet-300/24 hover:!bg-[#1D2130]";
+    "!h-11 !w-11 !rounded-full !border-[rgb(var(--dc-border-rgb)/0.9)] !bg-[var(--dc-surface-glass)] !p-0 !text-[rgb(var(--dc-text-primary-rgb)/0.86)] !backdrop-blur-xl hover:!border-[rgb(var(--dc-primary-rgb)/0.3)] hover:!bg-[var(--dc-surface-hover)]";
 
   return (
-    <div data-mobile-showcase-root className="relative min-h-dvh overflow-hidden bg-[#050505] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-white">
+    <div data-mobile-showcase-root className="relative min-h-dvh overflow-hidden bg-[var(--dc-bg-main)] px-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))] pt-[calc(0.9rem+env(safe-area-inset-top))] text-[var(--dc-text-primary)]">
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[28rem] bg-[radial-gradient(circle_at_50%_24%,rgb(var(--dc-primary-rgb)/0.28),transparent_34%),radial-gradient(circle_at_30%_22%,rgb(var(--dc-cyan-rgb)/0.10),transparent_34%),linear-gradient(180deg,rgba(255,255,255,0.035),transparent_52%)]" />
 
       <div className="relative z-20 flex items-center justify-between">
@@ -2103,7 +2097,7 @@ export function CardModalMobileShowcase({
           )}
 
           {moreOpen && canManageCardPrices && (
-            <div data-mobile-action-sheet className="absolute right-0 top-[3.25rem] z-40 min-w-52 overflow-hidden rounded-2xl border border-white/12 bg-[#0b0b0d]/94 p-1.5 text-sm font-semibold text-white shadow-[0_22px_70px_rgba(0,0,0,0.58)] backdrop-blur-2xl">
+            <div data-mobile-action-sheet className="absolute right-0 top-[3.25rem] z-40 min-w-52 overflow-hidden rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass-strong)] p-1.5 text-sm font-semibold text-[var(--dc-text-primary)] shadow-[0_22px_70px_var(--dc-shadow-color)] backdrop-blur-2xl">
               {collectionItem && !readOnlyCollectionItem && (
                 <button
                   type="button"
@@ -2252,7 +2246,7 @@ export function CardModalMobileShowcase({
         </div>
 
         <div className="mt-4 grid grid-cols-[minmax(0,1.02fr)_minmax(0,0.98fr)] gap-2.5">
-          <div data-mobile-showcase-card className="overflow-hidden rounded-[18px] border border-white/10 bg-[#0b0b0d] p-3.5 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.045)]">
+          <div data-mobile-showcase-card className="overflow-hidden rounded-[18px] border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] p-3.5 shadow-[inset_0_1px_0_var(--dc-sheen)]">
             <div className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 gap-y-1">
               <p className="max-w-full text-[1.42rem] font-bold leading-none tabular-nums text-white min-[390px]:text-[1.62rem]">
                 {formatCurrency(activeCardMarketCurrentValue, "EUR")}
@@ -2270,7 +2264,7 @@ export function CardModalMobileShowcase({
             <p className="mt-2 truncate text-[12px] font-medium text-white/48">CardMarket</p>
           </div>
 
-          <div data-mobile-showcase-card className="rounded-[18px] border border-white/10 bg-[#0b0b0d] px-3.5 py-3 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.045)]">
+          <div data-mobile-showcase-card className="rounded-[18px] border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] px-3.5 py-3 shadow-[inset_0_1px_0_var(--dc-sheen)]">
             <div className="flex items-center justify-between gap-1.5 border-b border-white/[0.07] pb-2">
               <p className="shrink-0 whitespace-nowrap text-[13px] font-medium text-white/46">
                 7d avg
@@ -2313,7 +2307,7 @@ export function CardModalMobileShowcase({
         </nav>
 
         {showOverview && (
-          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-3 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.04)]">
+          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] p-3 shadow-[inset_0_1px_0_var(--dc-sheen)]">
             <div className="grid grid-cols-2 gap-2">
               <MobileInfoRow
                 icon={<Sparkles className="h-4 w-4" />}
@@ -2427,7 +2421,7 @@ export function CardModalMobileShowcase({
         )}
 
         {showChart && (
-          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-white/10 bg-[#09090a] p-2.5 shadow-[inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.04)]">
+          <div data-mobile-showcase-card className="mt-3 rounded-[22px] border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] p-2.5 shadow-[inset_0_1px_0_var(--dc-sheen)]">
             <PriceHistoryPanel
               title="Price History"
               currency="EUR"
@@ -2463,7 +2457,7 @@ export function CardModalMobileShowcase({
         </div>
       ) : null}
 
-      <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-white/12 bg-[#08080a]/98 p-2.5 shadow-[0_18px_42px_rgba(0,0,0,0.45),inset_0_1px_0_rgb(var(--dc-primary-soft-rgb)/0.05)]">
+      <div data-mobile-sticky-actions className="relative z-10 mt-4 rounded-[22px] border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass-strong)] p-2.5 shadow-[0_18px_42px_var(--dc-shadow-color),inset_0_1px_0_var(--dc-sheen)]">
         <div className="grid grid-cols-[1.1fr_0.8fr_1fr] gap-2">
           <CollectionAddCardButton
             card={collectionCard}
@@ -2918,19 +2912,19 @@ export function CardModalHistorySection({
     ...ebaySoldGradedPriceHistory.flatMap((series) => series.points),
   ];
   const historySourceToggleClass =
-    "grid h-11 w-[10.5rem] min-w-[10.5rem] max-w-full grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/25 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+    "flex min-w-0 max-w-full items-center gap-1";
   const historyModeToggleClass =
-    "grid h-11 w-[9.5rem] min-w-[9.5rem] max-w-full shrink-0 grid-cols-2 overflow-hidden rounded-xl border border-white/10 bg-black/25 p-0.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]";
+    "flex h-11 min-w-0 max-w-full shrink-0 items-center gap-1";
   const historyModeToggleButtonClass =
-    "min-w-0 rounded-[10px] px-2 text-center text-[12px] font-bold leading-none transition-colors";
+    "inline-flex min-h-10 min-w-[4.4rem] items-center justify-center rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] px-2 text-center text-[12px] font-bold leading-none text-[rgb(var(--dc-text-primary-rgb)/0.58)] transition-colors hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]";
   const historySourceToggleButtonClass =
-    "min-w-0 rounded-[10px] px-1.5 text-center text-[11px] font-bold leading-none transition-colors";
+    "inline-flex min-h-9 min-w-0 items-center justify-center rounded-lg border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] px-2.5 text-center text-[11px] font-bold leading-none text-[rgb(var(--dc-text-primary-rgb)/0.62)] transition-colors hover:border-[rgb(var(--dc-primary-rgb)/0.28)] hover:bg-[rgb(var(--dc-primary-rgb)/0.07)] hover:text-[var(--dc-text-primary)]";
   const historySourceToggleActiveClass =
-    "bg-white/[0.13] text-white shadow-[0_1px_10px_rgba(0,0,0,0.18),inset_0_0_0_1px_rgba(255,255,255,0.07)]";
+    "!border-[rgb(var(--dc-primary-rgb)/0.38)] !bg-[rgb(var(--dc-primary-rgb)/0.12)] !text-[var(--dc-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)]";
   const chartHeaderChipClass =
     "inline-flex h-9 items-center justify-center rounded-full border border-white/10 bg-black/24 px-3 text-xs font-semibold text-white/76";
   const historyModeSwitchControl = hasGradedData && showModeControl ? (
-    <div className={`dc-compact-segment card-modal-mode-toggle ${historyModeToggleClass}`}>
+    <div className={`card-modal-mode-toggle ${historyModeToggleClass}`}>
       {[
         { key: "market" as const, label: "Raw" },
         { key: "graded" as const, label: "Graded" },
@@ -2943,7 +2937,7 @@ export function CardModalHistorySection({
           className={`${historyModeToggleButtonClass} ${
             effectiveHistoryChartMode === mode.key
               ? ACTIVE_SEGMENT_CLASS
-              : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
+              : ""
           }`}
         >
           {mode.label}
@@ -2974,7 +2968,7 @@ export function CardModalHistorySection({
           className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
         >
           {availableCardMarketHistorySeries.map((series) => (
-            <option key={series.key} value={series.key} className="bg-[#111214] text-white">
+            <option key={series.key} value={series.key} className="bg-[var(--dc-surface-primary)] text-[var(--dc-text-primary)]">
               {series.label}
             </option>
           ))}
@@ -2982,7 +2976,7 @@ export function CardModalHistorySection({
       </label>
     ) : null;
   const rawSourceSwitchControl = showRawSourceToggle ? (
-    <div className={`dc-compact-segment card-modal-source-toggle ${historySourceToggleClass}`}>
+    <div className={`card-modal-source-toggle ${historySourceToggleClass}`}>
       {[
         { key: "cardmarket" as const, label: "CardMarket" },
         { key: "tcgplayer" as const, label: "TCGPlayer" },
@@ -2995,7 +2989,7 @@ export function CardModalHistorySection({
           className={`${historySourceToggleButtonClass} ${
             activeMarketSource === source.key
               ? historySourceToggleActiveClass
-              : "text-white/52 hover:bg-white/[0.06] hover:text-white/82"
+              : ""
           }`}
         >
           {source.label}
@@ -3059,6 +3053,7 @@ export function CardModalHistorySection({
                 currentValue={selectedGradedRow?.chartCurrentValue ?? selectedGradedRow?.value ?? null}
                 showCurrentValue={showCurrentValue}
                 headerLeadingAccessory={gradedHeaderLeadingAccessory}
+                headerStatus={<CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />}
                 tone="dark"
                 layout="hero"
                 stabilizeMobileHeader
@@ -3079,6 +3074,7 @@ export function CardModalHistorySection({
                 showCurrentValue={showCurrentValue}
                 headerLeadingAccessory={historyHeaderLeadingAccessory}
                 headerAccessory={rawHeaderAccessory}
+                headerStatus={<CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />}
                 tone="dark"
                 layout="hero"
                 stabilizeMobileHeader
@@ -3088,7 +3084,6 @@ export function CardModalHistorySection({
             </div>
           </>
         )}
-        <CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />
       </div>
     </section>
   );
@@ -4048,32 +4043,60 @@ export function CardModalActiveListingsPanel({
   onOpenSealedProduct,
   onClose,
   className = "",
+  compact = false,
 }: {
   card: ModalCardData;
   onOpenSealedProduct?: (product: NonNullable<ModalCardData["sealed_products"]>[number]) => void;
   onClose?: () => void;
   className?: string;
+  compact?: boolean;
 }) {
-  const sealedProducts = (card.sealed_products ?? []).slice(0, 4);
+  const sealedProducts = (card.sealed_products ?? []).slice(0, compact ? 8 : 4);
   const sealedProductCount = card.sealed_product_count ?? card.sealed_products?.length ?? 0;
 
   return (
-    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} flex flex-col ${className}`}>
+    <section
+      className={`${
+        compact
+          ? "card-detail-sealed-strip min-w-0 rounded-[20px] border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-elevated-rgb)/0.82),rgb(var(--dc-surface-primary-rgb)/0.92))] p-3 shadow-[inset_0_1px_0_var(--dc-sheen)]"
+          : CARD_MODAL_SUPPORT_PANEL_CLASS
+      } flex flex-col ${className}`}
+    >
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h3 className={CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Find in Sealed</h3>
-          <p className="mt-1 truncate text-[11px] font-medium text-white/38">
-            Products connected to {card.episode_name}
-          </p>
+          <h3 className={compact ? "text-sm font-extrabold text-[var(--dc-text-primary)]" : CARD_MODAL_SUPPORT_PANEL_TITLE_CLASS}>Find in Sealed</h3>
+          {!compact ? (
+            <p className="mt-1 truncate text-[11px] font-medium text-white/38">
+              Products connected to {card.episode_name}
+            </p>
+          ) : null}
         </div>
-        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-violet-400/16 bg-violet-400/[0.07] px-2 py-1 text-[10px] font-semibold text-violet-200/80">
-          <Package className="h-3 w-3" />
-          {sealedProductCount}
-        </span>
+        <div className="flex shrink-0 items-center gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full border border-[rgb(var(--dc-primary-rgb)/0.18)] bg-[rgb(var(--dc-primary-rgb)/0.07)] px-2 py-1 text-[10px] font-semibold text-[var(--dc-primary)]">
+            <Package className="h-3 w-3" />
+            {sealedProductCount}
+          </span>
+          {compact ? (
+            <Link
+              href={`/cards/${encodeURIComponent(card.id)}/sealed`}
+              prefetch={false}
+              onClick={onClose}
+              className="text-[10px] font-bold text-[rgb(var(--dc-text-primary-rgb)/0.48)] transition-colors hover:text-[var(--dc-primary)] hover:underline"
+            >
+              View all
+            </Link>
+          ) : null}
+        </div>
       </div>
 
       {sealedProducts.length > 0 ? (
-        <div className="mt-3 grid grid-cols-2 gap-2">
+        <div
+          className={
+            compact
+              ? "card-detail-sealed-product-rail mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin]"
+              : "mt-3 grid grid-cols-2 gap-2"
+          }
+        >
           {sealedProducts.map((product) => {
             const price =
               product.price.cm_lowest_eu ??
@@ -4089,7 +4112,7 @@ export function CardModalActiveListingsPanel({
                 type="button"
                 onClick={() => onOpenSealedProduct?.(product)}
                 disabled={!onOpenSealedProduct}
-                className="group flex min-w-0 items-center gap-3 rounded-xl border border-white/8 bg-white/[0.025] p-2.5 text-left transition-colors hover:border-violet-400/22 hover:bg-violet-400/[0.045] disabled:cursor-default"
+                className={`group flex min-w-0 items-center gap-3 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.76)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.62)] p-2.5 text-left transition-colors hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:bg-[rgb(var(--dc-primary-rgb)/0.055)] disabled:cursor-default ${compact ? "w-[min(15rem,76vw)] shrink-0 snap-start" : ""}`}
               >
                 <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20 2xl:h-[4.5rem] 2xl:w-[4.5rem]">
                   {product.image_url ? (
@@ -4136,18 +4159,22 @@ export function CardModalActiveListingsPanel({
         </div>
       )}
 
-      <Link
-        href={`/cards/${encodeURIComponent(card.id)}/sealed`}
-        prefetch={false}
-        onClick={onClose}
-        className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/22 bg-violet-500/[0.10] px-3 text-sm font-semibold text-violet-100 transition-colors hover:border-violet-300/35 hover:bg-violet-500/[0.16] hover:text-white"
-      >
-        View every product containing this card
-        <ChevronRight className="h-4 w-4" />
-      </Link>
-      <p className="mt-2 text-[10px] font-medium leading-relaxed text-white/28">
-        Includes set packs, verified mixed products and directly included promos.
-      </p>
+      {!compact ? (
+        <>
+          <Link
+            href={`/cards/${encodeURIComponent(card.id)}/sealed`}
+            prefetch={false}
+            onClick={onClose}
+            className="mt-3 inline-flex min-h-10 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/22 bg-violet-500/[0.10] px-3 text-sm font-semibold text-violet-100 transition-colors hover:border-violet-300/35 hover:bg-violet-500/[0.16] hover:text-white"
+          >
+            View every product containing this card
+            <ChevronRight className="h-4 w-4" />
+          </Link>
+          <p className="mt-2 text-[10px] font-medium leading-relaxed text-white/28">
+            Includes set packs, verified mixed products and directly included promos.
+          </p>
+        </>
+      ) : null}
     </section>
   );
 }

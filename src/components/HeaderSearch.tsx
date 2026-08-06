@@ -367,7 +367,7 @@ export default function HeaderSearch() {
             event.preventDefault();
             submitSearch(new FormData(event.currentTarget));
           }}
-          className="dc-search-shell absolute inset-x-3 top-1/2 z-[90] flex h-[calc(var(--ui-header-height)-0.65rem)] -translate-y-1/2 items-center gap-2 rounded-full border border-white/10 bg-[#0f0f15] px-2 shadow-xl shadow-black/50 lg:hidden"
+          className="dc-search-shell absolute inset-x-3 top-1/2 z-[90] flex h-[calc(var(--ui-header-height)-0.65rem)] -translate-y-1/2 items-center gap-2 rounded-full border border-[rgb(var(--dc-border-rgb)/0.88)] bg-[var(--dc-surface-glass-strong)] px-2 shadow-[0_16px_38px_var(--dc-shadow-color)] lg:hidden"
         >
           <button
             type="button"

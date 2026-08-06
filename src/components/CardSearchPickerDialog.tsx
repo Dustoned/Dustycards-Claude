@@ -61,12 +61,18 @@ export default function CardSearchPickerDialog({
   label,
   game,
   selectedCardId,
+  excludedCardId,
+  suggestedValue,
+  suggestedPercentage = 100,
   onClose,
   onSelect,
 }: {
   label: string;
   game: TradingCardGameFilter;
   selectedCardId?: string | null;
+  excludedCardId?: string | null;
+  suggestedValue?: number | null;
+  suggestedPercentage?: number;
   onClose: () => void;
   onSelect: (card: CardSearchPickerResult) => void;
 }) {
@@ -80,6 +86,11 @@ export default function CardSearchPickerDialog({
   const [sortMode, setSortMode] = useState<SortMode>("relevance");
   const [releaseYear, setReleaseYear] = useState("all");
   const trimmedQuery = query.trim();
+  const suggestionTarget =
+    suggestedValue != null && Number.isFinite(suggestedValue) && suggestedValue > 0
+      ? Number(((suggestedValue * suggestedPercentage) / 100).toFixed(2))
+      : null;
+  const isValueSuggestionMode = !trimmedQuery && suggestionTarget != null;
 
   useEffect(() => {
     const html = document.documentElement;
@@ -98,15 +109,22 @@ export default function CardSearchPickerDialog({
   }, [onClose]);
 
   useEffect(() => {
-    if (!trimmedQuery) return;
+    if (!trimmedQuery && suggestionTarget == null) {
+      return;
+    }
 
     const controller = new AbortController();
     const timer = window.setTimeout(async () => {
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({ q: trimmedQuery, game });
-        const response = await fetch(`/api/search?${params.toString()}`, {
+        const params = trimmedQuery
+          ? new URLSearchParams({ q: trimmedQuery, game })
+          : new URLSearchParams({ target: String(suggestionTarget), game });
+        const endpoint = trimmedQuery
+          ? `/api/search?${params.toString()}`
+          : `/api/search/trade-suggestions?${params.toString()}`;
+        const response = await fetch(endpoint, {
           cache: "no-store",
           signal: controller.signal,
         });
@@ -116,7 +134,7 @@ export default function CardSearchPickerDialog({
         if (!response.ok) {
           throw new Error(payload?.error || "Cards could not be searched.");
         }
-        setResults(payload?.singles ?? []);
+        setResults((payload?.singles ?? []).filter((card) => card.id !== excludedCardId));
         setSearched(true);
         resultsViewportRef.current?.scrollTo({ top: 0 });
       } catch (searchError) {
@@ -131,13 +149,13 @@ export default function CardSearchPickerDialog({
       } finally {
         if (!controller.signal.aborted) setLoading(false);
       }
-    }, 240);
+    }, trimmedQuery ? 240 : 0);
 
     return () => {
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [game, trimmedQuery]);
+  }, [excludedCardId, game, suggestionTarget, trimmedQuery]);
 
   const releaseYears = useMemo(
     () =>
@@ -201,7 +219,9 @@ export default function CardSearchPickerDialog({
               Choose a card for {label.replace("Trade side ", "side ")}
             </h2>
             <p className="mt-1 text-[10px] text-white/38 sm:text-xs">
-              Same matching as normal Search, including set codes, card numbers and typo correction.
+              {suggestionTarget == null
+                ? "Same matching as normal Search, including set codes, card numbers and typo correction."
+                : `Cards closest to ${formatCollectionCurrency(suggestionTarget)} are ready below. You can still search manually.`}
             </p>
           </div>
           <button type="button" onClick={onClose} className={modalCloseButtonClass} aria-label="Close card search">
@@ -228,7 +248,11 @@ export default function CardSearchPickerDialog({
                 }
               }}
               type="text"
-              placeholder="Name, set, number or code…"
+              placeholder={
+                suggestionTarget == null
+                  ? "Name, set, number or code…"
+                  : "Search instead of using value matches…"
+              }
               className="min-w-0 flex-1 bg-transparent text-base font-semibold text-white outline-none placeholder:text-white/28"
               autoComplete="off"
               spellCheck={false}
@@ -294,12 +318,16 @@ export default function CardSearchPickerDialog({
           ref={resultsViewportRef}
           className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom,0px))] pt-3 sm:px-6 sm:pb-6 sm:pt-4"
         >
-          {trimmedQuery && !error && (sortedResults.length > 0 || loading) ? (
+          {(trimmedQuery || isValueSuggestionMode) && !error && (sortedResults.length > 0 || loading) ? (
             <div className="mb-3 flex items-center justify-between gap-3 px-1">
               <p className="text-[10px] font-bold text-white/38">
-                {sortedResults.length > 0
-                  ? `${loading ? "Updating" : sortedResults.length} card result${sortedResults.length === 1 ? "" : "s"}${loading ? ` · ${sortedResults.length} currently shown` : ""}`
-                  : "Finding matching cards…"}
+                {isValueSuggestionMode
+                  ? sortedResults.length > 0
+                    ? `${sortedResults.length} closest matches · target ${formatCollectionCurrency(suggestionTarget)}`
+                    : "Finding cards with the closest value…"
+                  : sortedResults.length > 0
+                    ? `${loading ? "Updating" : sortedResults.length} card result${sortedResults.length === 1 ? "" : "s"}${loading ? ` · ${sortedResults.length} currently shown` : ""}`
+                    : "Finding matching cards…"}
               </p>
               {sortedResults.length > 0 ? (
                 <span className="text-[9px] font-bold text-white/24">Tap a card to select it</span>
@@ -315,6 +343,12 @@ export default function CardSearchPickerDialog({
             <div className="grid gap-2 md:grid-cols-2">
               {sortedResults.map((card) => {
                 const selected = card.id === selectedCardId;
+                const valueDifference =
+                  isValueSuggestionMode &&
+                  card.cm_en_lowest_nm != null &&
+                  suggestionTarget != null
+                    ? Number((card.cm_en_lowest_nm - suggestionTarget).toFixed(2))
+                    : null;
                 return (
                   <button
                     key={card.id}
@@ -364,10 +398,24 @@ export default function CardSearchPickerDialog({
                         {card.episode_code ? ` · ${card.episode_code}` : ""}
                         {card.card_number ? ` · #${card.card_number}` : ""}
                       </small>
-                      <span className="mt-2 block text-sm font-black tabular-nums text-white sm:text-base">
-                        {card.cm_en_lowest_nm == null
-                          ? "No EU price"
-                          : formatCollectionCurrency(card.cm_en_lowest_nm)}
+                      <span className="mt-2 flex items-center justify-between gap-2">
+                        <span className="block text-sm font-black tabular-nums text-white sm:text-base">
+                          {card.cm_en_lowest_nm == null
+                            ? "No EU price"
+                            : formatCollectionCurrency(card.cm_en_lowest_nm)}
+                        </span>
+                        {valueDifference != null ? (
+                          <span
+                            className={`shrink-0 rounded-full border px-1.5 py-0.5 text-[8px] font-black tabular-nums ${
+                              Math.abs(valueDifference) <= 1
+                                ? "border-emerald-300/18 bg-emerald-400/[0.08] text-emerald-200"
+                                : "border-white/8 bg-white/[0.035] text-white/38"
+                            }`}
+                          >
+                            {valueDifference > 0 ? "+" : ""}
+                            {formatCollectionCurrency(valueDifference)}
+                          </span>
+                        ) : null}
                       </span>
                     </span>
                   </button>
@@ -380,7 +428,7 @@ export default function CardSearchPickerDialog({
               <p className="mt-3 text-xs font-black text-white/54">No card results found</p>
               <p className="mt-1 text-[10px] text-white/30">Try a card number, set code or a shorter name.</p>
             </div>
-          ) : !trimmedQuery ? (
+          ) : !trimmedQuery && !isValueSuggestionMode ? (
             <div className="rounded-2xl border border-dashed border-violet-300/12 bg-violet-500/[0.025] px-4 py-10 text-center sm:py-14">
               <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl border border-violet-300/14 bg-violet-500/[0.08] text-violet-100/55">
                 <Sparkles className="h-5 w-5" />

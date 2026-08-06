@@ -278,7 +278,7 @@ export default function RouteProgressBar() {
         <div
           role="status"
           aria-live="polite"
-          className={`${showRecovery ? "pointer-events-auto" : "pointer-events-none"} route-progress-status fixed left-1/2 z-[239] flex -translate-x-1/2 items-center gap-2 rounded-full border border-white/12 bg-[#101118]/92 px-3 py-2 text-xs font-semibold text-white/82 shadow-2xl shadow-black/35 backdrop-blur-xl`}
+          className={`${showRecovery ? "pointer-events-auto" : "pointer-events-none"} route-progress-status fixed left-1/2 z-[239] flex -translate-x-1/2 items-center gap-2 rounded-full border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass)] px-3 py-2 text-xs font-semibold text-[rgb(var(--dc-text-primary-rgb)/0.82)] shadow-[0_18px_48px_var(--dc-shadow-color)] backdrop-blur-xl`}
         >
           <span
             aria-hidden="true"

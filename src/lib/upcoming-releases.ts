@@ -131,6 +131,11 @@ function singleStatus(sourceType: string, text: string): UpcomingSingleStatus {
   return LEAK_PATTERN.test(text) ? "leak" : "reveal";
 }
 
+function normalizedUpcomingCardNumber(value: string | null | undefined): string | null {
+  const normalized = value?.toLowerCase().replace(/[^a-z0-9]/g, "") ?? "";
+  return normalized || null;
+}
+
 export async function getUpcomingReleaseFeed(now = new Date()): Promise<UpcomingReleaseFeed> {
   const todayKey = new Intl.DateTimeFormat(RELEASE_LANGUAGE, {
     year: "numeric",
@@ -251,20 +256,39 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
   const revealNames = [...new Set(storedSourceRows.flatMap(({ reveals }) =>
     reveals.map((reveal) => reveal.name)
   ))];
-  const releasedNameCards = revealNames.length
+  const storedMatchIds = [...new Set(storedSourceRows.flatMap(({ reveals }) =>
+    reveals.flatMap((reveal) => reveal.libraryMatch?.cardId ? [reveal.libraryMatch.cardId] : [])
+  ))];
+  const localRevealCards = revealNames.length || storedMatchIds.length
     ? await db.card.findMany({
-        where: { game: "pokemon", name: { in: revealNames } },
+        where: {
+          game: "pokemon",
+          OR: [
+            ...(revealNames.length ? [{ name: { in: revealNames } }] : []),
+            ...(storedMatchIds.length ? [{ id: { in: storedMatchIds } }] : []),
+          ],
+        },
         select: {
           id: true,
           name: true,
+          card_number: true,
+          printed_card_number: true,
+          rarity: true,
+          version: true,
+          image_url: true,
           episode: { select: { id: true, name: true, code: true, release_date: true } },
         },
       })
     : [];
-  const releasedCardsByName = new Map<string, typeof releasedNameCards>();
-  for (const card of releasedNameCards) {
-    if (!card.episode.release_date || card.episode.release_date > releaseCutoff) continue;
+  const localCardsById = new Map(localRevealCards.map((card) => [card.id, card]));
+  const localCardsByName = new Map<string, typeof localRevealCards>();
+  const releasedCardsByName = new Map<string, typeof localRevealCards>();
+  for (const card of localRevealCards) {
     const key = card.name.trim().toLowerCase();
+    const localCards = localCardsByName.get(key) ?? [];
+    localCards.push(card);
+    localCardsByName.set(key, localCards);
+    if (!card.episode.release_date || card.episode.release_date > releaseCutoff) continue;
     const cards = releasedCardsByName.get(key) ?? [];
     cards.push(card);
     releasedCardsByName.set(key, cards);
@@ -349,22 +373,56 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
       if (matchedSingleKeys.has(revealKey)) continue;
       matchedSingleKeys.add(revealKey);
       const storedMatch = reveal.libraryMatch;
-      const releasedNameMatches = releasedCardsByName.get(reveal.name.trim().toLowerCase()) ?? [];
+      const nameKey = reveal.name.trim().toLowerCase();
+      const localNameMatches = localCardsByName.get(nameKey) ?? [];
+      const releasedNameMatches = releasedCardsByName.get(nameKey) ?? [];
+      const revealNumber = normalizedUpcomingCardNumber(reveal.cardNumber);
+      const numberedLocalMatches = revealNumber == null
+        ? []
+        : localNameMatches.filter((card) =>
+            [card.card_number, card.printed_card_number]
+              .map(normalizedUpcomingCardNumber)
+              .includes(revealNumber)
+          );
+      const futureNameMatches = localNameMatches.filter((card) =>
+        Boolean(card.episode.release_date && card.episode.release_date >= releaseCutoff)
+      );
+      const megaPromoNameMatches = localNameMatches.filter((card) =>
+        card.episode.code?.trim().toUpperCase() === "MEP"
+      );
+      const resolvedCard = storedMatch
+        ? localCardsById.get(storedMatch.cardId) ?? null
+        : numberedLocalMatches.length === 1
+          ? numberedLocalMatches[0]
+          : megaPromoNameMatches.length === 1
+            ? megaPromoNameMatches[0]
+          : futureNameMatches.length === 1
+            ? futureNameMatches[0]
+            : null;
+      const resolvedIsReleased = Boolean(
+        resolvedCard?.episode.release_date && resolvedCard.episode.release_date <= releaseCutoff
+      );
+      const revealBelongsToUpcomingRelease = Boolean(
+        reveal.releaseDate && reveal.releaseDate >= releaseCutoff
+      );
       if (!shouldShowUpcomingSourceReveal({
         hasExactLibraryMatch: Boolean(storedMatch),
+        exactLibraryMatchIsReleased: storedMatch
+          ? resolvedIsReleased && !revealBelongsToUpcomingRelease
+          : undefined,
         releasedNameMatchCount: releasedNameMatches.length,
         episodeName: reveal.episodeName,
       })) {
         continue;
       }
-      const libraryReference: UpcomingLibraryReference | null = storedMatch
+      const libraryReference: UpcomingLibraryReference | null = resolvedCard
         ? {
-            kind: storedMatch.method,
-            count: Math.max(1, releasedNameMatches.length),
-            href: `/expansions/${storedMatch.episodeId}?card=${storedMatch.cardId}`,
-            label: storedMatch.method === "artwork"
-              ? `Artwork matched to ${storedMatch.episodeName}`
-              : `Released in ${storedMatch.episodeName}`,
+            kind: storedMatch?.method ?? "name",
+            count: Math.max(1, localNameMatches.length),
+            href: `/expansions/${resolvedCard.episode.id}?card=${resolvedCard.id}`,
+            label: storedMatch?.method === "artwork"
+              ? `Artwork matched to ${resolvedCard.episode.name}`
+              : `Database card in ${resolvedCard.episode.name}`,
           }
         : releasedNameMatches.length
           ? {
@@ -376,16 +434,18 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
           : null;
       sourceSingles.push({
         id: `source:${source.id}:${index}`,
-        cardId: storedMatch?.cardId ?? null,
-        name: reveal.name,
-        imageUrl: reveal.imageUrl,
-        cardNumber: reveal.cardNumber,
-        rarity: reveal.rarity,
-        version: null,
-        episodeId: storedMatch?.episodeId ?? null,
-        episodeName: reveal.episodeName ?? source.title?.trim() ?? "Source reveal",
+        cardId: resolvedCard?.id ?? null,
+        name: resolvedCard?.name ?? reveal.name,
+        imageUrl: resolvedCard?.image_url ?? reveal.imageUrl,
+        cardNumber: reveal.cardNumber ?? resolvedCard?.card_number ?? null,
+        rarity: resolvedCard?.rarity ?? reveal.rarity,
+        version: resolvedCard?.version ?? null,
+        episodeId: resolvedCard?.episode.id ?? null,
+        // Keep the source gallery identity and upcoming numbering intact. The
+        // local episode/card ids are only the destination for Card Detail.
+        episodeName: reveal.episodeName ?? source.title?.trim() ?? resolvedCard?.episode.name ?? "Source reveal",
         episodeCode: null,
-        releaseDate: reveal.releaseDate,
+        releaseDate: reveal.releaseDate ?? resolvedCard?.episode.release_date ?? null,
         status:
           source.source_type === "official"
             ? "confirmed"

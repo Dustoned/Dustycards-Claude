@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatCurrency } from "@/lib/format";
 
 const RATE_OPTIONS = [60, 65, 70, 75, 80, 85] as const;
 const DEFAULT_RATE = 70;
+const VENDOR_RATE_STORAGE_KEY = "dustycards.sale.vendor-rate.v1";
 
 function normalizeRate(value: unknown): number {
   const parsed =
@@ -28,13 +29,30 @@ export default function VendorBuyEstimate({
 }) {
   const [rate, setRate] = useState(DEFAULT_RATE);
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        setRate(normalizeRate(window.localStorage.getItem(VENDOR_RATE_STORAGE_KEY)));
+      } catch {
+        // Keep the default when browser storage is unavailable.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const vendorValue = useMemo(
     () => Number(((estimatedValue * rate) / 100).toFixed(2)),
     [estimatedValue, rate]
   );
 
   function handleRateChange(nextRate: string) {
-    setRate(normalizeRate(nextRate));
+    const normalized = normalizeRate(nextRate);
+    setRate(normalized);
+    try {
+      window.localStorage.setItem(VENDOR_RATE_STORAGE_KEY, String(normalized));
+    } catch {
+      // The current selection still works for this session.
+    }
   }
 
   return (
@@ -46,11 +64,11 @@ export default function VendorBuyEstimate({
         <select
           value={rate}
           onChange={(event) => handleRateChange(event.target.value)}
-          className="h-8 rounded-xl border border-white/10 bg-[#111116] px-2.5 text-xs font-black tabular-nums text-white outline-none transition-colors hover:border-white/18 focus:border-emerald-300/45"
+          className="h-8 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.88)] bg-[var(--dc-surface-elevated)] px-2.5 text-xs font-black tabular-nums text-[var(--dc-text-primary)] outline-none transition-colors hover:border-[var(--dc-border-hover)] focus:border-[rgb(var(--dc-success-rgb)/0.55)]"
           aria-label="Vendor buy percentage"
         >
           {RATE_OPTIONS.map((option) => (
-            <option key={option} value={option} className="bg-[#080808] text-white">
+            <option key={option} value={option} className="bg-[var(--dc-surface-primary)] text-[var(--dc-text-primary)]">
               {option}%
             </option>
           ))}

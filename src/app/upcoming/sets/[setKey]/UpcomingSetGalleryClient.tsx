@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ExternalLink, Search, Sparkles } from "lucide-react";
 import { useDeferredValue, useMemo, useState } from "react";
 import CachedImage from "@/components/CachedImage";
+import UpcomingCardImageViewer from "@/components/UpcomingCardImageViewer";
 import { useSettings } from "@/components/SettingsProvider";
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import type { UpcomingSingleGroup } from "@/lib/upcoming-single-groups";
@@ -39,10 +40,20 @@ function compareNumber(left: UpcomingSingleItem, right: UpcomingSingleItem, dire
   return direction === "desc" ? rightNumber - leftNumber : leftNumber - rightNumber;
 }
 
-function GalleryCard({ item, imageSizes }: { item: UpcomingSingleItem; imageSizes: string }) {
-  const cardHref = item.libraryReference?.href ?? (item.episodeId && item.cardId
+function GalleryCard({
+  item,
+  imageSizes,
+  onPreview,
+}: {
+  item: UpcomingSingleItem;
+  imageSizes: string;
+  onPreview: (item: UpcomingSingleItem) => void;
+}) {
+  const cardHref = item.episodeId && item.cardId
     ? `/expansions/${item.episodeId}?card=${item.cardId}`
-    : null);
+    : item.libraryReference?.kind !== "name"
+      ? item.libraryReference?.href ?? null
+      : null;
   const artwork = (
     <div className="relative aspect-[63/88] overflow-hidden rounded-[5%] bg-black/22 shadow-[0_16px_34px_rgba(0,0,0,0.3)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_20px_42px_rgba(0,0,0,0.42)]">
       {item.imageUrl ? (
@@ -61,7 +72,7 @@ function GalleryCard({ item, imageSizes }: { item: UpcomingSingleItem; imageSize
       </span>
       {item.libraryReference ? (
         <span
-          className="absolute bottom-1.5 right-1.5 rounded-full border border-emerald-300/22 bg-[#09150f]/88 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-200 backdrop-blur-md sm:bottom-2 sm:right-2 sm:text-[8px]"
+          className="absolute bottom-1.5 right-1.5 rounded-full border border-[rgb(var(--dc-success-rgb)/0.3)] bg-[var(--dc-surface-glass-strong)] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-[var(--dc-success)] backdrop-blur-md sm:bottom-2 sm:right-2 sm:text-[8px]"
           title={item.libraryReference.label}
         >
           {item.libraryReference.kind === "name"
@@ -76,8 +87,10 @@ function GalleryCard({ item, imageSizes }: { item: UpcomingSingleItem; imageSize
     <article className="group min-w-0">
       {cardHref ? (
         <Link href={cardHref} prefetch={false} className="block">{artwork}</Link>
-      ) : item.sourceUrl ? (
-        <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="block">{artwork}</a>
+      ) : item.imageUrl ? (
+        <button type="button" onClick={() => onPreview(item)} className="block w-full text-left" aria-label={`View ${item.name} in 3D`}>
+          {artwork}
+        </button>
       ) : artwork}
       <div className="px-0.5 pb-1 pt-2">
         <div className="flex items-start justify-between gap-1.5">
@@ -101,6 +114,7 @@ export default function UpcomingSetGalleryClient({ group }: { group: UpcomingSin
   const { displaySettings, isMobileViewport } = useSettings();
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState<GallerySort>("number-desc");
+  const [previewItem, setPreviewItem] = useState<UpcomingSingleItem | null>(null);
   const query = useDeferredValue(search).trim().toLowerCase();
   const visible = useMemo(() => group.items
     .filter((item) => {
@@ -141,13 +155,18 @@ export default function UpcomingSetGalleryClient({ group }: { group: UpcomingSin
               className="h-11 w-full rounded-xl border border-white/9 bg-black/16 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/28 focus:border-violet-400/35"
             />
           </label>
-          <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-black/14 p-1 sm:grid-cols-4">
+          <div className="flex flex-wrap items-center gap-1.5">
             {SORTS.map((option) => (
               <button
                 key={option.key}
                 type="button"
                 onClick={() => setSort(option.key)}
-                className={`h-9 rounded-lg px-3 text-[10px] font-bold transition ${sort === option.key ? "bg-violet-600 text-white shadow-[0_8px_24px_rgba(124,92,255,0.24)]" : "text-white/46 hover:bg-white/[0.05] hover:text-white"}`}
+                aria-pressed={sort === option.key}
+                className={`h-9 flex-1 rounded-xl border px-3 text-[10px] font-bold transition-colors sm:flex-none ${
+                  sort === option.key
+                    ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)]"
+                    : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:bg-[rgb(var(--dc-primary-rgb)/0.06)] hover:text-[var(--dc-text-primary)]"
+                }`}
               >
                 {option.label}
               </button>
@@ -166,7 +185,7 @@ export default function UpcomingSetGalleryClient({ group }: { group: UpcomingSin
             style={{ gridTemplateColumns }}
           >
             {visible.map((item) => (
-              <GalleryCard key={item.id} item={item} imageSizes={imageSizes} />
+              <GalleryCard key={item.id} item={item} imageSizes={imageSizes} onPreview={setPreviewItem} />
             ))}
           </div>
         </section>
@@ -175,6 +194,10 @@ export default function UpcomingSetGalleryClient({ group }: { group: UpcomingSin
           No cards match this search.
         </div>
       )}
+
+      {previewItem ? (
+        <UpcomingCardImageViewer item={previewItem} onClose={() => setPreviewItem(null)} />
+      ) : null}
     </div>
   );
 }

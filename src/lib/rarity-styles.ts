@@ -1,51 +1,64 @@
 import { normalizeRarityLabel } from "@/lib/rarity";
 
+const BADGE_NEUTRAL =
+  "border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[rgb(var(--dc-surface-hover-rgb)/0.5)] text-[var(--dc-text-secondary)]";
+const BADGE_PRIMARY =
+  "border border-[rgb(var(--dc-primary-rgb)/0.18)] bg-[rgb(var(--dc-primary-rgb)/0.075)] text-[color-mix(in_srgb,var(--dc-primary)_64%,var(--dc-text-primary))]";
+const BADGE_CYAN =
+  "border border-[rgb(var(--dc-cyan-rgb)/0.18)] bg-[rgb(var(--dc-cyan-rgb)/0.07)] text-[color-mix(in_srgb,var(--dc-cyan)_66%,var(--dc-text-primary))]";
+const BADGE_SUCCESS =
+  "border border-[rgb(var(--dc-success-rgb)/0.18)] bg-[rgb(var(--dc-success-rgb)/0.07)] text-[color-mix(in_srgb,var(--dc-success)_64%,var(--dc-text-primary))]";
+const BADGE_GOLD =
+  "border border-[rgb(var(--dc-gold-rgb)/0.2)] bg-[rgb(var(--dc-gold-rgb)/0.075)] text-[color-mix(in_srgb,var(--dc-gold)_66%,var(--dc-text-primary))]";
+const BADGE_WARM =
+  "border border-[rgb(var(--dc-negative-rgb)/0.17)] bg-[rgb(var(--dc-negative-rgb)/0.065)] text-[color-mix(in_srgb,var(--dc-negative)_62%,var(--dc-text-primary))]";
+
 const LIGHT_BADGE: Record<string, string> = {
-  Common: "bg-black/6 dark:bg-white/8 text-gray-500 dark:text-gray-400",
-  Uncommon: "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400",
-  Rare: "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400",
-  "Rare Holo": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400",
-  "Rare Ultra": "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400",
-  "Ultra Rare": "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
-  "Secret Rare": "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400",
-  "Amazing Rare": "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-400",
-  Promo: "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
-  "Radiant Rare": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
-  "ACE SPEC Rare": "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
-  "Double Rare": "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300",
-  "Illustration Rare": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
-  "Special Illustration Rare": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
-  "Hyper Rare": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
-  "Shiny Rare": "bg-lime-50 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300",
-  "Shiny Ultra Rare": "bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300",
-  "Rare Rainbow": "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
-  "Rare Holo EX": "bg-red-50 dark:bg-red-900/30 text-red-700 dark:text-red-300",
-  "Rare Holo V": "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300",
-  "Rare Holo GX": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
-  "Trainer Gallery Rare Holo": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
-  "Rare Holo LV.X": "bg-sky-50 dark:bg-sky-900/30 text-sky-700 dark:text-sky-300",
-  "Rare Holo VSTAR": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
-  "Rare Shiny": "bg-lime-50 dark:bg-lime-900/30 text-lime-700 dark:text-lime-300",
-  "Rare Shiny GX": "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
-  "Rare BREAK": "bg-orange-50 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300",
-  "Rare Prism Star": "bg-cyan-50 dark:bg-cyan-900/30 text-cyan-700 dark:text-cyan-300",
-  "Rare Prime": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
-  "Classic Collection": "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
-  "Rare Holo Star": "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
-  LEGEND: "bg-stone-100 dark:bg-stone-800/60 text-stone-700 dark:text-stone-300",
-  "Rare Shining": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
-  "Rare ACE": "bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300",
-  "Art Rare": "bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-300",
-  "Special Art Rare": "bg-pink-50 dark:bg-pink-900/30 text-pink-700 dark:text-pink-300",
-  "Mega Hyper Rare": "bg-fuchsia-50 dark:bg-fuchsia-900/30 text-fuchsia-700 dark:text-fuchsia-300",
-  "Black White Rare": "bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300",
-  Leader: "bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300",
-  "Super Rare": "bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300",
-  "Treasure Rare": "bg-violet-50 dark:bg-violet-900/30 text-violet-700 dark:text-violet-300",
-  "Alternate Art": "bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300",
-  "Manga Rare": "bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300",
-  "Special Rare": "bg-emerald-50 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300",
-  "DON!!": "bg-yellow-50 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300",
+  Common: BADGE_NEUTRAL,
+  Uncommon: BADGE_SUCCESS,
+  Rare: BADGE_CYAN,
+  "Rare Holo": BADGE_PRIMARY,
+  "Rare Ultra": BADGE_GOLD,
+  "Ultra Rare": BADGE_GOLD,
+  "Secret Rare": BADGE_WARM,
+  "Amazing Rare": BADGE_CYAN,
+  Promo: BADGE_GOLD,
+  "Radiant Rare": BADGE_GOLD,
+  "ACE SPEC Rare": BADGE_PRIMARY,
+  "Double Rare": BADGE_CYAN,
+  "Illustration Rare": BADGE_CYAN,
+  "Special Illustration Rare": BADGE_PRIMARY,
+  "Hyper Rare": BADGE_GOLD,
+  "Shiny Rare": BADGE_SUCCESS,
+  "Shiny Ultra Rare": BADGE_SUCCESS,
+  "Rare Rainbow": BADGE_PRIMARY,
+  "Rare Holo EX": BADGE_WARM,
+  "Rare Holo V": BADGE_PRIMARY,
+  "Rare Holo GX": BADGE_PRIMARY,
+  "Trainer Gallery Rare Holo": BADGE_PRIMARY,
+  "Rare Holo LV.X": BADGE_CYAN,
+  "Rare Holo VSTAR": BADGE_GOLD,
+  "Rare Shiny": BADGE_SUCCESS,
+  "Rare Shiny GX": BADGE_SUCCESS,
+  "Rare BREAK": BADGE_GOLD,
+  "Rare Prism Star": BADGE_CYAN,
+  "Rare Prime": BADGE_CYAN,
+  "Classic Collection": BADGE_NEUTRAL,
+  "Rare Holo Star": BADGE_GOLD,
+  LEGEND: BADGE_NEUTRAL,
+  "Rare Shining": BADGE_GOLD,
+  "Rare ACE": BADGE_PRIMARY,
+  "Art Rare": BADGE_CYAN,
+  "Special Art Rare": BADGE_PRIMARY,
+  "Mega Hyper Rare": BADGE_PRIMARY,
+  "Black White Rare": BADGE_NEUTRAL,
+  Leader: BADGE_GOLD,
+  "Super Rare": BADGE_CYAN,
+  "Treasure Rare": BADGE_PRIMARY,
+  "Alternate Art": BADGE_PRIMARY,
+  "Manga Rare": BADGE_WARM,
+  "Special Rare": BADGE_SUCCESS,
+  "DON!!": BADGE_GOLD,
 };
 
 const DARK_BADGE: Record<string, string> = {
@@ -96,7 +109,7 @@ const DARK_BADGE: Record<string, string> = {
   "DON!!": "bg-yellow-500/16 text-yellow-300",
 };
 
-const LIGHT_FALLBACK = "bg-black/5 dark:bg-white/6 text-gray-500 dark:text-gray-400";
+const LIGHT_FALLBACK = BADGE_NEUTRAL;
 const DARK_FALLBACK = "bg-white/8 text-white/58";
 
 export function rarityBadge(rarity: string | null): string {

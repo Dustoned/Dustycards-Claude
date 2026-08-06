@@ -10,6 +10,7 @@ export interface StoredUpcomingReveal {
   status: "confirmed" | "reveal" | "leak";
   libraryMatch: StoredUpcomingLibraryMatch | null;
   libraryMatchCheckedAt: string | null;
+  libraryMatchVersion?: number;
 }
 
 export interface StoredUpcomingLibraryMatch {
@@ -122,6 +123,7 @@ function revealFromImage(altValue: string, urlValue: string): StoredUpcomingReve
     status: /\b(?:leak(?:ed)?|rumou?r)\b/i.test(alt) ? "leak" : "reveal",
     libraryMatch: null,
     libraryMatchCheckedAt: null,
+    libraryMatchVersion: 0,
   };
 }
 
@@ -186,6 +188,9 @@ export function readStoredUpcomingReveals(metadataJson: string | null): StoredUp
         libraryMatchCheckedAt: typeof row.libraryMatchCheckedAt === "string" && row.libraryMatchCheckedAt.trim()
           ? row.libraryMatchCheckedAt.trim()
           : null,
+        libraryMatchVersion: typeof row.libraryMatchVersion === "number"
+          ? row.libraryMatchVersion
+          : 0,
       } satisfies StoredUpcomingReveal];
     });
   } catch {

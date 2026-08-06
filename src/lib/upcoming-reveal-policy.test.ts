@@ -10,6 +10,15 @@ describe("shouldShowUpcomingSourceReveal", () => {
     })).toBe(false);
   });
 
+  it("keeps exact database matches that belong to a future release", () => {
+    expect(shouldShowUpcomingSourceReveal({
+      hasExactLibraryMatch: true,
+      exactLibraryMatchIsReleased: false,
+      releasedNameMatchCount: 0,
+      episodeName: "Mega Promos",
+    })).toBe(true);
+  });
+
   it("hides name matches in explicit promo reprint galleries", () => {
     expect(shouldShowUpcomingSourceReveal({
       hasExactLibraryMatch: false,

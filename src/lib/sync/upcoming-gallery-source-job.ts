@@ -28,6 +28,7 @@ const DIRECT_TIMEOUT_MS = 18_000;
 const DIRECT_MINIMUM_HTML_LENGTH = 12_000;
 const LIBRARY_MATCH_BATCH_SIZE = 3;
 const LIBRARY_MATCH_RECHECK_MS = 14 * 24 * 60 * 60_000;
+const LIBRARY_MATCH_VERSION = 2;
 const STRONG_UPCOMING_ARTWORK_SIMILARITY = 0.88;
 const FIRECRAWL_CONSUMER = "upcoming-source-monitor";
 
@@ -200,15 +201,9 @@ function storedArtworkHash(card: UpcomingLibraryCandidate): ArtworkHash | null {
   return full && illustration ? { full, illustration } : null;
 }
 
-function isReleasedCandidate(card: UpcomingLibraryCandidate, today: string): boolean {
-  return Boolean(card.episode.release_date && card.episode.release_date <= today);
-}
-
 async function findUpcomingLibraryMatch(
-  reveal: StoredUpcomingReveal,
-  now: Date
+  reveal: StoredUpcomingReveal
 ): Promise<StoredUpcomingLibraryMatch | null> {
-  const today = now.toISOString().slice(0, 10);
   const aliases = episodeAliases(reveal.episodeName);
   const [sameNameCards, matchingEpisodes] = await Promise.all([
     db.card.findMany({
@@ -257,8 +252,7 @@ async function findUpcomingLibraryMatch(
   const direct = revealNumber == null
     ? null
     : episodeCards.find((card) =>
-        isReleasedCandidate(card, today)
-        && normalizedCardNumber(card.card_number) === revealNumber
+        normalizedCardNumber(card.card_number) === revealNumber
       ) ?? null;
   if (direct) return asLibraryMatch(direct, "set-number", 1);
 
@@ -291,12 +285,10 @@ async function findUpcomingLibraryMatch(
   });
   const exactArtwork = exactEvidence
     .map((evidence) => evidence.card)
-    .filter((card) => isReleasedCandidate(card, today))
     .sort((left, right) => (right.episode.release_date ?? "").localeCompare(left.episode.release_date ?? ""))[0];
   if (exactArtwork) return asLibraryMatch(exactArtwork, "artwork", 1);
 
   const strongestNamedMatch = sameNameCards
-    .filter((card) => isReleasedCandidate(card, today))
     .map((card) => ({ card, similarity: getArtworkHashSimilarity(revealHash, storedArtworkHash(card)) }))
     .filter((candidate) => candidate.similarity >= STRONG_UPCOMING_ARTWORK_SIMILARITY)
     .sort((left, right) => right.similarity - left.similarity)[0];
@@ -426,6 +418,7 @@ export function extractOfficialPokemonPortraitReveals(
       status: "confirmed",
       libraryMatch: null,
       libraryMatchCheckedAt: null,
+      libraryMatchVersion: 0,
     });
   }
   return [...reveals.values()];
@@ -453,6 +446,7 @@ function normalizeReveals(
       status: definition.sourceType === "official" ? "confirmed" as const : reveal.status,
       libraryMatch: previous?.libraryMatch ?? reveal.libraryMatch,
       libraryMatchCheckedAt: previous?.libraryMatchCheckedAt ?? reveal.libraryMatchCheckedAt,
+      libraryMatchVersion: previous?.libraryMatchVersion ?? reveal.libraryMatchVersion ?? 0,
     };
     const key = `${normalized.name.toLowerCase()}\u0000${normalized.cardNumber ?? ""}\u0000${normalized.imageUrl}`;
     reveals.set(key, normalized);
@@ -702,17 +696,27 @@ export async function refreshUpcomingGallerySources(
   return result;
 }
 
-async function matchStoredUpcomingRevealBacklog(now: Date): Promise<void> {
+export async function matchStoredUpcomingRevealBacklog(
+  now: Date,
+  limit = LIBRARY_MATCH_BATCH_SIZE
+): Promise<number> {
   const staleBefore = new Date(now.getTime() - LIBRARY_MATCH_RECHECK_MS).getTime();
   const sources = await db.externalCatalystSource.findMany({
-    where: { canonical_url: { in: UPCOMING_GALLERY_SOURCES.map((source) => source.url) } },
-    orderBy: [{ updated_at: "asc" }],
+    where: {
+      game: "pokemon",
+      source_type: { in: ["official", "community"] },
+      metadata_json: { contains: '"upcomingReveals"' },
+    },
+    // Newly discovered and freshly changed sets are useful immediately. Old
+    // unmatched reveals remain eligible on later bounded passes.
+    orderBy: [{ updated_at: "desc" }],
+    take: 160,
     select: { id: true, metadata_json: true },
   });
   let checked = 0;
 
   for (const source of sources) {
-    if (checked >= LIBRARY_MATCH_BATCH_SIZE || !source.metadata_json) break;
+    if (checked >= limit || !source.metadata_json) break;
     let payload: Record<string, unknown>;
     try {
       const parsed = JSON.parse(source.metadata_json) as unknown;
@@ -724,13 +728,21 @@ async function matchStoredUpcomingRevealBacklog(now: Date): Promise<void> {
     const reveals = readStoredUpcomingReveals(source.metadata_json);
     let changed = false;
     for (const reveal of reveals) {
-      if (checked >= LIBRARY_MATCH_BATCH_SIZE) break;
+      if (checked >= limit) break;
       const checkedAt = reveal.libraryMatchCheckedAt
         ? new Date(reveal.libraryMatchCheckedAt).getTime()
         : 0;
-      if (reveal.libraryMatch || (Number.isFinite(checkedAt) && checkedAt >= staleBefore)) continue;
-      reveal.libraryMatch = await findUpcomingLibraryMatch(reveal, now);
+      if (
+        reveal.libraryMatch
+        || (
+          (reveal.libraryMatchVersion ?? 0) >= LIBRARY_MATCH_VERSION
+          && Number.isFinite(checkedAt)
+          && checkedAt >= staleBefore
+        )
+      ) continue;
+      reveal.libraryMatch = await findUpcomingLibraryMatch(reveal);
       reveal.libraryMatchCheckedAt = now.toISOString();
+      reveal.libraryMatchVersion = LIBRARY_MATCH_VERSION;
       checked += 1;
       changed = true;
       await new Promise<void>((resolve) => setImmediate(resolve));
@@ -742,6 +754,7 @@ async function matchStoredUpcomingRevealBacklog(now: Date): Promise<void> {
       data: { metadata_json: JSON.stringify(payload) },
     });
   }
+  return checked;
 }
 
 let activeRefresh: Promise<UpcomingGalleryRefreshResult> | null = null;

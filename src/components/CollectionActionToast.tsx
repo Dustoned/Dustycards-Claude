@@ -41,7 +41,7 @@ export default function CollectionActionToast() {
       key={toast.id}
       role="status"
       aria-live="polite"
-      className="fixed left-3 right-3 top-[calc(var(--ui-app-header-height)+env(safe-area-inset-top,0px)+0.65rem)] z-[430] mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-emerald-300/18 bg-[#0c1211]/92 p-2.5 pr-2 text-white shadow-[0_20px_60px_rgba(0,0,0,0.55)] backdrop-blur-2xl sm:left-auto sm:right-5 sm:top-auto sm:bottom-5 sm:mx-0 sm:w-[min(24rem,calc(100vw-2.5rem))]"
+      className="fixed left-3 right-3 top-[calc(var(--ui-app-header-height)+env(safe-area-inset-top,0px)+0.65rem)] z-[430] mx-auto flex max-w-sm items-center gap-3 rounded-2xl border border-[rgb(var(--dc-success-rgb)/0.24)] bg-[var(--dc-surface-glass-strong)] p-2.5 pr-2 text-[var(--dc-text-primary)] shadow-[0_20px_60px_var(--dc-shadow-color)] backdrop-blur-2xl sm:left-auto sm:right-5 sm:top-auto sm:bottom-5 sm:mx-0 sm:w-[min(24rem,calc(100vw-2.5rem))]"
       data-collection-confirmation-toast
     >
       <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-300/18 bg-emerald-300/10 text-emerald-200">

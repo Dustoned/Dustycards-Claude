@@ -104,7 +104,7 @@ export default function BinderOverviewTile({
         ? "No latest move"
         : binder.recentChangeLabel ?? "Latest move";
   const tileStyle = {
-    "--binder-accent": accentColor ?? "#7C5CFF",
+    "--binder-accent": accentColor ?? "var(--dc-primary)",
   } as CSSProperties;
 
   return (
@@ -167,7 +167,7 @@ export default function BinderOverviewTile({
                 style={{
                   width: progressWidth,
                   background: accentColor
-                    ? `linear-gradient(90deg, ${accentColor}, #a78bfa)`
+                    ? `linear-gradient(90deg, ${accentColor}, var(--dc-primary-soft))`
                     : undefined,
                 }}
               />

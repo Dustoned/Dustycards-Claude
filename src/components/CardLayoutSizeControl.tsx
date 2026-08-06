@@ -34,12 +34,12 @@ export default function CardLayoutSizeControl({
   const { displaySettings, isMobileViewport, setDisplay } = useSettings();
   const layoutOptions = isMobileViewport ? MOBILE_CARD_LAYOUT_OPTIONS : DESKTOP_CARD_LAYOUT_OPTIONS;
   const buttonSizeClass = dense
-    ? "min-h-8 min-w-[2.35rem] px-2 text-[10px] sm:min-w-[2.45rem] sm:text-[11px]"
-    : "min-h-8 min-w-[2.8rem] px-2 text-[11px] sm:min-w-[4rem] sm:text-xs";
+    ? "h-9 min-w-[2.35rem] px-2 text-[10px] sm:min-w-[2.45rem] sm:text-[11px]"
+    : "h-10 min-w-[2.8rem] px-2.5 text-[11px] sm:min-w-[4rem] sm:text-xs";
 
   return (
     <div
-      className={`grid min-w-0 shrink-0 gap-1 rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20 ${className}`}
+      className={`grid min-w-0 shrink-0 gap-1 ${className}`}
       style={{ gridTemplateColumns: `repeat(${layoutOptions.length}, minmax(0, 1fr))` }}
       aria-label="Card layout"
     >
@@ -53,10 +53,10 @@ export default function CardLayoutSizeControl({
             title={option.title}
             aria-pressed={active}
             onClick={() => setDisplay("cardSize", option.value)}
-            className={`${buttonSizeClass} rounded-full font-black leading-none transition-colors ${
+            className={`${buttonSizeClass} rounded-xl border font-black leading-none shadow-sm transition-[border-color,background-color,color,box-shadow,transform] active:scale-[0.97] ${
               active
-                ? "border border-violet-400/40 bg-violet-600 text-white"
-                : "text-white/56 hover:bg-white/[0.07] hover:text-white"
+                ? "border-[rgb(var(--dc-primary-rgb)/0.42)] bg-[rgb(var(--dc-primary-rgb)/0.14)] text-[var(--dc-primary)] shadow-[0_7px_18px_rgb(var(--dc-primary-rgb)/0.12)]"
+                : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:bg-[rgb(var(--dc-primary-rgb)/0.07)] hover:text-[var(--dc-text-primary)]"
             }`}
           >
             {option.label}

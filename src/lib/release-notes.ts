@@ -20,6 +20,42 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.0",
+    releasedAt: "August 6, 2026",
+    title: "One visual system for collecting, trading and discovery",
+    summary:
+      "DustyCards now carries the selected theme through the complete interface, makes Card and Sealed Detail denser and clearer, and adds convention-aware trade suggestions plus practical Upcoming galleries.",
+    tone: "new",
+    sections: [
+      {
+        title: "Professional themes everywhere",
+        highlights: [
+          "Collector Violet, Lavender Bloom, Porcelain Studio, Blush Petal and Crimson Forge were rebuilt as distinct coordinated styles instead of simple accent swaps.",
+          "Surfaces, glass, overlays, charts, status colours, tiles, popups and hover states now follow the same semantic palette in both the app and the live custom-theme preview.",
+          "Custom themes expose every meaningful colour in grouped controls, with immediate desktop, mobile and status previews.",
+        ],
+      },
+      {
+        title: "Collector-first detail pages",
+        highlights: [
+          "Card Detail removes redundant frames, links expansion and illustrator information, puts price status inside the graph and shows related sealed products in a horizontal rail beneath it.",
+          "The 3D card floats naturally over the interface with a richer pearlescent holo, restrained inline zoom and double-click access to the large viewer.",
+          "Sealed Detail preserves product artwork proportions, fills unused space with Featured Cards and links directly to its expansion.",
+          "Complete Collection gains a clear List or Grid choice plus a modern compact card-size control.",
+        ],
+      },
+      {
+        title: "Smarter trades and upcoming cards",
+        highlights: [
+          "After Side A is chosen, Trade Center can open Side B with the closest cards for an 85%, 90%, 95% or 100% convention value; trade and sale percentages stay saved on the device.",
+          "Friend matches stay freely selectable and no longer mix completed Sold records with cards still offered for sale.",
+          "Upcoming reveals reuse the higher-quality database card when available, open unknown cards in a focused viewer and remain swipeable and selectable from each set row.",
+          "Released cards are filtered from Upcoming incrementally, while visual evidence now outweighs matching names or rules text in reprint review.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.11.0",
     releasedAt: "August 5, 2026",
     title: "Faster opening, reliable navigation and a readable update history",

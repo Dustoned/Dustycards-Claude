@@ -1,10 +1,11 @@
 ﻿"use client";
 
 import dynamic from "next/dynamic";
-import { ArrowDown, ArrowUp, Search, X } from "lucide-react";
+import { ArrowDown, ArrowUp, Grid2X2, List, Search, X } from "lucide-react";
 import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
 import CardLayoutSizeControl from "@/components/CardLayoutSizeControl";
 import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
+import { useSettings, type CardView } from "@/components/SettingsProvider";
 import { cardMatchesSearchQuery } from "@/lib/card-search";
 import {
   buildOverviewSectionOrderCookie,
@@ -212,6 +213,8 @@ export default function CollectionOverviewSections({
   initialSectionOrder = null,
   readOnly = false,
 }: Props) {
+  const { displaySettings, setDisplay } = useSettings();
+  const activeCardView = displaySettings.defaultView === "table" ? "table" : "grid";
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim();
@@ -257,15 +260,6 @@ export default function CollectionOverviewSections({
         : binders,
     [binders, hasSearch, normalizedSearch]
   );
-  const totalSearchableItems =
-    gradedLooseSingles.length + rawLooseSingles.length + binderCards.length + sealed.length + binders.length;
-  const matchingSearchableItems =
-    filteredGradedLooseSingles.length +
-    filteredRawLooseSingles.length +
-    filteredBinderCards.length +
-    filteredSealed.length +
-    filteredBinders.length;
-
   useEffect(() => {
     if (hasResolvedSectionOrder) {
       return;
@@ -482,11 +476,31 @@ export default function CollectionOverviewSections({
           ) : null}
         </div>
         <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
-          <span className="hidden h-9 shrink-0 items-center justify-center rounded-full border border-white/8 bg-white/[0.045] px-3 text-xs font-bold tabular-nums text-white/48 md:inline-flex">
-            {hasSearch
-              ? `${matchingSearchableItems.toLocaleString("en-US")} / ${totalSearchableItems.toLocaleString("en-US")}`
-              : `${totalSearchableItems.toLocaleString("en-US")} items`}
-          </span>
+          <div className="flex shrink-0 items-center gap-1" aria-label="Collection card view">
+            {[
+              { value: "table" as const, label: "List", Icon: List },
+              { value: "grid" as const, label: "Grid", Icon: Grid2X2 },
+            ].map(({ value, label, Icon }) => {
+              const active = activeCardView === value;
+              return (
+                <button
+                  key={value}
+                  type="button"
+                  onClick={() => setDisplay("defaultView", value as CardView)}
+                  aria-pressed={active}
+                  title={`${label} view`}
+                  className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-bold transition-colors ${
+                    active
+                      ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)]"
+                      : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" aria-hidden="true" />
+                  <span className="hidden sm:inline">{label}</span>
+                </button>
+              );
+            })}
+          </div>
           <CardLayoutSizeControl dense />
         </div>
       </div>

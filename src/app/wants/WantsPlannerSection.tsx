@@ -167,7 +167,7 @@ function QuickViewSortControl({
       <p className="mb-1 text-[9px] font-bold uppercase tracking-[0.14em] text-white/32 max-[640px]:mb-0 max-[640px]:text-[8px] max-[640px]:tracking-[0.1em]">
         Sort
       </p>
-      <div className="dc-modal-control grid max-w-full grid-cols-3 items-center gap-1 rounded-2xl border border-white/12 bg-[#07070a] p-1">
+      <div className="dc-modal-control grid max-w-full grid-cols-3 items-center gap-1 rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-bg-main)] p-1">
         {QUICK_VIEW_SORTS.map((option) => {
           const active = sortField === option.key;
           return (
@@ -213,7 +213,7 @@ function QuickViewSegmentedControl<TValue extends string>({
         {label}
       </p>
       <div
-        className="dc-modal-control grid max-w-full items-center gap-1 rounded-2xl border border-white/12 bg-[#07070a] p-1"
+        className="dc-modal-control grid max-w-full items-center gap-1 rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-bg-main)] p-1"
         style={{ gridTemplateColumns: `repeat(${options.length}, minmax(0, 1fr))` }}
       >
         {options.map((option) => {
@@ -254,7 +254,7 @@ function PlannerCardRow({
     item.current_value == null ? "No price" : formatCollectionCurrency(item.current_value);
 
   return (
-    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.25rem] items-center gap-2.5 rounded-xl border border-white/12 bg-[#111114] px-2 py-2 shadow-[0_14px_30px_rgba(0,0,0,0.36),inset_0_1px_0_rgba(255,255,255,0.05)] transition-colors hover:border-white/18 hover:bg-[#151518] sm:px-2.5">
+    <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_2.25rem] items-center gap-2.5 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-elevated)] px-2 py-2 shadow-[0_14px_30px_var(--dc-shadow-color),inset_0_1px_0_var(--dc-sheen)] transition-colors hover:border-[var(--dc-border-hover)] hover:bg-[var(--dc-surface-hover)] sm:px-2.5">
       <button
         type="button"
         onClick={() => onOpenCard(item)}
@@ -388,7 +388,7 @@ function BinderQuickViewBody({
           </div>
         </div>
 
-        <div className="dc-modal-surface grid gap-1.5 rounded-2xl border border-white/12 bg-[#101014] p-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+        <div className="dc-modal-surface grid gap-1.5 rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-primary)] p-2 shadow-[inset_0_1px_0_var(--dc-sheen)] sm:gap-2 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <QuickViewSortControl
             sortField={sortField}
             sortDirection={sortDirection}
@@ -419,7 +419,7 @@ function BinderQuickViewBody({
           ))}
         </div>
       ) : (
-        <p className="mt-2 rounded-xl border border-white/10 bg-[#101012] px-3 py-2 text-sm text-white/64">
+        <p className="mt-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] px-3 py-2 text-sm text-[rgb(var(--dc-text-primary-rgb)/0.64)]">
           No cards match these quick view filters.
         </p>
       )}
@@ -442,7 +442,7 @@ function BinderSearchMatches({
   const hiddenCount = Math.max(group.items.length - visibleItems.length, 0);
 
   return (
-    <div className="rounded-2xl border border-emerald-400/24 bg-[#081411] p-2.5 shadow-[0_14px_32px_rgba(0,0,0,0.28),inset_0_1px_0_rgba(255,255,255,0.06)]">
+    <div className="rounded-2xl border border-[rgb(var(--dc-success-rgb)/0.24)] bg-[var(--dc-success-bg)] p-2.5 shadow-[0_14px_32px_var(--dc-shadow-color),inset_0_1px_0_var(--dc-sheen)]">
       <div className="mb-2 flex min-w-0 items-center justify-between gap-2">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-100">
@@ -587,7 +587,7 @@ function WantsQuickViewModal({
         <div
           className={`grid min-h-0 flex-1 gap-3 overflow-y-auto overscroll-contain px-3 py-3 sm:px-4 sm:py-4 ${bodyGridClass}`}
         >
-          <div className="dc-modal-surface hidden rounded-2xl border border-white/10 bg-[#101014] p-3 sm:block">
+          <div className="dc-modal-surface hidden rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] p-3 sm:block">
             {widescreen ? (
               <div className="mb-3 pr-9">
                 <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/38">
@@ -602,7 +602,7 @@ function WantsQuickViewModal({
               </div>
             ) : null}
             <div
-              className="relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-[#07070a]"
+              className="relative flex aspect-[16/10] items-center justify-center overflow-hidden rounded-xl border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-bg-main)]"
               style={accentColor ? { boxShadow: `inset 0 0 0 1px ${accentColor}30` } : undefined}
             >
               {group.logoUrl ? (
@@ -626,7 +626,7 @@ function WantsQuickViewModal({
                 style={{
                   width: progressWidth(group),
                   background: accentColor
-                    ? `linear-gradient(90deg, ${accentColor}, #38BDF8)`
+                    ? `linear-gradient(90deg, ${accentColor}, var(--dc-cyan))`
                     : undefined,
                 }}
               />
@@ -636,7 +636,7 @@ function WantsQuickViewModal({
               {metrics.map((metric) => (
                 <div
                   key={metric.label}
-                  className="rounded-xl border border-white/10 bg-[#0b0b0f] px-3 py-2"
+                  className="rounded-xl border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-elevated)] px-3 py-2"
                 >
                   <p className="truncate text-[9px] font-bold uppercase tracking-[0.12em] text-white/36">
                     {metric.label}
@@ -654,7 +654,7 @@ function WantsQuickViewModal({
             <Link
               href={`/wants/binders/${group.binderId}`}
               prefetch={false}
-              className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-white/10 bg-[#15151a] text-sm font-bold text-white transition-colors hover:bg-[#1d1d24]"
+              className="mt-3 inline-flex h-10 w-full items-center justify-center rounded-xl border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-elevated)] text-sm font-bold text-[var(--dc-text-primary)] transition-colors hover:bg-[var(--dc-surface-hover)]"
             >
               Open full binder
             </Link>
@@ -726,7 +726,7 @@ function WantBinderTile({
   const hiddenLabel =
     group.hiddenCards > 0 ? `${group.hiddenCards.toLocaleString("en-US")} hidden` : null;
   const tileStyle = {
-    "--binder-accent": accentColor ?? "#7C5CFF",
+    "--binder-accent": accentColor ?? "var(--dc-primary)",
   } as CSSProperties;
 
   return (
@@ -791,7 +791,7 @@ function WantBinderTile({
                 style={{
                   width: progressWidth(group),
                   background: accentColor
-                    ? `linear-gradient(90deg, ${accentColor}, #38BDF8)`
+                    ? `linear-gradient(90deg, ${accentColor}, var(--dc-cyan))`
                     : undefined,
                 }}
               />

@@ -25,6 +25,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
+import UpcomingCardImageViewer from "@/components/UpcomingCardImageViewer";
 import { useSettings } from "@/components/SettingsProvider";
 import {
   getCardGridImageSizes,
@@ -147,7 +148,7 @@ function SealedReleaseTile({
             <Package className="h-10 w-10" />
           </span>
         )}
-        <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-violet-400/18 bg-[#0d0b16]/82 px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-violet-200 backdrop-blur-md">
+        <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-[rgb(var(--dc-primary-rgb)/0.24)] bg-[var(--dc-surface-glass-strong)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--dc-primary)] backdrop-blur-md">
           <Package className="h-3 w-3" /> Sealed
         </span>
       </div>
@@ -186,14 +187,18 @@ function BinderSingleTile({
   item,
   interactive = true,
   imageSizes,
+  onPreview,
 }: {
   item: UpcomingSingleItem;
   interactive?: boolean;
   imageSizes: string;
+  onPreview?: (item: UpcomingSingleItem) => void;
 }) {
-  const cardHref = item.libraryReference?.href ?? (item.episodeId && item.cardId
+  const cardHref = item.episodeId && item.cardId
     ? `/expansions/${item.episodeId}?card=${item.cardId}`
-    : null);
+    : item.libraryReference?.kind !== "name"
+      ? item.libraryReference?.href ?? null
+      : null;
   const image = (
     <div className="relative aspect-[63/88] w-full overflow-hidden rounded-[5%] bg-black/22 shadow-[0_16px_32px_rgba(0,0,0,0.28)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_20px_38px_rgba(0,0,0,0.38)]">
       {item.imageUrl ? (
@@ -212,7 +217,7 @@ function BinderSingleTile({
       </span>
       {item.libraryReference ? (
         <span
-          className="absolute bottom-1.5 right-1.5 rounded-full border border-emerald-300/22 bg-[#09150f]/88 px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-emerald-200 backdrop-blur-md sm:bottom-2 sm:right-2 sm:text-[8px]"
+          className="absolute bottom-1.5 right-1.5 rounded-full border border-[rgb(var(--dc-success-rgb)/0.3)] bg-[var(--dc-surface-glass-strong)] px-1.5 py-0.5 text-[7px] font-black uppercase tracking-[0.08em] text-[var(--dc-success)] backdrop-blur-md sm:bottom-2 sm:right-2 sm:text-[8px]"
           title={item.libraryReference.label}
         >
           {item.libraryReference.kind === "name"
@@ -223,13 +228,9 @@ function BinderSingleTile({
     </div>
   );
 
-  return (
-    <article className="group min-w-0">
-      {!interactive ? image : cardHref ? (
-        <Link href={cardHref} prefetch={false} className="block">{image}</Link>
-      ) : item.sourceUrl ? (
-        <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="block">{image}</a>
-      ) : image}
+  const tileContent = (
+    <>
+      {image}
       <div className="px-0.5 pb-1 pt-2">
         <div className="flex items-start justify-between gap-1.5">
           <h4 className="line-clamp-2 text-[10px] font-bold leading-4 text-white/88 sm:text-xs">{item.name}</h4>
@@ -239,8 +240,37 @@ function BinderSingleTile({
           {item.rarity ?? item.version ?? item.sourceName ?? "Card reveal"}
         </p>
       </div>
-    </article>
+    </>
   );
+  const tileClassName =
+    "group block min-w-0 rounded-lg text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[rgb(var(--dc-primary-rgb)/0.7)]";
+
+  if (!interactive) {
+    return <article className={tileClassName}>{tileContent}</article>;
+  }
+
+  if (cardHref) {
+    return (
+      <Link href={cardHref} prefetch={false} className={tileClassName}>
+        {tileContent}
+      </Link>
+    );
+  }
+
+  if (item.imageUrl && onPreview) {
+    return (
+      <button
+        type="button"
+        onClick={() => onPreview(item)}
+        className={`w-full ${tileClassName}`}
+        aria-label={`View ${item.name} up close`}
+      >
+        {tileContent}
+      </button>
+    );
+  }
+
+  return <article className={tileClassName}>{tileContent}</article>;
 }
 
 function HorizontalCardRail({
@@ -332,10 +362,12 @@ function SingleSetSection({
   group,
   tileTrackWidth,
   imageSizes,
+  onPreview,
 }: {
   group: UpcomingSingleGroup;
   tileTrackWidth: string;
   imageSizes: string;
+  onPreview: (item: UpcomingSingleItem) => void;
 }) {
   const setHref = `/upcoming/sets/${encodeURIComponent(group.key)}`;
   const progress = group.coverage == null ? null : Math.round(group.coverage * 100);
@@ -393,16 +425,13 @@ function SingleSetSection({
           tileTrackWidth={tileTrackWidth}
         >
           {group.items.map((item) => (
-            <Link
+            <div
               key={item.id}
-              href={setHref}
-              prefetch={false}
-              aria-label={`Open ${group.name} gallery at ${item.name}`}
               className="min-w-0 rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70"
               style={{ contentVisibility: "auto", containIntrinsicSize: "auto 280px" }}
             >
-              <BinderSingleTile item={item} interactive={false} imageSizes={imageSizes} />
-            </Link>
+              <BinderSingleTile item={item} imageSizes={imageSizes} onPreview={onPreview} />
+            </div>
           ))}
         </HorizontalCardRail>
       </div>
@@ -454,6 +483,7 @@ export default function UpcomingReleasesClient({
   const [view, setView] = useState<ReleaseView>("all");
   const [search, setSearch] = useState("");
   const [visibleSingleGroupCount, setVisibleSingleGroupCount] = useState(4);
+  const [previewItem, setPreviewItem] = useState<UpcomingSingleItem | null>(null);
   const query = useDeferredValue(search).trim().toLowerCase();
   const filtered = useMemo(() => ({
     sealed: sealed.filter((item) => matchesQuery(query, [item.name, item.episodeName, item.episodeCode, item.sourceName])),
@@ -504,13 +534,18 @@ export default function UpcomingReleasesClient({
               className="h-11 w-full rounded-xl border border-white/9 bg-black/16 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/28 focus:border-violet-400/35"
             />
           </label>
-          <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-black/14 p-1 sm:grid-cols-4">
+          <div className="flex flex-wrap items-center gap-1.5">
             {tabs.map((tab) => (
               <button
                 key={tab.key}
                 type="button"
                 onClick={() => setView(tab.key)}
-                className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg px-3 text-[11px] font-bold transition ${view === tab.key ? "bg-violet-600 text-white shadow-[0_8px_24px_rgba(124,92,255,0.24)]" : "text-white/48 hover:bg-white/[0.05] hover:text-white"}`}
+                aria-pressed={view === tab.key}
+                className={`inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-xl border px-3 text-[11px] font-bold transition-colors sm:flex-none ${
+                  view === tab.key
+                    ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)]"
+                    : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:bg-[rgb(var(--dc-primary-rgb)/0.06)] hover:text-[var(--dc-text-primary)]"
+                }`}
               >
                 {tab.label}<span className="text-[9px] opacity-60">{tab.count}</span>
               </button>
@@ -544,6 +579,7 @@ export default function UpcomingReleasesClient({
                     group={group}
                     tileTrackWidth={singleTileTrackWidth}
                     imageSizes={singleImageSizes}
+                    onPreview={setPreviewItem}
                   />
                 ))}
               </div>
@@ -570,6 +606,10 @@ export default function UpcomingReleasesClient({
             </div>
           ) : <EmptyState>The next scheduled source scan will add new release and reveal stories here.</EmptyState>}
         </section>
+      ) : null}
+
+      {previewItem ? (
+        <UpcomingCardImageViewer item={previewItem} onClose={() => setPreviewItem(null)} />
       ) : null}
     </div>
   );

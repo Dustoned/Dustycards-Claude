@@ -2505,9 +2505,9 @@ export default function CollectionCardsView({
                 })}
               </div>
 
-              <div className="dc-wide-table-zone hidden overflow-x-auto rounded-2xl border border-black/8 bg-white/70 shadow-sm shadow-black/5 dark:border-white/8 dark:bg-white/[0.04] md:block">
-                <table className="min-w-full text-sm text-gray-900 dark:text-white">
-                  <thead className="border-b border-black/8 text-xs uppercase tracking-[0.14em] text-gray-400 dark:border-white/8 dark:text-white/40">
+              <div className="dc-wide-table-zone hidden overflow-x-auto rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[rgb(var(--dc-surface-primary-rgb)/0.86)] shadow-[0_16px_42px_var(--dc-shadow-color),inset_0_1px_0_var(--dc-sheen)] md:block">
+                <table className="min-w-full text-sm text-[var(--dc-text-primary)]">
+                  <thead className="border-b border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.5)] text-xs uppercase tracking-[0.14em] text-[var(--dc-text-muted)]">
                     <tr>
                       <th className="px-4 py-3 text-left font-semibold">Card</th>
                       <th className="px-4 py-3 text-left font-semibold">Rarity</th>
@@ -2559,12 +2559,12 @@ export default function CollectionCardsView({
                               handleTileActivate(item, selectionKey, selectableInMode);
                             }
                           }}
-                          className={`border-b border-black/6 transition-colors last:border-b-0 dark:border-white/6 ${
+                          className={`border-b border-[rgb(var(--dc-border-rgb)/0.7)] transition-colors last:border-b-0 ${
                             isSelected
-                              ? "bg-violet-500/10"
+                              ? "bg-[rgb(var(--dc-primary-rgb)/0.09)]"
                               : missing && blurMissing
                                 ? "opacity-70"
-                                : "hover:bg-black/[0.03] dark:hover:bg-white/[0.03]"
+                                : "hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.46)]"
                           } ${activeSelectionMode && !selectableInMode ? "cursor-not-allowed" : "cursor-pointer"}`}
                         >
                           <td className="px-4 py-3">
@@ -2585,7 +2585,7 @@ export default function CollectionCardsView({
                                     fetchPriority={index < 4 ? "high" : "auto"}
                                   />
                                 ) : (
-                                  <div className="flex h-full w-full items-center justify-center text-xs text-gray-400 dark:text-white/35">
+                                  <div className="flex h-full w-full items-center justify-center text-xs text-[var(--dc-text-muted)]">
                                     {item.name.slice(0, 2)}
                                   </div>
                                 )}
@@ -2593,14 +2593,14 @@ export default function CollectionCardsView({
 
                               <div className="min-w-0">
                                 <p className="truncate font-semibold">{item.name}</p>
-                                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-gray-500 dark:text-white/50">
+                                <div className="mt-0.5 flex items-center gap-1.5 text-xs text-[var(--dc-text-muted)]">
                                   <span>{item.card_number ? `#${item.card_number}` : "--"}</span>
                                   <span>•</span>
                                   <Link
                                     href={getExpansionHref(item.episode_id)}
                                     prefetch={false}
                                     onClick={(event) => event.stopPropagation()}
-                                    className="truncate transition-colors hover:text-gray-900 hover:underline underline-offset-2 dark:hover:text-white"
+                                    className="truncate transition-colors hover:text-[var(--dc-text-primary)] hover:underline underline-offset-2"
                                   >
                                     {item.episode_name}
                                     {item.episode_code ? (
@@ -2620,7 +2620,7 @@ export default function CollectionCardsView({
                                 {normalizeRarityLabel(item.rarity) ?? item.rarity}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400 dark:text-white/35">--</span>
+                              <span className="text-xs text-[var(--dc-text-muted)]">--</span>
                             )}
                           </td>
 
@@ -2631,30 +2631,30 @@ export default function CollectionCardsView({
                                   {formatMarketCurrency(displayPrice, displayPriceCurrency)}
                                 </p>
                                 {salesLedger && (item.sale_fee_eur ?? 0) > 0 ? (
-                                  <p className="text-[11px] text-gray-400 dark:text-white/35">
+                                  <p className="text-[11px] text-[var(--dc-text-muted)]">
                                     Net {formatCollectionCurrency(getNetSalePrice(item) ?? 0)} after fees
                                   </p>
                                 ) : item.current_value_label ? (
-                                  <p className="text-[11px] text-gray-400 dark:text-white/35">
+                                  <p className="text-[11px] text-[var(--dc-text-muted)]">
                                     {item.current_value_label}
                                   </p>
                                 ) : null}
                               </div>
                             ) : (
-                              <span className="text-xs text-gray-400 dark:text-white/35">
+                              <span className="text-xs text-[var(--dc-text-muted)]">
                                 No price
                               </span>
                             )}
                           </td>
 
-                          <td className="px-4 py-3 text-sm text-gray-500 dark:text-white/55">
+                          <td className="px-4 py-3 text-sm text-[var(--dc-text-secondary)]">
                             {costBasis != null ? (
                               <div className="space-y-0.5">
                                 <p className="tabular-nums">
                                   {formatCollectionCurrency(costBasis)}
                                 </p>
                                 {item.cost_basis_source === "linked_binder_allocation" && (
-                                  <p className="text-[11px] text-gray-400 dark:text-white/35">
+                                  <p className="text-[11px] text-[var(--dc-text-muted)]">
                                     {costBasisLabel}
                                   </p>
                                 )}
@@ -2669,19 +2669,19 @@ export default function CollectionCardsView({
                               <span
                                 className={
                                   pnl >= 0
-                                    ? "font-semibold text-emerald-600 dark:text-emerald-300"
-                                    : "font-semibold text-rose-600 dark:text-rose-300"
+                                    ? "font-semibold text-[var(--dc-success)]"
+                                    : "font-semibold text-[var(--dc-negative)]"
                                 }
                               >
                                 {pnl >= 0 ? "+" : ""}
                                 {formatCollectionCurrency(pnl)}
                               </span>
                             ) : (
-                              <span className="text-xs text-gray-400 dark:text-white/35">--</span>
+                              <span className="text-xs text-[var(--dc-text-muted)]">--</span>
                             )}
                           </td>
 
-                          <td className="px-4 py-3 text-xs text-gray-500 dark:text-white/55">
+                          <td className="px-4 py-3 text-xs text-[var(--dc-text-secondary)]">
                             {salesLedger ? (
                               <span>
                                 {[item.sale_platform, formatSoldDate(item.sold_at)]
@@ -2721,7 +2721,7 @@ export default function CollectionCardsView({
                                       type="button"
                                       onClick={(event) => handleSingleRemove(event, item)}
                                       disabled={removingItems}
-                                      className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-md border border-black/8 bg-black/5 text-gray-900 transition-colors hover:border-black/15 hover:bg-black/8 disabled:cursor-not-allowed disabled:opacity-50 dark:border-white/10 dark:bg-white/8 dark:text-white dark:hover:bg-white/12"
+                                      className="inline-flex h-[28px] w-[28px] items-center justify-center rounded-md border border-[rgb(var(--dc-border-rgb)/0.92)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.78)] text-[var(--dc-text-secondary)] shadow-[inset_0_1px_0_var(--dc-sheen)] transition-colors hover:border-[rgb(var(--dc-negative-rgb)/0.28)] hover:bg-[rgb(var(--dc-negative-rgb)/0.08)] hover:text-[var(--dc-negative)] disabled:cursor-not-allowed disabled:opacity-50"
                                       aria-label={`Remove ${item.name} from ${collectionRemovalLabel}`}
                                       title={`Remove from ${collectionRemovalLabel}`}
                                     >

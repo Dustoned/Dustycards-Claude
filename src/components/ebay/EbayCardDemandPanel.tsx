@@ -384,20 +384,20 @@ function DemandMetric({
   tone?: "neutral" | "positive" | "negative";
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-white/7 bg-black/16 px-3 py-2.5">
-      <p className="truncate text-[8px] font-bold uppercase tracking-[0.12em] text-white/30">{label}</p>
+    <div className="min-w-0 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.72)] px-3 py-2.5">
+      <p className="truncate text-[8px] font-bold uppercase tracking-[0.12em] text-[var(--dc-text-muted)]">{label}</p>
       <p
         className={`mt-1 text-lg font-black tabular-nums ${
           tone === "positive"
-            ? "text-emerald-200/86"
+            ? "text-[var(--dc-success)]"
             : tone === "negative"
-              ? "text-rose-200/82"
-              : "text-white/86"
+              ? "text-[var(--dc-negative)]"
+              : "text-[var(--dc-text-primary)]"
         }`}
       >
         {value}
       </p>
-      <p className="mt-0.5 truncate text-[8px] text-white/28" title={detail}>{detail}</p>
+      <p className="mt-0.5 truncate text-[8px] text-[var(--dc-text-muted)]" title={detail}>{detail}</p>
     </div>
   );
 }
@@ -406,7 +406,7 @@ function DemandVolumeChart({ history }: { history: EbayCardDemandHistoryPoint[] 
   const points = history.slice(-30);
   if (points.length < 2) {
     return (
-      <div className="flex h-[7.5rem] items-center justify-center rounded-xl border border-dashed border-white/8 bg-black/12 px-4 text-center text-[10px] text-white/34">
+      <div className="flex h-[7.5rem] items-center justify-center rounded-xl border border-dashed border-[rgb(var(--dc-border-rgb)/0.8)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.5)] px-4 text-center text-[10px] text-[var(--dc-text-muted)]">
         Baseline captured. The trend appears after the next daily observation.
       </div>
     );
@@ -422,11 +422,11 @@ function DemandVolumeChart({ history }: { history: EbayCardDemandHistoryPoint[] 
   const barWidth = Math.max(2.5, slot - Math.min(3, slot * 0.22));
 
   return (
-    <div className="rounded-xl border border-white/7 bg-black/14 p-2.5">
-      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px] font-semibold text-white/34">
-        <span className="inline-flex items-center gap-1"><i className="h-1.5 w-3 rounded-full bg-white/22" />Active</span>
-        <span className="inline-flex items-center gap-1"><i className="h-1.5 w-3 rounded-full bg-sky-300/70" />New</span>
-        <span className="inline-flex items-center gap-1"><i className="h-1.5 w-3 rounded-full bg-amber-300/70" />Removed est.</span>
+    <div className="rounded-xl border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.58)] p-2.5">
+      <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[8px] font-semibold text-[var(--dc-text-muted)]">
+        <span className="inline-flex items-center gap-1"><i className="h-1.5 w-3 rounded-full bg-[rgb(var(--dc-text-muted-rgb)/0.45)]" />Active</span>
+        <span className="inline-flex items-center gap-1"><i className="h-1.5 w-3 rounded-full bg-[rgb(var(--dc-cyan-rgb)/0.74)]" />New</span>
+        <span className="inline-flex items-center gap-1"><i className="h-1.5 w-3 rounded-full bg-[rgb(var(--dc-negative-rgb)/0.68)]" />Removed est.</span>
         <span className="ml-auto">Last {points.length}d</span>
       </div>
       <svg
@@ -436,8 +436,8 @@ function DemandVolumeChart({ history }: { history: EbayCardDemandHistoryPoint[] 
         className="h-[5.5rem] w-full overflow-visible"
         preserveAspectRatio="none"
       >
-        <line x1="0" x2={width} y1={activeBottom} y2={activeBottom} stroke="rgba(255,255,255,0.12)" strokeWidth="1" />
-        <line x1="0" x2={width} y1="36" y2="36" stroke="rgba(255,255,255,0.05)" strokeWidth="1" strokeDasharray="3 4" />
+        <line x1="0" x2={width} y1={activeBottom} y2={activeBottom} stroke="rgb(var(--dc-border-rgb) / 0.72)" strokeWidth="1" />
+        <line x1="0" x2={width} y1="36" y2="36" stroke="rgb(var(--dc-border-rgb) / 0.38)" strokeWidth="1" strokeDasharray="3 4" />
         {points.map((point, index) => {
           const x = index * slot + (slot - barWidth) / 2;
           const activeBarHeight = (point.activeCount / maxActive) * activeHeight;
@@ -446,9 +446,9 @@ function DemandVolumeChart({ history }: { history: EbayCardDemandHistoryPoint[] 
           return (
             <g key={`${point.date}:${index}`}>
               <title>{`${point.date}: ${point.activeCount} active, ${point.newCount} new, ${point.removedCount} removed estimate`}</title>
-              <rect x={x} y={activeBottom - activeBarHeight} width={barWidth} height={activeBarHeight} rx="1.4" fill="rgba(196,205,229,0.20)" />
-              {point.newCount > 0 ? <rect x={x} y={activeBottom - newBarHeight} width={barWidth} height={newBarHeight} rx="1.4" fill="rgba(125,211,252,0.72)" /> : null}
-              {point.removedCount > 0 ? <rect x={x} y={activeBottom + 2} width={barWidth} height={removedBarHeight} rx="1.4" fill="rgba(252,211,77,0.72)" /> : null}
+              <rect x={x} y={activeBottom - activeBarHeight} width={barWidth} height={activeBarHeight} rx="1.4" fill="rgb(var(--dc-text-muted-rgb) / 0.28)" />
+              {point.newCount > 0 ? <rect x={x} y={activeBottom - newBarHeight} width={barWidth} height={newBarHeight} rx="1.4" fill="rgb(var(--dc-cyan-rgb) / 0.74)" /> : null}
+              {point.removedCount > 0 ? <rect x={x} y={activeBottom + 2} width={barWidth} height={removedBarHeight} rx="1.4" fill="rgb(var(--dc-negative-rgb) / 0.68)" /> : null}
             </g>
           );
         })}
@@ -468,9 +468,9 @@ function LatestListing({ listing }: { listing: EbayCardDemandListing }) {
       href={listing.itemWebUrl}
       target="_blank"
       rel="noopener noreferrer"
-      className="group grid min-w-0 grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-white/7 bg-black/14 p-2 transition hover:border-violet-300/20 hover:bg-violet-400/[0.045]"
+      className="group grid min-w-0 grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-surface-primary-rgb)/0.72)] p-2 transition hover:border-[rgb(var(--dc-primary-rgb)/0.28)] hover:bg-[var(--dc-surface-hover)]"
     >
-      <div className="relative aspect-square overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
+      <div className="relative aspect-square overflow-hidden rounded-lg border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.78)]">
         {listing.imageUrl ? (
           <CachedImage
             sourceUrl={listing.imageUrl}
@@ -480,18 +480,18 @@ function LatestListing({ listing }: { listing: EbayCardDemandListing }) {
             className="object-contain p-0.5"
           />
         ) : (
-          <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-white/18" />
+          <ShoppingBag className="absolute inset-0 m-auto h-4 w-4 text-[var(--dc-text-disabled)]" />
         )}
       </div>
       <div className="min-w-0">
-        <p className="line-clamp-2 text-[10px] font-semibold leading-3.5 text-white/70 transition group-hover:text-white/90">{listing.title}</p>
-        <p className="mt-1 truncate text-[8px] text-white/30">
+        <p className="line-clamp-2 text-[10px] font-semibold leading-3.5 text-[var(--dc-text-secondary)] transition group-hover:text-[var(--dc-text-primary)]">{listing.title}</p>
+        <p className="mt-1 truncate text-[8px] text-[var(--dc-text-muted)]">
           {[buyingLabel(listing.buyingOptions), listing.condition, seller].filter(Boolean).join(" · ")}
         </p>
       </div>
       <div className="text-right">
-        <p className="text-[11px] font-black tabular-nums text-white/82">{formatCurrency(listing.totalEur, "EUR")}</p>
-        <ArrowUpRight className="ml-auto mt-1 h-3 w-3 text-white/24 transition group-hover:text-violet-200/70" />
+        <p className="text-[11px] font-black tabular-nums text-[var(--dc-text-primary)]">{formatCurrency(listing.totalEur, "EUR")}</p>
+        <ArrowUpRight className="ml-auto mt-1 h-3 w-3 text-[var(--dc-text-disabled)] transition group-hover:text-[var(--dc-primary)]" />
       </div>
     </a>
   );
@@ -697,21 +697,21 @@ export default function EbayCardDemandPanel({
       ref={panelRef}
       data-ebay-card-demand
       data-ebay-demand-layout={rail ? "rail" : compact ? "compact" : "default"}
-      className={`min-w-0 overflow-hidden rounded-2xl border border-white/9 bg-[rgba(16,19,29,0.88)] ${className}`}
+      className={`min-w-0 overflow-hidden rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-primary)] text-[var(--dc-text-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)] ${className}`}
     >
-      <header className={`grid min-h-14 items-center gap-3 border-b border-white/7 py-3 ${rail ? "px-3.5" : "px-4 sm:flex sm:flex-wrap sm:justify-between sm:px-5"}`}>
+      <header className={`grid min-h-14 items-center gap-3 border-b border-[rgb(var(--dc-border-rgb)/0.78)] py-3 ${rail ? "px-3.5" : "px-4 sm:flex sm:flex-wrap sm:justify-between sm:px-5"}`}>
         <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-300/12 bg-sky-400/[0.06] text-sky-200/72">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-[rgb(var(--dc-cyan-rgb)/0.18)] bg-[rgb(var(--dc-cyan-rgb)/0.08)] text-[var(--dc-cyan)]">
             <BarChart3 className="h-4 w-4" />
           </span>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h2 className={`font-bold text-white/88 ${rail ? "text-sm" : "text-sm sm:text-base"}`}>eBay market demand</h2>
-              <span className="rounded-full border border-sky-300/12 bg-sky-400/[0.055] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-sky-100/64">
+              <h2 className={`font-bold text-[var(--dc-text-primary)] ${rail ? "text-sm" : "text-sm sm:text-base"}`}>eBay market demand</h2>
+              <span className="rounded-full border border-[rgb(var(--dc-cyan-rgb)/0.18)] bg-[rgb(var(--dc-cyan-rgb)/0.08)] px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em] text-[var(--dc-cyan)]">
                 {marketplaceLabel(demand?.marketplaceId)} · {mode === "raw" ? "Raw · EN · NM · Fixed" : "Graded · EN · Fixed"}
               </span>
             </div>
-            <p className="mt-0.5 truncate text-[9px] text-white/32">
+            <p className="mt-0.5 truncate text-[9px] text-[var(--dc-text-muted)]">
               {demand ? `${demand.sample.clean ?? demand.sample.observed} clean of ${demand.sample.observed} observed${demand.sample.capped ? " · sample capped" : ""}` : "Official eBay active-listing observations"}
             </p>
           </div>
@@ -721,7 +721,7 @@ export default function EbayCardDemandPanel({
             <div
               role="group"
               aria-label="eBay market mode"
-              className={rail ? "dc-compact-segment grid h-9 min-w-0 grid-cols-2 overflow-hidden rounded-lg border border-white/8 bg-black/24 p-1" : "dc-compact-segment grid h-11 min-w-0 grid-cols-2 overflow-hidden rounded-xl border border-white/8 bg-black/24 p-0 sm:h-8 sm:min-w-[8.5rem] sm:rounded-lg sm:p-1"}
+              className={rail ? "dc-compact-segment grid h-9 min-w-0 grid-cols-2 overflow-hidden rounded-lg border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[var(--dc-bg-main)] p-1" : "dc-compact-segment grid h-11 min-w-0 grid-cols-2 overflow-hidden rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[var(--dc-bg-main)] p-0 sm:h-8 sm:min-w-[8.5rem] sm:rounded-lg sm:p-1"}
             >
               {(["raw", "graded"] as const).map((nextMode) => (
                 <button
@@ -730,7 +730,7 @@ export default function EbayCardDemandPanel({
                   onClick={() => selectMode(nextMode)}
                   aria-pressed={mode === nextMode}
                   className={`min-w-0 rounded-lg px-2.5 text-[10px] font-semibold capitalize transition sm:rounded-md sm:text-[9px] ${
-                    mode === nextMode ? "bg-violet-500 text-white" : "text-white/42 hover:bg-white/[0.055] hover:text-white/72"
+                    mode === nextMode ? "bg-[var(--dc-primary)] text-white" : "text-[var(--dc-text-muted)] hover:bg-[var(--dc-surface-hover)] hover:text-[var(--dc-text-primary)]"
                   }`}
                 >
                   {nextMode}
@@ -744,7 +744,7 @@ export default function EbayCardDemandPanel({
             disabled={refreshing || loading}
             aria-label="Refresh eBay demand"
             title="Refresh clean eBay listing observations"
-            className={rail ? "dc-compact-icon-button flex h-9 w-10 items-center justify-center rounded-lg border border-white/8 bg-white/[0.035] text-white/42 transition hover:border-violet-300/20 hover:bg-violet-400/[0.07] hover:text-white/78 disabled:cursor-wait disabled:opacity-45" : "dc-compact-icon-button flex h-11 w-11 items-center justify-center rounded-xl border border-white/8 bg-white/[0.035] text-white/42 transition hover:border-violet-300/20 hover:bg-violet-400/[0.07] hover:text-white/78 disabled:cursor-wait disabled:opacity-45 sm:h-8 sm:w-8 sm:rounded-lg"}
+            className={rail ? "dc-compact-icon-button flex h-9 w-10 items-center justify-center rounded-lg border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[var(--dc-surface-elevated)] text-[var(--dc-text-muted)] transition hover:border-[rgb(var(--dc-primary-rgb)/0.28)] hover:bg-[var(--dc-surface-hover)] hover:text-[var(--dc-text-primary)] disabled:cursor-wait disabled:opacity-45" : "dc-compact-icon-button flex h-11 w-11 items-center justify-center rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[var(--dc-surface-elevated)] text-[var(--dc-text-muted)] transition hover:border-[rgb(var(--dc-primary-rgb)/0.28)] hover:bg-[var(--dc-surface-hover)] hover:text-[var(--dc-text-primary)] disabled:cursor-wait disabled:opacity-45 sm:h-8 sm:w-8 sm:rounded-lg"}
           >
             <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? "animate-spin" : ""}`} />
           </button>
@@ -754,23 +754,23 @@ export default function EbayCardDemandPanel({
       <div className={rail ? "p-3" : "p-3.5 sm:p-4"}>
         {!visible || (loading && !payload) ? (
           <div className="grid gap-3 sm:grid-cols-4">
-            {Array.from({ length: 4 }, (_, index) => <div key={index} className="h-20 animate-pulse rounded-xl border border-white/6 bg-white/[0.025]" />)}
+            {Array.from({ length: 4 }, (_, index) => <div key={index} className="h-20 animate-pulse rounded-xl border border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.58)]" />)}
           </div>
         ) : error && !payload ? (
-          <div className="flex min-h-28 items-center justify-between gap-4 rounded-xl border border-rose-300/12 bg-rose-400/[0.035] px-4">
-            <p className="text-[10px] leading-4 text-rose-100/65">{error}</p>
-            <button type="button" onClick={() => void refresh()} className="shrink-0 rounded-lg border border-white/9 px-3 py-2 text-[9px] font-bold text-white/64 hover:bg-white/[0.05]">Try again</button>
+          <div className="flex min-h-28 items-center justify-between gap-4 rounded-xl border border-[rgb(var(--dc-negative-rgb)/0.2)] bg-[var(--dc-negative-bg)] px-4">
+            <p className="text-[10px] leading-4 text-[var(--dc-negative)]">{error}</p>
+            <button type="button" onClick={() => void refresh()} className="shrink-0 rounded-lg border border-[rgb(var(--dc-border-rgb)/0.82)] px-3 py-2 text-[9px] font-bold text-[var(--dc-text-secondary)] hover:bg-[var(--dc-surface-hover)]">Try again</button>
           </div>
         ) : payload?.configured === false ? (
-          <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-white/9 bg-black/12 px-5 text-center text-[10px] leading-4 text-white/38">
+          <div className="flex min-h-28 items-center justify-center rounded-xl border border-dashed border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.5)] px-5 text-center text-[10px] leading-4 text-[var(--dc-text-muted)]">
             eBay Browse credentials are not configured for this environment.
           </div>
         ) : !demand || demand.sample.clean === 0 ? (
-          <div className="flex min-h-28 flex-col items-center justify-center rounded-xl border border-dashed border-white/9 bg-black/12 px-5 text-center">
-            <p className="text-[11px] font-semibold text-white/58">
+          <div className="flex min-h-28 flex-col items-center justify-center rounded-xl border border-dashed border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.5)] px-5 text-center">
+            <p className="text-[11px] font-semibold text-[var(--dc-text-secondary)]">
               {demand ? "No verified matches in this observation" : "No clean listing baseline yet"}
             </p>
-            <p className="mt-1 max-w-lg text-[9px] leading-4 text-white/32">
+            <p className="mt-1 max-w-lg text-[9px] leading-4 text-[var(--dc-text-muted)]">
               {mode === "raw"
                 ? "Only exact English, near-mint, fixed-price raw matches count; other languages, conditions and auctions are excluded."
                 : "Only exact English, verified graded fixed-price matches count; raw cards and auctions are excluded."}
@@ -790,16 +790,16 @@ export default function EbayCardDemandPanel({
               </div>
             </div>
 
-            <div className="min-w-0 rounded-xl border border-white/7 bg-black/12 p-2.5">
+            <div className="min-w-0 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.58)] p-2.5">
               <div className="mb-2 flex items-center justify-between gap-3 px-0.5">
                 <div>
-                  <p className="text-[10px] font-bold text-white/70">
+                  <p className="text-[10px] font-bold text-[var(--dc-text-secondary)]">
                     {showAllListings ? "All active clean listings" : "Active clean listings"}
                   </p>
-                  <p className="mt-0.5 text-[8px] text-white/28">Ask median {formatCurrency(summary?.medianAskEur, "EUR")} · low {formatCurrency(summary?.lowestAskEur, "EUR")}</p>
+                  <p className="mt-0.5 text-[8px] text-[var(--dc-text-muted)]">Ask median {formatCurrency(summary?.medianAskEur, "EUR")} · low {formatCurrency(summary?.lowestAskEur, "EUR")}</p>
                 </div>
-                <div className="text-right text-[8px] text-white/28">
-                  <span className="block font-semibold text-white/42">Showing {displayedListingCount} of {listingTotal}</span>
+                <div className="text-right text-[8px] text-[var(--dc-text-muted)]">
+                  <span className="block font-semibold text-[var(--dc-text-secondary)]">Showing {displayedListingCount} of {listingTotal}</span>
                   <span className="mt-0.5 inline-flex items-center gap-1"><Clock3 className="h-3 w-3" />{formatUpdatedAt(demand.updatedAt)}</span>
                 </div>
               </div>
@@ -807,7 +807,7 @@ export default function EbayCardDemandPanel({
                 <div
                   className={`grid gap-2 ${compact ? "" : showAllListings ? "sm:grid-cols-2 2xl:grid-cols-3" : "sm:grid-cols-2"} ${
                     showAllListings
-                      ? "max-h-[min(55dvh,34rem)] overflow-y-auto overscroll-contain pr-1 [scrollbar-color:rgba(167,139,250,0.32)_transparent] [scrollbar-width:thin]"
+                      ? "max-h-[min(55dvh,34rem)] overflow-y-auto overscroll-contain pr-1 [scrollbar-color:var(--dc-border-active)_transparent] [scrollbar-width:thin]"
                       : ""
                   }`}
                   data-ebay-listings-scroll={showAllListings ? "contained" : undefined}
@@ -815,17 +815,17 @@ export default function EbayCardDemandPanel({
                   {latestListings.map((listing) => <LatestListing key={listing.itemId} listing={listing} />)}
                 </div>
               ) : (
-                <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-white/7 text-[9px] text-white/30">No current clean listings in this sample.</div>
+                <div className="flex min-h-24 items-center justify-center rounded-lg border border-dashed border-[rgb(var(--dc-border-rgb)/0.78)] text-[9px] text-[var(--dc-text-muted)]">No current clean listings in this sample.</div>
               )}
-              {listingsError ? <p className="mt-2 text-[9px] text-rose-200/60">{listingsError}</p> : null}
+              {listingsError ? <p className="mt-2 text-[9px] text-[var(--dc-negative)]">{listingsError}</p> : null}
               {listingTotal > displayedListingCount || showAllListings ? (
-                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 border-t border-white/6 pt-2">
+                <div className="mt-2 flex flex-wrap items-center justify-center gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.72)] pt-2">
                   {!showAllListings ? (
                     <button
                       type="button"
                       onClick={openAllListings}
                       disabled={listingsLoading}
-                      className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-violet-300/16 bg-violet-400/[0.07] px-3 text-[9px] font-bold text-violet-100/78 transition hover:bg-violet-400/[0.12] disabled:cursor-wait disabled:opacity-50"
+                      className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-[rgb(var(--dc-primary-rgb)/0.22)] bg-[rgb(var(--dc-primary-rgb)/0.1)] px-3 text-[9px] font-bold text-[var(--dc-primary)] transition hover:bg-[rgb(var(--dc-primary-rgb)/0.16)] disabled:cursor-wait disabled:opacity-50"
                     >
                       {listingsLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : null}
                       View all {listingTotal} listings
@@ -837,7 +837,7 @@ export default function EbayCardDemandPanel({
                           type="button"
                           onClick={loadMoreListings}
                           disabled={listingsLoading}
-                          className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-violet-300/16 bg-violet-400/[0.07] px-3 text-[9px] font-bold text-violet-100/78 transition hover:bg-violet-400/[0.12] disabled:cursor-wait disabled:opacity-50"
+                          className="inline-flex min-h-8 items-center justify-center gap-2 rounded-lg border border-[rgb(var(--dc-primary-rgb)/0.22)] bg-[rgb(var(--dc-primary-rgb)/0.1)] px-3 text-[9px] font-bold text-[var(--dc-primary)] transition hover:bg-[rgb(var(--dc-primary-rgb)/0.16)] disabled:cursor-wait disabled:opacity-50"
                         >
                           {listingsLoading ? <RefreshCw className="h-3 w-3 animate-spin" /> : null}
                           Load next {Math.min(100, Math.max(0, listingTotal - loadedListings.length))}
@@ -846,7 +846,7 @@ export default function EbayCardDemandPanel({
                       <button
                         type="button"
                         onClick={() => setShowAllListings(false)}
-                        className="min-h-8 rounded-lg border border-white/8 px-3 text-[9px] font-semibold text-white/44 transition hover:bg-white/[0.05] hover:text-white/70"
+                        className="min-h-8 rounded-lg border border-[rgb(var(--dc-border-rgb)/0.82)] px-3 text-[9px] font-semibold text-[var(--dc-text-muted)] transition hover:bg-[var(--dc-surface-hover)] hover:text-[var(--dc-text-primary)]"
                       >
                         Collapse listings
                       </button>
@@ -858,8 +858,8 @@ export default function EbayCardDemandPanel({
           </div>
         )}
 
-        {error && payload ? <p className="mt-2 text-[9px] text-rose-200/58">Refresh failed: {error}</p> : null}
-        <p className="mt-2 text-[8px] leading-3.5 text-white/24">
+        {error && payload ? <p className="mt-2 text-[9px] text-[var(--dc-negative)]">Refresh failed: {error}</p> : null}
+        <p className="mt-2 text-[8px] leading-3.5 text-[var(--dc-text-disabled)]">
           Removed is an inventory-change estimate: a listing disappeared between observations and may have sold, ended, or been withdrawn. It is not a confirmed sale count.
         </p>
       </div>

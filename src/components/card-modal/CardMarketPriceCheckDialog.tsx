@@ -149,7 +149,7 @@ export default function CardMarketPriceCheckDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="live-cardmarket-check-title"
-        className={`${modalCenteredPanelClass} max-w-xl bg-[#0b0b10]/96`}
+        className={`${modalCenteredPanelClass} max-w-xl bg-[var(--dc-surface-glass-strong)]`}
       >
         <header className={`${modalCompactHeaderClass} justify-between`}>
           <div className="min-w-0">

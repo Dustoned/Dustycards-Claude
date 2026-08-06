@@ -111,7 +111,9 @@ interface Props {
   frontImageUrl: string;
   cardMarketUrl: string | null;
   showGradedSlabPreview?: boolean;
+  readOnly?: boolean;
   variant?: "overlay" | "inline";
+  onOpenExpanded?: () => void;
   onClose: () => void;
 }
 
@@ -213,7 +215,7 @@ function getFoilProfile(rarity: string | null): FoilProfile {
   const normalized = normalizeRarityLabel(rarity);
 
   if (!normalized) {
-    return { foilStrength: 1.02, rainbowStrength: 0.26 };
+    return { foilStrength: 1.02, rainbowStrength: 0.34 };
   }
 
   if (normalized === "Common" || normalized === "Uncommon") {
@@ -228,7 +230,7 @@ function getFoilProfile(rarity: string | null): FoilProfile {
     normalized.includes("Rainbow") ||
     normalized.includes("Ultra")
   ) {
-    return { foilStrength: 1.28, rainbowStrength: 0.94 };
+    return { foilStrength: 1.28, rainbowStrength: 1.08 };
   }
 
   if (
@@ -237,10 +239,10 @@ function getFoilProfile(rarity: string | null): FoilProfile {
     normalized.includes("Amazing") ||
     normalized === "Promo"
   ) {
-    return { foilStrength: 1.16, rainbowStrength: 0.58 };
+    return { foilStrength: 1.16, rainbowStrength: 0.7 };
   }
 
-  return { foilStrength: 1.1, rainbowStrength: 0.5 };
+  return { foilStrength: 1.1, rainbowStrength: 0.62 };
 }
 
 function createEdgeTexture(THREE: typeof import("three")) {
@@ -586,10 +588,32 @@ function createFoilOverlayMaterial(
             1.0
           )
         );
+        float pearlPhase = clamp(
+          0.5 +
+            sin(
+              dot(centeredUv, vec2(2.4, -1.8)) * 3.14159 +
+                reflectDir.x * 3.2 -
+                reflectDir.y * 2.4
+            ) *
+              0.5,
+          0.0,
+          1.0
+        );
+        vec3 pearlColor = mix(
+          vec3(0.7, 0.9, 1.0),
+          vec3(1.0, 0.72, 0.94),
+          pearlPhase
+        );
+        pearlColor = mix(pearlColor, vec3(1.0, 0.92, 0.68), secondarySweep * 0.28);
+        silverColor = mix(
+          silverColor,
+          pearlColor,
+          clamp(uRainbowStrength * (0.2 + specularBand * 0.16), 0.0, 0.34)
+        );
         vec3 cardFoilColor = mix(
           silverColor,
           clamp(artColor * 1.15 + vec3(0.08), 0.0, 1.0),
-          0.18
+          0.22
         );
         vec3 baseFoil =
           cardFoilColor *
@@ -699,9 +723,9 @@ function createFoilOverlayMaterial(
             )
           );
           vec3 rainbowBlend = rainbow * prismMask;
-          color = screenBlend(color, rainbowBlend * 1.14);
-          color = mix(color, colorDodgeBlend(color, rainbowBlend * 0.76), 0.3);
-          alpha += prismMask * 0.38;
+          color = screenBlend(color, rainbowBlend * 1.24);
+          color = mix(color, colorDodgeBlend(color, rainbowBlend * 0.8), 0.34);
+          alpha += prismMask * 0.4;
         }
 
         gl_FragColor = vec4(color, clamp(alpha * cardAlpha, 0.0, 0.72));
@@ -1241,7 +1265,9 @@ export default function CardThreeViewer({
   frontImageUrl,
   cardMarketUrl,
   showGradedSlabPreview = false,
+  readOnly = false,
   variant = "overlay",
+  onOpenExpanded,
   onClose,
 }: Props) {
   const isInline = variant === "inline";
@@ -1322,7 +1348,7 @@ export default function CardThreeViewer({
     }
     const sizeConfig = isInline
       ? {
-          resetDistanceScale: 0.96,
+          resetDistanceScale: 1.04,
           minimumFitScale: 0.96,
           offsetScale: 0,
         }
@@ -1949,9 +1975,20 @@ export default function CardThreeViewer({
         if (prefersReducedMotion) autoRotateRef.current = false;
 
         const applyCameraConstraints = () => {
-          targetCameraDistance = clamp(targetCameraDistance, MIN_CAMERA_DISTANCE, MAX_CAMERA_DISTANCE);
-          camera.position.z = clamp(camera.position.z, MIN_CAMERA_DISTANCE, MAX_CAMERA_DISTANCE);
-          return MIN_CAMERA_DISTANCE;
+          const minimumCameraDistance = isInline
+            ? getFitCameraDistance() * 0.96
+            : MIN_CAMERA_DISTANCE;
+          targetCameraDistance = clamp(
+            targetCameraDistance,
+            minimumCameraDistance,
+            MAX_CAMERA_DISTANCE
+          );
+          camera.position.z = clamp(
+            camera.position.z,
+            minimumCameraDistance,
+            MAX_CAMERA_DISTANCE
+          );
+          return minimumCameraDistance;
         };
 
         const updateFraming = () => {
@@ -2388,9 +2425,10 @@ export default function CardThreeViewer({
       aria-label={isInline ? undefined : `3D view of ${card.name}`}
       tabIndex={isInline ? undefined : -1}
       data-card-three-modal={isInline ? undefined : "true"}
+      title={isInline && onOpenExpanded ? "Double-click for fullscreen 3D view" : undefined}
       className={
         isInline
-          ? "card-detail-inline-three-viewer relative aspect-[5/7] w-full touch-none overflow-hidden rounded-[1.5rem] border border-white/10 bg-[radial-gradient(circle_at_50%_34%,rgb(var(--dc-primary-rgb)/0.13),rgb(var(--dc-bg-main-rgb)/0.96)_66%)]"
+          ? "card-detail-inline-three-viewer relative aspect-[5/7] w-full touch-none overflow-visible"
           : "dc-modal-overlay fixed inset-0 z-[320] touch-none"
       }
       style={{
@@ -2399,6 +2437,12 @@ export default function CardThreeViewer({
         ...(isInline
           ? { aspectRatio: isSlabViewer ? "80.3 / 135.2" : "63 / 88" }
           : {}),
+      }}
+      onDoubleClickCapture={(event) => {
+        if (!isInline || !onOpenExpanded) return;
+        event.preventDefault();
+        event.stopPropagation();
+        onOpenExpanded();
       }}
       onPointerDownCapture={(event) => {
         const viewerApi = viewerApiRef.current;
@@ -2492,6 +2536,7 @@ export default function CardThreeViewer({
       <div className="absolute inset-0">
         <div
           ref={containerRef}
+          data-card-three-render-host={isInline ? "inline" : "overlay"}
           className="pointer-events-none absolute inset-0 z-30"
           aria-label={`3D view of ${card.name}`}
         />
@@ -2504,7 +2549,7 @@ export default function CardThreeViewer({
                 <div
                   ref={detailsRef}
                   data-three-details="true"
-                  className={`pointer-events-auto mx-auto max-w-lg overscroll-contain rounded-2xl border border-white/14 bg-[#070708] md:mx-0 md:max-h-[calc(100vh-3rem)] md:w-full md:max-w-none md:overflow-y-auto md:rounded-3xl ${
+                  className={`card-three-details-panel pointer-events-auto mx-auto max-w-lg overscroll-contain rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] text-[var(--dc-text-primary)] shadow-[0_28px_80px_var(--dc-shadow-color),inset_0_1px_0_var(--dc-sheen)] md:mx-0 md:max-h-[calc(100vh-3rem)] md:w-full md:max-w-none md:overflow-y-auto md:rounded-3xl ${
                     compactMobileDetails
                       ? mobileDetailsExpanded
                         ? "max-h-[min(68dvh,36rem)] w-full max-w-[min(24rem,calc(100vw-1rem))] overflow-y-auto px-3 py-2.5"
@@ -2512,9 +2557,6 @@ export default function CardThreeViewer({
                       : "max-h-[31dvh] overflow-y-auto px-4 py-3 sm:max-h-[36dvh] sm:px-5 sm:py-4"
                   }`}
                   style={{
-                    background: "rgba(7,7,8,0.97)",
-                    border: "1px solid rgba(255,255,255,0.16)",
-                    boxShadow: "0 28px 80px rgba(0,0,0,0.34)",
                     touchAction: "pan-y",
                     overscrollBehavior: "contain",
                   }}
@@ -2579,7 +2621,7 @@ export default function CardThreeViewer({
 
                   {!mobileDetailsCollapsed && activePriceRows.length > 0 && primaryPriceRow && (
                     <div
-                      className={`rounded-2xl border border-white/10 bg-white/[0.045] ${
+                      className={`card-three-details-section card-three-details-section-market rounded-2xl border ${
                         compactMobileDetails ? "mt-2.5 p-2" : "mt-4 p-3"
                       }`}
                     >
@@ -2670,7 +2712,7 @@ export default function CardThreeViewer({
 
                   {!mobileDetailsCollapsed && (hasCardMarketGradedPricing || hasEbayGradedPricing) && (
                     <div
-                      className={`rounded-2xl border border-white/10 bg-white/[0.04] ${
+                      className={`card-three-details-section card-three-details-section-graded rounded-2xl border ${
                         compactMobileDetails ? "mt-2 p-2" : "mt-4 p-3"
                       }`}
                     >
@@ -2729,7 +2771,7 @@ export default function CardThreeViewer({
                                   <option
                                     key={gradedPrice.label}
                                     value={gradedPrice.label}
-                                    className="bg-[#111214] text-white"
+                                    className="bg-[var(--dc-surface-primary)] text-[var(--dc-text-primary)]"
                                   >
                                     {gradedPrice.label}
                                   </option>
@@ -2779,7 +2821,7 @@ export default function CardThreeViewer({
                                   <option
                                     key={gradedPrice.label}
                                     value={gradedPrice.label}
-                                    className="bg-[#111214] text-white"
+                                    className="bg-[var(--dc-surface-primary)] text-[var(--dc-text-primary)]"
                                   >
                                     {gradedPrice.label}
                                     {gradedPrice.sample_size != null
@@ -2827,13 +2869,13 @@ export default function CardThreeViewer({
                     </div>
                   )}
 
-                  {!mobileDetailsCollapsed && !compactMobileDetails && (
+                  {!readOnly && !mobileDetailsCollapsed && !compactMobileDetails && (
                     <PriceRefreshCountdown
                       rarity={card.rarity}
                       priceFetchedAt={card.price_fetched_at}
                       priceSourceStatus={card.price_source_status}
                       priceSourceCheckedAt={card.price_source_checked_at}
-                      className="mt-4"
+                      className="card-three-details-refresh mt-4"
                     />
                   )}
 
@@ -2847,7 +2889,7 @@ export default function CardThreeViewer({
                     </p>
                   )}
 
-                  {!mobileDetailsCollapsed && (
+                  {!readOnly && !mobileDetailsCollapsed && (
                   <div
                     className={`grid gap-2 ${
                       compactMobileDetails
@@ -2860,10 +2902,10 @@ export default function CardThreeViewer({
                         href={filteredCardMarketUrl}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className={`inline-flex w-full items-center justify-center bg-blue-600 text-center font-semibold text-white transition-colors hover:bg-blue-500 ${
+                        className={`inline-flex min-h-11 w-full items-center justify-center rounded-xl border border-[rgb(var(--dc-border-rgb)/0.92)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.82)] px-3 text-center text-[13px] font-bold text-[var(--dc-text-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)] transition-colors hover:border-[rgb(var(--dc-primary-rgb)/0.3)] hover:bg-[rgb(var(--dc-primary-rgb)/0.08)] ${
                           compactMobileDetails
-                            ? "rounded-xl px-3 py-2 text-[13px]"
-                            : "rounded-2xl px-4 py-3"
+                            ? "py-2"
+                            : "px-4 py-3 text-sm"
                         }`}
                       >
                         CardMarket
@@ -2883,10 +2925,10 @@ export default function CardThreeViewer({
                       mode="button"
                       theme="dark"
                       label="Add"
-                      className={`w-full border-violet-300/28 bg-violet-600 text-violet-50 hover:border-violet-200/45 hover:bg-violet-500 ${
+                      className={`!min-h-11 w-full !rounded-xl !border-[rgb(var(--dc-primary-rgb)/0.42)] !bg-[var(--dc-primary)] !px-3 !text-[13px] !font-bold !text-[var(--dc-on-primary)] shadow-[0_9px_22px_rgb(var(--dc-primary-rgb)/0.2)] hover:!bg-[var(--dc-primary-hover)] ${
                         compactMobileDetails
-                          ? "min-h-0 rounded-xl px-3 py-2 text-[13px]"
-                          : "rounded-2xl px-4 py-3"
+                          ? "!py-2"
+                          : "!px-4 !py-3 !text-sm"
                       }`}
                     />
                     <CollectionWantButton
@@ -2905,10 +2947,10 @@ export default function CardThreeViewer({
                       label="Want"
                       initialWanted={Boolean(card.want_item)}
                       wantItemId={card.want_item?.id ?? null}
-                      className={`w-full border-violet-300/22 bg-violet-600/24 text-violet-50 hover:border-violet-200/40 hover:bg-violet-500/32 ${
+                      className={`!min-h-11 w-full !rounded-xl !border-[rgb(var(--dc-primary-rgb)/0.28)] !bg-[rgb(var(--dc-primary-rgb)/0.08)] !px-3 !text-[13px] !font-bold !text-[var(--dc-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)] hover:!border-[rgb(var(--dc-primary-rgb)/0.4)] hover:!bg-[rgb(var(--dc-primary-rgb)/0.14)] ${
                         compactMobileDetails
-                          ? "min-h-0 rounded-xl px-3 py-2 text-[13px]"
-                          : "rounded-2xl px-4 py-3"
+                          ? "!py-2"
+                          : "!px-4 !py-3 !text-sm"
                       }`}
                     />
                   </div>

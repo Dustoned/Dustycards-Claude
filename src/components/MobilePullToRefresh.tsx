@@ -213,7 +213,7 @@ export default function MobilePullToRefresh() {
         transition: "transform 0.2s ease, opacity 0.2s ease",
       }}
     >
-      <div className="mt-2 flex h-9 w-9 items-center justify-center rounded-full border border-white/12 bg-[#14141c] shadow-lg shadow-black/40">
+      <div className="mt-2 flex h-9 w-9 items-center justify-center rounded-full border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-elevated)] shadow-[0_8px_24px_var(--dc-shadow-color)]">
         <RefreshCw
           ref={iconRef}
           className="h-4 w-4 text-violet-300"

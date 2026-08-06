@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ArrowLeftRight, Check, Search, UsersRound, X } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CachedImage from "@/components/CachedImage";
 import CardSearchPickerDialog, {
   type CardSearchPickerResult,
@@ -17,6 +17,19 @@ import type {
 type PanelMode = "compare" | "friends";
 
 type ManualTradeCard = CardSearchPickerResult;
+
+const TRADE_VALUE_RATE_STORAGE_KEY = "dustycards.trade.value-rate.v1";
+const TRADE_VALUE_RATE_OPTIONS = [85, 90, 95, 100] as const;
+const DEFAULT_TRADE_VALUE_RATE = 90;
+
+function normalizeTradeValueRate(value: unknown): number {
+  const parsed = typeof value === "number" ? value : Number(value);
+  return TRADE_VALUE_RATE_OPTIONS.includes(
+    parsed as (typeof TRADE_VALUE_RATE_OPTIONS)[number]
+  )
+    ? parsed
+    : DEFAULT_TRADE_VALUE_RATE;
+}
 
 function matchCount(opportunity: SocialTradeOpportunity): number {
   return (
@@ -119,12 +132,42 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
   const [left, setLeft] = useState<ManualTradeCard | null>(null);
   const [right, setRight] = useState<ManualTradeCard | null>(null);
   const [pickerSide, setPickerSide] = useState<"left" | "right" | null>(null);
+  const [tradeValueRate, setTradeValueRate] = useState(DEFAULT_TRADE_VALUE_RATE);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        setTradeValueRate(
+          normalizeTradeValueRate(window.localStorage.getItem(TRADE_VALUE_RATE_STORAGE_KEY))
+        );
+      } catch {
+        // Device storage can be unavailable in privacy modes; keep the default.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
+  function selectTradeValueRate(nextRate: number) {
+    const normalized = normalizeTradeValueRate(nextRate);
+    setTradeValueRate(normalized);
+    setRight(null);
+    try {
+      window.localStorage.setItem(TRADE_VALUE_RATE_STORAGE_KEY, String(normalized));
+    } catch {
+      // The current selection remains usable even when it cannot be persisted.
+    }
+  }
+
   const leftValue = left?.cm_en_lowest_nm ?? null;
   const rightValue = right?.cm_en_lowest_nm ?? null;
+  const leftTradeTarget =
+    leftValue == null ? null : Number(((leftValue * tradeValueRate) / 100).toFixed(2));
   const difference =
-    leftValue != null && rightValue != null ? Number((leftValue - rightValue).toFixed(2)) : null;
+    leftTradeTarget != null && rightValue != null
+      ? Number((leftTradeTarget - rightValue).toFixed(2))
+      : null;
   const absoluteDifference = difference == null ? null : Math.abs(difference);
-  const largestValue = Math.max(leftValue ?? 0, rightValue ?? 0);
+  const largestValue = Math.max(leftTradeTarget ?? 0, rightValue ?? 0);
   const differencePercent =
     absoluteDifference != null && largestValue > 0
       ? Number(((absoluteDifference / largestValue) * 100).toFixed(1))
@@ -137,6 +180,37 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
 
   return (
     <div className="mt-3">
+      <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2 px-1">
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.11em] text-white/38">
+            Trade value convention
+          </p>
+          <p className="mt-0.5 text-[9px] text-white/30">
+            Side B is matched against this percentage of side A&apos;s EU market value.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1" aria-label="Trade value percentage">
+          {TRADE_VALUE_RATE_OPTIONS.map((rate) => {
+            const active = rate === tradeValueRate;
+            return (
+              <button
+                key={rate}
+                type="button"
+                aria-pressed={active}
+                onClick={() => selectTradeValueRate(rate)}
+                className={`h-8 rounded-xl border px-2.5 text-[10px] font-black tabular-nums transition-colors ${
+                  active
+                    ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.14)] text-[var(--dc-primary)] shadow-sm shadow-[rgb(var(--dc-primary-rgb)/0.12)]"
+                    : "border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.66)] text-[rgb(var(--dc-text-primary-rgb)/0.48)] hover:border-[rgb(var(--dc-primary-rgb)/0.24)] hover:text-[var(--dc-text-primary)]"
+                }`}
+              >
+                {rate}%
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] md:items-center">
         <ManualCardPicker
           label="Trade side A"
@@ -195,7 +269,7 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
                 {formatCollectionCurrency(absoluteDifference ?? 0)}
               </p>
               <p className="text-[9px] font-bold text-white/34">
-                {differencePercent}% difference · EU market
+                {differencePercent}% difference · {tradeValueRate}% convention
               </p>
             </div>
           ) : null}
@@ -212,10 +286,18 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
           label={pickerSide === "left" ? "Trade side A" : "Trade side B"}
           game={game}
           selectedCardId={(pickerSide === "left" ? left : right)?.id ?? null}
+          excludedCardId={pickerSide === "right" ? left?.id ?? null : right?.id ?? null}
+          suggestedValue={pickerSide === "right" ? leftValue : null}
+          suggestedPercentage={tradeValueRate}
           onClose={() => setPickerSide(null)}
           onSelect={(card) => {
-            if (pickerSide === "left") setLeft(card);
-            else setRight(card);
+            if (pickerSide === "left") {
+              setLeft(card);
+              setRight(null);
+              setPickerSide("right");
+              return;
+            }
+            setRight(card);
             setPickerSide(null);
           }}
         />
@@ -227,30 +309,67 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
 function TradeColumn({
   title,
   cards,
+  suggestedCardIds,
   selectedCardId,
   onSelect,
 }: {
   title: string;
   cards: SocialTradeMatchCard[];
+  suggestedCardIds: string[];
   selectedCardId: string | null;
   onSelect: (cardId: string) => void;
 }) {
+  const [query, setQuery] = useState("");
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? null;
+  const suggested = useMemo(() => new Set(suggestedCardIds), [suggestedCardIds]);
+  const visibleCards = useMemo(() => {
+    const normalized = query.trim().toLocaleLowerCase();
+    const filtered = normalized
+      ? cards.filter((card) =>
+          [card.name, card.episodeName, card.cardNumber]
+            .filter(Boolean)
+            .some((value) => value!.toLocaleLowerCase().includes(normalized))
+        )
+      : cards;
+    return [...filtered].sort((left, right) =>
+      Number(suggested.has(right.id)) - Number(suggested.has(left.id)) ||
+      (right.value ?? -1) - (left.value ?? -1)
+    );
+  }, [cards, query, suggested]);
 
   return (
     <div className="min-w-0 rounded-2xl border border-white/8 bg-black/14 p-2.5">
       <div className="flex items-center justify-between gap-2 px-1 pb-2">
         <h3 className="truncate text-[11px] font-black text-white/72">{title}</h3>
-        <span className="shrink-0 text-[10px] font-black tabular-nums text-violet-100/66">
+        <span className="shrink-0 text-right text-[10px] font-black tabular-nums text-violet-100/66">
           {selectedCard?.value == null
-            ? "Choose a card"
+            ? `${cards.length} owned`
             : formatCollectionCurrency(selectedCard.value)}
         </span>
       </div>
+      {cards.length > 6 ? (
+        <label className="mb-2 flex h-9 items-center gap-2 rounded-xl border border-white/8 bg-white/[0.025] px-2.5 focus-within:border-violet-300/24 focus-within:bg-violet-500/[0.045]">
+          <Search className="h-3.5 w-3.5 shrink-0 text-white/30" />
+          <input
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search this collection..."
+            className="min-w-0 flex-1 bg-transparent text-[11px] font-semibold text-white/72 outline-none placeholder:text-white/25"
+            aria-label={`Search ${title}`}
+          />
+          {query ? (
+            <button type="button" onClick={() => setQuery("")} className="text-white/28 hover:text-white/70" aria-label="Clear collection search">
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+        </label>
+      ) : null}
       {cards.length > 0 ? (
-        <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
-          {cards.slice(0, 12).map((card) => {
+        visibleCards.length > 0 ? (
+        <div className="grid max-h-[22rem] gap-1.5 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-2 xl:grid-cols-1 2xl:grid-cols-2">
+          {visibleCards.map((card) => {
             const selected = card.id === selectedCardId;
+            const isSuggested = suggested.has(card.id);
             return (
               <button
                 key={card.id}
@@ -268,7 +387,10 @@ function TradeColumn({
                 </span>
                 <span className="min-w-0 flex-1">
                   <strong className="block truncate text-[10px] text-white/76">{card.name}</strong>
-                  <small className="block truncate text-[8px] text-white/32">{card.episodeName} {card.cardNumber ? `#${card.cardNumber}` : ""}</small>
+                  <small className="block truncate text-[8px] text-white/32">
+                    {card.episodeName} {card.cardNumber ? `#${card.cardNumber}` : ""}
+                  </small>
+                  {isSuggested ? <small className="mt-0.5 block text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200/68">Wanted match</small> : null}
                 </span>
                 <span className="shrink-0 text-right text-[9px] font-black tabular-nums text-white/54">
                   {card.value == null ? "--" : formatCollectionCurrency(card.value)}
@@ -281,8 +403,11 @@ function TradeColumn({
             );
           })}
         </div>
+        ) : (
+          <p className="rounded-xl border border-dashed border-white/8 px-3 py-5 text-center text-[10px] text-white/32">No cards match this search.</p>
+        )
       ) : (
-        <p className="rounded-xl border border-dashed border-white/8 px-3 py-5 text-center text-[10px] text-white/32">No current match.</p>
+        <p className="rounded-xl border border-dashed border-white/8 px-3 py-5 text-center text-[10px] text-white/32">No cards in this collection.</p>
       )}
     </div>
   );
@@ -294,8 +419,8 @@ function FriendTradeMatches({ opportunities }: { opportunities: SocialTradeOppor
   const [selectedYourCardId, setSelectedYourCardId] = useState<string | null>(null);
   const [selectedTheirCardId, setSelectedTheirCardId] = useState<string | null>(null);
   const selected = opportunities.find((opportunity) => opportunity.friend.id === selectedFriendId) ?? opportunities[0] ?? null;
-  const yourCard = selected?.matches.yourCardsTheyWant.find((card) => card.id === selectedYourCardId) ?? null;
-  const theirCard = selected?.matches.theirCardsYouWant.find((card) => card.id === selectedTheirCardId) ?? null;
+  const yourCard = selected?.matches.yourCollectionCards.find((card) => card.id === selectedYourCardId) ?? null;
+  const theirCard = selected?.matches.theirCollectionCards.find((card) => card.id === selectedTheirCardId) ?? null;
   const balance = yourCard?.value != null && theirCard?.value != null
     ? Number((yourCard.value - theirCard.value).toFixed(2))
     : null;
@@ -334,19 +459,23 @@ function FriendTradeMatches({ opportunities }: { opportunities: SocialTradeOppor
       {selected ? (
         <>
           <p className="mt-2 rounded-xl border border-violet-300/10 bg-violet-500/[0.04] px-3 py-2 text-[10px] leading-4 text-white/42">
-            These are suggestions, not preselected cards. Choose one card on each side to inspect the trade.
+            Wanted matches are highlighted first, but you can choose any owned card from either collection.
           </p>
           <div className="mt-2 grid gap-2 lg:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] lg:items-center">
             <TradeColumn
+              key={`your-${selected.friend.id}`}
               title="You can offer"
-              cards={selected.matches.yourCardsTheyWant}
+              cards={selected.matches.yourCollectionCards}
+              suggestedCardIds={selected.matches.yourCardsTheyWant.map((card) => card.id)}
               selectedCardId={selectedYourCardId}
               onSelect={(cardId) => setSelectedYourCardId((current) => current === cardId ? null : cardId)}
             />
             <ArrowLeftRight className="mx-auto hidden h-4 w-4 text-violet-200/36 lg:block" />
             <TradeColumn
+              key={`their-${selected.friend.id}`}
               title={`${selected.friend.displayName} can offer`}
-              cards={selected.matches.theirCardsYouWant}
+              cards={selected.matches.theirCollectionCards}
+              suggestedCardIds={selected.matches.theirCardsYouWant.map((card) => card.id)}
               selectedCardId={selectedTheirCardId}
               onSelect={(cardId) => setSelectedTheirCardId((current) => current === cardId ? null : cardId)}
             />
@@ -392,9 +521,9 @@ export default function TradeOpportunitiesPanel({
         <Link href="/social" prefetch={false} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-white/8 px-2.5 text-[9px] font-black text-white/54 transition-colors hover:bg-white/[0.05] hover:text-white"><UsersRound className="h-3 w-3" /> Friends</Link>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-black/12 p-1">
-        <button type="button" onClick={() => setMode("compare")} className={`h-8 rounded-lg text-[10px] font-black transition-colors ${mode === "compare" ? "bg-violet-500/[0.2] text-violet-50" : "text-white/38 hover:text-white/64"}`}>Compare two cards</button>
-        <button type="button" onClick={() => setMode("friends")} className={`h-8 rounded-lg text-[10px] font-black transition-colors ${mode === "friends" ? "bg-violet-500/[0.2] text-violet-50" : "text-white/38 hover:text-white/64"}`}>Friend trades</button>
+      <div className="mt-3 grid grid-cols-2 gap-1.5">
+        <button type="button" onClick={() => setMode("compare")} aria-pressed={mode === "compare"} className={`h-9 rounded-xl border text-[10px] font-black transition-colors ${mode === "compare" ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)]" : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"}`}>Compare two cards</button>
+        <button type="button" onClick={() => setMode("friends")} aria-pressed={mode === "friends"} className={`h-9 rounded-xl border text-[10px] font-black transition-colors ${mode === "friends" ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)]" : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"}`}>Friend trades</button>
       </div>
 
       {mode === "compare" ? (

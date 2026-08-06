@@ -2,7 +2,6 @@ import {
   APPEARANCE_THEME_PRESETS,
   DEFAULT_APPEARANCE_SETTINGS,
   LEGACY_APPEARANCE_PRESET_MIGRATIONS,
-  appearancePaletteToCssVariables,
   normalizeAppearanceSettings,
   type AppearanceSettings,
 } from "@/lib/appearance-themes";
@@ -305,72 +304,12 @@ export function buildResolvedThemeCookie(theme: ResolvedTheme): string {
   ].join("; ");
 }
 
-const PREPAINT_CSS_VARIABLE_NAMES = [
-  "--dc-primary",
-  "--dc-primary-hover",
-  "--dc-primary-soft",
-  "--dc-secondary",
-  "--dc-bg-main",
-  "--dc-surface-primary",
-  "--dc-surface-elevated",
-  "--dc-surface-hover",
-  "--dc-border",
-  "--dc-border-hover",
-  "--dc-border-active",
-  "--dc-text-primary",
-  "--dc-text-secondary",
-  "--dc-text-muted",
-  "--dc-text-disabled",
-  "--dc-on-primary",
-  "--dc-success",
-  "--dc-success-hover",
-  "--dc-success-bg",
-  "--dc-negative",
-  "--dc-negative-hover",
-  "--dc-negative-bg",
-  "--dc-cyan",
-  "--dc-gold",
-  "--dc-pink",
-  "--dc-chart-primary-fill",
-  "--dc-chart-secondary-fill",
-  "--dc-primary-gradient",
-  "--dc-ambient-glow",
-  "--dc-primary-rgb",
-  "--dc-primary-hover-rgb",
-  "--dc-primary-soft-rgb",
-  "--dc-secondary-rgb",
-  "--dc-bg-main-rgb",
-  "--dc-surface-primary-rgb",
-  "--dc-surface-elevated-rgb",
-  "--dc-surface-hover-rgb",
-  "--dc-border-rgb",
-  "--dc-border-hover-rgb",
-  "--dc-border-active-rgb",
-  "--dc-text-secondary-rgb",
-  "--dc-text-muted-rgb",
-  "--dc-on-primary-rgb",
-  "--dc-success-rgb",
-  "--dc-negative-rgb",
-  "--dc-cyan-rgb",
-  "--dc-gold-rgb",
-  "--dc-pink-rgb",
-  "--app-bg",
-  "--color-white",
-  "--color-black",
-] as const;
-
 const PREPAINT_APPEARANCE_PRESETS = Object.fromEntries(
   APPEARANCE_THEME_PRESETS.map(({ id, scheme, palette }) => [
     id,
     {
       scheme,
       palette,
-      variables: Object.fromEntries(
-        PREPAINT_CSS_VARIABLE_NAMES.map((name) => [
-          name,
-          appearancePaletteToCssVariables(palette)[name],
-        ])
-      ),
     },
   ])
 );
@@ -464,6 +403,17 @@ export const initSettingsScript = `
       var rgb = hexRgb(hex);
       return 'rgba(' + rgb[0] + ', ' + rgb[1] + ', ' + rgb[2] + ', ' + alpha + ')';
     };
+    var mixHex = function(first, second, secondWeight) {
+      var firstRgb = hexRgb(first);
+      var secondRgb = hexRgb(second);
+      var weight = Math.min(1, Math.max(0, secondWeight));
+      var mixed = firstRgb.map(function(channel, index) {
+        return Math.round(channel * (1 - weight) + secondRgb[index] * weight);
+      });
+      return '#' + mixed.map(function(channel) {
+        return channel.toString(16).padStart(2, '0');
+      }).join('').toUpperCase();
+    };
     var luminance = function(hex) {
       var channels = hexRgb(hex).map(function(channel) {
         var normalized = channel / 255;
@@ -488,6 +438,44 @@ export const initSettingsScript = `
       }
       return best;
     };
+    var lightAppearance = luminance(palette.background) >= 0.5;
+    var colorScale = function(base, soft, background) {
+      if (luminance(background) >= 0.5) {
+        return {
+          '50': mixHex(base, '#000000', 0.5),
+          '100': mixHex(base, '#000000', 0.38),
+          '200': mixHex(base, '#000000', 0.24),
+          '300': mixHex(base, '#000000', 0.1),
+          '400': base,
+          '500': base,
+          '600': mixHex(base, soft, 0.22),
+          '700': mixHex(base, soft, 0.44),
+          '800': mixHex(soft, background, 0.18),
+          '900': mixHex(soft, background, 0.48),
+          '950': mixHex(background, soft, 0.16)
+        };
+      }
+      return {
+        '50': mixHex(soft, '#FFFFFF', 0.72),
+        '100': mixHex(soft, '#FFFFFF', 0.5),
+        '200': mixHex(soft, '#FFFFFF', 0.24),
+        '300': soft,
+        '400': mixHex(base, '#FFFFFF', 0.18),
+        '500': base,
+        '600': mixHex(base, background, 0.08),
+        '700': mixHex(base, background, 0.24),
+        '800': mixHex(base, background, 0.4),
+        '900': mixHex(base, background, 0.58),
+        '950': mixHex(base, background, 0.72)
+      };
+    };
+    var addScale = function(target, names, scale) {
+      names.forEach(function(name) {
+        for (var step in scale) {
+          target['--color-' + name + '-' + step] = scale[step];
+        }
+      });
+    };
     var onPrimary = readableForeground(palette.primary, palette.textPrimary);
     var customVariables = {
       '--dc-primary': palette.primary,
@@ -504,9 +492,15 @@ export const initSettingsScript = `
       '--dc-text-primary': palette.textPrimary,
       '--dc-text-secondary': palette.textSecondary,
       '--dc-text-muted': palette.textMuted,
+      '--dc-text-disabled': mixHex(palette.textMuted, palette.background, 0.38),
       '--dc-on-primary': onPrimary,
+      '--dc-on-dark': '#FFFFFF',
       '--dc-success': palette.success,
+      '--dc-success-hover': mixHex(palette.success, '#FFFFFF', 0.16),
+      '--dc-success-bg': rgba(palette.success, 0.12),
       '--dc-negative': palette.negative,
+      '--dc-negative-hover': mixHex(palette.negative, '#FFFFFF', 0.16),
+      '--dc-negative-bg': rgba(palette.negative, 0.12),
       '--dc-cyan': palette.data,
       '--dc-gold': palette.warning,
       '--dc-pink': palette.secondary,
@@ -514,6 +508,19 @@ export const initSettingsScript = `
       '--dc-chart-secondary-fill': rgba(palette.data, 0.15),
       '--dc-primary-gradient': 'linear-gradient(135deg, ' + palette.primary + ' 0%, ' + palette.primaryHover + ' 100%)',
       '--dc-ambient-glow': 'radial-gradient(circle, ' + rgba(palette.primary, 0.18) + ', transparent 70%)',
+      '--dc-surface-glass': rgba(palette.surface, 0.92),
+      '--dc-surface-glass-strong': rgba(palette.surface, 0.98),
+      '--dc-overlay': rgba(palette.background, 0.82),
+      '--dc-overlay-strong': rgba(palette.background, 0.96),
+      '--dc-scrim': lightAppearance
+        ? rgba(palette.textPrimary, 0.32)
+        : 'rgba(0, 0, 0, 0.62)',
+      '--dc-shadow-color': lightAppearance
+        ? rgba(palette.textPrimary, 0.16)
+        : 'rgba(0, 0, 0, 0.52)',
+      '--dc-sheen': lightAppearance
+        ? 'rgba(255, 255, 255, 0.78)'
+        : 'rgba(255, 255, 255, 0.06)',
       '--dc-primary-rgb': rgbString(palette.primary),
       '--dc-primary-hover-rgb': rgbString(palette.primaryHover),
       '--dc-primary-soft-rgb': rgbString(palette.primarySoft),
@@ -525,9 +532,11 @@ export const initSettingsScript = `
       '--dc-border-rgb': rgbString(palette.border),
       '--dc-border-hover-rgb': rgbString(palette.borderHover),
       '--dc-border-active-rgb': rgbString(palette.primary),
+      '--dc-text-primary-rgb': rgbString(palette.textPrimary),
       '--dc-text-secondary-rgb': rgbString(palette.textSecondary),
       '--dc-text-muted-rgb': rgbString(palette.textMuted),
       '--dc-on-primary-rgb': rgbString(onPrimary),
+      '--dc-on-dark-rgb': '255 255 255',
       '--dc-success-rgb': rgbString(palette.success),
       '--dc-negative-rgb': rgbString(palette.negative),
       '--dc-cyan-rgb': rgbString(palette.data),
@@ -535,11 +544,54 @@ export const initSettingsScript = `
       '--dc-pink-rgb': rgbString(palette.secondary),
       '--app-bg': palette.background,
       '--color-white': palette.textPrimary,
-      '--color-black': luminance(palette.background) >= 0.5
+      '--color-black': lightAppearance
         ? palette.textPrimary
         : palette.background
     };
-    var appearanceVariables = selectedRecord ? selectedRecord.variables : customVariables;
+    addScale(
+      customVariables,
+      ['violet', 'purple'],
+      colorScale(palette.primary, palette.primarySoft, palette.background)
+    );
+    addScale(
+      customVariables,
+      ['fuchsia', 'pink'],
+      colorScale(palette.secondary, mixHex(palette.secondary, '#FFFFFF', 0.48), palette.background)
+    );
+    addScale(
+      customVariables,
+      ['blue', 'sky', 'cyan'],
+      colorScale(palette.data, mixHex(palette.data, '#FFFFFF', 0.44), palette.background)
+    );
+    addScale(
+      customVariables,
+      ['emerald', 'green', 'lime'],
+      colorScale(palette.success, mixHex(palette.success, '#FFFFFF', 0.48), palette.background)
+    );
+    addScale(
+      customVariables,
+      ['red', 'rose'],
+      colorScale(palette.negative, mixHex(palette.negative, '#FFFFFF', 0.5), palette.background)
+    );
+    addScale(
+      customVariables,
+      ['amber', 'yellow', 'orange'],
+      colorScale(palette.warning, mixHex(palette.warning, '#FFFFFF', 0.5), palette.background)
+    );
+    addScale(customVariables, ['gray', 'slate', 'zinc', 'neutral'], {
+      '50': palette.textPrimary,
+      '100': mixHex(palette.textPrimary, palette.textSecondary, 0.5),
+      '200': palette.textSecondary,
+      '300': mixHex(palette.textSecondary, palette.textMuted, 0.45),
+      '400': palette.textMuted,
+      '500': mixHex(palette.textMuted, palette.background, 0.28),
+      '600': palette.borderHover,
+      '700': palette.border,
+      '800': palette.surfaceHover,
+      '900': palette.surface,
+      '950': palette.background
+    });
+    var appearanceVariables = customVariables;
     var scheme = selectedRecord
       ? selectedRecord.scheme
       : (luminance(palette.background) >= 0.5 ? 'light' : 'dark');

@@ -142,7 +142,7 @@ export function HeaderProgressMeter({
           className="h-full rounded-full"
           style={{
             width: `${safePercent}%`,
-            background: `linear-gradient(90deg, ${progressColor}, #38BDF8)`,
+            background: `linear-gradient(90deg, ${progressColor}, var(--dc-cyan))`,
             boxShadow: "0 0 18px rgb(var(--dc-primary-rgb) / 0.26)",
           }}
         />
@@ -175,7 +175,7 @@ export function HeaderStackedProgressMeter({
   const safePercent = Math.min(100, Math.max(0, percent));
   const safeSecondaryPercent = Math.min(100, Math.max(0, secondaryPercent));
   const progressColor = accentColor ?? "var(--dc-primary)";
-  const secondaryProgressColor = secondaryAccentColor ?? "#38bdf8";
+  const secondaryProgressColor = secondaryAccentColor ?? "var(--dc-cyan)";
 
   return (
     <div
@@ -202,7 +202,7 @@ export function HeaderStackedProgressMeter({
           className="h-full rounded-full"
           style={{
             width: `${safePercent}%`,
-            background: `linear-gradient(90deg, ${progressColor}, #38BDF8)`,
+            background: `linear-gradient(90deg, ${progressColor}, var(--dc-cyan))`,
             boxShadow: "0 0 18px rgb(var(--dc-primary-rgb) / 0.26)",
           }}
         />
@@ -221,10 +221,10 @@ export function HeaderStackedProgressMeter({
         </div>
         <div className="mt-2 h-[calc(var(--ui-binder-progress-height)*0.72)] overflow-hidden rounded-full bg-black/28">
           <div
-            className="h-full rounded-full shadow-[0_0_14px_rgba(56,189,248,0.28)]"
+            className="h-full rounded-full shadow-[0_0_14px_rgb(var(--dc-cyan-rgb)/0.28)]"
             style={{
               width: `${safeSecondaryPercent}%`,
-              background: `linear-gradient(90deg, ${secondaryProgressColor}, #67e8f9)`,
+              background: `linear-gradient(90deg, ${secondaryProgressColor}, color-mix(in srgb, var(--dc-cyan) 58%, var(--dc-primary-soft)))`,
             }}
           />
         </div>

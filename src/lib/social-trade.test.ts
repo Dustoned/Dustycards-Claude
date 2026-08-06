@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   cardCopiesFindMany: vi.fn(),
   wantsFindMany: vi.fn(),
   cardsFindMany: vi.fn(),
+  queryRawUnsafe: vi.fn(),
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -17,6 +18,7 @@ vi.mock("@/lib/db", () => ({
     collectionCard: { findMany: mocks.cardCopiesFindMany },
     collectionWant: { findMany: mocks.wantsFindMany },
     card: { findMany: mocks.cardsFindMany },
+    $queryRawUnsafe: mocks.queryRawUnsafe,
   },
 }));
 
@@ -66,7 +68,6 @@ describe("social trade opportunities", () => {
         card_number: "1",
         image_url: null,
         episode: { name: "Test Set" },
-        prices: [{ cm_en_lowest_nm: 20 }],
       },
       {
         id: "card-theirs",
@@ -74,8 +75,11 @@ describe("social trade opportunities", () => {
         card_number: "2",
         image_url: null,
         episode: { name: "Test Set" },
-        prices: [{ cm_en_lowest_nm: 25 }],
       },
+    ]);
+    mocks.queryRawUnsafe.mockResolvedValue([
+      { card_id: "card-yours", cm_en_lowest_nm: 20 },
+      { card_id: "card-theirs", cm_en_lowest_nm: 25 },
     ]);
   });
 
@@ -90,6 +94,8 @@ describe("social trade opportunities", () => {
         theirOfferValue: 25,
         yourCardsTheyWant: [{ id: "card-yours", availableCopies: 1 }],
         theirCardsYouWant: [{ id: "card-theirs", availableCopies: 1 }],
+        yourCollectionCards: [{ id: "card-yours", availableCopies: 2 }],
+        theirCollectionCards: [{ id: "card-theirs", availableCopies: 1 }],
       },
     });
     for (const call of mocks.cardCopiesFindMany.mock.calls) {

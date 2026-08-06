@@ -101,11 +101,11 @@ function CollectionAllocationPanel({ segments }: { segments: HomeAllocationSegme
       <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/18 to-transparent" />
       <h2 className="text-base font-black tracking-tight text-white">Collection Allocation</h2>
 
-      <div className="mt-2.5 flex h-3 gap-1 rounded-full border border-white/8 bg-black/18 p-0.5">
+      <div className="mt-2.5 flex h-2.5 gap-1 overflow-visible">
         {segments.map((segment) => (
           <div
             key={segment.key}
-            className={`${TONE_CLASSES[segment.tone].bar} h-full min-w-2 rounded-full`}
+            className={`${TONE_CLASSES[segment.tone].bar} h-full min-w-2 rounded-full shadow-[0_1px_5px_rgb(0_0_0/0.12)]`}
             style={{
               flexBasis: 0,
               flexGrow: totalValue > 0 ? Math.max(segment.value, totalValue * 0.012) : 1,

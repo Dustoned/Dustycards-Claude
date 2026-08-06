@@ -169,7 +169,7 @@ function TopSetsProgressPanel({
             ? 0
             : Math.min(100, Math.max(0, binder.completionPct));
           const total = binder.totalCards ?? 0;
-          const accent = binder.accent_color ?? "#7C5CFF";
+          const accent = binder.accent_color ?? "var(--dc-primary)";
           const logoUrl = binder.episode?.logo_url ?? null;
           return (
             <Link
@@ -180,7 +180,11 @@ function TopSetsProgressPanel({
             >
               <span
                 className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.05]"
-                style={{ borderColor: `${accent}55` }}
+                style={{
+                  borderColor: binder.accent_color
+                    ? `${binder.accent_color}55`
+                    : "rgb(var(--dc-primary-rgb) / 0.33)",
+                }}
               >
                 {logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
@@ -206,7 +210,7 @@ function TopSetsProgressPanel({
                   className="h-full rounded-full"
                   style={{
                     width: `${completion}%`,
-                    background: `linear-gradient(90deg, ${accent}, #B39BFF)`,
+                    background: `linear-gradient(90deg, ${accent}, var(--dc-primary-soft))`,
                   }}
                 />
               </div>

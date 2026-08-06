@@ -513,34 +513,41 @@ export function SealedFeaturedCardsSection({
   loading,
   openingCardId,
   onOpenCard,
+  compact = false,
 }: {
   product: SealedDetailResponse;
   loading: boolean;
   openingCardId: string | null;
   onOpenCard: (cardId: string) => void;
+  compact?: boolean;
 }) {
   const cards = product.featured_cards ?? [];
+  const visibleCards = compact ? cards.slice(0, 8) : cards;
   const pricedCards = cards.filter((card) => card.market_price != null).length;
   const pullRateCards = cards.filter((card) => card.pull_rate_info != null).length;
   const topCard = cards.find((card) => card.market_price != null) ?? null;
 
   return (
-    <section data-sealed-featured-cards className="min-w-0 rounded-[20px] border border-white/10 bg-[linear-gradient(180deg,rgba(255,255,255,0.05),rgba(255,255,255,0.018))] p-3 sm:p-4">
-      <div className="grid min-w-0 gap-2.5 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+    <section data-sealed-featured-cards data-compact={compact ? "true" : undefined} className={`min-w-0 rounded-[20px] border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-elevated-rgb)/0.84),rgb(var(--dc-surface-primary-rgb)/0.94))] shadow-[inset_0_1px_0_var(--dc-sheen)] ${compact ? "p-3" : "p-3 sm:p-4"}`}>
+      <div className={`grid min-w-0 gap-2.5 ${compact ? "grid-cols-[minmax(0,1fr)_auto] items-center" : "lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"}`}>
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-violet-200/62">
+          <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[rgb(var(--dc-primary-soft-rgb)/0.72)]">
             Set highlights
           </p>
-          <h2 className="mt-0.5 text-xl font-black tracking-tight text-white sm:text-2xl">
+          <h2 className={`mt-0.5 font-black tracking-tight text-[var(--dc-text-primary)] ${compact ? "text-base sm:text-lg" : "text-xl sm:text-2xl"}`}>
             Featured Cards
           </h2>
-          <p className="mt-1 max-w-4xl text-xs leading-relaxed text-white/46 min-[1900px]:hidden">
+          {!compact ? <p className="mt-1 max-w-4xl text-xs leading-relaxed text-white/46 min-[1900px]:hidden">
             The highest-value cards from {product.episode?.name ?? "the linked set"}. Pulls are
             never guaranteed; odds are shown only where local rarity data is available.
-          </p>
+          </p> : null}
         </div>
 
-        <div className="grid grid-cols-3 gap-1.5">
+        {compact ? (
+          <span className="rounded-full border border-[rgb(var(--dc-primary-rgb)/0.2)] bg-[rgb(var(--dc-primary-rgb)/0.08)] px-2.5 py-1 text-[11px] font-bold text-[var(--dc-primary)]">
+            {cards.length} cards
+          </span>
+        ) : <div className="grid grid-cols-3 gap-1.5">
           <div className="rounded-lg border border-white/8 bg-black/18 px-2.5 py-1.5">
             <p className="text-[9px] font-bold uppercase tracking-wide text-white/34">Priced</p>
             <p className="mt-0.5 text-sm font-black tabular-nums text-white">{pricedCards}</p>
@@ -555,24 +562,24 @@ export function SealedFeaturedCardsSection({
               {topCard ? formatCurrency(topCard.market_price, topCard.market_currency) : "--"}
             </p>
           </div>
-        </div>
+        </div>}
       </div>
 
       {loading && cards.length === 0 ? (
         <div
-          className="sealed-featured-grid mx-auto mt-3 grid w-full gap-2"
+          className={`${compact ? "sealed-featured-compact-grid" : "sealed-featured-grid mx-auto grid w-full gap-2"} mt-3`}
           style={{ maxWidth: "269rem" }}
         >
-          {Array.from({ length: 6 }, (_, index) => (
+          {Array.from({ length: compact ? 8 : 6 }, (_, index) => (
             <div key={index} className="aspect-[63/102] animate-pulse rounded-2xl bg-white/[0.055]" />
           ))}
         </div>
       ) : cards.length > 0 ? (
         <div
-          className="sealed-featured-grid mx-auto mt-3 grid w-full gap-2"
+          className={`${compact ? "sealed-featured-compact-grid" : "sealed-featured-grid mx-auto grid w-full gap-2"} mt-3`}
           style={{ maxWidth: "269rem" }}
         >
-          {cards.map((card) => (
+          {visibleCards.map((card) => (
             <FeaturedCardTile
               key={card.id}
               card={card}

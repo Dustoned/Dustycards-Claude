@@ -22,15 +22,15 @@ export default function SellingInventoryTabs({
   return (
     <section className="overflow-hidden rounded-[var(--ui-page-header-radius)] border border-white/8 bg-[linear-gradient(145deg,rgba(20,20,28,0.72),rgba(9,9,13,0.84))]">
       <div className="border-b border-white/8 p-2.5 sm:p-3">
-        <div className="grid grid-cols-2 gap-1 rounded-xl border border-white/8 bg-black/16 p-1">
+        <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
             onClick={() => setView("active")}
             aria-pressed={!showingSold}
-            className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 text-xs font-black transition-colors ${
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-2 text-xs font-black transition-colors ${
               !showingSold
-                ? "bg-violet-500/[0.2] text-violet-50 shadow-sm"
-                : "text-white/42 hover:bg-white/[0.035] hover:text-white/72"
+                ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)] shadow-[inset_0_1px_0_var(--dc-sheen)]"
+                : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"
             }`}
           >
             <Tag className="h-3.5 w-3.5" aria-hidden="true" />
@@ -41,10 +41,10 @@ export default function SellingInventoryTabs({
             type="button"
             onClick={() => setView("sold")}
             aria-pressed={showingSold}
-            className={`flex min-h-11 items-center justify-center gap-2 rounded-lg px-2 text-xs font-black transition-colors ${
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-2 text-xs font-black transition-colors ${
               showingSold
-                ? "bg-emerald-500/[0.16] text-emerald-50 shadow-sm"
-                : "text-white/42 hover:bg-white/[0.035] hover:text-white/72"
+                ? "border-[rgb(var(--dc-success-rgb)/0.34)] bg-[rgb(var(--dc-success-rgb)/0.1)] text-[var(--dc-success)] shadow-[inset_0_1px_0_var(--dc-sheen)]"
+                : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-success-rgb)/0.24)] hover:text-[var(--dc-text-primary)]"
             }`}
           >
             <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />

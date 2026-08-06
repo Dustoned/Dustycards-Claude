@@ -237,7 +237,7 @@ export default function CollectionSealedOriginPicker({
               id={listboxId}
               role="listbox"
               aria-label="Sealed product results"
-              className="absolute inset-x-0 top-full z-40 mt-1.5 max-h-64 overflow-y-auto rounded-2xl border border-white/10 bg-[#0b0b10]/98 p-1.5 shadow-[0_24px_70px_rgba(0,0,0,0.68)] backdrop-blur-2xl max-[640px]:relative max-[640px]:inset-auto max-[640px]:top-auto max-[640px]:max-h-48"
+              className="absolute inset-x-0 top-full z-40 mt-1.5 max-h-64 overflow-y-auto rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.88)] bg-[var(--dc-surface-glass-strong)] p-1.5 shadow-[0_24px_70px_var(--dc-shadow-color)] backdrop-blur-2xl max-[640px]:relative max-[640px]:inset-auto max-[640px]:top-auto max-[640px]:max-h-48"
             >
               <p className="px-2 pb-1.5 pt-1 text-[9px] font-bold uppercase tracking-[0.13em] text-white/28">
                 {query.trim() ? "All sealed products" : "Products containing this set"}

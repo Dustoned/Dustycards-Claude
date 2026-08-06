@@ -160,7 +160,7 @@ export default function ReadableInfoTooltip({
                 }
               }}
               onPointerLeave={scheduleClose}
-              className="z-[500] overflow-y-auto rounded-2xl border border-cyan-100/18 bg-[#071012]/98 px-4 py-3 text-left text-[13px] font-semibold leading-[1.55] text-white/88 shadow-[0_24px_80px_rgba(0,0,0,0.68)] backdrop-blur-2xl"
+              className="z-[500] overflow-y-auto rounded-2xl border border-[rgb(var(--dc-cyan-rgb)/0.24)] bg-[var(--dc-surface-glass-strong)] px-4 py-3 text-left text-[13px] font-semibold leading-[1.55] text-[rgb(var(--dc-text-primary-rgb)/0.88)] shadow-[0_24px_80px_var(--dc-shadow-color)] backdrop-blur-2xl"
               style={{
                 position: "fixed",
                 left: position.left,

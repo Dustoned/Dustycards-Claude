@@ -110,6 +110,7 @@ interface CardDetailShellProps {
   media: ReactNode;
   mediaActions?: ReactNode;
   chart: ReactNode;
+  heroSupplement?: ReactNode;
   actions?: ReactNode;
   actionsAriaLabel?: string;
   tabs: CardDetailTab[];
@@ -158,7 +159,7 @@ function BackControl({
     "card-detail-back group inline-flex min-h-11 min-w-0 items-center gap-2.5 rounded-full border border-white/[0.08] bg-white/[0.035] px-2 pr-4 text-sm font-semibold text-white/66 transition hover:border-white/15 hover:bg-white/[0.065] hover:text-white";
   const content = (
     <>
-      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-white/10 bg-black/25 text-white/72 transition group-hover:border-violet-300/24 group-hover:text-white">
+      <span className="inline-flex h-8 w-5 shrink-0 items-center justify-center text-white/72 transition group-hover:text-white">
         <ArrowLeft className="h-4 w-4" />
       </span>
       <span className="truncate">{navigation.label}</span>
@@ -233,6 +234,7 @@ export default function CardDetailShell({
   media,
   mediaActions,
   chart,
+  heroSupplement,
   actions,
   actionsAriaLabel = "Card actions",
   tabs,
@@ -456,6 +458,10 @@ export default function CardDetailShell({
             {chart}
           </section>
         </div>
+
+        {heroSupplement ? (
+          <div className="card-detail-hero-supplement">{heroSupplement}</div>
+        ) : null}
 
         <nav
           ref={tabsShellRef}

@@ -21,6 +21,7 @@ vi.mock("@/lib/sync/image-warmer", () => ({
 
 import {
   extractOfficialPokemonPortraitReveals,
+  matchStoredUpcomingRevealBacklog,
   refreshUpcomingGallerySources,
   UPCOMING_GALLERY_SOURCES,
 } from "@/lib/sync/upcoming-gallery-source-job";
@@ -80,5 +81,21 @@ describe("official Pokemon upcoming gallery extraction", () => {
       data: expect.objectContaining({ last_scraped_at: expect.any(Date) }),
     }));
     expect(dbMock.externalCatalystSource.upsert).not.toHaveBeenCalled();
+  });
+
+  it("matches newly discovered upcoming sources first without requiring a static source URL", async () => {
+    dbMock.externalCatalystSource.findMany.mockResolvedValue([]);
+
+    await matchStoredUpcomingRevealBacklog(new Date("2026-08-06T12:00:00.000Z"));
+
+    expect(dbMock.externalCatalystSource.findMany).toHaveBeenCalledWith(expect.objectContaining({
+      where: {
+        game: "pokemon",
+        source_type: { in: ["official", "community"] },
+        metadata_json: { contains: '"upcomingReveals"' },
+      },
+      orderBy: [{ updated_at: "desc" }],
+      take: 160,
+    }));
   });
 });

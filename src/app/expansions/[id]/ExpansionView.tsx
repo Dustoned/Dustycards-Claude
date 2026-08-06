@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import CollectionAddCardButton from "@/components/CollectionAddCardButton";
@@ -275,6 +275,7 @@ export default function ExpansionView({
   const [selectedCardIds, setSelectedCardIds] = useState<string[]>([]);
   const [bulkAddOpen, setBulkAddOpen] = useState(false);
   const [cardDetailsById, setCardDetailsById] = useState<Record<string, CardDetailData>>({});
+  const cardDetailsInFlightRef = useRef(new Map<string, Promise<void>>());
   const lastNotifiedVisibleCardsRef = useRef<readonly CardData[] | null>(null);
   const view: Exclude<CardView, "binder"> =
     displaySettings.defaultView === "binder" ? "grid" : displaySettings.defaultView;
@@ -417,30 +418,34 @@ export default function ExpansionView({
     };
   }, [cards, isMobileViewport, warmCardImages]);
 
-  useEffect(() => {
-    if (!selected || cardDetailsById[selected.id]) return;
+  const loadCardDetails = useCallback((cardId: string): Promise<void> => {
+    if (cardDetailsById[cardId]) return Promise.resolve();
+    const activeRequest = cardDetailsInFlightRef.current.get(cardId);
+    if (activeRequest) return activeRequest;
 
-    const controller = new AbortController();
-    const cardId = selected.id;
-
-    void (async () => {
+    const request = (async () => {
       try {
         const res = await fetch(`/api/cards/${encodeURIComponent(cardId)}`, {
-          signal: controller.signal,
+          cache: "force-cache",
         });
         if (!res.ok) throw new Error("card details failed");
 
         const data = (await res.json()) as CardDetailData;
         setCardDetailsById((prev) => (prev[cardId] ? prev : { ...prev, [cardId]: data }));
-      } catch (error) {
-        if (error instanceof Error && error.name === "AbortError") return;
+      } catch {
+        // Keep the lightweight preview usable. A later hover or click may retry.
+      } finally {
+        cardDetailsInFlightRef.current.delete(cardId);
       }
     })();
+    cardDetailsInFlightRef.current.set(cardId, request);
+    return request;
+  }, [cardDetailsById]);
 
-    return () => {
-      controller.abort();
-    };
-  }, [selected, cardDetailsById]);
+  useEffect(() => {
+    if (!selected) return;
+    void loadCardDetails(selected.id);
+  }, [loadCardDetails, selected]);
 
   function openDetails(card: CardData) {
     setSelected(card);
@@ -475,7 +480,11 @@ export default function ExpansionView({
   // Touch or primary mouse hold: turn selection mode on and select immediately.
   function getCardLongPressHandlers(cardId: string) {
     return {
+      onPointerEnter: (event: React.PointerEvent) => {
+        if (event.pointerType === "mouse") void loadCardDetails(cardId);
+      },
       onPointerDown: (event: React.PointerEvent) => {
+        void loadCardDetails(cardId);
         const isSupportedPointer = event.pointerType === "touch" || event.pointerType === "mouse";
         const interactiveTarget = (event.target as Element).closest(
           "button, a, input, select, textarea"
@@ -532,18 +541,6 @@ export default function ExpansionView({
   }
 
   function closeDetails() {
-    if (selected) {
-      setCardDetailsById((prev) => {
-        if (!(selected.id in prev)) {
-          return prev;
-        }
-
-        const next = { ...prev };
-        delete next[selected.id];
-        return next;
-      });
-    }
-
     setSelected(null);
   }
 
@@ -1850,9 +1847,7 @@ export default function ExpansionView({
 
       {selectedModalCard && (
         <CardModal
-          key={`${selectedModalCard.id}:${selectedDetails ? "loaded" : "base"}:${
-            selectedDetails?.collection_item?.id ?? "none"
-          }:${selectedDetails?.price_fetched_at ?? selectedModalCard.price_fetched_at ?? "none"}`}
+          key={selectedModalCard.id}
           card={selectedModalCard}
           backLabel={cardDetailBackLabel}
           onClose={closeDetails}

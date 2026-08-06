@@ -599,6 +599,27 @@ function HomeThemePreview({
             <PreviewCard accent={palette.warning} label="Rare pull" />
           </div>
 
+          <div className="mt-2 grid grid-cols-4 gap-1" aria-label="Theme status colour preview">
+            {[
+              ["Gain", "var(--dc-success)", "var(--dc-success-bg)"],
+              ["Drop", "var(--dc-negative)", "var(--dc-negative-bg)"],
+              ["Watch", "var(--dc-gold)", "rgb(var(--dc-gold-rgb) / 0.12)"],
+              ["Accent", "var(--dc-pink)", "rgb(var(--dc-secondary-rgb) / 0.12)"],
+            ].map(([label, color, background]) => (
+              <span
+                key={label}
+                className="truncate rounded-md border px-1.5 py-1 text-center text-[6px] font-black uppercase tracking-[0.08em]"
+                style={{
+                  color,
+                  backgroundColor: background,
+                  borderColor: `color-mix(in srgb, ${color} 32%, transparent)`,
+                }}
+              >
+                {label}
+              </span>
+            ))}
+          </div>
+
           {!phone ? (
             <div className="mt-2 grid grid-cols-2 gap-2">
               {["Value drivers", "Recent opportunities"].map((label, index) => (

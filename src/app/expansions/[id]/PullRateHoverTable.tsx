@@ -117,7 +117,7 @@ export default function PullRateHoverTable({
 
       <div className="pointer-events-none invisible absolute bottom-full right-0 z-[120] w-[min(44rem,calc(100vw-2rem))] translate-y-1 opacity-0 transition-[opacity,transform,visibility] duration-150 ease-out group-hover:pointer-events-auto group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100">
         <div
-          className="max-h-[22rem] min-w-0 overflow-y-auto overflow-x-auto rounded-[var(--ui-binder-metric-radius)] border border-amber-400/16 bg-[#17140d]/96 text-amber-50 shadow-2xl shadow-black/35 backdrop-blur-xl [scrollbar-width:thin]"
+          className="max-h-[22rem] min-w-0 overflow-y-auto overflow-x-auto rounded-[var(--ui-binder-metric-radius)] border border-[rgb(var(--dc-gold-rgb)/0.22)] bg-[var(--dc-surface-glass-strong)] text-amber-100 shadow-[0_18px_48px_var(--dc-shadow-color)] backdrop-blur-xl [scrollbar-width:thin]"
         >
           {profile.booster_pack_ev_usd != null ||
           profile.booster_box_ev_usd != null ||

@@ -97,7 +97,7 @@ export default async function SignalRadarCardPage({
       : null;
 
   return (
-    <div className="min-h-[calc(100dvh-var(--ui-app-header-height))] w-full bg-[#050508]">
+    <div className="min-h-[calc(100dvh-var(--ui-app-header-height))] w-full bg-[var(--dc-bg-main)]">
       <SignalRadarDetailClient
         signal={signal}
         card={detailCard}

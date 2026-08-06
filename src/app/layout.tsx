@@ -184,7 +184,7 @@ async function RuntimeAppFrame({ children }: { children: React.ReactNode }) {
         {currentUser && sidebarSummary ? <DesktopSidebar summary={sidebarSummary} /> : null}
         <header
           data-app-header
-          className="fixed left-0 right-0 top-0 z-50 border-b border-white/8 bg-[#08080c]/85 backdrop-blur-xl"
+          className="fixed left-0 right-0 top-0 z-50 border-b border-[rgb(var(--dc-border-rgb)/0.72)] bg-[var(--dc-overlay)] backdrop-blur-xl"
         >
           <div
             data-app-header-container

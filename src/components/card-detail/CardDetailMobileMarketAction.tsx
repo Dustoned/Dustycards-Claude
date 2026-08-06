@@ -243,11 +243,11 @@ export default function CardDetailMobileMarketAction({
           aria-label="More market links"
           data-card-detail-mobile-market-menu
           onKeyDown={handleMenuKeyDown}
-          className="absolute bottom-[calc(100%+0.7rem)] right-0 z-[280] w-[10rem] rounded-2xl border border-white/12 bg-[#111019]/98 p-1.5 shadow-[0_20px_52px_rgba(0,0,0,0.62)] backdrop-blur-2xl"
+          className="absolute bottom-[calc(100%+0.7rem)] right-0 z-[280] w-[10rem] rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass-strong)] p-1.5 shadow-[0_20px_52px_var(--dc-shadow-color)] backdrop-blur-2xl"
         >
           <span
             aria-hidden="true"
-            className="absolute -bottom-1.5 right-6 h-3 w-3 rotate-45 border-b border-r border-white/12 bg-[#111019]"
+            className="absolute -bottom-1.5 right-6 h-3 w-3 rotate-45 border-b border-r border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-primary)]"
           />
           <a
             href={ebayHref}

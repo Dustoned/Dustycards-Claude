@@ -43,6 +43,7 @@ interface Props {
   subtitle?: string;
   headerLeadingAccessory?: ReactNode;
   headerAccessory?: ReactNode;
+  headerStatus?: ReactNode;
   tone?: Tone;
   loading?: boolean;
   emptyText?: string;
@@ -557,6 +558,7 @@ export default function PriceHistoryPanel({
   subtitle,
   headerLeadingAccessory,
   headerAccessory,
+  headerStatus,
   tone = "default",
   loading = false,
   emptyText = "No price history yet",
@@ -806,7 +808,7 @@ export default function PriceHistoryPanel({
   const reserveStableMobileHeader = isMobileHeroLayout && stabilizeMobileHeader;
 
   const shellClass = isMobileHeroLayout
-    ? "rounded-[20px] border border-white/10 bg-[#101011] px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]"
+    ? "rounded-[20px] border border-[rgb(var(--dc-border-rgb)/0.88)] bg-[var(--dc-surface-primary)] px-3 py-3 shadow-[inset_0_1px_0_var(--dc-sheen)]"
     : tone === "dark"
       ? compact
         ? "rounded-2xl border border-white/10 bg-white/[0.06] px-3 py-3 max-[640px]:px-2.5 max-[640px]:py-2.5"
@@ -830,7 +832,9 @@ export default function PriceHistoryPanel({
           pointerEvents: "none",
           visibility: "hidden",
         }}
-      />
+      >
+        {headerStatus}
+      </section>
     );
   }
 
@@ -873,22 +877,22 @@ export default function PriceHistoryPanel({
     tone === "dark" ? "stroke-white/10" : "stroke-white/10";
   const tooltipClass =
     tone === "dark"
-      ? "border-white/12 bg-[#0c0c0f]/92 text-white shadow-2xl shadow-black/35"
-      : "border-white/10 bg-[#0c0c0f]/90 text-white shadow-xl shadow-black/35";
-  const accentStroke = currency === "USD" ? "#FBBF24" : "var(--dc-primary)";
+      ? "border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass)] text-[var(--dc-text-primary)] shadow-[0_18px_48px_var(--dc-shadow-color)]"
+      : "border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-glass)] text-[var(--dc-text-primary)] shadow-[0_14px_38px_var(--dc-shadow-color)]";
+  const accentStroke = currency === "USD" ? "var(--dc-gold)" : "var(--dc-primary)";
   const accentFillStart =
-    currency === "USD" ? "rgba(245, 158, 11, 0.32)" : "rgb(var(--dc-primary-rgb) / 0.28)";
+    currency === "USD" ? "rgb(var(--dc-gold-rgb) / 0.32)" : "rgb(var(--dc-primary-rgb) / 0.28)";
   const accentFillEnd =
-    currency === "USD" ? "rgba(245, 158, 11, 0.02)" : "rgb(var(--dc-primary-rgb) / 0.02)";
-  const dotFill = currency === "USD" ? "#fbbf24" : "var(--dc-primary-soft)";
+    currency === "USD" ? "rgb(var(--dc-gold-rgb) / 0.02)" : "rgb(var(--dc-primary-rgb) / 0.02)";
+  const dotFill = currency === "USD" ? "var(--dc-gold)" : "var(--dc-primary-soft)";
   const projectionVisual =
     projection?.tone === "strong-rise"
-      ? { stroke: "#34d399", text: "text-emerald-200/78" }
+      ? { stroke: "var(--dc-success)", text: "text-emerald-200/78" }
       : projection?.tone === "decline"
-        ? { stroke: "#fb7185", text: "text-rose-200/78" }
+        ? { stroke: "var(--dc-negative)", text: "text-rose-200/78" }
         : projection?.tone === "flat"
-          ? { stroke: "#fbbf24", text: "text-amber-200/78" }
-          : { stroke: "#38bdf8", text: "text-sky-100/72" };
+          ? { stroke: "var(--dc-gold)", text: "text-amber-200/78" }
+          : { stroke: "var(--dc-cyan)", text: "text-sky-100/72" };
   const projectionSummary = projection?.summary ?? null;
   const usesCornerTooltip =
     activeHover?.pointerType === "touch" || activeHover?.pointerType === "pen";
@@ -1165,7 +1169,7 @@ export default function PriceHistoryPanel({
                           cy={activePoint.y}
                           r="5"
                           fill={dotFill}
-                          stroke={tone === "dark" ? "#0c0c0f" : "#ffffff"}
+                          stroke="var(--dc-surface-primary)"
                           strokeWidth="2"
                         />
                       )}
@@ -1287,6 +1291,12 @@ export default function PriceHistoryPanel({
           </div>
         )}
       </div>
+
+      {headerStatus ? (
+        <div className="mt-2 min-w-0" data-price-history-header-status>
+          {headerStatus}
+        </div>
+      ) : null}
 
       {showRangeControls && (
         <div className={isMobileHeroLayout ? "mt-3" : compact ? "mt-3" : "mt-4"}>
@@ -1421,7 +1431,7 @@ export default function PriceHistoryPanel({
                       cx={point.x}
                       cy={point.y}
                       r={isHeroLayout ? "3.5" : "3"}
-                      fill="#071018"
+                      fill="var(--dc-surface-primary)"
                       stroke={projectionVisual.stroke}
                       strokeWidth="2"
                     />
@@ -1436,7 +1446,7 @@ export default function PriceHistoryPanel({
                         fontSize="11"
                         fontWeight="700"
                         paintOrder="stroke"
-                        stroke="#090a0f"
+                        stroke="var(--dc-bg-main)"
                         strokeWidth="4"
                         strokeLinejoin="round"
                         textAnchor="end"
@@ -1492,7 +1502,7 @@ export default function PriceHistoryPanel({
                   cy={activePoint.y}
                   r={isHeroLayout ? "5.5" : "5"}
                   fill={dotFill}
-                  stroke={tone === "dark" ? "#0c0c0f" : "#ffffff"}
+                  stroke="var(--dc-surface-primary)"
                   strokeWidth="2"
                 />
               )}

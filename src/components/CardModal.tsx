@@ -250,14 +250,12 @@ export default function CardModal({
     savedCardMarketGradedLabel,
     savedEbaySoldGradedLabel
   );
-  const [modalCard, setModalCard] = useState(card);
+  const [modalCardOverride, setModalCard] = useState<ModalCardData | null>(null);
+  const modalCard = modalCardOverride?.id === card.id ? modalCardOverride : card;
   const [gradedHeroState, setGradedHeroState] = useState<{
     cardId: string;
     price: CardModalGradedDisplayPrice | null;
-  }>(() => ({
-    cardId: card.id,
-    price: getPreferredCardModalGradedDisplayPrice(card, card.collection_item),
-  }));
+  } | null>(null);
   const { displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
   const [priceAlertOpen, setPriceAlertOpen] = useState(false);
@@ -729,6 +727,7 @@ export default function CardModal({
             cardMarketUrl={storedCardMarketUrl}
             showGradedSlabPreview={showGradedSlabPreview}
             variant="inline"
+            onOpenExpanded={openThreeDView}
             onClose={showTwoDimensional}
           />
         ) : null
@@ -736,7 +735,7 @@ export default function CardModal({
     />
   );
   const activeGradedHeroPrice =
-    gradedHeroState.cardId === modalCard.id
+    gradedHeroState?.cardId === modalCard.id
       ? gradedHeroState.price
       : getPreferredCardModalGradedDisplayPrice(modalCard, collectionItem);
   const historyPanel = (
@@ -856,7 +855,7 @@ export default function CardModal({
         key="expansion"
         href={getExpansionHref(modalCard.episode_id)}
         onClick={onClose}
-        className="text-violet-200/82 transition hover:text-white"
+        className="text-[var(--dc-primary)] transition-colors hover:text-[var(--dc-primary-hover)] hover:underline focus-visible:underline"
       >
         {modalCard.episode_name}
       </Link>,
@@ -864,6 +863,7 @@ export default function CardModal({
     ["Card number", modalCard.card_number ? `#${modalCard.card_number}` : "--"],
     ...(modalCard.version ? [["Version", modalCard.version] as const] : []),
     ["Rarity", modalCard.rarity ?? "--"],
+    ["Type", [modalCard.supertype, modalCard.subtypes].filter(Boolean).join(" · ") || "--"],
     [
       "Illustrator",
       modalCard.artist ? (
@@ -871,7 +871,7 @@ export default function CardModal({
           key="artist"
           href={`/illustrators/${encodeURIComponent(modalCard.artist)}`}
           onClick={onClose}
-          className="text-violet-200/82 transition hover:text-white"
+          className="text-[var(--dc-primary)] transition-colors hover:text-[var(--dc-primary-hover)] hover:underline focus-visible:underline"
         >
           {modalCard.artist}
         </Link>
@@ -879,7 +879,6 @@ export default function CardModal({
         "--"
       ),
     ],
-    ["Type", [modalCard.supertype, modalCard.subtypes].filter(Boolean).join(" · ") || "--"],
     ["Release", releaseLabel],
     [
       getCardCharacterFactLabel(modalCard.characters),
@@ -997,20 +996,12 @@ export default function CardModal({
   );
 
   const collectionPanel = (
-    <div
-      className="card-detail-section-grid card-detail-collection-grid"
-      data-columns="2"
-    >
+    <div className="card-detail-section-grid card-detail-collection-grid">
       <CardModalOwnedCopyPanel
         card={modalCard}
         collectionItem={collectionItem}
         onAddedToCollection={refreshModalCardFromServer}
         showActions={false}
-      />
-      <CardModalActiveListingsPanel
-        card={modalCard}
-        onOpenSealedProduct={setSelectedSealedProduct}
-        onClose={onClose}
       />
     </div>
   );
@@ -1068,12 +1059,20 @@ export default function CardModal({
               navigation={{ label: backLabel, onBack: onClose }}
               eyebrow={modalCard.game === "one-piece" ? "One Piece card" : "Pokémon card"}
               title={modalCard.name}
-              subtitle={[
-                modalCard.episode_name,
-                modalCard.card_number ? `#${modalCard.card_number}` : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
+              subtitle={
+                <span className="inline-flex max-w-full items-center gap-1.5">
+                  <Link
+                    href={getExpansionHref(modalCard.episode_id)}
+                    onClick={onClose}
+                    className="min-w-0 truncate text-inherit transition-colors hover:text-[var(--dc-primary)] hover:underline focus-visible:text-[var(--dc-primary)] focus-visible:underline"
+                  >
+                    {modalCard.episode_name}
+                  </Link>
+                  {modalCard.card_number ? (
+                    <span className="shrink-0">· #{modalCard.card_number}</span>
+                  ) : null}
+                </span>
+              }
               badges={
                 <>
                   {modalCard.rarity ? (
@@ -1191,6 +1190,16 @@ export default function CardModal({
                 </div>
               }
               chart={historyPanel}
+              heroSupplement={
+                (modalCard.sealed_product_count ?? modalCard.sealed_products?.length ?? 0) > 0 ? (
+                  <CardModalActiveListingsPanel
+                    card={modalCard}
+                    onOpenSealedProduct={setSelectedSealedProduct}
+                    onClose={onClose}
+                    compact
+                  />
+                ) : null
+              }
               actions={
                 <CardModalDesktopActionGroup
                   card={modalCard}

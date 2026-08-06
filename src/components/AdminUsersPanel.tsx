@@ -480,7 +480,7 @@ export default function AdminUsersPanel({
             aria-labelledby="admin-confirm-title"
             aria-describedby="admin-confirm-description"
             tabIndex={-1}
-            className="w-full max-w-md rounded-3xl border border-white/12 bg-[#101218] p-5 shadow-[0_28px_90px_rgba(0,0,0,0.6)]"
+            className="w-full max-w-md rounded-3xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass-strong)] p-5 shadow-[0_28px_90px_var(--dc-shadow-color)]"
           >
             <h3 id="admin-confirm-title" className="text-lg font-semibold text-white">
               {confirmAction.title}

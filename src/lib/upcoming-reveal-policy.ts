@@ -8,10 +8,14 @@ const RELEASED_REPRINT_CONTEXT = /\b(?:promos?|reprints?|locali[sz](?:ation|ed))
  */
 export function shouldShowUpcomingSourceReveal(input: {
   hasExactLibraryMatch: boolean;
+  exactLibraryMatchIsReleased?: boolean;
   releasedNameMatchCount: number;
   episodeName: string | null;
 }): boolean {
-  if (input.hasExactLibraryMatch) return false;
+  // A source reveal can already exist in our library before its actual
+  // release. Keep that upcoming printing visible and turn it into a normal
+  // DustyCards card; only hide exact matches that are already released.
+  if (input.hasExactLibraryMatch && input.exactLibraryMatchIsReleased !== false) return false;
   if (
     input.releasedNameMatchCount > 0
     && RELEASED_REPRINT_CONTEXT.test(input.episodeName ?? "")

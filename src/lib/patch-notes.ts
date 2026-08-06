@@ -17,6 +17,28 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.0",
+    releasedAt: "August 6, 2026",
+    title: "A coherent collection workspace, from theme to trade",
+    summary:
+      "DustyCards now uses one consistent visual system across light and dark themes, gives Card and Sealed Detail a denser collector-first layout, and turns Trade and Upcoming into practical browsing tools.",
+    tone: "new",
+    highlights: [
+      "The theme system now controls the complete interface instead of only the page background and accent. Surfaces, glass panels, overlays, shadows, status colours, charts, tiles, popups and interactive states all share the same semantic palette and appear in the live preview.",
+      "Five signature styles were professionally reworked: DustyCards Collector Violet, the warm Lavender Bloom, cool white Porcelain Studio, feminine white Blush Petal and the dark red Crimson Forge. Custom themes expose every meaningful colour in clearly grouped controls.",
+      "Card Detail has a calmer hierarchy with clean standalone controls, clickable expansion names, the two useful profile links first, chart status inside the graph and related sealed products in a compact horizontal rail directly below it.",
+      "The 3D card presentation now floats naturally over the page instead of sitting inside a heavy frame. Its holo has a richer pearlescent rainbow response, restrained inline zoom and a double-click shortcut to the full viewer.",
+      "Sealed Collection preserves each product's real artwork proportions. Sealed Detail uses the available space better, links its expansion and keeps Featured Cards open in a swipeable horizontal rail beneath the graph.",
+      "Complete Collection adds a clear List or Grid choice and a modern compact size control. Collection, graded and sealed tiles now keep consistent surfaces, button contrast and image treatment in every theme.",
+      "Trade Center can suggest Side B immediately after Side A is chosen, ordered by closest adjusted value. Convention ratios of 85%, 90%, 95% and 100% are built in and the selected trade and sale percentages stay saved on that device.",
+      "Friend trades remain suggestions instead of silently choosing two cards. Both sides can be replaced freely and value comparisons stay separate from the Sold ledger and cards that are still For Sale.",
+      "Upcoming & Leaks replaces known reveals with the higher-quality database card and opens its normal Card Detail. Unknown reveals open in a focused large card viewer, while set rows remain swipeable and every preview card is directly selectable.",
+      "Upcoming matching rejects cards and sets that are already released, reuses stored artwork and performs only incremental work when new source material arrives. This keeps new galleries automatic without repeating a catalog-wide CPU-heavy pass.",
+      "Reprint review now requires meaningful visual agreement. Artwork, colour and image evidence outweigh shared names or rules text, preventing unrelated Switch and Energy cards from appearing as convincing matches.",
+      "Release-year sorting is available throughout card browsers that already offer filters, making it easier to isolate older eras, current sets and future releases without separate pages.",
+    ],
+  },
+  {
     version: "3.11.0",
     releasedAt: "August 5, 2026",
     title: "Faster opening and reliable one-tap navigation",
