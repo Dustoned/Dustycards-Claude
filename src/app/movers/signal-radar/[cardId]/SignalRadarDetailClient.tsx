@@ -36,6 +36,7 @@ import {
   CardModalMarketSignalPanel,
   CardModalOwnedCopyPanel,
   CardModalPreview,
+  CardPriceStatusLine,
   CardModalRecentPricesPanel,
   CardModalRelatedPrintingsPanel,
 } from "@/components/card-modal/CardModalSections";
@@ -756,6 +757,7 @@ export default function SignalRadarDetailClient({
             currentValue={displayPrice}
             showCurrentValue={false}
             subtitle={effectiveMode === "raw" ? "English · Near Mint" : radarGradedLabel}
+            headerStatus={<CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />}
             headerLeadingAccessory={
               effectiveMode === "graded" ? (
                 <CardDetailGradeSelect
@@ -786,6 +788,15 @@ export default function SignalRadarDetailClient({
             rangeStorageLegacyKey={`signal-history-${signal.cardId}`}
             emptyText="No reliable price history yet"
           />
+        }
+        heroSupplement={
+          (card.sealed_product_count ?? card.sealed_products?.length ?? 0) > 0 ? (
+            <CardModalActiveListingsPanel
+              card={card}
+              onOpenSealedProduct={setSelectedSealedProduct}
+              compact
+            />
+          ) : null
         }
         actions={
           <CardModalDesktopActionGroup

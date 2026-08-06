@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.5",
+    releasedAt: "August 6, 2026",
+    title: "Complete Signal Radar card detail",
+    summary: "The clean Signal Radar layout now retains the useful live market context.",
+    tone: "improved",
+    highlights: [
+      "Signal Radar price charts now show source status, last refresh, next update, source coverage and history-point tags.",
+      "Cards also show the compact Find in Sealed rail directly below the hero when matching sealed products exist.",
+    ],
+  },
+  {
     version: "3.12.4",
     releasedAt: "August 6, 2026",
     title: "Side-by-side reprint comparison",

@@ -311,7 +311,7 @@ function PriceStatusInlineItem({
   );
 }
 
-function CardPriceStatusLine({
+export function CardPriceStatusLine({
   card,
   className = "",
 }: {
