@@ -1,5 +1,6 @@
 import {
   getMovers,
+  type CollectionMoverItem,
   type CollectionMoversData,
   type MoversItemScope,
   type MoversScope,
@@ -14,6 +15,7 @@ import { getServerUserSettings } from "@/lib/user-settings-server";
 import { POKEMON_GAME, type TradingCardGameFilter } from "@/lib/games";
 import {
   readMoversSnapshot,
+  SHARED_MOVERS_SNAPSHOT_USER_ID,
   writeMoversSnapshot,
   type MoversSnapshotKey,
 } from "@/lib/movers-snapshot-store";
@@ -24,6 +26,7 @@ import {
   normalizeMoversPriceSource,
   normalizeMoversScope,
 } from "@/app/movers/routing";
+import { db } from "@/lib/db";
 
 export {
   buildMoversSourceHref,
@@ -37,10 +40,10 @@ const MOVERS_FRESH_TTL_MS = 60_000;
 // Stale window: callers up to this age get the stale value immediately while a
 // background refresh refills the cache. Anything older blocks on a fresh fetch.
 const MOVERS_STALE_TTL_MS = 5 * 60_000;
-// A durable snapshot keeps the first request after a deploy fast. It is only
-// used as a short-lived bridge while current market data refreshes in the
-// background; it never replaces the normal live cache.
-const MOVERS_SNAPSHOT_MAX_AGE_MS = 12 * 60 * 60_000;
+// Durable snapshots keep deploys and cold starts fast. Shared all-card market
+// snapshots are refreshed by the low-priority maintenance worker so the web
+// process never blocks every visitor on the multi-million-row calculation.
+const MOVERS_SNAPSHOT_MAX_AGE_MS = 72 * 60 * 60_000;
 const MOVERS_SNAPSHOT_REFRESH_DELAY_MS = 8_000;
 
 interface CachedMoversEntry<T> {
@@ -61,6 +64,66 @@ const valueDriversPageCache = new Map<
   string,
   CachedMoversEntry<CollectionValueDriversData>
 >();
+
+interface OwnedMoverCountRow {
+  card_id: string;
+  owned_count: number | bigint;
+}
+
+function applyOwnedCount(
+  item: CollectionMoverItem | null,
+  ownedCounts: ReadonlyMap<string, number>
+): CollectionMoverItem | null {
+  return item
+    ? {
+        ...item,
+        ownedCount: ownedCounts.get(item.cardId) ?? 0,
+      }
+    : null;
+}
+
+export function applyMoverOwnedCounts(
+  data: CollectionMoversData,
+  ownedCounts: ReadonlyMap<string, number>
+): CollectionMoversData {
+  return {
+    ...data,
+    movers: data.movers.map((item) => applyOwnedCount(item, ownedCounts) as CollectionMoverItem),
+    topOpportunities: data.topOpportunities.map(
+      (item) => applyOwnedCount(item, ownedCounts) as CollectionMoverItem
+    ),
+    cheapestHighRarityMovers: data.cheapestHighRarityMovers.map(
+      (item) => applyOwnedCount(item, ownedCounts) as CollectionMoverItem
+    ),
+    discountedHighRarity: data.discountedHighRarity.map(
+      (item) => applyOwnedCount(item, ownedCounts) as CollectionMoverItem
+    ),
+    suddenDropDeals: data.suddenDropDeals.map(
+      (item) => applyOwnedCount(item, ownedCounts) as CollectionMoverItem
+    ),
+    strongest7d: applyOwnedCount(data.strongest7d, ownedCounts),
+    strongest30d: applyOwnedCount(data.strongest30d, ownedCounts),
+  };
+}
+
+async function personalizeSharedMovers(
+  data: CollectionMoversData,
+  userId: string
+): Promise<CollectionMoversData> {
+  const rows = await db.$queryRawUnsafe<OwnedMoverCountRow[]>(
+    `SELECT card_id, COUNT(*) AS owned_count
+     FROM "CollectionCard"
+     WHERE user_id = ?
+       AND for_sale = 0
+       AND sold_at IS NULL
+     GROUP BY card_id`,
+    userId
+  );
+  return applyMoverOwnedCounts(
+    data,
+    new Map(rows.map((row) => [row.card_id, Number(row.owned_count)]))
+  );
+}
 
 function storeCachedEntry<T>(
   cache: Map<string, CachedMoversEntry<T>>,
@@ -110,25 +173,48 @@ function getCachedMovers(
   userId: string,
   game: TradingCardGameFilter
 ): Promise<CollectionMoversData | SealedMoversData> {
-  const key = `${userId}:${game}:${activePriceSource}:${activeScope}:${activeItemScope}`;
+  const useSharedSnapshot = activeScope === "all" && activeItemScope === "all";
+  const cacheUserId = useSharedSnapshot ? SHARED_MOVERS_SNAPSHOT_USER_ID : userId;
+  const key = `${cacheUserId}:${game}:${activePriceSource}:${activeScope}:${activeItemScope}`;
   const now = Date.now();
   const cached = moversPageCache.get(key);
   const snapshotKey: MoversSnapshotKey | null =
     activeScope === "sealed"
       ? null
       : {
-          userId,
+          userId: cacheUserId,
           game,
           source: activePriceSource,
           scope: activeScope,
           itemScope: activeItemScope,
         };
+  const legacySnapshotKey: MoversSnapshotKey | null =
+    useSharedSnapshot && snapshotKey
+      ? {
+          ...snapshotKey,
+          userId,
+        }
+      : null;
+  const personalize = async (
+    promise: Promise<CollectionMoversData | SealedMoversData>
+  ): Promise<CollectionMoversData | SealedMoversData> => {
+    const data = await promise;
+    return useSharedSnapshot
+      ? personalizeSharedMovers(data as CollectionMoversData, userId)
+      : data;
+  };
   const fetcher = async () => {
     if (activeScope === "sealed") {
       return getSealedMovers(activeItemScope, userId, game);
     }
 
-    const data = await getMovers(activePriceSource, activeScope, activeItemScope, userId, game);
+    const data = await getMovers(
+      activePriceSource,
+      activeScope,
+      activeItemScope,
+      useSharedSnapshot ? null : userId,
+      game
+    );
     if (snapshotKey) {
       void writeMoversSnapshot(snapshotKey, data).catch(() => undefined);
     }
@@ -136,20 +222,28 @@ function getCachedMovers(
   };
 
   if (cached && cached.expiresAt > now) {
-    return cached.promise;
+    return personalize(cached.promise);
   }
 
   if (cached && cached.staleAt > now) {
+    if (useSharedSnapshot) {
+      return personalize(cached.promise);
+    }
     refreshInBackground(moversPageCache, key, cached, fetcher);
-    return cached.promise;
+    return personalize(cached.promise);
   }
 
   if (!snapshotKey) {
-    return storeCachedEntry(moversPageCache, key, fetcher()).promise;
+    return personalize(storeCachedEntry(moversPageCache, key, fetcher()).promise);
   }
 
   const coldStart = (async () => {
-    const snapshot = await readMoversSnapshot(snapshotKey);
+    const sharedSnapshot = await readMoversSnapshot(snapshotKey);
+    const legacySnapshot =
+      !sharedSnapshot && legacySnapshotKey
+        ? await readMoversSnapshot(legacySnapshotKey)
+        : null;
+    const snapshot = sharedSnapshot ?? legacySnapshot;
     const writtenAt = snapshot ? Date.parse(snapshot.writtenAt) : Number.NaN;
     if (
       snapshot &&
@@ -160,12 +254,23 @@ function getCachedMovers(
       if (snapshotEntry) {
         snapshotEntry.expiresAt = Date.now() + MOVERS_SNAPSHOT_REFRESH_DELAY_MS;
         snapshotEntry.staleAt = Date.now() + MOVERS_STALE_TTL_MS;
-        const refreshTimer = setTimeout(() => {
-          if (moversPageCache.get(key) === snapshotEntry) {
-            refreshInBackground(moversPageCache, key, snapshotEntry, fetcher);
-          }
-        }, MOVERS_SNAPSHOT_REFRESH_DELAY_MS);
-        refreshTimer.unref?.();
+        if (useSharedSnapshot) {
+          snapshotEntry.expiresAt = Date.now() + MOVERS_STALE_TTL_MS;
+          snapshotEntry.staleAt = Date.now() + MOVERS_STALE_TTL_MS;
+        } else {
+          const refreshTimer = setTimeout(() => {
+            if (moversPageCache.get(key) === snapshotEntry) {
+              refreshInBackground(moversPageCache, key, snapshotEntry, fetcher);
+            }
+          }, MOVERS_SNAPSHOT_REFRESH_DELAY_MS);
+          refreshTimer.unref?.();
+        }
+      }
+      if (useSharedSnapshot && !sharedSnapshot) {
+        void writeMoversSnapshot(
+          snapshotKey,
+          applyMoverOwnedCounts(snapshot.data, new Map())
+        ).catch(() => undefined);
       }
       return snapshot.data;
     }
@@ -173,7 +278,7 @@ function getCachedMovers(
     return fetcher() as Promise<CollectionMoversData>;
   })();
 
-  return storeCachedEntry(moversPageCache, key, coldStart).promise;
+  return personalize(storeCachedEntry(moversPageCache, key, coldStart).promise);
 }
 
 function getCachedValueDrivers(

@@ -1410,10 +1410,15 @@ function getMoverCandidateCardsCte(
   if (scope === "all" || scope === "graded" || scope === "grading") {
     return {
       sql: `
-        SELECT DISTINCT p.card_id
-        FROM "Price" p
-        INNER JOIN "Card" c_filter ON c_filter.id = p.card_id
+        SELECT c_filter.id AS card_id
+        FROM "Card" c_filter
         WHERE c_filter.game = ?
+          AND EXISTS (
+            SELECT 1
+            FROM "Price" p
+            WHERE p.card_id = c_filter.id
+            LIMIT 1
+          )
       `,
       params: [game],
     };
@@ -2436,28 +2441,37 @@ export async function getMovers(
       WITH candidate_cards AS (
         ${candidateCardsCte.sql}
       ),
-      cm_summary AS (
+      history_summary AS (
         SELECT
           p.card_id,
-          COUNT(DISTINCT DATE(p.fetched_at)) AS cm_history_points,
-          MIN(p.cm_en_lowest_nm) AS cm_low_value,
-          MAX(p.cm_en_lowest_nm) AS cm_high_value
+          COUNT(DISTINCT CASE
+            WHEN p.cm_en_lowest_nm > 0 AND p.cm_en_lowest_nm <> 9001
+              THEN DATE(p.fetched_at)
+          END) AS cm_history_points,
+          MIN(CASE
+            WHEN p.cm_en_lowest_nm > 0 AND p.cm_en_lowest_nm <> 9001
+              THEN p.cm_en_lowest_nm
+          END) AS cm_low_value,
+          MAX(CASE
+            WHEN p.cm_en_lowest_nm > 0 AND p.cm_en_lowest_nm <> 9001
+              THEN p.cm_en_lowest_nm
+          END) AS cm_high_value,
+          COUNT(DISTINCT CASE
+            WHEN p.tcp_market > 0 AND p.tcp_market <> 9001
+              THEN DATE(p.fetched_at)
+          END) AS tcp_history_points,
+          MIN(CASE
+            WHEN p.tcp_market > 0 AND p.tcp_market <> 9001
+              THEN p.tcp_market
+          END) AS tcp_low_value,
+          MAX(CASE
+            WHEN p.tcp_market > 0 AND p.tcp_market <> 9001
+              THEN p.tcp_market
+          END) AS tcp_high_value
         FROM "Price" p
         INNER JOIN candidate_cards cc ON cc.card_id = p.card_id
-        WHERE p.cm_en_lowest_nm > 0
-          AND p.cm_en_lowest_nm <> 9001
-        GROUP BY p.card_id
-      ),
-      tcp_summary AS (
-        SELECT
-          p.card_id,
-          COUNT(DISTINCT DATE(p.fetched_at)) AS tcp_history_points,
-          MIN(p.tcp_market) AS tcp_low_value,
-          MAX(p.tcp_market) AS tcp_high_value
-        FROM "Price" p
-        INNER JOIN candidate_cards cc ON cc.card_id = p.card_id
-        WHERE p.tcp_market > 0
-          AND p.tcp_market <> 9001
+        WHERE (p.cm_en_lowest_nm > 0 AND p.cm_en_lowest_nm <> 9001)
+           OR (p.tcp_market > 0 AND p.tcp_market <> 9001)
         GROUP BY p.card_id
       )
       SELECT
@@ -2492,7 +2506,7 @@ export async function getMovers(
             p.id ASC
           LIMIT 1
         ) AS cm_low_fetched_at,
-        cm_summary.cm_low_value,
+        history_summary.cm_low_value,
         (
           SELECT p.fetched_at
           FROM "Price" p
@@ -2505,8 +2519,8 @@ export async function getMovers(
             p.id ASC
           LIMIT 1
         ) AS cm_high_fetched_at,
-        cm_summary.cm_high_value,
-        cm_summary.cm_history_points,
+        history_summary.cm_high_value,
+        history_summary.cm_history_points,
         (
           SELECT p.fetched_at
           FROM "Price" p
@@ -2534,7 +2548,7 @@ export async function getMovers(
           ORDER BY p.tcp_market ASC, p.fetched_at ASC, p.id ASC
           LIMIT 1
         ) AS tcp_low_fetched_at,
-        tcp_summary.tcp_low_value,
+        history_summary.tcp_low_value,
         (
           SELECT p.fetched_at
           FROM "Price" p
@@ -2544,11 +2558,10 @@ export async function getMovers(
           ORDER BY p.tcp_market DESC, p.fetched_at ASC, p.id ASC
           LIMIT 1
         ) AS tcp_high_fetched_at,
-        tcp_summary.tcp_high_value,
-        tcp_summary.tcp_history_points
+        history_summary.tcp_high_value,
+        history_summary.tcp_history_points
       FROM candidate_cards cc
-      LEFT JOIN cm_summary ON cm_summary.card_id = cc.card_id
-      LEFT JOIN tcp_summary ON tcp_summary.card_id = cc.card_id
+      LEFT JOIN history_summary ON history_summary.card_id = cc.card_id
       ORDER BY cc.card_id ASC
     `,
       ...candidateCardsCte.params

@@ -9,6 +9,7 @@ import type { TradingCardGameFilter } from "@/lib/games";
 
 const SNAPSHOT_VERSION = 1;
 const SNAPSHOT_DIRECTORY_NAME = "movers-snapshots";
+export const SHARED_MOVERS_SNAPSHOT_USER_ID = "__shared-market__";
 
 export interface MoversSnapshotKey {
   userId: string;

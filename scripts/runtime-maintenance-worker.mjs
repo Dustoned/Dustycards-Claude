@@ -4,6 +4,9 @@ import { pathToFileURL } from "node:url";
 import { registerHooks } from "node:module";
 
 const projectRoot = path.resolve(import.meta.dirname, "..");
+const serverOnlyEmpty = pathToFileURL(
+  path.join(projectRoot, "node_modules", "next", "dist", "compiled", "server-only", "empty.js")
+).href;
 
 function resolveProjectAlias(specifier) {
   const target = path.join(projectRoot, "src", specifier.slice(2));
@@ -21,6 +24,9 @@ function resolveProjectAlias(specifier) {
 
 registerHooks({
   resolve(specifier, context, nextResolve) {
+    if (specifier === "server-only") {
+      return { shortCircuit: true, url: serverOnlyEmpty };
+    }
     if (specifier.startsWith("@/")) {
       const resolved = resolveProjectAlias(specifier);
       if (resolved) return { shortCircuit: true, url: resolved };
