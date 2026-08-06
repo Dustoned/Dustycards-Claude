@@ -2653,11 +2653,6 @@ async function selectAutoRefreshBatch(
       price_source_checked_at: Date | string | null;
     }>
   >`
-    WITH latest_prices AS (
-      SELECT card_id, MAX(fetched_at) AS latest_fetched_at
-      FROM "Price"
-      GROUP BY card_id
-    )
     SELECT
       c.id,
       c.game,
@@ -2665,10 +2660,10 @@ async function selectAutoRefreshBatch(
       c.rarity,
       c.price_source_status,
       c.price_source_checked_at,
-      latest_prices.latest_fetched_at
+      c.price_source_checked_at AS latest_fetched_at
     FROM "Card" c
-    INNER JOIN latest_prices ON latest_prices.card_id = c.id
     WHERE c.tcggo_url IS NOT NULL
+      AND c.price_source_checked_at IS NOT NULL
       AND (c.price_source_status IS NULL OR c.price_source_status <> 'unavailable')
   `;
   const hiddenEpisodeIds = new Set(await getHiddenEpisodeIds());
@@ -3117,13 +3112,11 @@ interface AutoPriceRefreshSnapshotResult {
   nextBatchCardIds: string[];
 }
 
-// selectAutoRefreshBatch scans the whole catalog in JS. This snapshot is hit on
-// every scheduler tick and three times per Settings render, so without a cache
-// those repeated full scans pile onto the single Node event loop and make the
-// whole site crawl while a refresh is running. A short TTL is safe: the job
-// re-selects its batch from fresh data when it actually runs; this only feeds
+// This snapshot is hit on every scheduler tick and three times per Settings
+// render. Reuse it across two scheduler intervals; the refresh job re-selects
+// its actual batch from fresh data when it starts, so this cache only affects
 // status counts and the next-batch preview.
-const AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS = 15_000;
+const AUTO_PRICE_SNAPSHOT_CACHE_TTL_MS = 10 * 60_000;
 const autoPriceSnapshotCache = new Map<
   string,
   { at: number; promise: Promise<AutoPriceRefreshSnapshotResult>; settled: boolean }
