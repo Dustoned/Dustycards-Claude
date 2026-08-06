@@ -293,6 +293,14 @@ if [ -f "$RemoteAppPath/deploy/Caddyfile" ]; then
 fi
 
 cd "$RemoteAppPath"
+# `.next` is only a compatibility link to the active immutable release. Next's
+# type checker resolves generated imports from the link path and would then
+# look for source files below `.next-releases` during the next build. Caddy is
+# already on the shared static directory at this point, so remove only the
+# symlink while building and recreate it after the new release is healthy.
+if [ -L "$RemoteAppPath/.next" ]; then
+  rm -f -- "$RemoteAppPath/.next"
+fi
 if [ -f .env ]; then
   node - <<'NODE'
 const fs = require("fs");
