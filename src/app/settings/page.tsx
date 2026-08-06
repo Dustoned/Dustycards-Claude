@@ -10,13 +10,6 @@ import {
   getScraperRequestsDisabledReason,
 } from "@/lib/scraper-guard";
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
-import {
-  getManualCardHistoryCandidateCountsSnapshot,
-  countSealedHistoryTopUpCandidates,
-  getAutoPriceRefreshSnapshot,
-  getKnownUnavailablePriceSummary,
-  reconcileStaleSyncLogs,
-} from "@/lib/sync";
 import { getAutoPriceRefreshJobSnapshot } from "@/lib/sync/auto-price-refresh-job";
 import { getCardHistorySyncJobSnapshot } from "@/lib/sync/card-history-job";
 import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
@@ -362,6 +355,18 @@ export default async function SettingsPage({
 
   const scraperDisabled = areScraperRequestsDisabled();
   const scraperDisabledReason = getScraperRequestsDisabledReason();
+
+  // The regular Preferences/Collection/Updates pages return above this point.
+  // Keep the very large sync engine out of their cold route initialization;
+  // loading it eagerly made the first ordinary Settings visit stall for
+  // several seconds even though none of its data was rendered.
+  const {
+    getManualCardHistoryCandidateCountsSnapshot,
+    countSealedHistoryTopUpCandidates,
+    getAutoPriceRefreshSnapshot,
+    getKnownUnavailablePriceSummary,
+    reconcileStaleSyncLogs,
+  } = await timeAsync("settings.sync-module-load", () => import("@/lib/sync"));
 
   await reconcileStaleSyncLogs();
 
