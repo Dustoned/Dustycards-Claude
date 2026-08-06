@@ -683,8 +683,7 @@ async function fetchCollectionCardsPage(
   return db.collectionCard.findMany({
     where: {
       user_id: options.userId,
-      for_sale: options.forSale ?? false,
-      sold_at: options.forSale && options.sold ? { not: null } : null,
+      ...buildCollectionCardSaleStateWhere(options),
       ...(isSpecificTradingCardGame(options.game) ? { card: { game: options.game } } : {}),
       ...(options.binderId ? { binder_id: options.binderId } : {}),
     },
@@ -693,6 +692,22 @@ async function fetchCollectionCardsPage(
     take: options.take,
     select: options.detail ? collectionCardSelect : collectionCardMetricSelect,
   });
+}
+
+export function buildCollectionCardSaleStateWhere(options: {
+  forSale?: boolean;
+  sold?: boolean;
+}): Prisma.CollectionCardWhereInput {
+  if (options.sold) {
+    // A completed transaction is defined by its sale timestamp. Do not keep
+    // sold inventory semantically marked as still offered for sale.
+    return { sold_at: { not: null } };
+  }
+
+  return {
+    for_sale: options.forSale ?? false,
+    sold_at: null,
+  };
 }
 
 async function fetchCollectionCards(options: {

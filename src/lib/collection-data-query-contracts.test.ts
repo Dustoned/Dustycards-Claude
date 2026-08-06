@@ -15,6 +15,7 @@ import {
 } from "@/lib/card-categories";
 import {
   ACTIVE_COLLECTION_CARD_FILTER,
+  buildCollectionCardSaleStateWhere,
   getCardHistoryRows,
   getCollectionValueDriversData,
 } from "@/lib/collection-data";
@@ -68,5 +69,15 @@ describe("collection query contracts", () => {
       expect(sql).toContain("p.cm_en_lowest_nm <> 9001");
       expect(sql).toMatch(/FROM "Price" p[\s\S]*WHERE p\.card_id IN[\s\S]*p\.cm_en_lowest_nm > 0/);
     }
+  });
+
+  it("keeps active sale inventory and completed transactions mutually exclusive", () => {
+    expect(buildCollectionCardSaleStateWhere({ forSale: true })).toEqual({
+      for_sale: true,
+      sold_at: null,
+    });
+    expect(buildCollectionCardSaleStateWhere({ forSale: true, sold: true })).toEqual({
+      sold_at: { not: null },
+    });
   });
 });

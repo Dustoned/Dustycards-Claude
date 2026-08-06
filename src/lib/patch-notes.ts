@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.1",
+    releasedAt: "August 6, 2026",
+    title: "Sold cards leave active sale inventory",
+    summary:
+      "Completed sales are now stored as sold records instead of remaining technically marked For Sale.",
+    tone: "fixed",
+    highlights: [
+      "Marking a card sold now clears its For Sale state while preserving the sale price, fees, platform and transaction date in the Sold ledger.",
+      "The Sold ledger is selected by the completed-sale timestamp, while the For Sale grid remains limited to unsold active inventory.",
+      "Existing completed transactions are normalized during the live rollout so other collection views can no longer mislabel them as For Sale.",
+    ],
+  },
+  {
     version: "3.12.0",
     releasedAt: "August 6, 2026",
     title: "A coherent collection workspace, from theme to trade",

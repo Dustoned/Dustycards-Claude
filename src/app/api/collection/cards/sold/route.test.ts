@@ -56,6 +56,7 @@ describe("POST /api/collection/cards/sold", () => {
         sale_price: 50.01,
         sale_fee_eur: 2.51,
         sale_platform: "CardMarket",
+        for_sale: false,
       }),
     }));
     expect(mocks.update).toHaveBeenNthCalledWith(2, expect.objectContaining({
@@ -64,6 +65,7 @@ describe("POST /api/collection/cards/sold", () => {
         sale_price: 50,
         sale_fee_eur: 2.5,
         sale_platform: "CardMarket",
+        for_sale: false,
       }),
     }));
     await expect(response.json()).resolves.toMatchObject({

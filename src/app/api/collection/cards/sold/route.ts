@@ -135,7 +135,7 @@ export async function POST(req: NextRequest) {
             sale_fee_eur: centsToMoney(feeBaseCents + (index < feeRemainder ? 1 : 0)),
             sale_platform: platform,
             sold_at: soldAt,
-            for_sale: true,
+            for_sale: false,
             binder_id: null,
           },
         })
