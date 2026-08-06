@@ -32,6 +32,8 @@ function registerGracefulShutdown() {
 
 export async function registerNodeInstrumentation() {
   registerGracefulShutdown();
+  const { configureDatabaseConnection } = await import("@/lib/db");
+  await configureDatabaseConnection();
   const { reconcileOrphanedSyncsOnBoot } = await import("@/lib/sync/boot-reconcile");
   await reconcileOrphanedSyncsOnBoot();
 }

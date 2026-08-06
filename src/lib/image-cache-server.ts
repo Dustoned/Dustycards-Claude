@@ -12,7 +12,6 @@ import {
   type ImageCacheVariant,
 } from "@/lib/image-cache";
 import { getRemoteImageCandidates } from "@/lib/image-cache-fallbacks";
-import { trimResponsiveImageCache } from "@/lib/image-cache-maintenance";
 
 // Image transforms share the web process with normal page requests. One
 // libvips thread per transform prevents a cold card grid from claiming both
@@ -21,7 +20,10 @@ sharp.concurrency(1);
 sharp.cache({ memory: 64, files: 0, items: 64 });
 
 function resolveImageCacheDir() {
-  return path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "image-cache");
+  const configured = process.env.DUSTYCARDS_IMAGE_CACHE_DIR?.trim();
+  return configured
+    ? path.resolve(/*turbopackIgnore: true*/ configured)
+    : path.resolve(/*turbopackIgnore: true*/ process.cwd(), "data", "image-cache");
 }
 
 export const IMAGE_CACHE_DIR = resolveImageCacheDir();
@@ -34,52 +36,12 @@ const MAX_REMOTE_IMAGE_FETCHES = 16;
 // number of decodes prevents a cold grid from multiplying CPU and native-memory
 // pressure by every simultaneously requested card.
 const MAX_IMAGE_TRANSFORMS = 1;
-const MAX_RESPONSIVE_CACHE_ENTRIES = 4_096;
-const MAX_RESPONSIVE_CACHE_BYTES = 256 * 1024 * 1024;
-// A pass reads metadata sequentially, so amortize it across a sizeable batch.
-// At current thumbnail sizes, 256 new variants are only a few MB of temporary
-// overshoot while avoiding repeated directory scans during a cold collection.
-const RESPONSIVE_CACHE_MAINTENANCE_INTERVAL = 256;
 
 let activeRemoteImageFetches = 0;
 const remoteImageFetchQueue: Array<() => void> = [];
 const pendingDownloads = new Map<string, Promise<EnsureImageResult>>();
 const pendingResponsiveImages = new Map<string, Promise<EnsureImageResult>>();
 const imageTransformLimiter = createConcurrencyLimiter(MAX_IMAGE_TRANSFORMS);
-let responsiveWritesSinceMaintenance = RESPONSIVE_CACHE_MAINTENANCE_INTERVAL - 1;
-let responsiveCacheMaintenanceScheduled = false;
-
-function scheduleResponsiveCacheMaintenance() {
-  responsiveWritesSinceMaintenance += 1;
-  if (
-    responsiveCacheMaintenanceScheduled ||
-    responsiveWritesSinceMaintenance < RESPONSIVE_CACHE_MAINTENANCE_INTERVAL
-  ) {
-    return;
-  }
-
-  responsiveWritesSinceMaintenance = 0;
-  responsiveCacheMaintenanceScheduled = true;
-  const timer = setTimeout(() => {
-    void trimResponsiveImageCache(IMAGE_CACHE_DIR, {
-      maxEntries: MAX_RESPONSIVE_CACHE_ENTRIES,
-      maxBytes: MAX_RESPONSIVE_CACHE_BYTES,
-    })
-      .catch((error: unknown) => {
-        console.warn(
-          "[image-cache] responsive cache maintenance failed:",
-          error instanceof Error ? error.message : String(error)
-        );
-      })
-      .finally(() => {
-        responsiveCacheMaintenanceScheduled = false;
-        if (responsiveWritesSinceMaintenance >= RESPONSIVE_CACHE_MAINTENANCE_INTERVAL) {
-          scheduleResponsiveCacheMaintenance();
-        }
-      });
-  }, 1_000);
-  timer.unref?.();
-}
 
 function joinRuntimeFile(dir: string, fileName: string): string {
   const normalizedDir = dir.replace(/[\\/]+$/, "");
@@ -660,8 +622,6 @@ export async function ensureResponsiveImageCached(
         } satisfies ImageMeta)
       ),
     ]);
-    scheduleResponsiveCacheMaintenance();
-
     return {
       imagePath,
       contentType: prepared.contentType,

@@ -55,6 +55,7 @@ const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
 
 export interface SyncSchedulerTickResult {
   ok: true;
+  deferred?: false;
   checkedAt: string;
   scraperDisabled: boolean;
   backgroundLoad: BackgroundLoadSnapshot;
@@ -118,17 +119,36 @@ export interface SyncSchedulerTickResult {
   };
 }
 
-async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<void> {
+export interface DeferredSyncSchedulerTickResult {
+  ok: true;
+  deferred: true;
+  deferredReason: "active-users" | "system-load";
+  checkedAt: string;
+  scraperDisabled: boolean;
+  backgroundLoad: BackgroundLoadSnapshot;
+}
+
+export type SyncSchedulerResult =
+  | SyncSchedulerTickResult
+  | DeferredSyncSchedulerTickResult;
+
+async function recordSchedulerTick(result: SyncSchedulerResult): Promise<void> {
   const now = new Date(result.checkedAt);
   const hasRunningWork =
-    result.priceRefresh.running ||
-    result.historyDrain.running ||
-    result.externalRadar.running ||
-    result.chaseWatch.running ||
-    result.setLifecycle.running ||
-    result.sealedSync.running ||
-    result.maintenance.reprints.running;
-  const status = result.scraperDisabled ? "paused" : hasRunningWork ? "running" : "success";
+    "priceRefresh" in result &&
+    (result.priceRefresh.running ||
+      result.historyDrain.running ||
+      result.externalRadar.running ||
+      result.chaseWatch.running ||
+      result.setLifecycle.running ||
+      result.sealedSync.running ||
+      result.maintenance.reprints.running);
+  const status =
+    result.scraperDisabled || result.deferred === true
+      ? "paused"
+      : hasRunningWork
+        ? "running"
+        : "success";
 
   await db.syncJob.upsert({
     where: { type: SYNC_SCHEDULER_JOB_TYPE },
@@ -150,7 +170,7 @@ async function recordSchedulerTick(result: SyncSchedulerTickResult): Promise<voi
   });
 }
 
-export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
+export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
   const checkedAt = new Date();
   const scraperDisabled = areScraperRequestsDisabled();
   const backgroundLoad = await getBackgroundLoadSnapshot(checkedAt).catch(() => ({
@@ -160,6 +180,22 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
     loadPerCpu: 0,
     deferred: false,
   }));
+  // better-sqlite3 is synchronous. Running the full maintenance tick in this
+  // Next.js process can block every page on the same event loop for seconds.
+  // Defer the whole tick while someone is actively browsing (or the host is
+  // already busy); the five-minute timer catches up as soon as the app is idle.
+  if (backgroundLoad.deferred) {
+    const result: DeferredSyncSchedulerTickResult = {
+      ok: true,
+      deferred: true,
+      deferredReason: backgroundLoad.activeUsers > 0 ? "active-users" : "system-load",
+      checkedAt: checkedAt.toISOString(),
+      scraperDisabled,
+      backgroundLoad,
+    };
+    await recordSchedulerTick(result);
+    return result;
+  }
   // Fire-and-forget: keep the heaviest page caches (home overview + market
   // scopes) warm for recently active users, starting right after boot and
   // re-warming every few minutes.
@@ -330,6 +366,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerTickResult> {
 
   const result: SyncSchedulerTickResult = {
     ok: true,
+    deferred: false,
     checkedAt: checkedAt.toISOString(),
     scraperDisabled,
     backgroundLoad,

@@ -3,6 +3,7 @@ import {
   hasRouteProgressReachedDestination,
   isRouteProgressNavigation,
   normalizeRouteProgressLabel,
+  shouldAttemptDirectRouteRecovery,
 } from "@/components/RouteProgressBar";
 
 describe("isRouteProgressNavigation", () => {
@@ -58,5 +59,11 @@ describe("isRouteProgressNavigation", () => {
         "https://dustycards.example"
       )
     ).toBe(false);
+  });
+
+  it("recovers a stuck route once without creating a reload loop", () => {
+    expect(shouldAttemptDirectRouteRecovery(null, 100_000)).toBe(true);
+    expect(shouldAttemptDirectRouteRecovery(90_000, 100_000)).toBe(false);
+    expect(shouldAttemptDirectRouteRecovery(40_000, 100_000)).toBe(true);
   });
 });

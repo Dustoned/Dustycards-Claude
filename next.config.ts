@@ -10,6 +10,11 @@ const nextConfig: NextConfig = {
   // also takes effect on the very first automatic deploy of this change.
   distDir: process.env.DUSTYCARDS_NEXT_DIST_DIR
     || (safeReleaseBuild ? `.next-releases/${safeReleaseBuild}` : ".next"),
+  // Next uses this id on assets, RSC navigations and Server Actions. If a
+  // browser still has the previous release open, a mismatch now becomes one
+  // safe full navigation instead of a hanging soft navigation or a missing
+  // Server Action/client-reference manifest error.
+  deploymentId: safeReleaseBuild,
   allowedDevOrigins: ["127.0.0.1"],
   serverExternalPackages: ["sharp"],
   experimental: {
