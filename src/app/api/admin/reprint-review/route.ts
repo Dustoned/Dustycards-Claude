@@ -20,7 +20,7 @@ export async function GET() {
           match_method: "likely-art",
         },
         orderBy: [{ image_similarity: "asc" }, { matched_at: "desc" }],
-        take: 2_000,
+        take: 10_000,
         include: {
           sourceCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
           targetCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },

@@ -10,8 +10,9 @@ import {
 const JOB_TYPE = "card-reprint-backlog";
 const ACTIVE_USER_WINDOW_MS = 3 * 60_000;
 const ACTIVE_USER_RECHECK_MS = 30_000;
-const BETWEEN_FAMILIES_MS = 1_500;
 const statusOnly = process.argv.includes("--status");
+const forceRun = process.argv.includes("--force");
+const BETWEEN_FAMILIES_MS = forceRun ? 250 : 1_500;
 let stopRequested = false;
 
 sharp.concurrency(1);
@@ -68,10 +69,10 @@ async function main() {
   let relationsWritten = 0;
   let previousPendingCards = initial.pendingCards;
   let runsWithoutProgress = 0;
-  await heartbeat({ ...initial, groupsProcessed, cardsProcessed, relationsWritten });
+  await heartbeat({ ...initial, groupsProcessed, cardsProcessed, relationsWritten, forceRun });
 
   while (!stopRequested) {
-    const activeUsers = await activeUserCount();
+    const activeUsers = forceRun ? 0 : await activeUserCount();
     if (activeUsers > 0) {
       const progress = await getCardReprintBacklogProgress();
       await heartbeat({
@@ -100,6 +101,7 @@ async function main() {
       cardsProcessed,
       relationsWritten,
       pausedForActiveUsers: 0,
+      forceRun,
       runsWithoutProgress,
     });
     console.log(JSON.stringify({ ...progress, ...result, groupsProcessed, cardsProcessed }));
@@ -119,6 +121,7 @@ async function main() {
     cardsProcessed,
     relationsWritten,
     stopped: stopRequested,
+    forceRun,
     stalledWithoutProgress: runsWithoutProgress >= 3,
   }, stopRequested ? "paused" : "success");
 }

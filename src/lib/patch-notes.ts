@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.10",
+    releasedAt: "August 7, 2026",
+    title: "Deeper reprint review",
+    summary: "The visual review now checks same-artist candidates from 70% similarity.",
+    tone: "improved",
+    highlights: [
+      "The candidate floor is lowered from 80% to 70% so weaker possible reprints can be accepted or rejected manually.",
+      "The admin queue reads up to 10,000 raw relations and no longer looks complete after only the first 2,000.",
+      "A forced low-priority scan can populate the deeper queue while retaining strict CPU and memory limits.",
+    ],
+  },
+  {
     version: "3.12.9",
     releasedAt: "August 6, 2026",
     title: "Reviewed cards stay reviewed",
