@@ -21,6 +21,7 @@ type ManualTradeCard = CardSearchPickerResult;
 const TRADE_VALUE_RATE_STORAGE_KEY = "dustycards.trade.value-rate.v1";
 const TRADE_VALUE_RATE_OPTIONS = [80, 85, 90, 95, 100] as const;
 const DEFAULT_TRADE_VALUE_RATE = 90;
+const TRADE_COLLECTION_BATCH_SIZE = 36;
 
 function normalizeTradeValueRate(value: unknown): number {
   const parsed = typeof value === "number" ? value : Number(value);
@@ -320,6 +321,7 @@ function TradeColumn({
   onSelect: (cardId: string) => void;
 }) {
   const [query, setQuery] = useState("");
+  const [visibleLimit, setVisibleLimit] = useState(TRADE_COLLECTION_BATCH_SIZE);
   const selectedCard = cards.find((card) => card.id === selectedCardId) ?? null;
   const suggested = useMemo(() => new Set(suggestedCardIds), [suggestedCardIds]);
   const visibleCards = useMemo(() => {
@@ -336,6 +338,7 @@ function TradeColumn({
       (right.value ?? -1) - (left.value ?? -1)
     );
   }, [cards, query, suggested]);
+  const renderedCards = visibleCards.slice(0, visibleLimit);
 
   return (
     <div className="min-w-0 rounded-2xl border border-white/8 bg-black/14 p-2.5">
@@ -352,13 +355,19 @@ function TradeColumn({
           <Search className="h-3.5 w-3.5 shrink-0 text-white/30" />
           <input
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setVisibleLimit(TRADE_COLLECTION_BATCH_SIZE);
+            }}
             placeholder="Search this collection..."
             className="min-w-0 flex-1 bg-transparent text-[11px] font-semibold text-white/72 outline-none placeholder:text-white/25"
             aria-label={`Search ${title}`}
           />
           {query ? (
-            <button type="button" onClick={() => setQuery("")} className="text-white/28 hover:text-white/70" aria-label="Clear collection search">
+            <button type="button" onClick={() => {
+              setQuery("");
+              setVisibleLimit(TRADE_COLLECTION_BATCH_SIZE);
+            }} className="text-white/28 hover:text-white/70" aria-label="Clear collection search">
               <X className="h-3.5 w-3.5" />
             </button>
           ) : null}
@@ -367,7 +376,7 @@ function TradeColumn({
       {cards.length > 0 ? (
         visibleCards.length > 0 ? (
         <div className="grid max-h-[46rem] grid-cols-2 gap-2 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3">
-          {visibleCards.map((card) => {
+          {renderedCards.map((card) => {
             const selected = card.id === selectedCardId;
             const isSuggested = suggested.has(card.id);
             return (
@@ -404,6 +413,15 @@ function TradeColumn({
               </button>
             );
           })}
+          {renderedCards.length < visibleCards.length ? (
+            <button
+              type="button"
+              onClick={() => setVisibleLimit((current) => current + TRADE_COLLECTION_BATCH_SIZE)}
+              className="col-span-full rounded-xl border border-white/8 bg-white/[0.025] px-3 py-3 text-[10px] font-black text-white/52 transition-colors hover:border-violet-300/18 hover:bg-violet-500/[0.06] hover:text-white/78"
+            >
+              Show {Math.min(TRADE_COLLECTION_BATCH_SIZE, visibleCards.length - renderedCards.length)} more
+            </button>
+          ) : null}
         </div>
         ) : (
           <p className="rounded-xl border border-dashed border-white/8 px-3 py-5 text-center text-[10px] text-white/32">No cards match this search.</p>

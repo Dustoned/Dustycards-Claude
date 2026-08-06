@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.7",
+    releasedAt: "August 6, 2026",
+    title: "Fast large-card friend trades",
+    summary: "Friend Trades keeps its new large artwork grid without mounting entire collections at once.",
+    tone: "improved",
+    highlights: [
+      "Each side initially renders 36 large cards and loads more only on request, while search still covers every owned card.",
+      "Large collections no longer create more than a thousand off-screen image tiles during the first Friend Trades render.",
+    ],
+  },
+  {
     version: "3.12.6",
     releasedAt: "August 6, 2026",
     title: "Accurate trade matches and safer reprint review",
