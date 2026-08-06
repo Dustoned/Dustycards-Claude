@@ -39,7 +39,6 @@ import {
   type SetLifecycleJobSnapshot,
 } from "@/lib/sync/set-lifecycle-job";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
-import { maybeRunCacheWarmer } from "@/lib/startup-warmup";
 import { maybeRunMarketScoreJob } from "@/lib/sync/market-score-job";
 import {
   maybeRunCardReprintJob,
@@ -196,10 +195,6 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
     await recordSchedulerTick(result);
     return result;
   }
-  // Fire-and-forget: keep the heaviest page caches (home overview + market
-  // scopes) warm for recently active users, starting right after boot and
-  // re-warming every few minutes.
-  maybeRunCacheWarmer({ defer: backgroundLoad.deferred });
   // Fire-and-forget: persist DustyCards market scores in small batches so
   // search can rank on real market interest.
   maybeRunMarketScoreJob(checkedAt, { defer: backgroundLoad.deferred });

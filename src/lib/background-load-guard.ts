@@ -3,7 +3,10 @@ import "server-only";
 import os from "node:os";
 import { db } from "@/lib/db";
 
-const ACTIVE_USER_WINDOW_MS = 3 * 60_000;
+// A scheduler tick can take a few seconds to reach its expensive work. Keep a
+// generous quiet window so a collector returning between two five-minute
+// ticks cannot race a synchronous SQLite scan that already started.
+const ACTIVE_USER_WINDOW_MS = 15 * 60_000;
 const MAX_BACKGROUND_LOAD_PER_CPU = 0.7;
 
 export interface BackgroundLoadSnapshot {
