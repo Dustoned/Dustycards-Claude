@@ -69,4 +69,30 @@ describe("upcoming source reveals", () => {
       .toEqual(extracted);
     expect(readStoredUpcomingReveals("not json")).toEqual([]);
   });
+
+  it("keeps the retired 30th Celebration promo gallery out of Upcoming", () => {
+    const stored = JSON.stringify({
+      upcomingReveals: [
+        {
+          name: "Victini",
+          imageUrl: "https://cdn.example.com/victini.webp",
+          episodeName: "30th Celebration Promos",
+          status: "confirmed",
+        },
+        {
+          name: "Mew ex",
+          imageUrl: "https://cdn.example.com/mew.webp",
+          episodeName: "30th Celebration",
+          status: "reveal",
+        },
+      ],
+    });
+
+    expect(readStoredUpcomingReveals(stored)).toEqual([
+      expect.objectContaining({
+        name: "Mew ex",
+        episodeName: "30th Celebration",
+      }),
+    ]);
+  });
 });
