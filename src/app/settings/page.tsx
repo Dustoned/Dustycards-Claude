@@ -11,7 +11,7 @@ import {
 } from "@/lib/scraper-guard";
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import {
-  countManualCardHistoryCandidatesByGame,
+  getManualCardHistoryCandidateCountsSnapshot,
   countSealedHistoryTopUpCandidates,
   getAutoPriceRefreshSnapshot,
   getKnownUnavailablePriceSummary,
@@ -465,7 +465,7 @@ export default async function SettingsPage({
     getAutoPriceRefreshSnapshot({ game: ONE_PIECE_GAME }),
     getTcggoUsageSnapshot(),
     getCardHistorySyncJobSnapshot({ countPendingCards: false }),
-    countManualCardHistoryCandidatesByGame(),
+    getManualCardHistoryCandidateCountsSnapshot(),
     countSealedHistoryTopUpCandidates(),
     getKnownUnavailablePriceSummary(),
     db.card.count({
