@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.14",
+    releasedAt: "August 7, 2026",
+    title: "Variant rules recovery",
+    summary: "Hyphenated promo and alternate-number variants now find their provider rules family.",
+    tone: "fixed",
+    highlights: [
+      "TCGdex name searches use the same normalized card name as identity matching.",
+      "Variants such as Rayquaza-GX #177a can reuse the matching Celestial Storm rules evidence instead of remaining image-only.",
+    ],
+  },
+  {
     version: "3.12.13",
     releasedAt: "August 7, 2026",
     title: "Complete rules evidence retry",

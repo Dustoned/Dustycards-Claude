@@ -3,7 +3,7 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v9-review70-rules";
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v10-review70-rules";
 const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.82;
 const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.84;
 const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.7;
@@ -568,6 +568,7 @@ function getTcgDexProviderPrefix(tcgid: string | null | undefined): string | nul
 
 async function searchTcgdexCardsByName(name: string): Promise<TcgDexCardBrief[]> {
   const cacheKey = normalizeText(name) ?? name.trim().toLowerCase();
+  const queryName = normalizeCardName(name) ?? name.trim();
   const cached = tcgdexSearchCache.get(cacheKey);
   if (cached) return cached;
 
@@ -579,7 +580,7 @@ async function searchTcgdexCardsByName(name: string): Promise<TcgDexCardBrief[]>
   const pending = (async () => {
     try {
       const response = await fetch(
-        `${TCGDEX_CARD_ENDPOINT}?name=${encodeURIComponent(name)}`,
+        `${TCGDEX_CARD_ENDPOINT}?name=${encodeURIComponent(queryName)}`,
         {
           headers: { accept: "application/json" },
           next: { revalidate: 60 * 60 * 24 * 7 },
