@@ -66,6 +66,8 @@ async function main() {
   let groupsProcessed = 0;
   let cardsProcessed = 0;
   let relationsWritten = 0;
+  let previousPendingCards = initial.pendingCards;
+  let runsWithoutProgress = 0;
   await heartbeat({ ...initial, groupsProcessed, cardsProcessed, relationsWritten });
 
   while (!stopRequested) {
@@ -88,16 +90,25 @@ async function main() {
     cardsProcessed += result.cardsProcessed;
     relationsWritten += result.relationsWritten;
     const progress = await getCardReprintBacklogProgress();
+    runsWithoutProgress = progress.pendingCards < previousPendingCards
+      ? 0
+      : runsWithoutProgress + 1;
+    previousPendingCards = progress.pendingCards;
     await heartbeat({
       ...progress,
       groupsProcessed,
       cardsProcessed,
       relationsWritten,
       pausedForActiveUsers: 0,
+      runsWithoutProgress,
     });
     console.log(JSON.stringify({ ...progress, ...result, groupsProcessed, cardsProcessed }));
 
-    if (result.groupsProcessed === 0 || progress.pendingFamilies === 0) break;
+    if (
+      result.groupsProcessed === 0 ||
+      progress.pendingFamilies === 0 ||
+      runsWithoutProgress >= 3
+    ) break;
     await wait(BETWEEN_FAMILIES_MS);
   }
 
@@ -108,6 +119,7 @@ async function main() {
     cardsProcessed,
     relationsWritten,
     stopped: stopRequested,
+    stalledWithoutProgress: runsWithoutProgress >= 3,
   }, stopRequested ? "paused" : "success");
 }
 
