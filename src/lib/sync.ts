@@ -2126,8 +2126,64 @@ export interface ManualCardHistoryCandidateCounts {
   onePiece: number;
 }
 
+const MANUAL_CARD_HISTORY_CANDIDATE_COUNTS_KEY =
+  "manual-card-history-candidate-counts-v1";
+
 let manualCardHistoryCandidateCountsSnapshot: ManualCardHistoryCandidateCounts | null = null;
 let manualCardHistoryCandidateCountsInFlight: Promise<ManualCardHistoryCandidateCounts> | null = null;
+
+function parseStoredManualCardHistoryCandidateCounts(
+  value: string
+): ManualCardHistoryCandidateCounts | null {
+  try {
+    const parsed: unknown = JSON.parse(value);
+    if (!parsed || typeof parsed !== "object") return null;
+    const record = parsed as Record<string, unknown>;
+    const counts = {
+      total: record.total,
+      pokemon: record.pokemon,
+      onePiece: record.onePiece,
+    };
+    if (
+      !Object.values(counts).every(
+        (count) => typeof count === "number" && Number.isInteger(count) && count >= 0
+      )
+    ) {
+      return null;
+    }
+    return counts as ManualCardHistoryCandidateCounts;
+  } catch {
+    return null;
+  }
+}
+
+async function readStoredManualCardHistoryCandidateCounts(): Promise<ManualCardHistoryCandidateCounts | null> {
+  const stored = await db.appSetting.findUnique({
+    where: { key: MANUAL_CARD_HISTORY_CANDIDATE_COUNTS_KEY },
+    select: { value: true },
+  });
+  return stored ? parseStoredManualCardHistoryCandidateCounts(stored.value) : null;
+}
+
+async function persistManualCardHistoryCandidateCounts(
+  counts: ManualCardHistoryCandidateCounts
+): Promise<void> {
+  try {
+    await db.appSetting.upsert({
+      where: { key: MANUAL_CARD_HISTORY_CANDIDATE_COUNTS_KEY },
+      create: {
+        key: MANUAL_CARD_HISTORY_CANDIDATE_COUNTS_KEY,
+        value: JSON.stringify(counts),
+      },
+      update: { value: JSON.stringify(counts) },
+    });
+  } catch (error) {
+    console.warn(
+      "[sync] could not persist card-history candidate counts:",
+      error instanceof Error ? error.message : String(error)
+    );
+  }
+}
 
 export async function countManualCardHistoryCandidatesByGame(): Promise<ManualCardHistoryCandidateCounts> {
   if (manualCardHistoryCandidateCountsInFlight) {
@@ -2166,6 +2222,7 @@ export async function countManualCardHistoryCandidatesByGame(): Promise<ManualCa
       onePiece: totalsByGame.get(ONE_PIECE_GAME) ?? 0,
     };
     manualCardHistoryCandidateCountsSnapshot = counts;
+    await persistManualCardHistoryCandidateCounts(counts);
     return counts;
   });
 
@@ -2177,10 +2234,18 @@ export async function countManualCardHistoryCandidatesByGame(): Promise<ManualCa
   });
 }
 
-export function getManualCardHistoryCandidateCountsSnapshot(): Promise<ManualCardHistoryCandidateCounts> {
-  return manualCardHistoryCandidateCountsSnapshot
-    ? Promise.resolve(manualCardHistoryCandidateCountsSnapshot)
-    : countManualCardHistoryCandidatesByGame();
+export async function getManualCardHistoryCandidateCountsSnapshot(): Promise<ManualCardHistoryCandidateCounts> {
+  if (manualCardHistoryCandidateCountsSnapshot) {
+    return manualCardHistoryCandidateCountsSnapshot;
+  }
+
+  const stored = await readStoredManualCardHistoryCandidateCounts();
+  if (stored) {
+    manualCardHistoryCandidateCountsSnapshot = stored;
+    return stored;
+  }
+
+  return countManualCardHistoryCandidatesByGame();
 }
 
 async function selectCardHistoryTopUpCandidates(take: number): Promise<string[]> {
