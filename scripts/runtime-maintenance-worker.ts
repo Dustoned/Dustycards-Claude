@@ -2,12 +2,15 @@ import BetterSqlite3 from "better-sqlite3";
 import path from "node:path";
 import { trimImageCache } from "@/lib/image-cache-maintenance";
 import { LIVE_DB_PATH } from "@/lib/db-paths";
+import { readStoredUpcomingReveals } from "@/lib/upcoming-source-reveals";
 
 const ACTIVE_USER_WINDOW_MS = 3 * 60_000;
 const RECENT_DETAIL_DAYS = 14;
 const DAILY_HISTORY_DAYS = 395;
-const IMAGE_CACHE_MAX_ENTRIES = 24_000;
-const IMAGE_CACHE_MAX_BYTES = 2_500 * 1024 * 1024;
+// The live catalog currently contains roughly 27k unique source images. Leave
+// room for every referenced original plus the bounded responsive variants.
+const IMAGE_CACHE_MAX_ENTRIES = 36_000;
+const IMAGE_CACHE_MAX_BYTES = 4 * 1024 * 1024 * 1024;
 const RESPONSIVE_CACHE_MAX_ENTRIES = 4_096;
 const RESPONSIVE_CACHE_MAX_BYTES = 256 * 1024 * 1024;
 
@@ -20,6 +23,7 @@ interface MaintenanceSummary {
   skipped?: "active-users";
   historyRowsRemoved: Record<HistoryTable, number>;
   analyzed: boolean;
+  protectedImageSources: number;
   imageCache: Awaited<ReturnType<typeof trimImageCache>> | null;
 }
 
@@ -47,6 +51,50 @@ function hasActiveUsers(database: BetterSqlite3.Database): boolean {
     )
     .get(now.toISOString(), activeSince) as { count?: number | bigint } | undefined;
   return Number(row?.count ?? 0) > 0;
+}
+
+function normalizeImageUrl(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null;
+  try {
+    const url = new URL(value);
+    return ["http:", "https:"].includes(url.protocol) ? url.href : null;
+  } catch {
+    return null;
+  }
+}
+
+function collectProtectedImageUrls(database: BetterSqlite3.Database): Set<string> {
+  const imageRows = database
+    .prepare(
+      `SELECT image_url AS url FROM "Card"
+       WHERE image_url IS NOT NULL AND TRIM(image_url) <> ''
+       UNION
+       SELECT logo_url AS url FROM "Episode"
+       WHERE logo_url IS NOT NULL AND TRIM(logo_url) <> ''
+       UNION
+       SELECT image_url AS url FROM "SealedProduct"
+       WHERE image_url IS NOT NULL AND TRIM(image_url) <> ''`
+    )
+    .all() as Array<{ url: string }>;
+  const sourceRows = database
+    .prepare(
+      `SELECT metadata_json FROM "ExternalCatalystSource"
+       WHERE game = 'pokemon' AND metadata_json IS NOT NULL`
+    )
+    .all() as Array<{ metadata_json: string }>;
+
+  const urls = new Set<string>();
+  for (const row of imageRows) {
+    const normalized = normalizeImageUrl(row.url);
+    if (normalized) urls.add(normalized);
+  }
+  for (const source of sourceRows) {
+    for (const reveal of readStoredUpcomingReveals(source.metadata_json)) {
+      const normalized = normalizeImageUrl(reveal.imageUrl);
+      if (normalized) urls.add(normalized);
+    }
+  }
+  return urls;
 }
 
 function getOldestHistoryDay(
@@ -125,8 +173,10 @@ async function main(): Promise<MaintenanceSummary> {
       CardEbaySoldGradedPriceSnapshot: 0,
     },
     analyzed: false,
+    protectedImageSources: 0,
     imageCache: null,
   };
+  let protectedSourceUrls = new Set<string>();
 
   try {
     if (hasActiveUsers(database)) {
@@ -148,6 +198,8 @@ async function main(): Promise<MaintenanceSummary> {
       database.pragma("wal_checkpoint(PASSIVE)");
       summary.analyzed = true;
     }
+    protectedSourceUrls = collectProtectedImageUrls(database);
+    summary.protectedImageSources = protectedSourceUrls.size;
   } finally {
     database.close();
   }
@@ -162,6 +214,7 @@ async function main(): Promise<MaintenanceSummary> {
       maxBytes: IMAGE_CACHE_MAX_BYTES,
       maxResponsiveEntries: RESPONSIVE_CACHE_MAX_ENTRIES,
       maxResponsiveBytes: RESPONSIVE_CACHE_MAX_BYTES,
+      protectedSourceUrls,
     });
   }
 

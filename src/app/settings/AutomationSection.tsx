@@ -142,9 +142,9 @@ function WarmImageCacheButton() {
           if (data.lastError) {
             setStatus(`Warm pass stopped: ${data.lastError}`);
           } else if (data.lastResult) {
-            const { cards, sealed, upcoming } = data.lastResult;
+            const { cards, episodes, sealed, upcoming } = data.lastResult;
             setStatus(
-              `Done - cards ${cards.downloaded} new / ${cards.hits} cached / ${cards.failed} failed; sealed ${sealed.downloaded} new / ${sealed.hits} cached / ${sealed.failed} failed; upcoming ${upcoming.downloaded} new / ${upcoming.hits} cached / ${upcoming.failed} failed.`
+              `Done - cards ${cards.downloaded} new / ${cards.hits} cached / ${cards.failed} failed; expansion logos ${episodes.downloaded} new / ${episodes.hits} cached / ${episodes.failed} failed; sealed ${sealed.downloaded} new / ${sealed.hits} cached / ${sealed.failed} failed; upcoming ${upcoming.downloaded} new / ${upcoming.hits} cached / ${upcoming.failed} failed.`
             );
           } else {
             setStatus("Warm pass finished.");
@@ -686,7 +686,7 @@ export default function AutomationSection({
             </p>
             <p className="mt-0.5 text-xs text-gray-400">
               New syncs warm their own images automatically; run this once to
-              pre-cache older sets so nobody ever hits a cold image.
+              pre-cache older sets and expansion logos so nobody ever hits a cold image.
             </p>
           </div>
           <WarmImageCacheButton />

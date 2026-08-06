@@ -18,14 +18,17 @@ async function makeCacheDir() {
 async function writeEntry(
   dir: string,
   name: string,
-  options: { bytes: number; responsive: boolean; modifiedAt: number }
+  options: { bytes: number; responsive: boolean; modifiedAt: number; sourceUrl?: string }
 ) {
   const imagePath = path.join(dir, `${name}.img`);
   const metaPath = path.join(dir, `${name}.json`);
   await fs.writeFile(imagePath, Buffer.alloc(options.bytes, 1));
   await fs.writeFile(
     metaPath,
-    JSON.stringify(options.responsive ? { deliveryWidth: 192 } : { contentType: "image/webp" })
+    JSON.stringify({
+      ...(options.responsive ? { deliveryWidth: 192 } : { contentType: "image/webp" }),
+      ...(options.sourceUrl ? { sourceUrl: options.sourceUrl } : {}),
+    })
   );
   const modifiedAt = new Date(options.modifiedAt);
   await Promise.all([
@@ -115,5 +118,35 @@ describe("trimImageCache", () => {
       removedResponsiveEntries: 1,
     });
     await expect(fs.stat(path.join(dir, "new-original.img"))).resolves.toBeDefined();
+  });
+
+  it("preserves live referenced originals while removing stale cache entries", async () => {
+    const dir = await makeCacheDir();
+    await writeEntry(dir, "live-original", {
+      bytes: 40,
+      responsive: false,
+      modifiedAt: 1_000,
+      sourceUrl: "https://images.test/live.webp",
+    });
+    await writeEntry(dir, "stale-original", {
+      bytes: 30,
+      responsive: false,
+      modifiedAt: 2_000,
+      sourceUrl: "https://images.test/stale.webp",
+    });
+
+    const result = await trimImageCache(dir, {
+      maxEntries: 1,
+      maxBytes: 40,
+      maxResponsiveEntries: 10,
+      maxResponsiveBytes: 100,
+      protectedSourceUrls: new Set(["https://images.test/live.webp"]),
+    });
+
+    expect(result).toMatchObject({ entries: 1, bytes: 40, removedEntries: 1 });
+    await expect(fs.stat(path.join(dir, "live-original.img"))).resolves.toBeDefined();
+    await expect(fs.stat(path.join(dir, "stale-original.img"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
   });
 });
