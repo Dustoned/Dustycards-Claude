@@ -2088,20 +2088,24 @@ function sqlStringList(values: readonly string[]): string {
 
 function cardHistoryTopUpSql(game?: TradingCardGame): string {
   return `
-    FROM "Card" c
-    LEFT JOIN (
-      SELECT card_id, MAX(fetched_at) AS anchor_fetched_at
-      FROM "Price"
-      WHERE datetime(fetched_at) < datetime(?)
-      GROUP BY card_id
-    ) p ON p.card_id = c.id
-    WHERE c.native_history_synced_at IS NOT NULL
-      AND (c.native_history_status IS NULL OR c.native_history_status <> 'unavailable')
-      AND c.tcggo_url IS NOT NULL
-      AND (c.native_history_checked_at IS NULL OR datetime(c.native_history_checked_at) < datetime(?))
-      AND (p.anchor_fetched_at IS NULL OR datetime(p.anchor_fetched_at) < datetime(?))
-      AND (c.rarity IS NULL OR c.rarity NOT IN (${sqlStringList(MANUAL_HISTORY_BASE_PRICE_ONLY_RARITIES)}))
-      AND NOT (c.game = '${POKEMON_GAME}' AND c.rarity IN (${sqlStringList(MANUAL_HISTORY_POKEMON_RARE_EXCLUDED_RARITIES)}))
+    FROM (
+      SELECT
+        c.*,
+        (
+          SELECT MAX(p.fetched_at)
+          FROM "Price" p
+          WHERE p.card_id = c.id
+            AND datetime(p.fetched_at) < datetime(?)
+        ) AS anchor_fetched_at
+      FROM "Card" c
+      WHERE c.native_history_synced_at IS NOT NULL
+        AND (c.native_history_status IS NULL OR c.native_history_status <> 'unavailable')
+        AND c.tcggo_url IS NOT NULL
+        AND (c.native_history_checked_at IS NULL OR datetime(c.native_history_checked_at) < datetime(?))
+        AND (c.rarity IS NULL OR c.rarity NOT IN (${sqlStringList(MANUAL_HISTORY_BASE_PRICE_ONLY_RARITIES)}))
+        AND NOT (c.game = '${POKEMON_GAME}' AND c.rarity IN (${sqlStringList(MANUAL_HISTORY_POKEMON_RARE_EXCLUDED_RARITIES)}))
+    ) c
+    WHERE (c.anchor_fetched_at IS NULL OR datetime(c.anchor_fetched_at) < datetime(?))
       ${game ? "AND c.game = ?" : ""}`;
 }
 
@@ -2120,7 +2124,7 @@ async function selectCardHistoryTopUpCandidates(take: number): Promise<string[]>
   if (take <= 0) return [];
   const { anchorCutoffIso, gapCutoffIso } = cardHistoryTopUpCutoffs();
   const rows = await db.$queryRawUnsafe<Array<{ id: string }>>(
-    `SELECT c.id${cardHistoryTopUpSql()} ORDER BY p.anchor_fetched_at ASC, c.id ASC LIMIT ?`,
+    `SELECT c.id${cardHistoryTopUpSql()} ORDER BY c.anchor_fetched_at ASC, c.id ASC LIMIT ?`,
     anchorCutoffIso,
     anchorCutoffIso,
     gapCutoffIso,
