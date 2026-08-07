@@ -128,7 +128,7 @@ export interface ModalCardData {
     episode_release_date: string | null;
     price: number | null;
     match_type: "reprint";
-    match_method?: "rules-and-art" | "rules-review" | "lineage-and-art" | "likely-art" | "strong-art" | "manual-include";
+    match_method?: "rules-and-art" | "lineage-and-art" | "likely-art" | "strong-art" | "manual-include";
     image_similarity?: number;
   }>;
   collection_item?: {

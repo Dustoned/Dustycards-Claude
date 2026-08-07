@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.27",
+    releasedAt: "August 7, 2026",
+    title: "Automatic illustrator protection",
+    summary:
+      "Reprint matching now treats two different known illustrators as a definitive rejection for current and future cards.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "A cleaner review queue",
+        highlights: [
+          "Different-illustrator pairs are rejected before they can publish or enter Reprint Review.",
+          "Existing mismatch candidates disappear from the queue without requiring thousands of manual decisions.",
+          "Manual review remains focused on same-illustrator artwork candidates that genuinely need a collector's judgment.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.26",
     releasedAt: "August 7, 2026",
     title: "Safer reprint decisions",

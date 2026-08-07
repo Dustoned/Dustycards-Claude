@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.27",
+    releasedAt: "August 7, 2026",
+    title: "Artist conflicts are rejected automatically",
+    summary: "The reviewed sample confirmed that different credited illustrators should not enter the reprint queue.",
+    tone: "fixed",
+    highlights: [
+      "A known illustrator mismatch now rejects the pair automatically for existing and newly imported cards.",
+      "The recovered legacy mismatch candidates no longer flood Reprint Review.",
+      "Same-illustrator visual edge cases remain available for manual review without reversed duplicates.",
+    ],
+  },
+  {
     version: "3.12.26",
     releasedAt: "August 7, 2026",
     title: "Uncertain reprints return to review",
