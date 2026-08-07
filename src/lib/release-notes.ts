@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.19",
+    version: "3.12.20",
     releasedAt: "August 6, 2026",
     title: "One visual system for collecting, trading and discovery",
     summary:
@@ -44,6 +44,8 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "The 3D card floats naturally over the interface with a richer pearlescent holo, restrained inline zoom and double-click access to the large viewer.",
           "Sealed Detail preserves product artwork proportions, fills unused space with Featured Cards and links directly to its expansion.",
           "Complete Collection gains a clear List or Grid choice plus a modern compact card-size control.",
+          "Home and Complete Collection now include account-synced page customization for choosing visible modules and arranging their order on every device.",
+          "Selected Home modules can be compacted into two-column desktop rows, while Expansion logos load through smaller responsive files with a direct fallback.",
         ],
       },
       {

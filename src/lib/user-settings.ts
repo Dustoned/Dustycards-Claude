@@ -15,6 +15,19 @@ import {
   normalizeNavigationShortcutKeys,
   type NavigationShortcutKey,
 } from "@/lib/navigation-preferences";
+import {
+  DEFAULT_HOME_DASHBOARD_MODULE_ORDER,
+  normalizeHiddenHomeDashboardModules,
+  normalizeHomeDashboardModuleSelection,
+  normalizeHomeDashboardModuleOrder,
+  type HomeDashboardModuleKey,
+} from "@/lib/dashboard-module-preferences";
+import {
+  DEFAULT_OVERVIEW_SECTION_ORDER,
+  normalizeHiddenOverviewSections,
+  normalizeOverviewSectionOrder,
+  type OverviewSectionKey,
+} from "@/lib/overview-section-order";
 
 export type {
   AppearancePalette,
@@ -50,6 +63,11 @@ export interface UserSettings {
   autoPriceRefresh: boolean;
   signalRadarEmailAlerts: boolean;
   binderWatchMinPrice: number;
+  homeDashboardModuleOrder: HomeDashboardModuleKey[];
+  homeDashboardHiddenModules: HomeDashboardModuleKey[];
+  homeDashboardCompactModules: HomeDashboardModuleKey[];
+  completeCollectionSectionOrder: OverviewSectionKey[];
+  completeCollectionHiddenSections: OverviewSectionKey[];
   defaultView: CardView;
   mobileDefaultView: CardView;
   cardSize: CardSize;
@@ -89,6 +107,11 @@ export const DEFAULT_SETTINGS: UserSettings = {
   autoPriceRefresh: false,
   signalRadarEmailAlerts: false,
   binderWatchMinPrice: 50,
+  homeDashboardModuleOrder: [...DEFAULT_HOME_DASHBOARD_MODULE_ORDER],
+  homeDashboardHiddenModules: [],
+  homeDashboardCompactModules: [],
+  completeCollectionSectionOrder: [...DEFAULT_OVERVIEW_SECTION_ORDER],
+  completeCollectionHiddenSections: [],
   defaultView: "grid",
   mobileDefaultView: "grid",
   cardSize: "medium",
@@ -182,6 +205,21 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
     binderWatchMinPrice: pickNonNegativeNumber(
       source.binderWatchMinPrice,
       DEFAULT_SETTINGS.binderWatchMinPrice
+    ),
+    homeDashboardModuleOrder: normalizeHomeDashboardModuleOrder(
+      source.homeDashboardModuleOrder
+    ),
+    homeDashboardHiddenModules: normalizeHiddenHomeDashboardModules(
+      source.homeDashboardHiddenModules
+    ),
+    homeDashboardCompactModules: normalizeHomeDashboardModuleSelection(
+      source.homeDashboardCompactModules
+    ),
+    completeCollectionSectionOrder: normalizeOverviewSectionOrder(
+      source.completeCollectionSectionOrder
+    ),
+    completeCollectionHiddenSections: normalizeHiddenOverviewSections(
+      source.completeCollectionHiddenSections
     ),
     defaultView: pickEnumValue(
       source.defaultView,

@@ -1,19 +1,28 @@
 ﻿"use client";
 
 import dynamic from "next/dynamic";
-import { ArrowDown, ArrowUp, Grid2X2, List, Search, X } from "lucide-react";
-import { useDeferredValue, useEffect, useMemo, useState, type ReactNode } from "react";
+import {
+  ArrowDown,
+  ArrowUp,
+  Eye,
+  EyeOff,
+  Grid2X2,
+  List,
+  RotateCcw,
+  Search,
+  SlidersHorizontal,
+  X,
+} from "lucide-react";
+import { useDeferredValue, useMemo, useState, type ReactNode } from "react";
 import CardLayoutSizeControl from "@/components/CardLayoutSizeControl";
+import DashboardCustomizerDialog from "@/components/DashboardCustomizerDialog";
 import { SectionHeader as SharedSectionHeader } from "@/components/PageHeader";
 import { useSettings, type CardView } from "@/components/SettingsProvider";
 import { cardMatchesSearchQuery } from "@/lib/card-search";
 import {
-  buildOverviewSectionOrderCookie,
   DEFAULT_OVERVIEW_SECTION_ORDER,
   normalizeOverviewSectionOrder,
-  OVERVIEW_SECTION_ORDER_STORAGE_KEY,
   type OverviewSectionKey,
-  parseStoredOverviewSectionOrder,
 } from "@/lib/overview-section-order";
 import type { CollectionCardViewItem, CollectionSealedViewItem } from "@/types/collection-view";
 
@@ -213,17 +222,22 @@ export default function CollectionOverviewSections({
   initialSectionOrder = null,
   readOnly = false,
 }: Props) {
-  const { displaySettings, setDisplay } = useSettings();
+  const { displaySettings, settings, set, setDisplay } = useSettings();
   const activeCardView = displaySettings.defaultView === "table" ? "table" : "grid";
   const [search, setSearch] = useState("");
+  const [showCustomizer, setShowCustomizer] = useState(false);
   const deferredSearch = useDeferredValue(search);
   const normalizedSearch = deferredSearch.trim();
   const hasSearch = normalizedSearch.length > 0;
-  const [sectionOrder, setSectionOrder] = useState<OverviewSectionKey[]>(
-    initialSectionOrder ?? DEFAULT_OVERVIEW_SECTION_ORDER
-  );
-  const [hasResolvedSectionOrder, setHasResolvedSectionOrder] = useState(
-    Boolean(initialSectionOrder)
+  const sectionOrder = readOnly
+    ? normalizeOverviewSectionOrder(initialSectionOrder ?? DEFAULT_OVERVIEW_SECTION_ORDER)
+    : normalizeOverviewSectionOrder(settings.completeCollectionSectionOrder);
+  const hiddenSectionKeys = useMemo(
+    () =>
+      new Set<OverviewSectionKey>(
+        readOnly ? [] : settings.completeCollectionHiddenSections
+      ),
+    [readOnly, settings.completeCollectionHiddenSections]
   );
   const filteredGradedLooseSingles = useMemo(
     () =>
@@ -260,42 +274,6 @@ export default function CollectionOverviewSections({
         : binders,
     [binders, hasSearch, normalizedSearch]
   );
-  useEffect(() => {
-    if (hasResolvedSectionOrder) {
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => {
-      try {
-        const raw = localStorage.getItem(OVERVIEW_SECTION_ORDER_STORAGE_KEY);
-        setSectionOrder(parseStoredOverviewSectionOrder(raw) ?? DEFAULT_OVERVIEW_SECTION_ORDER);
-      } catch {
-        setSectionOrder(DEFAULT_OVERVIEW_SECTION_ORDER);
-      } finally {
-        setHasResolvedSectionOrder(true);
-      }
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [hasResolvedSectionOrder]);
-
-  useEffect(() => {
-    if (!hasResolvedSectionOrder) {
-      return;
-    }
-
-    const normalizedOrder = normalizeOverviewSectionOrder(sectionOrder);
-
-    try {
-      localStorage.setItem(
-        OVERVIEW_SECTION_ORDER_STORAGE_KEY,
-        JSON.stringify(normalizedOrder)
-      );
-    } catch {}
-
-    document.cookie = buildOverviewSectionOrderCookie(normalizedOrder);
-  }, [hasResolvedSectionOrder, sectionOrder]);
-
   const sectionMap = useMemo(() => {
     const sections: OverviewSection[] = [
       {
@@ -431,7 +409,9 @@ export default function CollectionOverviewSections({
   ]);
 
   const orderedVisibleSections = useMemo(() => {
-    const visibleSections = [...sectionMap.values()].filter((section) => section.show);
+    const visibleSections = [...sectionMap.values()].filter(
+      (section) => section.show && !hiddenSectionKeys.has(section.key)
+    );
     const visibleSectionMap = new Map(visibleSections.map((section) => [section.key, section] as const));
 
     const ordered = sectionOrder
@@ -443,17 +423,51 @@ export default function CollectionOverviewSections({
     );
 
     return [...ordered, ...missing];
-  }, [sectionMap, sectionOrder]);
+  }, [hiddenSectionKeys, sectionMap, sectionOrder]);
+
+  const customizableSections = useMemo(
+    () =>
+      sectionOrder
+        .map((key) => sectionMap.get(key))
+        .filter((section): section is OverviewSection => Boolean(section)),
+    [sectionMap, sectionOrder]
+  );
 
   function handleMoveSection(sectionKey: OverviewSectionKey, direction: -1 | 1) {
     const visibleOrder = orderedVisibleSections.map((section) => section.key);
-    setSectionOrder((currentOrder) =>
-      moveVisibleSection(currentOrder, visibleOrder, sectionKey, direction)
+    set(
+      "completeCollectionSectionOrder",
+      moveVisibleSection(sectionOrder, visibleOrder, sectionKey, direction)
     );
   }
 
+  function handleMoveConfiguredSection(sectionKey: OverviewSectionKey, direction: -1 | 1) {
+    const fromIndex = sectionOrder.indexOf(sectionKey);
+    const toIndex = fromIndex + direction;
+    if (fromIndex < 0 || toIndex < 0 || toIndex >= sectionOrder.length) return;
+    const next = [...sectionOrder];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    set("completeCollectionSectionOrder", next);
+  }
+
+  function toggleSection(sectionKey: OverviewSectionKey) {
+    const hidden = settings.completeCollectionHiddenSections;
+    set(
+      "completeCollectionHiddenSections",
+      hidden.includes(sectionKey)
+        ? hidden.filter((key) => key !== sectionKey)
+        : [...hidden, sectionKey]
+    );
+  }
+
+  function resetSections() {
+    set("completeCollectionSectionOrder", [...DEFAULT_OVERVIEW_SECTION_ORDER]);
+    set("completeCollectionHiddenSections", []);
+  }
+
   return (
-    <div className={hasResolvedSectionOrder ? "space-y-5 sm:space-y-6" : "invisible space-y-5 sm:space-y-6"}>
+    <div className="space-y-5 sm:space-y-6">
       <div className="binder-subpanel flex min-w-0 flex-col gap-2 rounded-[var(--ui-page-header-radius)] p-2.5 sm:flex-row sm:items-center sm:p-3">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
@@ -476,6 +490,21 @@ export default function CollectionOverviewSections({
           ) : null}
         </div>
         <div className="flex shrink-0 items-center justify-between gap-2 sm:justify-end">
+          {!readOnly ? (
+            <button
+              type="button"
+              onClick={() => setShowCustomizer((current) => !current)}
+              aria-expanded={showCustomizer}
+              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-xl border px-2.5 text-[11px] font-bold transition-colors ${
+                showCustomizer
+                  ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)]"
+                  : "border-[rgb(var(--dc-border-rgb)/0.82)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] text-[rgb(var(--dc-text-primary-rgb)/0.58)] hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:text-[var(--dc-text-primary)]"
+              }`}
+            >
+              <SlidersHorizontal className="h-3.5 w-3.5" aria-hidden="true" />
+              <span className="hidden sm:inline">Customize</span>
+            </button>
+          ) : null}
           <div className="flex shrink-0 items-center gap-1" aria-label="Collection card view">
             {[
               { value: "table" as const, label: "List", Icon: List },
@@ -504,6 +533,74 @@ export default function CollectionOverviewSections({
           <CardLayoutSizeControl dense />
         </div>
       </div>
+
+      {showCustomizer && !readOnly ? (
+        <DashboardCustomizerDialog
+          title="Customize Complete Collection"
+          description="Choose visible collection sections and arrange them in your preferred order. Card grids and tables stay full width for readability."
+          onClose={() => setShowCustomizer(false)}
+        >
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={resetSections}
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/9 px-3 text-[11px] font-bold text-white/58 transition-colors hover:border-white/16 hover:text-white"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              Reset
+            </button>
+          </div>
+          <div className="mt-3 grid gap-2.5 md:grid-cols-2">
+            {customizableSections.map((section, index) => {
+              const hidden = hiddenSectionKeys.has(section.key);
+              return (
+                <div
+                  key={section.key}
+                  className={`flex min-w-0 items-center gap-2 rounded-2xl border p-3 transition-colors ${
+                    hidden
+                      ? "border-white/6 bg-black/10 text-white/38"
+                      : "border-white/10 bg-white/[0.045] text-white"
+                  }`}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleSection(section.key)}
+                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-black/15"
+                    aria-label={`${hidden ? "Show" : "Hide"} ${section.label}`}
+                    aria-pressed={!hidden}
+                  >
+                    {hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                  </button>
+                  <span className="min-w-0 flex-1 truncate text-xs font-bold">{section.label}</span>
+                  <div className="flex shrink-0 items-center">
+                    <button
+                      type="button"
+                      onClick={() => handleMoveConfiguredSection(section.key, -1)}
+                      disabled={index === 0}
+                      className="flex h-8 w-7 items-center justify-center rounded-lg text-white/48 hover:bg-white/7 hover:text-white disabled:opacity-20"
+                      aria-label={`Move ${section.label} up`}
+                    >
+                      <ArrowUp className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleMoveConfiguredSection(section.key, 1)}
+                      disabled={index === customizableSections.length - 1}
+                      className="flex h-8 w-7 items-center justify-center rounded-lg text-white/48 hover:bg-white/7 hover:text-white disabled:opacity-20"
+                      aria-label={`Move ${section.label} down`}
+                    >
+                      <ArrowDown className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <p className="mt-3 text-[11px] font-semibold text-white/35">
+            Changes are saved to your account automatically.
+          </p>
+        </DashboardCustomizerDialog>
+      ) : null}
 
       {orderedVisibleSections.length > 0 ? (
         orderedVisibleSections.map((section, index) => {

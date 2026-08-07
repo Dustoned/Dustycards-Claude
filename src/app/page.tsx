@@ -675,70 +675,70 @@ async function HomePageContent({
             </div>
           </div>
 
-          <section className="grid min-w-0 gap-2.5 sm:gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
-            <div data-collection-summary-financial className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 lg:p-4">
-              <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
-                {showCollectionChart ? (
-                  <CollectionValueHistoryPanel
-                    initialPoints={data.overview.chart}
-                    currentValue={data.overview.currentValue}
-                    deltaValue={latestCollectionChartValue}
-                    subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
-                      data.overview.pnl
-                    )}`}
-                    endpoint={buildCollectionValueHistoryApiHref()}
-                  />
-                ) : (
-                  <CollectionValueSummaryCard
-                    currentValue={data.overview.currentValue}
-                    pnl={data.overview.pnl}
-                    rangeLabel={collectionValueRange}
-                    className="flex w-full flex-col justify-center px-3 py-3 sm:px-4"
-                  />
-                )}
-              </div>
-            </div>
-
-            <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:gap-2 xl:grid-rows-3">
-              {summaryCards.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="contents"
-                  data-collection-summary-financial={
-                    stat.label === "Overall Spend" || stat.label === "Total Profit"
-                      ? "true"
-                      : undefined
-                  }
-                >
-                  <HeaderStatCard {...stat} />
+          <ProgressiveHomeOverviewInsights
+            endpoint={buildHomeInsightsApiHref()}
+            cacheScope={user.id}
+            valueDriversHref={buildValueDriversHref()}
+            suddenDropsApiHref={buildSuddenDropsApiHref()}
+            suddenDropsHref={buildSuddenDropsHref()}
+            collectionHref={buildCollectionHref("complete")}
+            portfolioSlot={
+              <section className="grid min-w-0 gap-2.5 sm:gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
+                <div data-collection-summary-financial className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 lg:p-4">
+                  <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
+                    {showCollectionChart ? (
+                      <CollectionValueHistoryPanel
+                        initialPoints={data.overview.chart}
+                        currentValue={data.overview.currentValue}
+                        deltaValue={latestCollectionChartValue}
+                        subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
+                          data.overview.pnl
+                        )}`}
+                        endpoint={buildCollectionValueHistoryApiHref()}
+                      />
+                    ) : (
+                      <CollectionValueSummaryCard
+                        currentValue={data.overview.currentValue}
+                        pnl={data.overview.pnl}
+                        rangeLabel={collectionValueRange}
+                        className="flex w-full flex-col justify-center px-3 py-3 sm:px-4"
+                      />
+                    )}
+                  </div>
                 </div>
-              ))}
-            </div>
-          </section>
 
-          {hasCollection && (
-            <ProgressiveHomeOverviewInsights
-              endpoint={buildHomeInsightsApiHref()}
-              cacheScope={user.id}
-              valueDriversHref={buildValueDriversHref()}
-              suddenDropsApiHref={buildSuddenDropsApiHref()}
-              suddenDropsHref={buildSuddenDropsHref()}
-              collectionHref={buildCollectionHref("complete")}
-              topSetsSlot={
-                <TopSetsProgressPanel
-                  binders={data.binders}
-                  viewAllHref={buildCollectionHref("binders")}
-                />
-              }
-            />
-          )}
-
-          <HomeCollectionLinks
-            cardsHref={buildCollectionHref("complete")}
-            bindersHref={buildCollectionHref("binders")}
-            sealedHref={buildCollectionHref("sealed")}
-            gradedHref={buildCollectionHref("graded")}
-            sellingHref={buildCollectionHref("selling")}
+                <div className="grid min-w-0 grid-cols-2 gap-1.5 sm:gap-2 xl:grid-rows-3">
+                  {summaryCards.map((stat) => (
+                    <div
+                      key={stat.label}
+                      className="contents"
+                      data-collection-summary-financial={
+                        stat.label === "Overall Spend" || stat.label === "Total Profit"
+                          ? "true"
+                          : undefined
+                      }
+                    >
+                      <HeaderStatCard {...stat} />
+                    </div>
+                  ))}
+                </div>
+              </section>
+            }
+            topSetsSlot={
+              <TopSetsProgressPanel
+                binders={data.binders}
+                viewAllHref={buildCollectionHref("binders")}
+              />
+            }
+            shortcutsSlot={
+              <HomeCollectionLinks
+                cardsHref={buildCollectionHref("complete")}
+                bindersHref={buildCollectionHref("binders")}
+                sealedHref={buildCollectionHref("sealed")}
+                gradedHref={buildCollectionHref("graded")}
+                sellingHref={buildCollectionHref("selling")}
+              />
+            }
           />
         </div>
         ) : (

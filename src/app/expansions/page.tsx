@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import { Layers3, LibraryBig, Shapes } from "lucide-react";
+import CachedImage from "@/components/CachedImage";
 import {
   HeaderStatCard,
   SectionHeader,
@@ -18,7 +18,6 @@ import {
 } from "@/lib/games";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import {
   getEpisodeDisplayCardCount,
   isHiddenExpansion,
@@ -413,14 +412,13 @@ export default async function ExpansionsPage({
                       <div
                           className={`relative flex w-full items-center justify-center rounded-xl border border-black/6 bg-black/[0.025] p-2 dark:border-white/7 dark:bg-white/[0.035] max-[640px]:h-16 ${tileConfig.logoHeightClass}`}
                       >
-                        <Image
-                          src={getCachedImageUrl(episode.logo_url) ?? episode.logo_url}
+                        <CachedImage
+                          sourceUrl={episode.logo_url}
                           alt={episode.name}
                           fill
                           className="object-contain p-2 drop-shadow-[0_8px_14px_rgba(0,0,0,0.24)] transition-transform duration-200 group-hover:scale-[1.04]"
                           sizes={tileConfig.minWidth}
                           priority={groupIndex === 0 && index < 6}
-                          unoptimized
                         />
                       </div>
                     ) : (

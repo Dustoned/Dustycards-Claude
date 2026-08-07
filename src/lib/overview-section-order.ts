@@ -41,6 +41,17 @@ export function normalizeOverviewSectionOrder(raw: unknown): OverviewSectionKey[
   return unique;
 }
 
+export function normalizeHiddenOverviewSections(raw: unknown): OverviewSectionKey[] {
+  if (!Array.isArray(raw)) return [];
+  return [
+    ...new Set(
+      raw.filter((value): value is OverviewSectionKey =>
+        DEFAULT_OVERVIEW_SECTION_ORDER.includes(value as OverviewSectionKey)
+      )
+    ),
+  ];
+}
+
 export function serializeOverviewSectionOrder(order: OverviewSectionKey[]): string {
   return JSON.stringify(normalizeOverviewSectionOrder(order));
 }

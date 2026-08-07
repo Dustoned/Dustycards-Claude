@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.20",
+    releasedAt: "August 7, 2026",
+    title: "Your collection, your layout",
+    summary: "Home and Complete Collection can now be arranged around the modules each collector actually wants to see.",
+    tone: "new",
+    highlights: [
+      "Home offers five account-synced modules that can be shown, hidden and reordered without losing the fixed collection navigation.",
+      "Market Movement, Featured Cards and Collection Breakdown can switch between wide and compact; two compact modules automatically share a desktop row.",
+      "Complete Collection offers the same controls for Binders, Loose Singles, Graded Cards, Sealed and Binder Watch.",
+      "A one-click reset restores the DustyCards default on desktop and mobile.",
+      "Expansion logos use responsive cached files with an automatic source fallback, preventing slow or failed cache requests from leaving empty mobile tiles.",
+    ],
+  },
+  {
     version: "3.12.19",
     releasedAt: "August 7, 2026",
     title: "Reliable hype-reset support",
