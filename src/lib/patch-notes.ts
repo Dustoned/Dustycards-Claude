@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.17",
+    releasedAt: "August 7, 2026",
+    title: "Balanced home insight panels",
+    summary: "The two widescreen home insight panels once again share one aligned height.",
+    tone: "fixed",
+    highlights: [
+      "Collection Value Drivers and Sudden Price Drops stretch to the same desktop row height.",
+      "Different row counts no longer leave one panel visibly shorter on ultrawide screens.",
+    ],
+  },
+  {
     version: "3.12.16",
     releasedAt: "August 7, 2026",
     title: "Final 68% reprint pass",
