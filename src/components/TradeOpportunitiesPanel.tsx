@@ -313,12 +313,15 @@ function TradeColumn({
   suggestedCardIds,
   selectedCardId,
   onSelect,
+  targetValue = null,
 }: {
   title: string;
   cards: SocialTradeMatchCard[];
   suggestedCardIds: string[];
   selectedCardId: string | null;
   onSelect: (cardId: string) => void;
+  /** Value selected on the opposite side (already rate-adjusted); closest-value cards sort first. */
+  targetValue?: number | null;
 }) {
   const [query, setQuery] = useState("");
   const [visibleLimit, setVisibleLimit] = useState(TRADE_COLLECTION_BATCH_SIZE);
@@ -333,11 +336,24 @@ function TradeColumn({
             .some((value) => value!.toLocaleLowerCase().includes(normalized))
         )
       : cards;
+    if (targetValue != null) {
+      // A card is selected on the opposite side: closest trade value wins, so
+      // fair trades surface immediately. Unpriced cards sink to the end.
+      return [...filtered].sort((left, right) => {
+        const leftDistance = left.value == null ? Number.POSITIVE_INFINITY : Math.abs(left.value - targetValue);
+        const rightDistance = right.value == null ? Number.POSITIVE_INFINITY : Math.abs(right.value - targetValue);
+        return (
+          leftDistance - rightDistance ||
+          Number(suggested.has(right.id)) - Number(suggested.has(left.id)) ||
+          (right.value ?? -1) - (left.value ?? -1)
+        );
+      });
+    }
     return [...filtered].sort((left, right) =>
       Number(suggested.has(right.id)) - Number(suggested.has(left.id)) ||
       (right.value ?? -1) - (left.value ?? -1)
     );
-  }, [cards, query, suggested]);
+  }, [cards, query, suggested, targetValue]);
   const renderedCards = visibleCards.slice(0, visibleLimit);
 
   return (
@@ -350,6 +366,11 @@ function TradeColumn({
             : formatCollectionCurrency(selectedCard.value)}
         </span>
       </div>
+      {targetValue != null && !selectedCard ? (
+        <p className="mb-2 rounded-lg border border-emerald-300/14 bg-emerald-500/[0.05] px-2.5 py-1.5 text-[9px] font-bold text-emerald-100/72">
+          Sorted by best match around {formatCollectionCurrency(targetValue)}
+        </p>
+      ) : null}
       {cards.length > 6 ? (
         <label className="mb-2 flex h-9 items-center gap-2 rounded-xl border border-white/8 bg-white/[0.025] px-2.5 focus-within:border-violet-300/24 focus-within:bg-violet-500/[0.045]">
           <Search className="h-3.5 w-3.5 shrink-0 text-white/30" />
@@ -438,9 +459,34 @@ function FriendTradeMatches({ opportunities }: { opportunities: SocialTradeOppor
   const [selectedFriendId, setSelectedFriendId] = useState<string | null>(initialId);
   const [selectedYourCardId, setSelectedYourCardId] = useState<string | null>(null);
   const [selectedTheirCardId, setSelectedTheirCardId] = useState<string | null>(null);
+  const [tradeValueRate, setTradeValueRate] = useState(DEFAULT_TRADE_VALUE_RATE);
+
+  // Same stored convention as the manual compare: side B is matched against
+  // this percentage of side A's (your) EU market value.
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      try {
+        setTradeValueRate(
+          normalizeTradeValueRate(window.localStorage.getItem(TRADE_VALUE_RATE_STORAGE_KEY))
+        );
+      } catch {
+        // Device storage can be unavailable in privacy modes; keep the default.
+      }
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, []);
+
   const selected = opportunities.find((opportunity) => opportunity.friend.id === selectedFriendId) ?? opportunities[0] ?? null;
   const yourCard = selected?.matches.yourCollectionCards.find((card) => card.id === selectedYourCardId) ?? null;
   const theirCard = selected?.matches.theirCollectionCards.find((card) => card.id === selectedTheirCardId) ?? null;
+  // Pick a card on one side and the other column sorts around the matching
+  // trade value, so fair counterparts appear on top immediately.
+  const theirTargetValue = yourCard?.value != null
+    ? Number(((yourCard.value * tradeValueRate) / 100).toFixed(2))
+    : null;
+  const yourTargetValue = theirCard?.value != null
+    ? Number(((theirCard.value * 100) / tradeValueRate).toFixed(2))
+    : null;
   const balance = yourCard?.value != null && theirCard?.value != null
     ? Number((yourCard.value - theirCard.value).toFixed(2))
     : null;
@@ -489,6 +535,7 @@ function FriendTradeMatches({ opportunities }: { opportunities: SocialTradeOppor
               suggestedCardIds={selected.matches.yourCardsTheyWant.map((card) => card.id)}
               selectedCardId={selectedYourCardId}
               onSelect={(cardId) => setSelectedYourCardId((current) => current === cardId ? null : cardId)}
+              targetValue={yourTargetValue}
             />
             <ArrowLeftRight className="mx-auto hidden h-4 w-4 text-violet-200/36 lg:block" />
             <TradeColumn
@@ -498,6 +545,7 @@ function FriendTradeMatches({ opportunities }: { opportunities: SocialTradeOppor
               suggestedCardIds={selected.matches.theirCardsYouWant.map((card) => card.id)}
               selectedCardId={selectedTheirCardId}
               onSelect={(cardId) => setSelectedTheirCardId((current) => current === cardId ? null : cardId)}
+              targetValue={theirTargetValue}
             />
           </div>
           <div className={`mt-2 rounded-xl border px-3 py-2.5 ${balance == null ? "border-white/8 bg-white/[0.02]" : Math.abs(balance) <= 1 ? "border-emerald-300/16 bg-emerald-500/[0.055]" : "border-amber-300/14 bg-amber-500/[0.045]"}`}>

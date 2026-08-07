@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.30",
+    releasedAt: "August 8, 2026",
+    title: "Friend trades sort around matching value",
+    summary:
+      "Selecting a card on either side of a friend trade now reorders the other collection around the matching trade value, so fair counterparts appear on top immediately.",
+    tone: "improved",
+    highlights: [
+      "Pick a card you can offer and your friend's collection sorts by closest value first, using the saved trade-value percentage (80-100%) from the compare tab.",
+      "Works in both directions: selecting a friend's card sorts your own collection around the value you would need to offer.",
+      "A small banner shows the target value the column is sorted around; wanted matches still break ties and unpriced cards sink to the end.",
+    ],
+  },
+  {
     version: "3.12.29",
     releasedAt: "August 7, 2026",
     title: "Sold status always stays visible",
