@@ -66,6 +66,7 @@ import {
   KNOWN_SUPERTYPE_ORDER,
   buildFilterOptions,
   collectionOverlayBadgeClass,
+  collectionSoldOverlayBadgeClass,
   collectionTileActionButtonClass,
   collectionTileInfoClass,
   collectionTileMetaLineClass,
@@ -2875,7 +2876,7 @@ export default function CollectionCardsView({
                       }}
                     >
                       <div
-                        className={`relative ${previewAspectClass} w-full transition-all duration-200 ${
+                        className={`relative isolate ${previewAspectClass} w-full transition-all duration-200 ${
                           isGradedCard
                             ? `overflow-hidden rounded-xl border ${
                                 isSelected
@@ -2947,7 +2948,10 @@ export default function CollectionCardsView({
                         )}
 
                         {salesLedger && item.sold_at ? (
-                          <span className={`absolute right-2 top-2 ${collectionOverlayBadgeClass(displaySettings.cardSize)}`}>
+                          <span
+                            data-sale-status="sold"
+                            className={`absolute right-2 top-2 ${collectionSoldOverlayBadgeClass(displaySettings.cardSize)}`}
+                          >
                             Sold
                           </span>
                         ) : (item.owned_count ?? 0) > 1 && (

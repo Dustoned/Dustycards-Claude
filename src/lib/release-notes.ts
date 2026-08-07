@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.29",
+    releasedAt: "August 7, 2026",
+    title: "Unambiguous Sold ledger",
+    summary:
+      "Every card in the Sold ledger now shows its transaction status above the artwork, including transparent-trim images.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "One clear sale state",
+        highlights: [
+          "Every completed sale visibly carries a SOLD label.",
+          "Transparent card artwork can no longer cover the label.",
+          "Unsold active listings remain isolated in For Sale.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.28",
     releasedAt: "August 7, 2026",
     title: "Safer mobile controls and selling views",

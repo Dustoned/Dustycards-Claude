@@ -338,6 +338,13 @@ export function collectionOverlayBadgeClass(cardSize: CardSize): string {
   return "rounded-full bg-black/70 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/80 backdrop-blur";
 }
 
+export function collectionSoldOverlayBadgeClass(cardSize: CardSize): string {
+  // TCGGO's transparent-trim card images intentionally render at z-10. Keep
+  // the transaction status above every image variant so a sold record can
+  // never visually resemble an active For Sale card.
+  return `${collectionOverlayBadgeClass(cardSize)} z-20 shadow-[0_2px_8px_rgba(0,0,0,0.38)]`;
+}
+
 export function collectionTileInfoClass(cardSize: CardSize): string {
   if (cardSize === "large") {
     return "mt-2 flex flex-1 flex-col px-1";

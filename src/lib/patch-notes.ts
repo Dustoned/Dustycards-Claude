@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.29",
+    releasedAt: "August 7, 2026",
+    title: "Sold status always stays visible",
+    summary: "Every completed sale now keeps its SOLD label above every supported card-image format.",
+    tone: "fixed",
+    highlights: [
+      "SOLD labels render above transparent-trim card images instead of disappearing behind them.",
+      "The Sold ledger remains limited to timestamped completed sales; active unsold copies remain in For Sale.",
+      "A dedicated sale-status marker makes the live grid contract directly auditable.",
+    ],
+  },
+  {
     version: "3.12.28",
     releasedAt: "August 7, 2026",
     title: "Mobile popup and selling-grid fixes",

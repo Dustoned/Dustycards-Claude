@@ -4,6 +4,7 @@ import {
   buildFilterOptions,
   CARD_NUMBER_FALLBACK,
   collectionMetaBadge,
+  collectionSoldOverlayBadgeClass,
   compareCollectionCardItems,
   compareCollectionCardNumbers,
   comparePriceValues,
@@ -147,6 +148,12 @@ describe("filterSellingInventoryItems", () => {
 
   it("keeps only timestamped transactions in the Sold ledger", () => {
     expect(filterSellingInventoryItems([active, sold, owned], "sold")).toEqual([sold]);
+  });
+});
+
+describe("collectionSoldOverlayBadgeClass", () => {
+  it("keeps the Sold status above transparent-trim card images", () => {
+    expect(collectionSoldOverlayBadgeClass("small")).toContain("z-20");
   });
 });
 
