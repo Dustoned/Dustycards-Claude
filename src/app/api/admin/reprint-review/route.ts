@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
-import { CARD_REPRINT_MODEL_VERSION } from "@/lib/card-printings";
+import {
+  CARD_REPRINT_MODEL_VERSION,
+  isCardPrintingReviewCandidate,
+} from "@/lib/card-printings";
 import { db } from "@/lib/db";
 import { collapseReprintReviewCandidates } from "@/lib/reprint-review";
 
@@ -17,20 +20,26 @@ export async function GET() {
       db.cardPrintingRelation.findMany({
         where: {
           model_version: CARD_REPRINT_MODEL_VERSION,
-          match_method: "likely-art",
+          match_method: { in: ["likely-art", "rules-review", "rules-and-art"] },
         },
         orderBy: [{ image_similarity: "asc" }, { matched_at: "desc" }],
         take: 10_000,
         include: {
-          sourceCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
-          targetCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
+          sourceCard: { select: { id: true, name: true, card_number: true, image_url: true, artist: true, episode: { select: { name: true } } } },
+          targetCard: { select: { id: true, name: true, card_number: true, image_url: true, artist: true, episode: { select: { name: true } } } },
         },
       }),
       db.cardPrintingOverride.findMany({
         select: { source_card_id: true, target_card_id: true, decision: true },
       }),
     ]);
-    const candidates = relations.map((relation) => {
+    const candidates = relations
+      .filter((relation) => isCardPrintingReviewCandidate(
+        relation.match_method,
+        relation.sourceCard.artist,
+        relation.targetCard.artist
+      ))
+      .map((relation) => {
       const [sourceId, targetId] = pair(relation.source_card_id, relation.target_card_id);
       const source = relation.source_card_id === sourceId ? relation.sourceCard : relation.targetCard;
       const target = relation.target_card_id === targetId ? relation.targetCard : relation.sourceCard;
@@ -44,7 +53,7 @@ export async function GET() {
           imageSimilarity: relation.image_similarity,
         },
       };
-    });
+      });
     const allItems = collapseReprintReviewCandidates({
       candidates,
       confirmedPairs: [],

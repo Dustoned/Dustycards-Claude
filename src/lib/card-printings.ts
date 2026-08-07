@@ -94,6 +94,7 @@ export type PrintingLookupCard = {
 
 export type CardPrintingMatchMethod =
   | "rules-and-art"
+  | "rules-review"
   | "lineage-and-art"
   | "likely-art"
   | "strong-art"
@@ -153,6 +154,29 @@ export function haveSameKnownPrintingArtist(
   const normalizedLeft = normalizeText(left);
   const normalizedRight = normalizeText(right);
   return normalizedLeft != null && normalizedLeft === normalizedRight;
+}
+
+export function haveConflictingKnownPrintingArtists(
+  left: string | null | undefined,
+  right: string | null | undefined
+): boolean {
+  const normalizedLeft = normalizeText(left);
+  const normalizedRight = normalizeText(right);
+  return normalizedLeft != null && normalizedRight != null && normalizedLeft !== normalizedRight;
+}
+
+export function isCardPrintingReviewCandidate(
+  matchMethod: string,
+  sourceArtist?: string | null,
+  targetArtist?: string | null
+): boolean {
+  if (matchMethod === "likely-art" || matchMethod === "rules-review") return true;
+
+  // Compatibility for relations written before artist conflicts were routed
+  // to manual review. These are hidden from card detail, but must remain
+  // reviewable so an admin can explicitly accept or reject the exact pair.
+  return matchMethod === "rules-and-art" &&
+    haveConflictingKnownPrintingArtists(sourceArtist, targetArtist);
 }
 
 export function getTcgdexCardId(input: {
@@ -396,6 +420,10 @@ export function getPrintingMatchDetails(
     current.illustrator,
     candidate.illustrator
   );
+  const conflictingIllustrators = haveConflictingKnownPrintingArtists(
+    current.illustrator,
+    candidate.illustrator
+  );
 
   const currentFingerprint = buildCardIdentityFingerprint(current);
   const candidateFingerprint = buildCardIdentityFingerprint(candidate);
@@ -412,10 +440,14 @@ export function getPrintingMatchDetails(
 
     if (
       rulesMatch &&
-      sameIllustrator &&
+      (sameIllustrator || conflictingIllustrators) &&
       imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY
     ) {
-      return { matchType: "reprint", method: "rules-and-art", imageSimilarity };
+      return {
+        matchType: "reprint",
+        method: sameIllustrator ? "rules-and-art" : "rules-review",
+        imageSimilarity,
+      };
     }
   }
 
@@ -720,9 +752,8 @@ export async function loadRelatedCardPrintings(
     where: {
       source_card_id: current.id,
       model_version: CARD_REPRINT_MODEL_VERSION,
-      // Low-confidence visual candidates belong in the admin review queue.
-      // They only become visible reprints after an explicit include decision.
-      match_method: { not: "likely-art" },
+      // Manual candidates only become visible after an explicit include.
+      match_method: { notIn: ["likely-art", "rules-review"] },
     },
     select: {
       match_method: true,

@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.26",
+    releasedAt: "August 7, 2026",
+    title: "Uncertain reprints return to review",
+    summary: "Artist conflicts are now held for an explicit decision instead of disappearing or publishing automatically.",
+    tone: "fixed",
+    highlights: [
+      "Cards with matching rules and strong visual evidence but different credited illustrators appear in Reprint Review.",
+      "These candidates remain hidden from Related printings until they are explicitly approved.",
+      "Existing suspect rules-and-art links are recovered into the review queue without recreating reversed duplicate pairs.",
+      "Pairs with missing artist evidence stay hidden instead of flooding review or being treated as confirmed reprints.",
+    ],
+  },
+  {
     version: "3.12.25",
     releasedAt: "August 7, 2026",
     title: "A Home dashboard built from widgets",

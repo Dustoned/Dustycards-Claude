@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.26",
+    releasedAt: "August 7, 2026",
+    title: "Safer reprint decisions",
+    summary:
+      "Visual print matches with conflicting artist evidence now wait for a manual decision without appearing as confirmed reprints.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Review instead of guessing",
+        highlights: [
+          "Matching rules and strong artwork can create a review candidate when the credited illustrators differ, but can never publish that pair automatically.",
+          "Legacy artist-conflict links are surfaced in Reprint Review and remain absent from Card Detail until approved.",
+          "Each unordered pair is shown once, and previous decisions continue to suppress the same pair in either direction.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.25",
     releasedAt: "August 7, 2026",
     title: "A dashboard that fits each collector",

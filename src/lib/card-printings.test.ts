@@ -7,7 +7,9 @@ import {
   getPrintingMatchDetails,
   getPrintingMatchType,
   getTcgdexCardId,
+  haveConflictingKnownPrintingArtists,
   haveSameKnownPrintingArtist,
+  isCardPrintingReviewCandidate,
   type TcgDexCardIdentity,
 } from "@/lib/card-printings";
 
@@ -43,6 +45,8 @@ describe("card printings", () => {
   it("normalizes illustrator names before comparing print evidence", () => {
     expect(haveSameKnownPrintingArtist(" 5ban Graphics ", "5BAN GRAPHICS")).toBe(true);
     expect(haveSameKnownPrintingArtist("5ban Graphics", "HYOGONOSUKE")).toBe(false);
+    expect(haveConflictingKnownPrintingArtists("5ban Graphics", "HYOGONOSUKE")).toBe(true);
+    expect(haveConflictingKnownPrintingArtists("5ban Graphics", null)).toBe(false);
   });
 
   it("derives the canonical TCGdex id from an artwork URL", () => {
@@ -106,14 +110,26 @@ describe("card printings", () => {
     ).toBeNull();
   });
 
-  it("does not publish identical rules as a reprint when the illustrator differs", () => {
+  it("routes identical rules with a different illustrator to manual review", () => {
     expect(
       getPrintingMatchDetails(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: "HYOGONOSUKE" },
         0.95
       )
-    ).toBeNull();
+    ).toMatchObject({
+      matchType: "reprint",
+      method: "rules-review",
+    });
+  });
+
+  it("keeps review-only and legacy artist conflicts out of published reprints", () => {
+    expect(isCardPrintingReviewCandidate("rules-review", "Artist A", "Artist B")).toBe(true);
+    expect(isCardPrintingReviewCandidate("likely-art", "Artist A", "Artist A")).toBe(true);
+    expect(isCardPrintingReviewCandidate("rules-and-art", "Artist A", "Artist B")).toBe(true);
+    expect(isCardPrintingReviewCandidate("rules-and-art", "Artist A", "Artist A")).toBe(false);
+    expect(isCardPrintingReviewCandidate("rules-and-art", "Artist A", null)).toBe(false);
+    expect(isCardPrintingReviewCandidate("manual-include", "Artist A", "Artist B")).toBe(false);
   });
 
   it("does not auto-link a visually different promo when illustrator data is absent", () => {
