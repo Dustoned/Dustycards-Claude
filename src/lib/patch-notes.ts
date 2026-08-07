@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.19",
+    releasedAt: "August 7, 2026",
+    title: "Reliable hype-reset support",
+    summary: "Signal Radar now recognizes genuinely stable support even when unchanged prices are stored on sparse snapshot days.",
+    tone: "fixed",
+    highlights: [
+      "Support is measured across fourteen calendar days using at least three independent price days, matching the real refresh cadence.",
+      "Cards that are still falling, show a wide price band or have only one or two stale observations remain excluded.",
+    ],
+  },
+  {
     version: "3.12.18",
     releasedAt: "August 7, 2026",
     title: "Filled market rows and smarter card details",

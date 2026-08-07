@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.18",
+    version: "3.12.19",
     releasedAt: "August 6, 2026",
     title: "One visual system for collecting, trading and discovery",
     summary:
@@ -53,6 +53,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Friend matches stay freely selectable and no longer mix completed Sold records with cards still offered for sale.",
           "Upcoming reveals reuse the higher-quality database card when available, open unknown cards in a focused viewer and remain swipeable and selectable from each set row.",
           "Signal Radar recognizes expensive former hype cards after a deep reset holds a calm support band for several days, without rewarding cards that are still falling.",
+          "Sparse price snapshots now count stability across a two-week window, so genuinely flat support is not rejected merely because an unchanged quote was not stored every day.",
           "Released cards are filtered from Upcoming incrementally, while visual evidence now outweighs matching names or rules text in reprint review.",
         ],
       },

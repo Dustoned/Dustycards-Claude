@@ -1077,6 +1077,34 @@ describe("external market intelligence", () => {
     expect(support?.rangePct).toBeLessThanOrEqual(5);
   });
 
+  it("recognizes support held across sparse snapshot days", () => {
+    const start = Date.parse("2026-05-01T00:00:00.000Z");
+    const point = (day: number, value: number) => ({
+      day: new Date(start + day * 86_400_000),
+      value,
+    });
+    const history = [
+      point(0, 110),
+      point(5, 112),
+      point(10, 250),
+      point(11, 240),
+      point(20, 150),
+      point(30, 125),
+      point(40, 110),
+      point(50, 102),
+      point(57, 100),
+      point(63, 100),
+      point(69, 100),
+      point(70, 100),
+    ];
+
+    const support = calculateHypeResetSupport(history);
+
+    expect(support?.label).toBe("Support confirmed");
+    expect(support?.supportPrice).toBe(100);
+    expect(support?.stableDays).toBe(13);
+  });
+
   it("rejects a deep drawdown that is still falling through support", () => {
     const start = Date.parse("2026-05-01T00:00:00.000Z");
     const history = Array.from({ length: 70 }, (_, index) => ({

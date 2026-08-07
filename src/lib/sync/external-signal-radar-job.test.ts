@@ -32,7 +32,7 @@ vi.mock("@/lib/sync/signal-radar-ebay-demand", () => ({
 vi.mock("@/lib/sync/external-signal-persistence", () => ({
   EXTERNAL_CATALYST_REFRESH_INTERVAL_MS: 72 * 60 * 60_000,
   EXTERNAL_COMPETITIVE_REFRESH_INTERVAL_MS: 6 * 60 * 60_000,
-  EXTERNAL_SIGNAL_MODEL_VERSION: "v11-hype-reset-support",
+  EXTERNAL_SIGNAL_MODEL_VERSION: "v12-hype-reset-calibrated",
   getCompleteExternalSignalGames: vi.fn(),
   isExternalRefreshDue: vi.fn(),
   persistExternalCompetitiveScan: vi.fn(),
@@ -97,7 +97,7 @@ describe("external signal scheduler lease", () => {
     expect(isCurrentExternalSignalModel("v6-price-sanity")).toBe(false);
     expect(isCurrentExternalSignalModel("v8-expanded-coverage")).toBe(false);
     expect(isCurrentExternalSignalModel("v10-consistent-live-prices")).toBe(false);
-    expect(isCurrentExternalSignalModel("v11-hype-reset-support")).toBe(true);
+    expect(isCurrentExternalSignalModel("v12-hype-reset-calibrated")).toBe(true);
     expect(isCurrentExternalSignalModel(null)).toBe(false);
   });
 });

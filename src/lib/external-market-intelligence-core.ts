@@ -45,32 +45,56 @@ export function calculateHypeResetSupport(
   );
   if (peakCluster.length < 2) return null;
 
-  const supportWindow = valid.filter(
-    (point) => point.day.getTime() >= latest.day.getTime() - 9 * 86_400_000
+  // Price snapshots are not guaranteed to land every day when a quote stays
+  // unchanged. Use a two-week window so three independent observations can
+  // prove calendar-time stability without rewarding one or two stale points.
+  const recentSupport = valid.filter(
+    (point) => point.day.getTime() >= latest.day.getTime() - 14 * 86_400_000
   );
-  const supportFirst = supportWindow[0];
-  if (!supportFirst || supportWindow.length < 4) return null;
-  const stableDays = Math.floor(
-    (latest.day.getTime() - supportFirst.day.getTime()) / 86_400_000
-  );
-  if (stableDays < 4) return null;
+  let supportMatch: {
+    supportPrice: number;
+    rangePct: number;
+    supportTrendPct: number;
+    stableDays: number;
+    confirmed: boolean;
+  } | null = null;
+  for (let index = 0; index <= recentSupport.length - 3; index += 1) {
+    const supportWindow = recentSupport.slice(index);
+    const supportFirst = supportWindow[0];
+    if (!supportFirst) continue;
+    const stableDays = Math.floor(
+      (latest.day.getTime() - supportFirst.day.getTime()) / 86_400_000
+    );
+    if (stableDays < 4) continue;
 
-  const values = supportWindow.map((point) => point.value).sort((left, right) => left - right);
-  const middle = Math.floor(values.length / 2);
-  const supportPrice =
-    values.length % 2 === 0
-      ? ((values[middle - 1] ?? 0) + (values[middle] ?? 0)) / 2
-      : values[middle] ?? 0;
-  if (supportPrice <= 0) return null;
-  const rangePct = (((values.at(-1) ?? 0) - (values[0] ?? 0)) / supportPrice) * 100;
-  const endpointSize = Math.min(2, Math.floor(supportWindow.length / 2));
-  const start = supportWindow.slice(0, endpointSize).reduce((sum, point) => sum + point.value, 0) / endpointSize;
-  const end = supportWindow.slice(-endpointSize).reduce((sum, point) => sum + point.value, 0) / endpointSize;
-  const supportTrendPct = ((end - start) / start) * 100;
-  const currentDistancePct = ((latest.value - supportPrice) / supportPrice) * 100;
-  if (rangePct > 7 || supportTrendPct < -2.5 || Math.abs(currentDistancePct) > 4) return null;
-
-  const confirmed = stableDays >= 6 && rangePct <= 5 && supportTrendPct >= -1.5;
+    const values = supportWindow.map((point) => point.value).sort((left, right) => left - right);
+    const middle = Math.floor(values.length / 2);
+    const supportPrice =
+      values.length % 2 === 0
+        ? ((values[middle - 1] ?? 0) + (values[middle] ?? 0)) / 2
+        : values[middle] ?? 0;
+    if (supportPrice <= 0) continue;
+    const rangePct = (((values.at(-1) ?? 0) - (values[0] ?? 0)) / supportPrice) * 100;
+    const endpointSize = Math.min(2, Math.floor(supportWindow.length / 2));
+    const start =
+      supportWindow.slice(0, endpointSize).reduce((sum, point) => sum + point.value, 0) /
+      endpointSize;
+    const end =
+      supportWindow.slice(-endpointSize).reduce((sum, point) => sum + point.value, 0) /
+      endpointSize;
+    const supportTrendPct = ((end - start) / start) * 100;
+    const currentDistancePct = ((latest.value - supportPrice) / supportPrice) * 100;
+    if (rangePct > 7 || supportTrendPct < -2.5 || Math.abs(currentDistancePct) > 4) {
+      continue;
+    }
+    const confirmed = stableDays >= 6 && rangePct <= 5 && supportTrendPct >= -1.5;
+    if (!supportMatch || (confirmed && !supportMatch.confirmed)) {
+      supportMatch = { supportPrice, rangePct, supportTrendPct, stableDays, confirmed };
+    }
+    if (confirmed) break;
+  }
+  if (!supportMatch) return null;
+  const { supportPrice, rangePct, stableDays, confirmed } = supportMatch;
   const score = clampMarketScore(
     55 +
       Math.min(18, (drawdownPct - 35) * 0.35) +
