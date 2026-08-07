@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.24",
+    releasedAt: "August 7, 2026",
+    title: "Foldable Radar and Home modules",
+    summary: "Signal Radar now keeps singles above sealed, while Radar and Home modules can stay folded until they are needed.",
+    tone: "improved",
+    highlights: [
+      "Radar cards and their filters appear before the sealed-product analysis on desktop and mobile.",
+      "Singles and sealed Radar sections can be collapsed independently, with the choice remembered on the device.",
+      "Every applicable Home module can be folded into a compact title bar, with the choice saved to the account.",
+      "Identical rules can no longer publish alternate artwork as a reprint when the credited illustrators differ.",
+    ],
+  },
+  {
     version: "3.12.23",
     releasedAt: "August 7, 2026",
     title: "Radar stops preloading every card",

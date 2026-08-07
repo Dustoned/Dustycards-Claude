@@ -146,6 +146,15 @@ function normalizeStringArray(value: unknown): string[] {
     : [];
 }
 
+export function haveSameKnownPrintingArtist(
+  left: string | null | undefined,
+  right: string | null | undefined
+): boolean {
+  const normalizedLeft = normalizeText(left);
+  const normalizedRight = normalizeText(right);
+  return normalizedLeft != null && normalizedLeft === normalizedRight;
+}
+
 export function getTcgdexCardId(input: {
   image_url?: string | null;
   tcgid?: string | null;
@@ -383,6 +392,11 @@ export function getPrintingMatchDetails(
     normalizeCardName(current.name) === normalizeCardName(candidate.name);
   if (!sameNamedCard) return null;
 
+  const sameIllustrator = haveSameKnownPrintingArtist(
+    current.illustrator,
+    candidate.illustrator
+  );
+
   const currentFingerprint = buildCardIdentityFingerprint(current);
   const candidateFingerprint = buildCardIdentityFingerprint(candidate);
   if (currentFingerprint && candidateFingerprint) {
@@ -396,14 +410,15 @@ export function getPrintingMatchDetails(
         haveCompatibleKnownIdentityFields(current, candidate)
       );
 
-    if (rulesMatch && imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY) {
+    if (
+      rulesMatch &&
+      sameIllustrator &&
+      imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY
+    ) {
       return { matchType: "reprint", method: "rules-and-art", imageSimilarity };
     }
   }
 
-  const sameIllustrator =
-    normalizeText(current.illustrator) != null &&
-    normalizeText(current.illustrator) === normalizeText(candidate.illustrator);
   if (!sameIllustrator) return null;
 
   const currentLineage = buildCardLineageFingerprint(current);
@@ -719,6 +734,7 @@ export async function loadRelatedCardPrintings(
           card_number: true,
           version: true,
           rarity: true,
+          artist: true,
           image_url: true,
           cardmarket_url: true,
           episode: {
@@ -735,6 +751,10 @@ export async function loadRelatedCardPrintings(
     },
   });
   return relations
+    .filter((relation) =>
+      relation.match_method !== "rules-and-art" ||
+      haveSameKnownPrintingArtist(current.artist, relation.targetCard.artist)
+    )
     .map((relation): RelatedCardPrinting => {
       const card = relation.targetCard;
       const latestPrice = card.prices[0] ?? null;

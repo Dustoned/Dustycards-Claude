@@ -66,6 +66,7 @@ export interface UserSettings {
   homeDashboardModuleOrder: HomeDashboardModuleKey[];
   homeDashboardHiddenModules: HomeDashboardModuleKey[];
   homeDashboardCompactModules: HomeDashboardModuleKey[];
+  homeDashboardCollapsedModules: HomeDashboardModuleKey[];
   completeCollectionSectionOrder: OverviewSectionKey[];
   completeCollectionHiddenSections: OverviewSectionKey[];
   defaultView: CardView;
@@ -110,6 +111,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   homeDashboardModuleOrder: [...DEFAULT_HOME_DASHBOARD_MODULE_ORDER],
   homeDashboardHiddenModules: [],
   homeDashboardCompactModules: [],
+  homeDashboardCollapsedModules: [],
   completeCollectionSectionOrder: [...DEFAULT_OVERVIEW_SECTION_ORDER],
   completeCollectionHiddenSections: [],
   defaultView: "grid",
@@ -214,6 +216,9 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
     ),
     homeDashboardCompactModules: normalizeHomeDashboardModuleSelection(
       source.homeDashboardCompactModules
+    ),
+    homeDashboardCollapsedModules: normalizeHomeDashboardModuleSelection(
+      source.homeDashboardCollapsedModules
     ),
     completeCollectionSectionOrder: normalizeOverviewSectionOrder(
       source.completeCollectionSectionOrder

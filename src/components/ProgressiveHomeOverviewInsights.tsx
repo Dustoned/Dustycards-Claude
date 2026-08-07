@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import {
   ArrowDown,
   ArrowUp,
+  ChevronDown,
   Eye,
   EyeOff,
   Maximize2,
@@ -166,6 +167,45 @@ function CollectionAllocationPanel({ segments }: { segments: HomeAllocationSegme
   );
 }
 
+function CollapsibleHomeModule({
+  children,
+  collapsed,
+  label,
+  onToggle,
+}: {
+  children: ReactNode;
+  collapsed: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <div>
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={!collapsed}
+        className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-xl border px-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)] ${
+          collapsed
+            ? "binder-panel border-white/10 text-white/72"
+            : "mb-1.5 border-white/7 bg-white/[0.02] text-white/42 hover:border-white/12 hover:text-white/68"
+        }`}
+      >
+        <span className="truncate text-[11px] font-bold uppercase tracking-[0.11em]">
+          {label}
+        </span>
+        <span className="inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold">
+          {collapsed ? "Expand" : "Collapse"}
+          <ChevronDown
+            className={`h-3.5 w-3.5 transition-transform ${collapsed ? "" : "rotate-180"}`}
+            aria-hidden="true"
+          />
+        </span>
+      </button>
+      {collapsed ? null : children}
+    </div>
+  );
+}
+
 export default function ProgressiveHomeOverviewInsights({
   endpoint,
   cacheScope,
@@ -261,6 +301,7 @@ export default function ProgressiveHomeOverviewInsights({
   const moduleOrder = normalizeHomeDashboardModuleOrder(settings.homeDashboardModuleOrder);
   const hiddenModules = new Set(settings.homeDashboardHiddenModules);
   const compactModules = new Set(settings.homeDashboardCompactModules);
+  const collapsedModules = new Set(settings.homeDashboardCollapsedModules);
 
   function moveModule(moduleKey: HomeDashboardModuleKey, direction: -1 | 1) {
     const fromIndex = moduleOrder.indexOf(moduleKey);
@@ -286,6 +327,17 @@ export default function ProgressiveHomeOverviewInsights({
     set("homeDashboardModuleOrder", [...DEFAULT_HOME_DASHBOARD_MODULE_ORDER]);
     set("homeDashboardHiddenModules", []);
     set("homeDashboardCompactModules", []);
+    set("homeDashboardCollapsedModules", []);
+  }
+
+  function toggleModuleCollapsed(moduleKey: HomeDashboardModuleKey) {
+    const collapsed = settings.homeDashboardCollapsedModules;
+    set(
+      "homeDashboardCollapsedModules",
+      collapsed.includes(moduleKey)
+        ? collapsed.filter((key) => key !== moduleKey)
+        : [...collapsed, moduleKey]
+    );
   }
 
   function toggleModuleSize(moduleKey: HomeDashboardModuleKey) {
@@ -461,7 +513,13 @@ export default function ProgressiveHomeOverviewInsights({
               COMPACTABLE_HOME_MODULES.has(moduleKey) && compactModules.has(moduleKey);
             return (
               <div key={moduleKey} className={compact ? "lg:col-span-1" : "lg:col-span-2"}>
-                {modules[moduleKey]}
+                <CollapsibleHomeModule
+                  collapsed={collapsedModules.has(moduleKey)}
+                  label={HOME_MODULE_LABELS[moduleKey].label}
+                  onToggle={() => toggleModuleCollapsed(moduleKey)}
+                >
+                  {modules[moduleKey]}
+                </CollapsibleHomeModule>
               </div>
             );
           })}

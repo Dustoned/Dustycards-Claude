@@ -20,6 +20,26 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.24",
+    releasedAt: "August 7, 2026",
+    title: "A clearer, foldable dashboard flow",
+    summary:
+      "Signal Radar now presents card opportunities first, while Radar and Home sections can be folded out of the way until they are needed.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Singles before sealed",
+        highlights: [
+          "The singles filters and complete Radar card list now stay together at the top of the Radar feed.",
+          "Sealed opportunities sit directly beneath the singles list on both desktop and mobile.",
+          "Singles and sealed can be collapsed independently and remember their last state on the device.",
+          "Home modules now have the same compact collapse control, synced with the existing account dashboard preferences.",
+          "Alternate artwork can no longer bypass the print safeguards through a high rules-and-colour score when its credited illustrator differs.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.23",
     releasedAt: "August 6, 2026",
     title: "One visual system for collecting, trading and discovery",

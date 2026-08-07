@@ -16,6 +16,7 @@ import {
   Boxes,
   BrainCircuit,
   CheckCircle2,
+  ChevronDown,
   ChevronRight,
   Newspaper,
   PackageSearch,
@@ -130,6 +131,53 @@ const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
 
 const INITIAL_VISIBLE_SIGNALS = 12;
 const VISIBLE_SIGNAL_STEP = 12;
+const SINGLES_EXPANDED_STORAGE_KEY = "dustycards:signal-radar:singles-expanded";
+const SEALED_EXPANDED_STORAGE_KEY = "dustycards:signal-radar:sealed-expanded";
+
+function readStoredExpandedState(key: string): boolean | null {
+  try {
+    const stored = window.localStorage.getItem(key);
+    if (stored === "true") return true;
+    if (stored === "false") return false;
+  } catch {
+    // Storage can be unavailable in private browsing; the section stays open.
+  }
+  return null;
+}
+
+function storeExpandedState(key: string, expanded: boolean) {
+  try {
+    window.localStorage.setItem(key, String(expanded));
+  } catch {
+    // The control still works for the current page when storage is unavailable.
+  }
+}
+
+function RadarSectionToggle({
+  expanded,
+  label,
+  onToggle,
+}: {
+  expanded: boolean;
+  label: string;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={expanded}
+      aria-label={`${expanded ? "Collapse" : "Expand"} ${label}`}
+      className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-white/9 bg-white/[0.035] px-3 text-[11px] font-semibold text-white/58 transition hover:border-violet-300/20 hover:bg-violet-400/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
+    >
+      {expanded ? "Collapse" : "Expand"}
+      <ChevronDown
+        className={cx("h-3.5 w-3.5 transition-transform", expanded && "rotate-180")}
+        aria-hidden="true"
+      />
+    </button>
+  );
+}
 
 function getReleaseYear(value: string | null | undefined): string | null {
   return value?.match(/^(\d{4})/)?.[1] ?? null;
@@ -971,10 +1019,14 @@ function SealedRadarSection({
   data,
   state,
   onRetry,
+  expanded,
+  onToggle,
 }: {
   data: SealedSignalRadarData | null;
   state: "loading" | "ready" | "error";
   onRetry: () => void;
+  expanded: boolean;
+  onToggle: () => void;
 }) {
   const [historyFilter, setHistoryFilter] = useState<SealedHistoryFilter>("all");
   const [visibleLimit, setVisibleLimit] = useState(6);
@@ -989,6 +1041,24 @@ function SealedRadarSection({
     }
     return items;
   }, [data?.items, historyFilter]);
+
+  if (!expanded && !data) {
+    return (
+      <section>
+        <SectionHeader
+          title="Sealed radar"
+          count={state === "loading" ? "…" : 0}
+          actions={
+            <RadarSectionToggle
+              expanded={expanded}
+              label="sealed radar"
+              onToggle={onToggle}
+            />
+          }
+        />
+      </section>
+    );
+  }
 
   if (state === "loading" && !data) {
     return (
@@ -1029,32 +1099,42 @@ function SealedRadarSection({
         title="Sealed radar"
         count={visibleItems.length}
         actions={
-          <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {([
-              ["all", "Best"],
-              ["established", "90d ready"],
-              ["building", "Building"],
-            ] as const).map(([value, label]) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => {
-                  setHistoryFilter(value);
-                  setVisibleLimit(6);
-                }}
-                className={cx(
-                  "min-h-9 shrink-0 rounded-lg px-2.5 text-[10px] font-semibold transition",
-                  historyFilter === value
-                    ? "bg-violet-500 text-white"
-                    : "text-white/45 hover:bg-white/[0.06] hover:text-white"
-                )}
-              >
-                {label}
-              </button>
-            ))}
+          <div className="flex max-w-full items-center gap-2">
+            {expanded ? (
+              <div className="flex max-w-full items-center gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                {([
+                  ["all", "Best"],
+                  ["established", "90d ready"],
+                  ["building", "Building"],
+                ] as const).map(([value, filterLabel]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => {
+                      setHistoryFilter(value);
+                      setVisibleLimit(6);
+                    }}
+                    className={cx(
+                      "min-h-9 shrink-0 rounded-lg px-2.5 text-[10px] font-semibold transition",
+                      historyFilter === value
+                        ? "bg-violet-500 text-white"
+                        : "text-white/45 hover:bg-white/[0.06] hover:text-white"
+                    )}
+                  >
+                    {filterLabel}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+            <RadarSectionToggle
+              expanded={expanded}
+              label="sealed radar"
+              onToggle={onToggle}
+            />
           </div>
         }
       />
+      <div className={expanded ? "contents" : "hidden"}>
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-1 text-[9px] font-medium text-white/34">
         <span>{data.ready90dProducts.toLocaleString("en-US")} products with 90d evidence</span>
         <span>{data.buildingProducts.toLocaleString("en-US")} building 30d history</span>
@@ -1085,6 +1165,7 @@ function SealedRadarSection({
           </button>
         </div>
       ) : null}
+      </div>
       {selectedProduct ? (
         <SealedProductModal
           product={selectedProduct}
@@ -1352,6 +1433,8 @@ export default function ExternalSignalBrowser({
   const [sortKey, setSortKey] = useState<SortKey>("opportunity");
   const [releaseYear, setReleaseYear] = useState("all");
   const [visibleLimit, setVisibleLimit] = useState(INITIAL_VISIBLE_SIGNALS);
+  const [singlesExpanded, setSinglesExpanded] = useState(true);
+  const [sealedExpanded, setSealedExpanded] = useState(true);
   const deferredSearch = useDeferredValue(search);
   const retryProgressiveLoad = useCallback(() => {
     setProgressiveState("loading");
@@ -1360,6 +1443,35 @@ export default function ExternalSignalBrowser({
   const retryChaseLoad = useCallback(() => {
     setChaseState("loading");
     setChaseAttempt((current) => current + 1);
+  }, []);
+
+  useEffect(() => {
+    const storedSingles = readStoredExpandedState(SINGLES_EXPANDED_STORAGE_KEY);
+    const storedSealed = readStoredExpandedState(SEALED_EXPANDED_STORAGE_KEY);
+    let cancelled = false;
+    window.queueMicrotask(() => {
+      if (cancelled) return;
+      if (storedSingles != null) setSinglesExpanded(storedSingles);
+      if (storedSealed != null) setSealedExpanded(storedSealed);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const toggleSinglesExpanded = useCallback(() => {
+    setSinglesExpanded((current) => {
+      const next = !current;
+      storeExpandedState(SINGLES_EXPANDED_STORAGE_KEY, next);
+      return next;
+    });
+  }, []);
+  const toggleSealedExpanded = useCallback(() => {
+    setSealedExpanded((current) => {
+      const next = !current;
+      storeExpandedState(SEALED_EXPANDED_STORAGE_KEY, next);
+      return next;
+    });
   }, []);
 
   useEffect(() => {
@@ -1685,12 +1797,45 @@ export default function ExternalSignalBrowser({
         </section>
       ) : null}
 
-      <SealedRadarSection
-        data={sealedRadar}
-        state={progressiveState}
-        onRetry={retryProgressiveLoad}
-      />
+      <section className="space-y-2.5">
+        <SectionHeader
+          title="Singles radar"
+          count={progressiveState === "loading" ? totalSignalCount : visibleSignals.length}
+          actions={
+            <div className="flex items-center gap-2 text-[10px] font-medium text-white/32">
+              {singlesExpanded && progressiveState === "loading" ? (
+                <span className="inline-flex items-center gap-1.5" aria-live="polite">
+                  <span className="h-1.5 w-1.5 rounded-full bg-violet-300 motion-safe:animate-pulse" />
+                  Loading full radar
+                </span>
+              ) : singlesExpanded && progressiveState === "error" ? (
+                <button
+                  type="button"
+                  onClick={retryProgressiveLoad}
+                  className="min-h-11 rounded-xl border border-amber-300/15 px-3 font-semibold text-amber-100/72 transition hover:bg-amber-300/[0.07]"
+                >
+                  Load all cards
+                </button>
+              ) : null}
+              {singlesExpanded ? (
+                <span className="hidden sm:inline" title="Time of the latest shared radar update">
+                  {new Intl.DateTimeFormat("en-GB", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                    timeZone: "Europe/Amsterdam",
+                  }).format(new Date(generatedAt))}
+                </span>
+              ) : null}
+              <RadarSectionToggle
+                expanded={singlesExpanded}
+                label="singles radar"
+                onToggle={toggleSinglesExpanded}
+              />
+            </div>
+          }
+        />
 
+        <div className={singlesExpanded ? "contents" : "hidden"}>
       <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3">
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto_auto] lg:items-center">
           <label className="relative col-span-2 block min-w-0 lg:col-span-1">
@@ -1822,36 +1967,6 @@ export default function ExternalSignalBrowser({
       </section>
 
       <section>
-        <SectionHeader
-          title="Radar cards"
-          count={progressiveState === "loading" ? totalSignalCount : visibleSignals.length}
-          actions={
-            <div className="flex items-center gap-2 text-[10px] font-medium text-white/32">
-              {progressiveState === "loading" ? (
-                <span className="inline-flex items-center gap-1.5" aria-live="polite">
-                  <span className="h-1.5 w-1.5 rounded-full bg-violet-300 motion-safe:animate-pulse" />
-                  Loading full radar
-                </span>
-              ) : progressiveState === "error" ? (
-                <button
-                  type="button"
-                  onClick={retryProgressiveLoad}
-                  className="min-h-11 rounded-xl border border-amber-300/15 px-3 font-semibold text-amber-100/72 transition hover:bg-amber-300/[0.07]"
-                >
-                  Load all cards
-                </button>
-              ) : null}
-              <span title="Time of the latest shared radar update">
-                {new Intl.DateTimeFormat("en-GB", {
-                  dateStyle: "medium",
-                  timeStyle: "short",
-                  timeZone: "Europe/Amsterdam",
-                }).format(new Date(generatedAt))}
-              </span>
-            </div>
-          }
-        />
-
         {visibleSignals.length > 0 ? (
           <CardListTileGrid>
             {visibleSignals.slice(0, visibleLimit).map((signal, index) => (
@@ -1892,6 +2007,16 @@ export default function ExternalSignalBrowser({
           </div>
         ) : null}
       </section>
+        </div>
+      </section>
+
+      <SealedRadarSection
+        data={sealedRadar}
+        state={progressiveState}
+        onRetry={retryProgressiveLoad}
+        expanded={sealedExpanded}
+        onToggle={toggleSealedExpanded}
+      />
 
       <section className="flex flex-wrap items-center justify-between gap-2 border-t border-white/7 pt-3">
         <div className="flex min-w-0 items-center gap-2 text-[10px] text-white/34">

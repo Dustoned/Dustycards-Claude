@@ -7,6 +7,7 @@ import {
   getPrintingMatchDetails,
   getPrintingMatchType,
   getTcgdexCardId,
+  haveSameKnownPrintingArtist,
   type TcgDexCardIdentity,
 } from "@/lib/card-printings";
 
@@ -39,6 +40,11 @@ const CHARIZARD_RULES: TcgDexCardIdentity = {
 };
 
 describe("card printings", () => {
+  it("normalizes illustrator names before comparing print evidence", () => {
+    expect(haveSameKnownPrintingArtist(" 5ban Graphics ", "5BAN GRAPHICS")).toBe(true);
+    expect(haveSameKnownPrintingArtist("5ban Graphics", "HYOGONOSUKE")).toBe(false);
+  });
+
   it("derives the canonical TCGdex id from an artwork URL", () => {
     expect(
       getTcgdexCardId({
@@ -96,6 +102,16 @@ describe("card printings", () => {
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: "Promo Studio" },
         0.28
+      )
+    ).toBeNull();
+  });
+
+  it("does not publish identical rules as a reprint when the illustrator differs", () => {
+    expect(
+      getPrintingMatchDetails(
+        CHARIZARD_RULES,
+        { ...CHARIZARD_RULES, illustrator: "HYOGONOSUKE" },
+        0.95
       )
     ).toBeNull();
   });

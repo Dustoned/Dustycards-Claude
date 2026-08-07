@@ -69,6 +69,15 @@ describe("user settings", () => {
     });
   });
 
+  it("roundtrips and repairs collapsed Home modules", () => {
+    const settings = mergeSettings({
+      homeDashboardCollapsedModules: ["overview", "market", "unknown", "overview"] as never,
+    });
+    const restored = parseStoredSettings(serializeSettings(settings));
+
+    expect(restored?.homeDashboardCollapsedModules).toEqual(["overview", "market"]);
+  });
+
   it("drops retired preferences while preserving current settings", () => {
     const restored = parseStoredSettings(
       JSON.stringify({ settingsVersion: 3, card3dSize: "large", retiredPreference: true })
