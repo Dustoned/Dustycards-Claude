@@ -411,6 +411,7 @@ export function appearancePaletteToCssVariables(
   const palette = normalizeAppearancePalette(paletteInput);
   const isLightAppearance = relativeLuminance(palette.background) >= 0.5;
   const onPrimary = getReadableForeground(palette.primary, palette.textPrimary);
+  const accentText = getReadableAccentForeground(palette);
   const variables: Record<string, string> = {
     "--dc-primary": palette.primary,
     "--dc-primary-hover": palette.primaryHover,
@@ -428,6 +429,7 @@ export function appearancePaletteToCssVariables(
     "--dc-text-muted": palette.textMuted,
     "--dc-text-disabled": mixHex(palette.textMuted, palette.background, 0.38),
     "--dc-on-primary": onPrimary,
+    "--dc-accent-text": accentText,
     "--dc-on-dark": "#FFFFFF",
     "--dc-success": palette.success,
     "--dc-success-hover": mixHex(palette.success, "#FFFFFF", 0.16),
@@ -470,6 +472,7 @@ export function appearancePaletteToCssVariables(
     "--dc-text-secondary-rgb": rgbString(palette.textSecondary),
     "--dc-text-muted-rgb": rgbString(palette.textMuted),
     "--dc-on-primary-rgb": rgbString(onPrimary),
+    "--dc-accent-text-rgb": rgbString(accentText),
     "--dc-on-dark-rgb": "255 255 255",
     "--dc-success-rgb": rgbString(palette.success),
     "--dc-negative-rgb": rgbString(palette.negative),
@@ -594,6 +597,29 @@ export function getReadableForeground(background: string, preferred: string): st
     getContrastRatio(candidate, background) > getContrastRatio(best, background)
       ? candidate
       : best
+  );
+}
+
+export function getReadableAccentForeground(palette: AppearancePalette): string {
+  const backgrounds = [palette.background, palette.surface, palette.surfaceElevated];
+  const candidates = [
+    palette.primarySoft,
+    palette.primary,
+    palette.primaryHover,
+    palette.secondary,
+    palette.textPrimary,
+    "#FFFFFF",
+    "#000000",
+  ].map((color) => normalizeHexColor(color, "#000000"));
+
+  const score = (candidate: string) => Math.min(
+    ...backgrounds.map((background) => getContrastRatio(candidate, background))
+  );
+  const readableCandidate = candidates.find((candidate) => score(candidate) >= 4.5);
+  if (readableCandidate) return readableCandidate;
+
+  return candidates.reduce((best, candidate) =>
+    score(candidate) > score(best) ? candidate : best
   );
 }
 

@@ -8,6 +8,7 @@ import {
   getAppearanceContrastChecks,
   getAppearancePreset,
   getContrastRatio,
+  getReadableAccentForeground,
   getReadableForeground,
   isHexColor,
   mixHex,
@@ -276,6 +277,7 @@ describe("appearance CSS variables", () => {
       "--dc-text-secondary": "#D1D2D3",
       "--dc-text-muted": "#A1A2A3",
       "--dc-on-primary": "#FFFFFF",
+      "--dc-accent-text": "#F1F2F3",
       "--dc-success": "#717273",
       "--dc-negative": "#818283",
       "--dc-cyan": "#616263",
@@ -287,6 +289,7 @@ describe("appearance CSS variables", () => {
       "--dc-secondary-rgb": "49 50 51",
       "--dc-bg-main-rgb": "4 5 6",
       "--dc-on-primary-rgb": "255 255 255",
+      "--dc-accent-text-rgb": "241 242 243",
       "--dc-surface-primary-rgb": "20 21 22",
       "--dc-border-rgb": "68 69 70",
       "--dc-success-rgb": "113 114 115",
@@ -487,6 +490,15 @@ describe("appearance contrast", () => {
       expect(checks.surface, `${preset.id}.surface`).toBeGreaterThanOrEqual(7);
       expect(checks.muted, `${preset.id}.muted`).toBeGreaterThanOrEqual(4.5);
       expect(checks.button, `${preset.id}.button`).toBeGreaterThanOrEqual(4.5);
+      const accentText = getReadableAccentForeground(preset.palette);
+      expect(
+        getContrastRatio(accentText, preset.palette.surface),
+        `${preset.id}.accent-surface`
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(
+        getContrastRatio(accentText, preset.palette.surfaceElevated),
+        `${preset.id}.accent-elevated`
+      ).toBeGreaterThanOrEqual(4.5);
       expect(
         getContrastRatio(
           getReadableForeground(preset.palette.primary, preset.palette.textPrimary),

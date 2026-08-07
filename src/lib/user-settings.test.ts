@@ -75,7 +75,11 @@ describe("user settings", () => {
     });
     const restored = parseStoredSettings(serializeSettings(settings));
 
-    expect(restored?.homeDashboardCollapsedModules).toEqual(["overview", "market"]);
+    expect(restored?.homeDashboardCollapsedModules).toEqual([
+      "overview",
+      "value-drivers",
+      "sudden-drops",
+    ]);
   });
 
   it("drops retired preferences while preserving current settings", () => {

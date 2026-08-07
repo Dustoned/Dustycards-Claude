@@ -16,6 +16,7 @@ import {
   type NavigationShortcutKey,
 } from "@/lib/navigation-preferences";
 import {
+  DEFAULT_HIDDEN_HOME_DASHBOARD_MODULES,
   DEFAULT_HOME_DASHBOARD_MODULE_ORDER,
   normalizeHiddenHomeDashboardModules,
   normalizeHomeDashboardModuleSelection,
@@ -109,7 +110,7 @@ export const DEFAULT_SETTINGS: UserSettings = {
   signalRadarEmailAlerts: false,
   binderWatchMinPrice: 50,
   homeDashboardModuleOrder: [...DEFAULT_HOME_DASHBOARD_MODULE_ORDER],
-  homeDashboardHiddenModules: [],
+  homeDashboardHiddenModules: [...DEFAULT_HIDDEN_HOME_DASHBOARD_MODULES],
   homeDashboardCompactModules: [],
   homeDashboardCollapsedModules: [],
   completeCollectionSectionOrder: [...DEFAULT_OVERVIEW_SECTION_ORDER],
@@ -212,7 +213,8 @@ export function mergeSettings(value: Partial<UserSettings> | null | undefined): 
       source.homeDashboardModuleOrder
     ),
     homeDashboardHiddenModules: normalizeHiddenHomeDashboardModules(
-      source.homeDashboardHiddenModules
+      source.homeDashboardHiddenModules,
+      source.homeDashboardModuleOrder
     ),
     homeDashboardCompactModules: normalizeHomeDashboardModuleSelection(
       source.homeDashboardCompactModules
@@ -481,6 +483,35 @@ export const initSettingsScript = `
       }
       return best;
     };
+    var readableAccentForeground = function(currentPalette) {
+      var backgrounds = [currentPalette.background, currentPalette.surface, currentPalette.surfaceElevated];
+      var candidates = [
+        currentPalette.primarySoft,
+        currentPalette.primary,
+        currentPalette.primaryHover,
+        currentPalette.secondary,
+        currentPalette.textPrimary,
+        '#FFFFFF',
+        '#000000'
+      ];
+      var best = candidates[0];
+      var score = function(candidate) {
+        return Math.min.apply(Math, backgrounds.map(function(background) {
+          return contrast(candidate, background);
+        }));
+      };
+      for (var readableIndex = 0; readableIndex < candidates.length; readableIndex += 1) {
+        if (score(candidates[readableIndex]) >= 4.5) {
+          return candidates[readableIndex];
+        }
+      }
+      for (var candidateIndex = 1; candidateIndex < candidates.length; candidateIndex += 1) {
+        if (score(candidates[candidateIndex]) > score(best)) {
+          best = candidates[candidateIndex];
+        }
+      }
+      return best;
+    };
     var lightAppearance = luminance(palette.background) >= 0.5;
     var colorScale = function(base, soft, background) {
       if (luminance(background) >= 0.5) {
@@ -520,6 +551,7 @@ export const initSettingsScript = `
       });
     };
     var onPrimary = readableForeground(palette.primary, palette.textPrimary);
+    var accentText = readableAccentForeground(palette);
     var customVariables = {
       '--dc-primary': palette.primary,
       '--dc-primary-hover': palette.primaryHover,
@@ -537,6 +569,7 @@ export const initSettingsScript = `
       '--dc-text-muted': palette.textMuted,
       '--dc-text-disabled': mixHex(palette.textMuted, palette.background, 0.38),
       '--dc-on-primary': onPrimary,
+      '--dc-accent-text': accentText,
       '--dc-on-dark': '#FFFFFF',
       '--dc-success': palette.success,
       '--dc-success-hover': mixHex(palette.success, '#FFFFFF', 0.16),
@@ -579,6 +612,7 @@ export const initSettingsScript = `
       '--dc-text-secondary-rgb': rgbString(palette.textSecondary),
       '--dc-text-muted-rgb': rgbString(palette.textMuted),
       '--dc-on-primary-rgb': rgbString(onPrimary),
+      '--dc-accent-text-rgb': rgbString(accentText),
       '--dc-on-dark-rgb': '255 255 255',
       '--dc-success-rgb': rgbString(palette.success),
       '--dc-negative-rgb': rgbString(palette.negative),

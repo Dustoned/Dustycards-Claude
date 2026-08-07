@@ -15,15 +15,55 @@ describe("dashboard module preferences", () => {
     expect(normalizeHomeDashboardModuleOrder(["featured", "overview", "featured"])).toEqual([
       "featured",
       "overview",
-      "market",
-      "breakdown",
+      "value-drivers",
+      "sudden-drops",
+      "market-movers",
+      "signal-radar",
+      "allocation",
+      "top-sets",
+      "wants",
+      "for-sale",
+      "upcoming",
       "shortcuts",
     ]);
   });
 
+  it("expands the old combined widgets without losing their placement", () => {
+    expect(
+      normalizeHomeDashboardModuleOrder([
+        "overview",
+        "market",
+        "featured",
+        "breakdown",
+        "shortcuts",
+      ])
+    ).toEqual([
+      "overview",
+      "value-drivers",
+      "sudden-drops",
+      "featured",
+      "allocation",
+      "top-sets",
+      "shortcuts",
+      "market-movers",
+      "signal-radar",
+      "wants",
+      "for-sale",
+      "upcoming",
+    ]);
+  });
+
   it("drops unknown and duplicate hidden module keys", () => {
-    expect(normalizeHiddenHomeDashboardModules(["market", "unknown", "market"])).toEqual([
-      "market",
+    expect(
+      normalizeHiddenHomeDashboardModules(["market", "unknown", "market"], ["market"])
+    ).toEqual([
+      "value-drivers",
+      "sudden-drops",
+      "market-movers",
+      "signal-radar",
+      "wants",
+      "for-sale",
+      "upcoming",
     ]);
     expect(normalizeHomeDashboardModuleSelection(["featured", "bad", "featured"])).toEqual([
       "featured",

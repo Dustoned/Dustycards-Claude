@@ -535,6 +535,16 @@ async function HomePageContent({
     return query ? `/api/movers/sudden-drops?${query}` : "/api/movers/sudden-drops";
   }
 
+  function buildScopedPageHref(pathname: string, extra?: Record<string, string>) {
+    const params = new URLSearchParams(extra);
+    const gameValue = getGameFilterSearchParamValue(activeGame);
+    if (gameValue) {
+      params.set(GAME_SEARCH_PARAM, gameValue);
+    }
+    const query = params.toString();
+    return query ? `${pathname}?${query}` : pathname;
+  }
+
   function buildHomeInsightsApiHref() {
     const gameValue = getGameFilterSearchParamValue(activeGame);
     return gameValue
@@ -681,6 +691,11 @@ async function HomePageContent({
             valueDriversHref={buildValueDriversHref()}
             suddenDropsApiHref={buildSuddenDropsApiHref()}
             suddenDropsHref={buildSuddenDropsHref()}
+            moversHref={buildScopedPageHref("/movers", { scope: "all" })}
+            signalRadarHref={buildScopedPageHref("/movers/signal-radar")}
+            wantsHref={buildScopedPageHref("/wants")}
+            forSaleHref={buildCollectionHref("selling")}
+            upcomingHref="/upcoming"
             collectionHref={buildCollectionHref("complete")}
             portfolioSlot={
               <section className="grid min-w-0 gap-2.5 sm:gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">

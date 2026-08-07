@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.25",
+    releasedAt: "August 7, 2026",
+    title: "A Home dashboard built from widgets",
+    summary: "Home now offers separate collection, market, Radar, selling and release widgets, with safer contrast in every appearance.",
+    tone: "new",
+    highlights: [
+      "Value Drivers, Sudden Drops, Collection Allocation and Top Sets are independent modules instead of locked pairs.",
+      "Optional Market Movers, Signal Radar, Wants, For Sale and Upcoming previews can be enabled from Customize Home.",
+      "Every widget can be reordered, hidden, collapsed and, where useful, switched between wide and compact desktop sizing.",
+      "Movers and Radar reuse durable background snapshots so extra dashboard choice does not trigger the expensive live calculations.",
+      "Accent buttons, selected states, text and icons now use automatically calculated contrasting foreground colours across built-in and custom themes.",
+    ],
+  },
+  {
     version: "3.12.24",
     releasedAt: "August 7, 2026",
     title: "Foldable Radar and Home modules",

@@ -15,9 +15,17 @@ import {
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import DashboardCustomizerDialog from "@/components/DashboardCustomizerDialog";
+import {
+  HomeForSaleWidget,
+  HomeMarketMoversWidget,
+  HomeSignalRadarWidget,
+  HomeUpcomingWidget,
+  HomeWantsWidget,
+} from "@/components/HomePreviewWidgets";
 import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
 import {
+  DEFAULT_HIDDEN_HOME_DASHBOARD_MODULES,
   DEFAULT_HOME_DASHBOARD_MODULE_ORDER,
   normalizeHomeDashboardModuleOrder,
   type HomeDashboardModuleKey,
@@ -61,16 +69,30 @@ const HOME_MODULE_LABELS: Record<
   { label: string; description: string }
 > = {
   overview: { label: "Portfolio overview", description: "Value chart and key totals" },
-  market: { label: "Market movement", description: "Value drivers and sudden drops" },
+  "value-drivers": { label: "Value drivers", description: "What moved your collection value" },
+  "sudden-drops": { label: "Sudden drops", description: "Verified fast price drops" },
+  "market-movers": { label: "Market Movers", description: "Largest live market movements" },
+  "signal-radar": { label: "Signal Radar", description: "Highest-scoring current opportunities" },
   featured: { label: "Featured cards", description: "Collection highlights" },
-  breakdown: { label: "Collection breakdown", description: "Allocation and top sets" },
+  allocation: { label: "Collection allocation", description: "Value by collection type" },
+  "top-sets": { label: "Top sets", description: "Your strongest sets and binders" },
+  wants: { label: "Wants", description: "Recently wanted cards and prices" },
+  "for-sale": { label: "For Sale", description: "Highest-value cards currently listed" },
+  upcoming: { label: "Upcoming", description: "Next confirmed sealed releases" },
   shortcuts: { label: "Collection shortcuts", description: "Quick links to each area" },
 };
 
 const COMPACTABLE_HOME_MODULES = new Set<HomeDashboardModuleKey>([
-  "market",
+  "value-drivers",
+  "sudden-drops",
+  "market-movers",
+  "signal-radar",
   "featured",
-  "breakdown",
+  "allocation",
+  "top-sets",
+  "wants",
+  "for-sale",
+  "upcoming",
 ]);
 
 function InsightPanelSkeleton() {
@@ -212,6 +234,11 @@ export default function ProgressiveHomeOverviewInsights({
   valueDriversHref,
   suddenDropsApiHref,
   suddenDropsHref,
+  moversHref,
+  signalRadarHref,
+  wantsHref,
+  forSaleHref,
+  upcomingHref,
   collectionHref,
   portfolioSlot,
   topSetsSlot,
@@ -223,6 +250,11 @@ export default function ProgressiveHomeOverviewInsights({
   valueDriversHref: string;
   suddenDropsApiHref: string;
   suddenDropsHref: string;
+  moversHref: string;
+  signalRadarHref: string;
+  wantsHref: string;
+  forSaleHref: string;
+  upcomingHref: string;
   collectionHref: string;
   portfolioSlot: ReactNode;
   topSetsSlot: ReactNode;
@@ -325,7 +357,7 @@ export default function ProgressiveHomeOverviewInsights({
 
   function resetModules() {
     set("homeDashboardModuleOrder", [...DEFAULT_HOME_DASHBOARD_MODULE_ORDER]);
-    set("homeDashboardHiddenModules", []);
+    set("homeDashboardHiddenModules", [...DEFAULT_HIDDEN_HOME_DASHBOARD_MODULES]);
     set("homeDashboardCompactModules", []);
     set("homeDashboardCollapsedModules", []);
   }
@@ -353,19 +385,27 @@ export default function ProgressiveHomeOverviewInsights({
 
   const modules: Record<HomeDashboardModuleKey, ReactNode> = {
     overview: portfolioSlot,
-    market: (
-      <div className={compactModules.has("market") ? "grid gap-2.5 sm:gap-3" : "home-insight-panels"}>
-        {payload ? (
-          <HomeValueDriversPanel data={payload.valueDrivers} viewAllHref={valueDriversHref} />
-        ) : (
-          <InsightPanelSkeleton />
-        )}
-        <HomeSuddenDropsPanel
-          apiHref={suddenDropsApiHref}
-          cacheScope={cacheScope}
-          viewAllHref={suddenDropsHref}
-        />
-      </div>
+    "value-drivers": payload ? (
+      <HomeValueDriversPanel data={payload.valueDrivers} viewAllHref={valueDriversHref} />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
+    "sudden-drops": (
+      <HomeSuddenDropsPanel
+        apiHref={suddenDropsApiHref}
+        cacheScope={cacheScope}
+        viewAllHref={suddenDropsHref}
+      />
+    ),
+    "market-movers": payload ? (
+      <HomeMarketMoversWidget items={payload.marketMovers ?? []} viewAllHref={moversHref} />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
+    "signal-radar": payload ? (
+      <HomeSignalRadarWidget items={payload.radarSignals ?? []} viewAllHref={signalRadarHref} />
+    ) : (
+      <InsightPanelSkeleton />
     ),
     featured: payload ? (
       payload.featuredCards.length > 0 ? (
@@ -374,19 +414,32 @@ export default function ProgressiveHomeOverviewInsights({
     ) : (
       <FeaturedCardsSkeleton />
     ),
-    breakdown: (
-      <div
-        className={`grid gap-2.5 sm:gap-3 [&>section]:h-full ${
-          compactModules.has("breakdown") ? "grid-cols-1" : "lg:grid-cols-2"
-        }`}
-      >
-        {payload ? (
-          <CollectionAllocationPanel segments={payload.allocation} />
-        ) : (
-          <AllocationSkeleton />
-        )}
-        {topSetsSlot}
-      </div>
+    allocation: payload ? (
+      <CollectionAllocationPanel segments={payload.allocation} />
+    ) : (
+      <AllocationSkeleton />
+    ),
+    "top-sets": topSetsSlot,
+    wants: payload ? (
+      <HomeWantsWidget
+        data={payload.wants ?? { total: 0, totalValue: null, items: [] }}
+        viewAllHref={wantsHref}
+      />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
+    "for-sale": payload ? (
+      <HomeForSaleWidget
+        data={payload.forSale ?? { total: 0, totalValue: null, items: [] }}
+        viewAllHref={forSaleHref}
+      />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
+    upcoming: payload ? (
+      <HomeUpcomingWidget items={payload.upcoming ?? []} viewAllHref={upcomingHref} />
+    ) : (
+      <InsightPanelSkeleton />
     ),
     shortcuts: shortcutsSlot,
   };

@@ -20,6 +20,32 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.25",
+    releasedAt: "August 7, 2026",
+    title: "A dashboard that fits each collector",
+    summary:
+      "Home is now a larger library of independent widgets, with fast market previews and reliable button contrast across every appearance.",
+    tone: "new",
+    sections: [
+      {
+        title: "More useful Home choices",
+        highlights: [
+          "Collection value, Value Drivers, Sudden Drops, Featured Cards, Allocation, Top Sets and shortcuts can all be arranged independently.",
+          "Market Movers, Signal Radar, Wants, For Sale and Upcoming are available as optional compact previews with direct links to the full tools.",
+          "Existing dashboard preferences migrate automatically from the former combined Market and Breakdown blocks.",
+          "Widgets can be hidden, reordered, collapsed and placed side by side without making mobile cramped.",
+        ],
+      },
+      {
+        title: "Readable in every theme",
+        highlights: [
+          "Full accent buttons automatically select a light or dark foreground with WCAG-level contrast.",
+          "Soft accent labels and selected icons use a separate readable ink colour on dark, light and custom themes.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.24",
     releasedAt: "August 7, 2026",
     title: "A clearer, foldable dashboard flow",

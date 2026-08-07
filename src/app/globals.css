@@ -3286,6 +3286,37 @@ html[data-appearance-scheme="light"] {
   color-scheme: light;
 }
 
+/* Full accent actions always use the foreground calculated against the
+   selected primary color. This also protects custom themes whose accent can
+   be much lighter than the built-in presets. */
+html
+  :where(
+    [class*="bg-[var(--dc-primary)]"],
+    [class*="bg-[var(--dc-primary-gradient)]"]
+  ) {
+  color: var(--dc-on-primary) !important;
+}
+
+html
+  :where(
+    [class*="bg-[var(--dc-primary)]"],
+    [class*="bg-[var(--dc-primary-gradient)]"]
+  )
+  :where(svg, [class*="text-white"]) {
+  color: inherit !important;
+}
+
+/* `primary-soft` is intentionally also used as a tint. As foreground ink it
+   needs a separate semantic token, especially on the pale pink and porcelain
+   appearances where the tint itself is too close to the surface. */
+html
+  :where(
+    [class*="text-[var(--dc-primary-soft)]"],
+    [class*="text-[rgb(var(--dc-primary-soft-rgb)"]
+  ) {
+  color: var(--dc-accent-text) !important;
+}
+
 html[data-appearance-scheme="light"]
   :where(
     [class~="bg-violet-500"],
