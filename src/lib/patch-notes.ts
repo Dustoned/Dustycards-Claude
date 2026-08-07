@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.22",
+    releasedAt: "August 7, 2026",
+    title: "Navigation no longer restarts itself",
+    summary: "A slow but valid page request stays alive, while Signal Radar paints a smaller useful first screen before loading the full feed.",
+    tone: "fixed",
+    highlights: [
+      "The eight-second route guard no longer cancels an in-flight Next.js request or starts a duplicate full-page load.",
+      "A genuinely slow route keeps its explicit Open direct escape hatch, but only the collector can choose it.",
+      "Signal Radar renders six useful cards immediately and fills the complete feed plus collection and want actions progressively.",
+      "Server timings now separate Radar authentication, settings and snapshot work for continued live performance monitoring.",
+    ],
+  },
+  {
     version: "3.12.21",
     releasedAt: "August 7, 2026",
     title: "Faster artwork and easier sharing",

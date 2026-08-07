@@ -9,43 +9,7 @@ import {
 
 const STATUS_DELAY_MS = 550;
 const SLOW_NAVIGATION_MS = 3_500;
-const RECOVERY_ACTION_MS = 8_000;
-const DIRECT_RECOVERY_COOLDOWN_MS = 60_000;
-const DIRECT_RECOVERY_STORAGE_PREFIX = "dustycards:direct-route-recovery:";
-
-export function shouldAttemptDirectRouteRecovery(
-  lastAttemptAt: number | null,
-  now: number,
-  cooldownMs = DIRECT_RECOVERY_COOLDOWN_MS
-): boolean {
-  return lastAttemptAt == null || now - lastAttemptAt >= cooldownMs;
-}
-
-function directRecoveryStorageKey(href: string): string {
-  try {
-    const target = new URL(href, window.location.origin);
-    return `${DIRECT_RECOVERY_STORAGE_PREFIX}${target.pathname}${target.search}`;
-  } catch {
-    return `${DIRECT_RECOVERY_STORAGE_PREFIX}${href}`;
-  }
-}
-
-function readDirectRecoveryAttempt(href: string): number | null {
-  try {
-    const value = Number(window.sessionStorage.getItem(directRecoveryStorageKey(href)));
-    return Number.isFinite(value) && value > 0 ? value : null;
-  } catch {
-    return null;
-  }
-}
-
-function markDirectRecoveryAttempt(href: string, now: number) {
-  try {
-    window.sessionStorage.setItem(directRecoveryStorageKey(href), String(now));
-  } catch {
-    // A private browser can disable session storage; navigation still works.
-  }
-}
+const DIRECT_ACTION_MS = 8_000;
 
 export function isRouteProgressNavigation(
   href: string,
@@ -77,8 +41,8 @@ export function normalizeRouteProgressLabel(value?: string | null): string | nul
   return normalized.length > 24 ? normalized.slice(0, 24).trimEnd() : normalized;
 }
 
-export function getDirectRouteRecoveryMessage(label: string | null): string {
-  return label ? `Reopening ${label}…` : "Reopening page…";
+export function getSlowRouteMessage(label: string | null): string {
+  return label ? `${label} is still loading...` : "This page is still loading...";
 }
 
 function getAnchorProgressLabel(anchor: HTMLAnchorElement): string | null {
@@ -113,9 +77,9 @@ export function hasRouteProgressReachedDestination(
 }
 
 // Gives every internal navigation one consistent lifecycle: immediate visual
-// feedback and a clear slow-route message. A genuinely stuck RSC transition is
-// recovered once with a normal document navigation; a short session guard
-// prevents reload loops if the destination itself is unavailable.
+// feedback and a clear slow-route message. A valid in-flight RSC transition is
+// never cancelled automatically. A direct document navigation remains an
+// explicit user choice if the destination itself is genuinely unavailable.
 export default function RouteProgressBar() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -221,21 +185,10 @@ export default function RouteProgressBar() {
             return;
           }
 
-          const href = pendingHrefRef.current;
-          const now = Date.now();
-          const lastAttemptAt = readDirectRecoveryAttempt(href);
           setShowStatus(true);
-
-          if (shouldAttemptDirectRouteRecovery(lastAttemptAt, now)) {
-            markDirectRecoveryAttempt(href, now);
-            setMessage(getDirectRouteRecoveryMessage(label));
-            window.location.assign(href);
-            return;
-          }
-
           setShowRecovery(true);
-          setMessage(label ? `${label} is still loading` : "This page is still loading");
-        }, RECOVERY_ACTION_MS)
+          setMessage(getSlowRouteMessage(label));
+        }, DIRECT_ACTION_MS)
       );
     };
 

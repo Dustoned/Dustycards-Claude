@@ -3,7 +3,7 @@ import type { ExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 import type { SealedSignalRadarData } from "@/lib/sealed-signal-radar";
 
-export const INITIAL_SIGNAL_RADAR_CARD_COUNT = 12;
+export const INITIAL_SIGNAL_RADAR_CARD_COUNT = 6;
 export const INITIAL_SIGNAL_RADAR_FEED_DELAY_MS = 150;
 export const SIGNAL_RADAR_CLIENT_CACHE_TTL_MS = 5 * 60_000;
 const SIGNAL_RADAR_CLIENT_CACHE_MAX_ENTRIES = 12;

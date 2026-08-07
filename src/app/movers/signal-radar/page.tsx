@@ -12,7 +12,6 @@ import {
   parseVisibleGameFilter,
   type TradingCardGameFilter,
 } from "@/lib/games";
-import { getCardQuickActionMap } from "@/lib/card-quick-actions-server";
 import {
   getExternalSignalRadarPageData,
 } from "@/lib/external-signal-persisted";
@@ -20,6 +19,7 @@ import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { selectInitialSignalRadarCards } from "@/lib/signal-radar-progressive";
 import { readSignalRadarSnapshot } from "@/lib/signal-radar-snapshot-store";
+import { startPerformanceTimer, timeAsync } from "@/lib/performance-timing";
 
 export const dynamic = "force-dynamic";
 
@@ -28,6 +28,7 @@ export default async function SignalRadarPage({
 }: {
   searchParams: Promise<{ game?: string; set?: string }>;
 }) {
+  const pageTimer = startPerformanceTimer("signal-radar.page");
   const { game, set } = await searchParams;
   const requestedQuery = new URLSearchParams();
   if (game) requestedQuery.set(GAME_SEARCH_PARAM, game);
@@ -35,22 +36,29 @@ export default async function SignalRadarPage({
   const requestedPath = requestedQuery.size
     ? `/movers/signal-radar?${requestedQuery.toString()}`
     : "/movers/signal-radar";
-  const user = await requirePageUser(requestedPath);
-  const settings = await getServerUserSettings(user.id);
+  const user = await timeAsync("signal-radar.page.auth", () => requirePageUser(requestedPath));
+  const settings = await timeAsync(
+    "signal-radar.page.settings",
+    () => getServerUserSettings(user.id)
+  );
   const activeGame = parseVisibleGameFilter(game, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
-  const storedRadar = await readSignalRadarSnapshot(activeGame);
-  const radarData = storedRadar?.data ?? await getExternalSignalRadarPageData(activeGame);
+  const storedRadar = await timeAsync(
+    "signal-radar.page.snapshot",
+    () => readSignalRadarSnapshot(activeGame),
+    { game: activeGame }
+  );
+  const radarData = storedRadar?.data ?? await timeAsync(
+    "signal-radar.page.persisted-fallback",
+    () => getExternalSignalRadarPageData(activeGame),
+    { game: activeGame }
+  );
   // Keep the first render on persisted data only. Full structural/market
   // enrichment is the expensive cold path and already belongs to the
   // progressive feed below; doing it here delayed the shell by ~1.7s just to
-  // serialize twelve cards, then repeated the same work in the feed.
+  // serialize the opening cards, then repeated the same work in the feed.
   const initialSignals = selectInitialSignalRadarCards(radarData.signals, new Set());
-  const cardQuickActions = await getCardQuickActionMap(
-    user.id,
-    initialSignals.map((signal) => signal.cardId)
-  );
 
   const buildHref = (nextGame: TradingCardGameFilter) => {
     const gameValue = getGameFilterSearchParamValue(nextGame);
@@ -77,6 +85,11 @@ export default async function SignalRadarPage({
   const chaseWatchHref = `/api/movers/signal-radar/chase-watch${
     chaseQuery.size ? `?${chaseQuery.toString()}` : ""
   }`;
+  pageTimer.finish({
+    game: activeGame,
+    initialSignals: initialSignals.length,
+    totalSignals: radarData.signals.length,
+  });
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-6 sm:px-6 lg:px-8">
@@ -120,7 +133,7 @@ export default async function SignalRadarPage({
           sources={radarData.sources}
           generatedAt={radarData.generatedAt}
           newReleaseChases={null}
-          cardQuickActions={cardQuickActions}
+          cardQuickActions={{}}
           progressiveHref={progressiveHref}
           chaseWatchHref={chaseWatchHref}
           manualChaseRefreshHref={user.role === "admin" ? chaseWatchHref : null}

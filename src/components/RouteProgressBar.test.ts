@@ -1,10 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
-  getDirectRouteRecoveryMessage,
+  getSlowRouteMessage,
   hasRouteProgressReachedDestination,
   isRouteProgressNavigation,
   normalizeRouteProgressLabel,
-  shouldAttemptDirectRouteRecovery,
 } from "@/components/RouteProgressBar";
 
 describe("isRouteProgressNavigation", () => {
@@ -62,14 +61,8 @@ describe("isRouteProgressNavigation", () => {
     ).toBe(false);
   });
 
-  it("recovers a stuck route once without creating a reload loop", () => {
-    expect(shouldAttemptDirectRouteRecovery(null, 100_000)).toBe(true);
-    expect(shouldAttemptDirectRouteRecovery(90_000, 100_000)).toBe(false);
-    expect(shouldAttemptDirectRouteRecovery(40_000, 100_000)).toBe(true);
-  });
-
-  it("shows a readable recovery message", () => {
-    expect(getDirectRouteRecoveryMessage("Settings")).toBe("Reopening Settings…");
-    expect(getDirectRouteRecoveryMessage(null)).toBe("Reopening page…");
+  it("keeps a slow request alive instead of announcing an automatic reopen", () => {
+    expect(getSlowRouteMessage("Settings")).toBe("Settings is still loading...");
+    expect(getSlowRouteMessage(null)).toBe("This page is still loading...");
   });
 });
