@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.16",
+    releasedAt: "August 7, 2026",
+    title: "Final 68% reprint pass",
+    summary: "Reprint Review gets one last narrow pass below the completed 70% scan.",
+    tone: "improved",
+    highlights: [
+      "The manual-review floor is lowered from 70% to 68% for the final targeted pass.",
+      "Candidates must still share the same attack, Ability or effect lineage and illustrator.",
+      "All existing include and exclude decisions remain attached to their exact card pairs.",
+    ],
+  },
+  {
     version: "3.12.15",
     releasedAt: "August 7, 2026",
     title: "Reprint scan completes its tail",

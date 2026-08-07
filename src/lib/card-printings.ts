@@ -3,10 +3,10 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v10-review70-rules";
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v11-review68-rules";
 const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.82;
 const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.84;
-const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.7;
+const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.68;
 const STRONG_REPRINT_IMAGE_SIMILARITY = 0.92;
 const COLOR_SIGNATURE_PREFIX = "rgb1:";
 const MAX_CACHED_ARTWORK_HASHES = 512;

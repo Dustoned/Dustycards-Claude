@@ -186,7 +186,7 @@ describe("card printings", () => {
     ).toBe("reprint");
   });
 
-  it("sends same-artist artwork matches from 70% to manual review", () => {
+  it("sends same-artist artwork matches from 68% to manual review", () => {
     const left = {
       category: "Pokemon",
       name: "Eevee & Snorlax-GX",
@@ -196,11 +196,11 @@ describe("card printings", () => {
     };
     const right = { ...left, hp: 280 };
 
-    expect(getPrintingMatchDetails(left, right, 0.7)).toMatchObject({
+    expect(getPrintingMatchDetails(left, right, 0.68)).toMatchObject({
       matchType: "reprint",
       method: "likely-art",
     });
-    expect(getPrintingMatchDetails(left, right, 0.699)).toBeNull();
+    expect(getPrintingMatchDetails(left, right, 0.679)).toBeNull();
   });
 
   it("treats provider spaces and stored hyphens as the same card name", () => {
