@@ -1222,6 +1222,8 @@ export default function CardModal({
                   cardMarketHref={storedCardMarketUrl}
                   onOpenCardMarket={() => void openCardMarket()}
                   onPriceAlertOpenChange={setPriceAlertOpen}
+                  sharePrice={heroPriceValue}
+                  shareCurrency={heroPriceCurrency}
                 />
               }
               tabs={tabs}

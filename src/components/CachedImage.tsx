@@ -11,6 +11,8 @@ import {
 type CachedImageProps = Omit<ImageProps, "src" | "onError"> & {
   sourceUrl: string;
   alt: string;
+  /** Paint immediately from SSR instead of waiting for client hydration. */
+  revealImmediately?: boolean;
 };
 
 function responsiveImageLoader({ src, width }: ImageLoaderProps): string {
@@ -20,6 +22,7 @@ function responsiveImageLoader({ src, width }: ImageLoaderProps): string {
 export default function CachedImage({
   sourceUrl,
   alt,
+  revealImmediately = false,
   ...props
 }: CachedImageProps) {
   const preferredUrl = useMemo(() => getCachedImageUrl(sourceUrl) ?? sourceUrl, [sourceUrl]);
@@ -30,6 +33,7 @@ export default function CachedImage({
       {...props}
       sourceUrl={sourceUrl}
       preferredUrl={preferredUrl}
+      revealImmediately={revealImmediately}
       alt={alt}
     />
   );
@@ -38,6 +42,7 @@ export default function CachedImage({
 function CachedImageInner({
   sourceUrl,
   preferredUrl,
+  revealImmediately = false,
   alt,
   className = "",
   style,
@@ -47,7 +52,7 @@ function CachedImageInner({
   ...props
 }: Omit<CachedImageProps, "sourceUrl"> & { sourceUrl: string; preferredUrl: string }) {
   const [fallbackToSource, setFallbackToSource] = useState(false);
-  const [loaded, setLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(revealImmediately);
   const [failed, setFailed] = useState(false);
   const useResponsiveDelivery =
     !unoptimized && !fallbackToSource && isCacheableRemoteImageUrl(sourceUrl);
@@ -85,7 +90,7 @@ function CachedImageInner({
           onError={() => {
             if (!fallbackToSource && (useResponsiveDelivery || activeUrl !== sourceUrl)) {
               setFallbackToSource(true);
-              setLoaded(false);
+              setLoaded(revealImmediately);
               return;
             }
             setFailed(true);

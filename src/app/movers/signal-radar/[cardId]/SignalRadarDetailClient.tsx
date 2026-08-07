@@ -813,6 +813,8 @@ export default function SignalRadarDetailClient({
             onAddedToCollection={() => router.refresh()}
             onClose={() => router.refresh()}
             cardMarketHref={cardMarketHref}
+            sharePrice={displayPrice}
+            shareCurrency={displayCurrency}
           />
         }
         tabs={tabs}

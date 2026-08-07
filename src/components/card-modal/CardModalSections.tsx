@@ -24,6 +24,7 @@ import {
   RefreshCw,
   Repeat2,
   ShoppingCart,
+  Share2,
   Sparkles,
   Star,
   Trash2,
@@ -63,6 +64,7 @@ import {
 } from "@/lib/price-refresh";
 import type { CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
+import { buildCardShareCopy } from "@/lib/card-share";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import {
@@ -1526,6 +1528,8 @@ export function CardModalDesktopActionGroup({
   cardMarketHref,
   onOpenCardMarket,
   onPriceAlertOpenChange,
+  sharePrice,
+  shareCurrency = "EUR",
 }: {
   card: ModalCardData;
   collectionItem: ModalCardData["collection_item"] | null;
@@ -1546,7 +1550,11 @@ export function CardModalDesktopActionGroup({
   cardMarketHref?: string;
   onOpenCardMarket?: () => void;
   onPriceAlertOpenChange?: (open: boolean) => void;
+  sharePrice?: number | null;
+  shareCurrency?: CurrencyCode;
 }) {
+  const [shareStatus, setShareStatus] = useState<"idle" | "shared" | "copied" | "failed">("idle");
+  const shareResetTimerRef = useRef<number | null>(null);
   const collectionCard = buildCollectionCard(card);
   const readOnlyCollectionItem = Boolean(collectionItem?.read_only);
   const canManageCollectionItem = Boolean(collectionItem && !readOnlyCollectionItem);
@@ -1559,7 +1567,6 @@ export function CardModalDesktopActionGroup({
     : null;
   const menuButtonClass =
     "flex min-h-11 w-full items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white disabled:cursor-not-allowed disabled:opacity-45";
-  const hasOverflowActions = canManageCollectionItem || Boolean(onResearchSignal) || canManageCardPrices;
   const mobileMarketClass =
     "flex min-h-11 w-full min-w-0 max-w-full items-center justify-center gap-1 whitespace-nowrap rounded-xl border border-white/10 bg-white/[0.045] px-2 text-[13px] font-bold text-white/72 transition hover:border-violet-200/28 hover:bg-violet-500/[0.12] hover:text-white";
   const ebayHref = buildCardEbaySearchUrl({
@@ -1568,6 +1575,46 @@ export function CardModalDesktopActionGroup({
     gradingCompany: normalizeGradingCompanyLabel(card.collection_item?.grading_company),
     gradingGrade: normalizeGradingGradeLabel(card.collection_item?.grading_grade),
   });
+
+  useEffect(() => {
+    return () => {
+      if (shareResetTimerRef.current != null) window.clearTimeout(shareResetTimerRef.current);
+    };
+  }, []);
+
+  function showShareStatus(status: "shared" | "copied" | "failed") {
+    setShareStatus(status);
+    if (shareResetTimerRef.current != null) window.clearTimeout(shareResetTimerRef.current);
+    shareResetTimerRef.current = window.setTimeout(() => setShareStatus("idle"), 1800);
+  }
+
+  async function shareCard() {
+    const detailPath = `${getExpansionHref(card.episode_id)}?card=${encodeURIComponent(card.id)}`;
+    const url = new URL(detailPath, window.location.origin).toString();
+    const copy = buildCardShareCopy({
+      name: card.name,
+      price: sharePrice ?? card.price?.cm_en_lowest_nm ?? null,
+      currency: shareCurrency,
+      url,
+    });
+
+    if (typeof navigator.share === "function") {
+      try {
+        await navigator.share({ title: copy.title, text: copy.text, url });
+        showShareStatus("shared");
+        return;
+      } catch (error) {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(copy.clipboardText);
+      showShareStatus("copied");
+    } catch {
+      showShareStatus("failed");
+    }
+  }
 
   return (
     <div
@@ -1617,7 +1664,6 @@ export function CardModalDesktopActionGroup({
         onOpenChange={onPriceAlertOpenChange}
       />
 
-      {hasOverflowActions ? (
       <details
         className="group/card-actions relative shrink-0"
         data-card-detail-overflow-actions
@@ -1630,6 +1676,20 @@ export function CardModalDesktopActionGroup({
           <MoreHorizontal className="h-5 w-5" />
         </summary>
         <div className="card-detail-overflow-menu absolute right-0 top-[calc(100%+0.55rem)] z-[245] w-56 overflow-hidden rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.9)] bg-[var(--dc-surface-glass-strong)] p-1.5 shadow-[0_22px_70px_var(--dc-shadow-color)] backdrop-blur-2xl">
+          <button
+            type="button"
+            onClick={() => void shareCard()}
+            className={menuButtonClass}
+          >
+            <Share2 className="h-4 w-4" />
+            {shareStatus === "shared"
+              ? "Card shared"
+              : shareStatus === "copied"
+                ? "Link copied"
+                : shareStatus === "failed"
+                  ? "Could not share"
+                  : "Share card"}
+          </button>
           {canManageCollectionItem && collectionItem ? (
             <CollectionEditCardButton
               card={collectionCard}
@@ -1716,7 +1776,6 @@ export function CardModalDesktopActionGroup({
           ) : null}
         </div>
       </details>
-      ) : null}
     </div>
   );
 }

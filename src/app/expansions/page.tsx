@@ -416,9 +416,10 @@ export default async function ExpansionsPage({
                           sourceUrl={episode.logo_url}
                           alt={episode.name}
                           fill
+                          revealImmediately
                           className="object-contain p-2 drop-shadow-[0_8px_14px_rgba(0,0,0,0.24)] transition-transform duration-200 group-hover:scale-[1.04]"
                           sizes={tileConfig.minWidth}
-                          priority={groupIndex === 0 && index < 6}
+                          priority={groupIndex <= 1 && index < 8}
                         />
                       </div>
                     ) : (

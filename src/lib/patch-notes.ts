@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.21",
+    releasedAt: "August 7, 2026",
+    title: "Faster artwork and easier sharing",
+    summary: "Set artwork paints without waiting for the chart, Card Detail shares direct links, and mobile Home uses its header space more efficiently.",
+    tone: "fixed",
+    highlights: [
+      "Expansion logo visibility is no longer gated by React hydration.",
+      "The first two visible set groups preload their opening logos, while lower groups remain bandwidth-friendly and load near the viewport.",
+      "Responsive cache delivery and the direct source fallback remain active.",
+      "Every Card Detail three-dot menu now shares the active card price and a direct card link, using the native share sheet where available and copy otherwise.",
+      "Mobile Home keeps its price-visibility and Customize actions together in one compact row beneath the collection title.",
+    ],
+  },
+  {
     version: "3.12.20",
     releasedAt: "August 7, 2026",
     title: "Your collection, your layout",

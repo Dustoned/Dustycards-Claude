@@ -646,8 +646,8 @@ async function HomePageContent({
       }
       overviewSlot={
         activeTab === "overview" ? hasCollection ? (
-        <div className="space-y-2.5 sm:space-y-3">
-          <div className="flex min-w-0 flex-col gap-2.5 sm:flex-row sm:items-end sm:justify-between">
+        <div className="space-y-2 sm:space-y-3">
+          <div className="flex min-w-0 flex-col gap-1.5 sm:flex-row sm:items-end sm:justify-between sm:gap-2.5">
             <div className="min-w-0">
               <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
                 {collectionTitle}
@@ -663,7 +663,7 @@ async function HomePageContent({
               </p>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2 sm:ml-auto">
+            <div className="hidden shrink-0 items-center gap-2 sm:ml-auto sm:flex">
               {settings.onePieceLibraryEnabled ? (
                 <GameFilterSwitch
                   items={gameSwitchItems}
@@ -738,6 +738,11 @@ async function HomePageContent({
                 gradedHref={buildCollectionHref("graded")}
                 sellingHref={buildCollectionHref("selling")}
               />
+            }
+            mobileToolbarLeading={
+              <div className="sm:hidden">
+                <CollectionPriceVisibilityButton compact />
+              </div>
             }
           />
         </div>

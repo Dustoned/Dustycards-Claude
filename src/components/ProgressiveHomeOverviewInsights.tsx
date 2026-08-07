@@ -176,6 +176,7 @@ export default function ProgressiveHomeOverviewInsights({
   portfolioSlot,
   topSetsSlot,
   shortcutsSlot,
+  mobileToolbarLeading,
 }: {
   endpoint: string;
   cacheScope: string;
@@ -186,6 +187,7 @@ export default function ProgressiveHomeOverviewInsights({
   portfolioSlot: ReactNode;
   topSetsSlot: ReactNode;
   shortcutsSlot: ReactNode;
+  mobileToolbarLeading?: ReactNode;
 }) {
   const { settings, set } = useSettings();
   const [showCustomizer, setShowCustomizer] = useState(false);
@@ -339,7 +341,8 @@ export default function ProgressiveHomeOverviewInsights({
 
   return (
     <div className="space-y-2.5 sm:space-y-3">
-      <div className="flex justify-end">
+      <div className={`flex items-center gap-2 ${mobileToolbarLeading ? "justify-between" : "justify-end"}`}>
+        {mobileToolbarLeading}
         <button
           type="button"
           onClick={() => setShowCustomizer((current) => !current)}

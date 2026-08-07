@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.20",
+    version: "3.12.21",
     releasedAt: "August 6, 2026",
     title: "One visual system for collecting, trading and discovery",
     summary:
@@ -41,11 +41,14 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Card Detail removes redundant frames, links expansion and illustrator information, puts price status inside the graph and shows related sealed products in a horizontal rail beneath it.",
           "Collection & Reprints now keeps owned-copy and reprint information together, while the sealed rail supports clean grab-and-drag navigation without an old-style scrollbar.",
           "Find in Sealed favors booster packs and regular ETBs and removes accessory clutter from card-specific product suggestions.",
+          "Every Card Detail overflow menu can share the current card price and a direct reopenable link through the device share sheet or clipboard.",
           "The 3D card floats naturally over the interface with a richer pearlescent holo, restrained inline zoom and double-click access to the large viewer.",
           "Sealed Detail preserves product artwork proportions, fills unused space with Featured Cards and links directly to its expansion.",
           "Complete Collection gains a clear List or Grid choice plus a modern compact card-size control.",
           "Home and Complete Collection now include account-synced page customization for choosing visible modules and arranging their order on every device.",
           "Selected Home modules can be compacted into two-column desktop rows, while Expansion logos load through smaller responsive files with a direct fallback.",
+          "Expansion logos paint independently of the history chart and client startup, so cached artwork appears immediately during page loading.",
+          "Mobile Home combines its visibility and customization controls into one compact action row instead of spending two rows on them.",
         ],
       },
       {
