@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.22",
+    version: "3.12.23",
     releasedAt: "August 6, 2026",
     title: "One visual system for collecting, trading and discovery",
     summary:
@@ -96,6 +96,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "On phones that status stays below the fixed header and shortens labels such as card analysis links to the card name instead of covering the profile controls.",
           "Navigation progress observes one in-flight transition without cancelling it; genuinely slow routes offer an explicit direct-open action instead of silently starting duplicate requests.",
           "Signal Radar paints a six-card first view before progressively attaching the full feed and personal card actions.",
+          "Radar cards no longer prefetch dozens of full detail pages in the background, preventing invisible database bursts from delaying the next real click.",
           "Search, game switches and binder create/edit flows now join the same progress lifecycle instead of navigating silently.",
         ],
       },

@@ -686,10 +686,10 @@ function CompactSignalCard({
       <CardListTileLink
         href={detailHref}
         label={`Open full analysis for ${signal.name}`}
-        // The leading Radar card is both visible immediately and the most
-        // likely detail target. Warm its complete RSC payload; later cards
-        // retain Next's lighter automatic prefetch via their loading boundary.
-        prefetch={prioritizeImage ? true : null}
+        // The complete Radar feed can expose dozens of detail links at once.
+        // Prefetching them together creates invisible multi-second database
+        // bursts and delays the collector's next real navigation.
+        prefetch={false}
       />
 
       <CardListTileMedia

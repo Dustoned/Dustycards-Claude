@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.23",
+    releasedAt: "August 7, 2026",
+    title: "Radar stops preloading every card",
+    summary: "Signal Radar no longer starts dozens of invisible detail requests after its visible page has already opened.",
+    tone: "fixed",
+    highlights: [
+      "Radar detail links load only when selected instead of automatically prefetching the complete visible feed.",
+      "This removes concurrent detail-page bursts that reached more than seven seconds and could delay unrelated navigation.",
+      "New-release chase links already used this safer behavior and remain unchanged.",
+    ],
+  },
+  {
     version: "3.12.22",
     releasedAt: "August 7, 2026",
     title: "Navigation no longer restarts itself",
