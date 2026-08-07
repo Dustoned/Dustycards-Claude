@@ -136,18 +136,19 @@ function normalizeSealedName(name: string): string {
 }
 
 const CARD_DETAIL_PREVIEW_CATEGORY_RANK: Partial<Record<SealedCategory, number>> = {
-  booster_box: 0,
+  booster: 0,
   elite_trainer_box: 1,
-  ultra_premium_collection: 2,
-  super_premium_collection: 3,
-  premium_collection: 4,
-  box: 5,
-  special_collection: 6,
-  ex_collection: 7,
-  figure_collection: 8,
-  illustration_collection: 9,
-  collection: 10,
-  booster_bundle: 11,
+  booster_bundle: 2,
+  booster_box: 3,
+  ultra_premium_collection: 4,
+  super_premium_collection: 5,
+  premium_collection: 6,
+  box: 7,
+  special_collection: 8,
+  ex_collection: 9,
+  figure_collection: 10,
+  illustration_collection: 11,
+  collection: 12,
   build_battle_stadium: 12,
   build_battle_kit: 13,
   tin: 14,
@@ -177,7 +178,17 @@ export function selectCardDetailSealedProducts<T extends { name: string }>(
   return products
     .filter((product) => {
       const normalized = normalizeSealedName(product.name);
-      return classifySealedProduct(product.name) !== "case" && !normalized.includes(" display ");
+      const category = classifySealedProduct(product.name);
+      const isAccessory =
+        category === "playmat" ||
+        category === "playmat_collection" ||
+        normalized.includes(" card sleeves ") ||
+        normalized.includes(" sleeve set ") ||
+        normalized.includes(" deck box ") ||
+        normalized.includes(" portfolio ") ||
+        normalized.includes(" album ") ||
+        normalized.includes(" accessory ");
+      return category !== "case" && !normalized.includes(" display ") && !isAccessory;
     })
     .sort((a, b) => {
       const categoryA = classifySealedProduct(a.name);

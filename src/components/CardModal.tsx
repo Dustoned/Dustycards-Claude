@@ -970,7 +970,6 @@ export default function CardModal({
           </div>
         </dl>
       </aside>
-      <CardModalRelatedPrintingsPanel card={modalCard} onNavigate={onClose} />
     </div>
   );
 
@@ -996,13 +995,17 @@ export default function CardModal({
   );
 
   const collectionPanel = (
-    <div className="card-detail-section-grid card-detail-collection-grid">
+    <div
+      className="card-detail-section-grid card-detail-collection-grid"
+      data-columns="2"
+    >
       <CardModalOwnedCopyPanel
         card={modalCard}
         collectionItem={collectionItem}
         onAddedToCollection={refreshModalCardFromServer}
         showActions={false}
       />
+      <CardModalRelatedPrintingsPanel card={modalCard} onNavigate={onClose} />
     </div>
   );
 
@@ -1026,7 +1029,7 @@ export default function CardModal({
   const tabs: CardDetailTab[] = orderCardDetailTabs("standard", [
     { id: "overview", label: "Overview", content: overviewPanel },
     { id: "market", label: "Market", content: marketPanel },
-    { id: "collection", label: "Collection", content: collectionPanel },
+    { id: "collection", label: "Collection & Reprints", content: collectionPanel },
     ...signalTabs,
   ]);
 

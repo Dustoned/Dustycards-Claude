@@ -180,6 +180,24 @@ function getScenarioOutlookBadge(scenario: ExternalPriceScenario | null | undefi
 }
 
 export function getSignalExplanations(signal: ExternalCardSignal) {
+  const hypeReset = signal.marketIntelligence?.hypeReset;
+  if (hypeReset) {
+    const currency = signal.currency === "USD" ? "$" : "€";
+    return [
+      {
+        label: hypeReset.label,
+        text: hypeReset.explanation,
+      },
+      {
+        label: "Former hype peak",
+        text: `The tracked market previously held near ${currency}${hypeReset.peakPrice.toFixed(2)} and now sits around ${currency}${hypeReset.supportPrice.toFixed(2)}.`,
+      },
+      {
+        label: "Falling-knife check",
+        text: `The latest ${hypeReset.stableDays}-day band is only ${hypeReset.rangePct.toFixed(1)}% wide; a renewed breakdown removes this setup automatically.`,
+      },
+    ];
+  }
   if (signal.sourceMode === "structural") {
     const market = signal.marketIntelligence;
     return [
@@ -706,7 +724,7 @@ function CompactSignalCard({
                 {signal.confidence}
               </span>
               <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/45">
-                {signal.sourceMode === "structural" ? "Scarcity" : signal.sourceMode === "event" ? "Event" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament"}
+                {signal.marketIntelligence?.hypeReset ? "Hype reset" : signal.sourceMode === "structural" ? "Scarcity" : signal.sourceMode === "event" ? "Event" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament"}
               </span>
               {outlookBadge ? (
                 <span className={cx("hidden rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em] sm:inline-flex", outlookBadge.classes)}>

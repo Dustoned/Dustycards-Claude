@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.18",
+    releasedAt: "August 7, 2026",
+    title: "Filled market rows and smarter card details",
+    summary: "Home uses its full market space, Card Detail groups reprints logically and Signal Radar recognizes confirmed post-hype support.",
+    tone: "improved",
+    highlights: [
+      "Sudden Price Drops now loads and displays six rows in both columns: twelve live movers instead of eight stretched across the same height.",
+      "Collection & Reprints keeps owned-copy and related-printing information together on every card detail page, on a continuous full-height background.",
+      "Find in Sealed hides its scrollbar, supports grab-and-drag navigation and prioritizes boosters followed by regular ETBs while filtering accessory clutter.",
+      "Signal Radar now rewards expensive former hype cards only after a deep reset holds a narrow support band for several days; cards still falling are rejected.",
+    ],
+  },
+  {
     version: "3.12.17",
     releasedAt: "August 7, 2026",
     title: "Balanced home insight panels",

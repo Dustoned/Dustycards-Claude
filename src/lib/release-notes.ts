@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.0",
+    version: "3.12.18",
     releasedAt: "August 6, 2026",
     title: "One visual system for collecting, trading and discovery",
     summary:
@@ -39,6 +39,8 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         title: "Collector-first detail pages",
         highlights: [
           "Card Detail removes redundant frames, links expansion and illustrator information, puts price status inside the graph and shows related sealed products in a horizontal rail beneath it.",
+          "Collection & Reprints now keeps owned-copy and reprint information together, while the sealed rail supports clean grab-and-drag navigation without an old-style scrollbar.",
+          "Find in Sealed favors booster packs and regular ETBs and removes accessory clutter from card-specific product suggestions.",
           "The 3D card floats naturally over the interface with a richer pearlescent holo, restrained inline zoom and double-click access to the large viewer.",
           "Sealed Detail preserves product artwork proportions, fills unused space with Featured Cards and links directly to its expansion.",
           "Complete Collection gains a clear List or Grid choice plus a modern compact card-size control.",
@@ -50,6 +52,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "After Side A is chosen, Trade Center can open Side B with the closest cards for an 85%, 90%, 95% or 100% convention value; trade and sale percentages stay saved on the device.",
           "Friend matches stay freely selectable and no longer mix completed Sold records with cards still offered for sale.",
           "Upcoming reveals reuse the higher-quality database card when available, open unknown cards in a focused viewer and remain swipeable and selectable from each set row.",
+          "Signal Radar recognizes expensive former hype cards after a deep reset holds a calm support band for several days, without rewarding cards that are still falling.",
           "Released cards are filtered from Upcoming incrementally, while visual evidence now outweighs matching names or rules text in reprint review.",
         ],
       },
@@ -73,6 +76,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Returning Home reuses the latest successful value drivers and sudden drops immediately; collection edits and completed price observations refresh that cache automatically.",
           "Saving a card now leaves a clear confirmation with its name after the add menu closes.",
           "Featured Cards fills one complete measured row on wide and ultrawide screens while mobile remains limited to two complete rows.",
+          "Sudden Price Drops fills both widescreen lanes with six live rows each instead of stretching an eight-row payload across a taller panel.",
           "The mobile More sheet no longer shifts the fixed bottom navigation when background scrolling is locked.",
           "The DustyCards Pokéball is now the consistent icon in browser tabs, iPhone homescreen shortcuts and installed Android browser apps.",
           "Desktop browsers receive the Pokéball through a unique cache-safe icon URL, so an older saved tab icon cannot keep winning after the update.",

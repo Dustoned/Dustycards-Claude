@@ -113,9 +113,21 @@ export interface ExternalGoldMineConfluence {
   freshChase: boolean;
 }
 
+export interface ExternalHypeResetIntelligence {
+  peakPrice: number;
+  supportPrice: number;
+  drawdownPct: number;
+  stableDays: number;
+  rangePct: number;
+  score: number;
+  label: "Support forming" | "Support confirmed";
+  explanation: string;
+}
+
 export interface ExternalMarketIntelligence {
   rawOpportunityScore: number;
   gradedOpportunityScore: number | null;
+  hypeReset?: ExternalHypeResetIntelligence | null;
   postLaunch?: PostLaunchReratingMetrics | null;
   ebayDemand?: ExternalEbayDemandIntelligence;
   gradedEbayDemand?: ExternalEbayDemandIntelligence;

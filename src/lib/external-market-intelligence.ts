@@ -19,6 +19,7 @@ import {
   alignOpportunityScoreWithScenario,
   buildPriceScenario,
   calculateGoldMineConfluence,
+  calculateHypeResetSupport,
   calculateOpportunityScores,
   calculateScarcityScore,
   calculateSealedPressure,
@@ -918,6 +919,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
               (((latestEnglishNmFloor - latestEnglishAvg30) / latestEnglishAvg30) * 100).toFixed(1)
             )
           : null,
+      hypeReset: calculateHypeResetSupport(englishNmHistory),
     };
     const rawMarketBreadth = latestRaw
       ? [
@@ -995,6 +997,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       gradedAvailable: graded.available,
       riskScore: signal.riskScore ?? 0,
       setRarityScore: setRarity.setRarityScore,
+      hypeResetScore: extendedHistory.hypeReset?.score ?? null,
     });
     const sharedEvidenceCount =
       signal.evidence.length +
@@ -1081,6 +1084,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     const intelligence: ExternalMarketIntelligence = {
       rawOpportunityScore: rawOpportunity,
       gradedOpportunityScore: gradedOpportunity,
+      hypeReset: extendedHistory.hypeReset,
       postLaunch: postLaunchByCard.get(card.id) ?? null,
       ebayDemand,
       gradedEbayDemand,

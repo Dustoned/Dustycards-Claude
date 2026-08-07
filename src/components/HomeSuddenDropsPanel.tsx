@@ -9,6 +9,7 @@ import type {
   HomeSuddenDropSealedPreviewItem,
   HomeSuddenDropsResponse,
 } from "@/lib/home-sudden-drops";
+import { HOME_SUDDEN_DROP_LANE_SIZE } from "@/lib/home-sudden-drops";
 import {
   readHomeClientCache,
   writeHomeClientCache,
@@ -130,7 +131,7 @@ function HomeSealedDropRow({
 function LoadingRows() {
   return (
     <div className="min-w-0">
-      {Array.from({ length: 4 }).map((_, index) => (
+      {Array.from({ length: HOME_SUDDEN_DROP_LANE_SIZE }).map((_, index) => (
         <div
           key={index}
           className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
@@ -242,8 +243,11 @@ export default function HomeSuddenDropsPanel({
   const currency = previewItems[0]?.currency ?? "EUR";
   const thresholdLabel = formatCurrency(data.threshold, currency);
   const hasItems = previewItems.length > 0 || sealedItems.length > 0;
-  const primaryDrops = previewItems.slice(0, 4);
-  const secondaryDrops = previewItems.slice(4, 8);
+  const primaryDrops = previewItems.slice(0, HOME_SUDDEN_DROP_LANE_SIZE);
+  const secondaryDrops = previewItems.slice(
+    HOME_SUDDEN_DROP_LANE_SIZE,
+    HOME_SUDDEN_DROP_LANE_SIZE * 2
+  );
   const sealedViewAllHref = `${viewAllHref}${viewAllHref.includes("#") ? "" : "#sealed"}`;
   return (
     <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">

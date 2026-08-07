@@ -358,17 +358,6 @@ export async function getCardDetailPayload(id: string, userId: string) {
       _count: { select: { contentSets: true } },
     },
   });
-  const sealedProductCountPromise = db.sealedProduct.count({
-    where: {
-      game: card.game,
-      OR: [
-        { episode_id: card.episode.id },
-        { contentSets: { some: { episode_id: card.episode.id } } },
-        { includedCards: { some: { card_id: card.id } } },
-      ],
-    },
-  });
-
   const safePriceRowsPromise = loadSafeCardMarketHistoryRows([
         {
           id: card.id,
@@ -382,14 +371,15 @@ export async function getCardDetailPayload(id: string, userId: string) {
         },
       ]);
   const relatedPrintingsPromise = loadRelatedCardPrintings(card);
-  const [sealedProductCandidates, sealedProductCount, safePriceRowsByCard, relatedPrintings] =
+  const [sealedProductCandidates, safePriceRowsByCard, relatedPrintings] =
     await Promise.all([
       sealedProductsPromise,
-      sealedProductCountPromise,
       safePriceRowsPromise,
       relatedPrintingsPromise,
     ]);
-  const sealedProducts = selectCardDetailSealedProducts(sealedProductCandidates, 8);
+  const filteredSealedProducts = selectCardDetailSealedProducts(sealedProductCandidates, 100);
+  const sealedProducts = filteredSealedProducts.slice(0, 8);
+  const sealedProductCount = filteredSealedProducts.length;
   const safePriceRows = safePriceRowsByCard.get(card.id) ?? [];
 
   const latestSourceSnapshot = safePriceRows[safePriceRows.length - 1] ?? null;

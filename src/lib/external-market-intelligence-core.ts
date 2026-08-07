@@ -1,6 +1,7 @@
 import type {
   ExternalGradedIntelligence,
   ExternalGoldMineConfluence,
+  ExternalHypeResetIntelligence,
   ExternalMarketMode,
   ExternalPriceScenario,
   ExternalScarcityIntelligence,
@@ -18,6 +19,76 @@ export interface ExtendedPriceHistoryFeatures {
   jpLeadLagPct: number | null;
   setRelativeStrength90Pct: number | null;
   avg30AnchorGapPct: number | null;
+  hypeReset?: ExternalHypeResetIntelligence | null;
+}
+
+export function calculateHypeResetSupport(
+  history: readonly { day: Date; value: number }[]
+): ExternalHypeResetIntelligence | null {
+  if (history.length < 12) return null;
+  const valid = history.filter(
+    (point) => Number.isFinite(point.day.getTime()) && Number.isFinite(point.value) && point.value > 0
+  );
+  const latest = valid.at(-1);
+  if (!latest || valid.length < 12) return null;
+  const first = valid[0];
+  if (!first || latest.day.getTime() - first.day.getTime() < 45 * 86_400_000) return null;
+
+  const peak = valid.reduce((highest, point) => point.value > highest.value ? point : highest);
+  const peakAgeDays = Math.floor((latest.day.getTime() - peak.day.getTime()) / 86_400_000);
+  const drawdownPct = ((peak.value - latest.value) / peak.value) * 100;
+  if (peak.value < 75 || peakAgeDays < 14 || drawdownPct < 35) return null;
+  const peakCluster = valid.filter(
+    (point) =>
+      Math.abs(point.day.getTime() - peak.day.getTime()) <= 14 * 86_400_000 &&
+      point.value >= peak.value * 0.8
+  );
+  if (peakCluster.length < 2) return null;
+
+  const supportWindow = valid.filter(
+    (point) => point.day.getTime() >= latest.day.getTime() - 9 * 86_400_000
+  );
+  const supportFirst = supportWindow[0];
+  if (!supportFirst || supportWindow.length < 4) return null;
+  const stableDays = Math.floor(
+    (latest.day.getTime() - supportFirst.day.getTime()) / 86_400_000
+  );
+  if (stableDays < 4) return null;
+
+  const values = supportWindow.map((point) => point.value).sort((left, right) => left - right);
+  const middle = Math.floor(values.length / 2);
+  const supportPrice =
+    values.length % 2 === 0
+      ? ((values[middle - 1] ?? 0) + (values[middle] ?? 0)) / 2
+      : values[middle] ?? 0;
+  if (supportPrice <= 0) return null;
+  const rangePct = (((values.at(-1) ?? 0) - (values[0] ?? 0)) / supportPrice) * 100;
+  const endpointSize = Math.min(2, Math.floor(supportWindow.length / 2));
+  const start = supportWindow.slice(0, endpointSize).reduce((sum, point) => sum + point.value, 0) / endpointSize;
+  const end = supportWindow.slice(-endpointSize).reduce((sum, point) => sum + point.value, 0) / endpointSize;
+  const supportTrendPct = ((end - start) / start) * 100;
+  const currentDistancePct = ((latest.value - supportPrice) / supportPrice) * 100;
+  if (rangePct > 7 || supportTrendPct < -2.5 || Math.abs(currentDistancePct) > 4) return null;
+
+  const confirmed = stableDays >= 6 && rangePct <= 5 && supportTrendPct >= -1.5;
+  const score = clampMarketScore(
+    55 +
+      Math.min(18, (drawdownPct - 35) * 0.35) +
+      Math.min(10, Math.log10(peak.value / 75 + 1) * 12) +
+      Math.min(10, stableDays) +
+      Math.max(0, 7 - rangePct) * 1.5 +
+      (confirmed ? 7 : 0)
+  );
+  return {
+    peakPrice: roundMoney(peak.value),
+    supportPrice: roundMoney(supportPrice),
+    drawdownPct: Number(drawdownPct.toFixed(1)),
+    stableDays,
+    rangePct: Number(rangePct.toFixed(1)),
+    score,
+    label: confirmed ? "Support confirmed" : "Support forming",
+    explanation: `${Math.round(drawdownPct)}% below the former hype peak; price has held a ${rangePct.toFixed(1)}% support band for ${stableDays} days.`,
+  };
 }
 
 export function clampMarketScore(value: number): number {
@@ -319,6 +390,7 @@ export function calculateOpportunityScores(input: {
   gradedAvailable: boolean;
   riskScore: number;
   setRarityScore?: number | null;
+  hypeResetScore?: number | null;
 }): { raw: number; graded: number | null } {
   // Sealed pressure's primary weight lives inside the scarcity score (which
   // already feeds this sum via scarcityAdjustment); this direct occurrence is
@@ -331,6 +403,10 @@ export function calculateOpportunityScores(input: {
   // This is set rarity's primary occurrence; its other entries (scarcity
   // evidence, scenario quality amplifier) are half-weighted.
   const rarityAdjustment = input.setRarityScore == null ? 0 : (input.setRarityScore - 50) * 0.18;
+  const hypeResetAdjustment =
+    input.hypeResetScore == null
+      ? 0
+      : Math.min(9, Math.max(0, (input.hypeResetScore - 60) * 0.3));
   // eBay demand's primary occurrence is the price-scenario direction evidence;
   // this ranking modifier is half-weighted to avoid double-counting.
   const rawEbayDemandAdjustment =
@@ -343,7 +419,8 @@ export function calculateOpportunityScores(input: {
     scarcityAdjustment +
     trendAdjustment +
     confluenceAdjustment +
-    rarityAdjustment -
+    rarityAdjustment +
+    hypeResetAdjustment -
     riskAdjustment;
   const raw = clampMarketScore(
     baseScore + rawEbayDemandAdjustment
@@ -557,6 +634,7 @@ export function buildPriceScenario(input: {
         momentumInputs.reduce((sum, item) => sum + item.weight, 0);
   const extended = input.extendedHistory ?? null;
   const volatility = extended?.volatilityDaily90Pct ?? null;
+  const hypeReset = extended?.hypeReset ?? null;
   // A +20% move on a stable card is more meaningful than on a hyper-volatile
   // one; normalize the momentum contribution by daily dispersion when known.
   const momentumVolatilityScale =
@@ -585,6 +663,10 @@ export function buildPriceScenario(input: {
     -12,
     12
   );
+  const hypeResetContribution =
+    hypeReset == null
+      ? 0
+      : clamp((hypeReset.score - 60) * 0.25, 0, hypeReset.label === "Support confirmed" ? 9 : 5);
 
   const lifecycleTrusted = (input.lifecycleConfidence ?? 0) >= 65;
   const lifecycleContribution = lifecycleTrusted
@@ -611,6 +693,7 @@ export function buildPriceScenario(input: {
     sealedContribution + lifecycleContribution >= 4,
     catalystContribution >= 3,
     competitiveContribution >= 2,
+    hypeResetContribution >= 3,
   ].filter(Boolean).length;
   const negativeConfirmations = [
     momentumContribution <= -3,
@@ -764,6 +847,7 @@ export function buildPriceScenario(input: {
       momentum365Contribution +
       jpLeadLagContribution +
       setStrengthContribution +
+      hypeResetContribution +
       releasePhaseContribution -
       riskContribution,
     -60,
@@ -887,6 +971,7 @@ export function buildPriceScenario(input: {
     catalystContribution !== 0 ? "fresh catalyst" : null,
     valuationContribution < 0 || athContribution < 0 ? "price overextension" : null,
     athContribution > 0 ? "recovery below all-time high" : null,
+    hypeResetContribution > 0 ? "hype-reset support" : null,
     momentumOnlyDip ? "uncorroborated dip (historically mean-reverts)" : null,
     input.ageYears != null && input.ageYears < 0.18
       ? "launch price discovery"

@@ -10,6 +10,7 @@ import type {
   HomeSuddenDropPreviewItem,
   HomeSuddenDropsResponse,
 } from "@/lib/home-sudden-drops";
+import { HOME_SUDDEN_DROP_PREVIEW_SIZE } from "@/lib/home-sudden-drops";
 import {
   SUDDEN_DROP_DEAL_MAX_CURRENT_PRICE,
   type CollectionMoverItem,
@@ -619,7 +620,7 @@ function buildFastSuddenDropsData(
     refresh: refreshMetadata,
     preview: {
       items: items
-        .slice(0, 8)
+        .slice(0, HOME_SUDDEN_DROP_PREVIEW_SIZE)
         .map((item) => toPreviewItem(item, getDropAmount(item), getDropPercent(item))),
       total: totalMatches,
       threshold: thresholds.minimumAmount,

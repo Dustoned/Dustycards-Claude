@@ -43,7 +43,7 @@ describe("getSealedProductPrice", () => {
 });
 
 describe("selectCardDetailSealedProducts", () => {
-  it("prioritizes consumer boxes and excludes cases and displays", () => {
+  it("prioritizes boosters and regular ETBs while excluding bulk packaging and accessories", () => {
     const products = [
       { id: "case", name: "Prismatic Evolutions 10 Elite Trainer Box Case" },
       { id: "display", name: "Prismatic Evolutions Booster Bundle Display" },
@@ -52,13 +52,18 @@ describe("selectCardDetailSealedProducts", () => {
       { id: "pc-etb", name: "Prismatic Evolutions Pokémon Center Elite Trainer Box" },
       { id: "etb", name: "Prismatic Evolutions Elite Trainer Box" },
       { id: "box", name: "Prismatic Evolutions Surprise Box" },
+      { id: "booster", name: "Prismatic Evolutions Sleeved Booster" },
+      { id: "playmat", name: "Prismatic Evolutions Premium Playmat Collection" },
+      { id: "sleeves", name: "Prismatic Evolutions Card Sleeves" },
+      { id: "deck-box", name: "Prismatic Evolutions Deck Box" },
     ];
 
     expect(selectCardDetailSealedProducts(products).map((product) => product.id)).toEqual([
+      "booster",
       "etb",
       "pc-etb",
-      "box",
       "bundle",
+      "box",
     ]);
   });
 

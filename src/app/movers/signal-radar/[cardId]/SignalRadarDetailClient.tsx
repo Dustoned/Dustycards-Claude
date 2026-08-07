@@ -622,7 +622,6 @@ export default function SignalRadarDetailClient({
           />
         </div>
       </section>
-      <CardModalRelatedPrintingsPanel card={card} context="radar" />
     </div>
   );
 
@@ -652,6 +651,7 @@ export default function SignalRadarDetailClient({
       data-columns="2"
     >
       <CardModalOwnedCopyPanel card={card} collectionItem={collectionItem} showActions={false} />
+      <CardModalRelatedPrintingsPanel card={card} context="radar" />
       <CardModalActiveListingsPanel
         card={card}
         onOpenSealedProduct={setSelectedSealedProduct}
@@ -673,7 +673,7 @@ export default function SignalRadarDetailClient({
   const tabs: CardDetailTab[] = orderCardDetailTabs("radar", [
     { id: "overview", label: "Overview", content: overviewPanel },
     { id: "market", label: "Market", content: marketPanel },
-    { id: "collection", label: "Collection", content: collectionPanel },
+    { id: "collection", label: "Collection & Reprints", content: collectionPanel },
     ...signalTabs,
   ]);
 

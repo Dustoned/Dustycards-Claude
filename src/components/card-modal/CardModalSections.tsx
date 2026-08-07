@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import dynamic from "next/dynamic";
 import Link from "next/link";
@@ -4053,6 +4053,28 @@ export function CardModalActiveListingsPanel({
 }) {
   const sealedProducts = (card.sealed_products ?? []).slice(0, compact ? 8 : 4);
   const sealedProductCount = card.sealed_product_count ?? card.sealed_products?.length ?? 0;
+  const sealedRailRef = useRef<HTMLDivElement>(null);
+  const sealedRailDragRef = useRef({
+    pointerId: null as number | null,
+    startX: 0,
+    startScrollLeft: 0,
+    moved: false,
+    suppressClick: false,
+  });
+  const [sealedRailDragging, setSealedRailDragging] = useState(false);
+
+  function finishSealedRailDrag(pointerId: number) {
+    const rail = sealedRailRef.current;
+    const drag = sealedRailDragRef.current;
+    if (!rail || drag.pointerId !== pointerId) return;
+    drag.suppressClick = drag.moved;
+    drag.pointerId = null;
+    if (rail.hasPointerCapture(pointerId)) rail.releasePointerCapture(pointerId);
+    setSealedRailDragging(false);
+    window.setTimeout(() => {
+      drag.suppressClick = false;
+    }, 0);
+  }
 
   return (
     <section
@@ -4091,9 +4113,43 @@ export function CardModalActiveListingsPanel({
 
       {sealedProducts.length > 0 ? (
         <div
+          ref={compact ? sealedRailRef : undefined}
+          data-dragging={sealedRailDragging ? "true" : "false"}
+          onPointerDown={(event) => {
+            if (!compact || !event.isPrimary || event.pointerType === "touch" || event.button !== 0) {
+              return;
+            }
+            const rail = event.currentTarget;
+            const drag = sealedRailDragRef.current;
+            drag.pointerId = event.pointerId;
+            drag.startX = event.clientX;
+            drag.startScrollLeft = rail.scrollLeft;
+            drag.moved = false;
+            drag.suppressClick = false;
+            rail.setPointerCapture(event.pointerId);
+            setSealedRailDragging(true);
+          }}
+          onPointerMove={(event) => {
+            const drag = sealedRailDragRef.current;
+            if (!compact || drag.pointerId !== event.pointerId) return;
+            const distance = event.clientX - drag.startX;
+            if (Math.abs(distance) > 4) drag.moved = true;
+            event.currentTarget.scrollLeft = drag.startScrollLeft - distance;
+            if (drag.moved) event.preventDefault();
+          }}
+          onPointerUp={(event) => finishSealedRailDrag(event.pointerId)}
+          onPointerCancel={(event) => finishSealedRailDrag(event.pointerId)}
+          onClickCapture={(event) => {
+            const drag = sealedRailDragRef.current;
+            if (!drag.suppressClick) return;
+            event.preventDefault();
+            event.stopPropagation();
+            drag.suppressClick = false;
+          }}
+          onDragStart={(event) => event.preventDefault()}
           className={
             compact
-              ? "card-detail-sealed-product-rail mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain pb-1 [scrollbar-width:thin]"
+              ? "card-detail-sealed-product-rail mt-3 flex cursor-grab snap-x snap-mandatory gap-2 overflow-x-auto overscroll-x-contain select-none data-[dragging=true]:cursor-grabbing data-[dragging=true]:snap-none"
               : "mt-3 grid grid-cols-2 gap-2"
           }
         >

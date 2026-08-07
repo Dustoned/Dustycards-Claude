@@ -1016,9 +1016,15 @@ export async function enrichExternalSignalRadarData(
         : null;
       const effectivePostLaunchReason =
         getPostLaunchRadarRankingBoost(signal) > 0 ? postLaunchReason : null;
+      const hypeResetReason = signal.marketIntelligence?.hypeReset?.explanation ?? null;
       return {
         ...signal,
-        reasons: effectivePostLaunchReason
+        reasons: hypeResetReason
+          ? [
+              hypeResetReason,
+              ...signal.reasons.filter((reason) => reason !== hypeResetReason),
+            ]
+          : effectivePostLaunchReason
           ? [
               effectivePostLaunchReason,
               ...signal.reasons.filter((reason) => reason !== effectivePostLaunchReason),

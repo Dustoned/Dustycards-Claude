@@ -4,6 +4,7 @@ import {
   alignOpportunityScoreWithScenario,
   buildPriceScenario,
   calculateGoldMineConfluence,
+  calculateHypeResetSupport,
   calculateOpportunityScores,
   calculateScarcityScore,
   calculateSealedPressure,
@@ -1050,7 +1051,116 @@ describe("external market intelligence", () => {
     jpLeadLagPct: null,
     setRelativeStrength90Pct: null,
     avg30AnchorGapPct: null,
+    hypeReset: null,
     ...overrides,
+  });
+
+  it("recognizes a former hype peak only after price holds a calm support band", () => {
+    const start = Date.parse("2026-05-01T00:00:00.000Z");
+    const history = Array.from({ length: 70 }, (_, index) => ({
+      day: new Date(start + index * 86_400_000),
+      value:
+        index === 10
+          ? 250
+          : index === 11
+            ? 240
+          : index >= 60
+            ? 99 + (index % 3)
+            : 105,
+    }));
+
+    const support = calculateHypeResetSupport(history);
+
+    expect(support?.label).toBe("Support confirmed");
+    expect(support?.drawdownPct).toBeGreaterThan(55);
+    expect(support?.stableDays).toBeGreaterThanOrEqual(6);
+    expect(support?.rangePct).toBeLessThanOrEqual(5);
+  });
+
+  it("rejects a deep drawdown that is still falling through support", () => {
+    const start = Date.parse("2026-05-01T00:00:00.000Z");
+    const history = Array.from({ length: 70 }, (_, index) => ({
+      day: new Date(start + index * 86_400_000),
+      value:
+        index === 10
+          ? 250
+          : index === 11
+            ? 240
+            : index >= 60
+              ? 140 - (index - 60) * 5
+              : 150,
+    }));
+
+    expect(calculateHypeResetSupport(history)).toBeNull();
+  });
+
+  it("does not mistake one isolated historical price spike for sustained hype", () => {
+    const start = Date.parse("2026-05-01T00:00:00.000Z");
+    const history = Array.from({ length: 70 }, (_, index) => ({
+      day: new Date(start + index * 86_400_000),
+      value: index === 10 ? 250 : index >= 60 ? 100 : 105,
+    }));
+
+    expect(calculateHypeResetSupport(history)).toBeNull();
+  });
+
+  it("rewards confirmed hype-reset support in both forecast and ranking", () => {
+    const shared = {
+      marketMode: "raw" as const,
+      currentPrice: 100,
+      currency: "EUR" as const,
+      ageYears: 4,
+      opportunityScore: 78,
+      sealedTrendPct: null,
+      rawTrend90dPct: 0,
+      scarcityScore: 72,
+      gemRatePct: null,
+      riskScore: 0,
+      evidenceCount: 3,
+      historyPoints: 30,
+    };
+    const hypeReset = {
+      peakPrice: 250,
+      supportPrice: 100,
+      drawdownPct: 60,
+      stableDays: 8,
+      rangePct: 2,
+      score: 92,
+      label: "Support confirmed" as const,
+      explanation: "60% below the former hype peak; support held for 8 days.",
+    };
+    const neutral = buildPriceScenario(shared);
+    const supported = buildPriceScenario({
+      ...shared,
+      extendedHistory: extendedFeatures({ hypeReset }),
+    });
+    const neutralScores = calculateOpportunityScores({
+      externalScore: 70,
+      sealedPressureScore: 50,
+      scarcityScore: 72,
+      confluenceScore: 65,
+      rawTrend90dPct: 0,
+      gradePremiumPct: null,
+      gemRatePct: null,
+      gradedAvailable: false,
+      riskScore: 0,
+    });
+    const supportedScores = calculateOpportunityScores({
+      externalScore: 70,
+      sealedPressureScore: 50,
+      scarcityScore: 72,
+      confluenceScore: 65,
+      rawTrend90dPct: 0,
+      gradePremiumPct: null,
+      gemRatePct: null,
+      gradedAvailable: false,
+      riskScore: 0,
+      hypeResetScore: hypeReset.score,
+    });
+
+    expect(supported?.drivers).toContain("hype-reset support");
+    expect(supported?.points.at(-1)?.base).toBeGreaterThan(neutral?.points.at(-1)?.base ?? NaN);
+    expect(supportedScores.raw).toBeGreaterThan(neutralScores.raw);
   });
 
   it("treats missing extended history exactly like an all-null feature set", () => {
