@@ -20,8 +20,8 @@ export default function SellingInventoryTabs({
   const showingSold = view === "sold";
 
   return (
-    <section className="overflow-hidden rounded-[var(--ui-page-header-radius)] border border-white/8 bg-[linear-gradient(145deg,rgba(20,20,28,0.72),rgba(9,9,13,0.84))]">
-      <div className="border-b border-white/8 p-2.5 sm:p-3">
+    <section className="overflow-hidden rounded-[var(--ui-page-header-radius)] border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-elevated-rgb)/0.94),rgb(var(--dc-surface-primary-rgb)/0.92))] shadow-[0_14px_36px_var(--dc-shadow-color)]">
+      <div className="border-b border-[rgb(var(--dc-border-rgb)/0.82)] p-2.5 sm:p-3">
         <div className="grid grid-cols-2 gap-1.5">
           <button
             type="button"
@@ -52,7 +52,7 @@ export default function SellingInventoryTabs({
             <span className="rounded-full bg-black/20 px-1.5 py-0.5 text-[9px] tabular-nums">{soldCount}</span>
           </button>
         </div>
-        <p className="px-1 pt-2 text-[10px] leading-4 text-white/36">
+        <p className="px-1 pt-2 text-[10px] leading-4 text-[var(--dc-text-muted)]">
           {showingSold
             ? "Completed sales only. The amount on each card is the saved sold price, not its current market value."
             : "Cards that are still available for sale. Completed sales are kept in the separate ledger."}
@@ -65,7 +65,9 @@ export default function SellingInventoryTabs({
           </p>
         ) : null}
       </div>
-      <div className="p-2.5 sm:p-3">{showingSold ? soldContent : activeContent}</div>
+      <div className="p-2.5 sm:p-3">
+        {showingSold ? <div key="sold-ledger">{soldContent}</div> : <div key="for-sale-active">{activeContent}</div>}
+      </div>
     </section>
   );
 }

@@ -47,7 +47,7 @@ export default function DashboardCustomizerDialog({
         aria-labelledby="dashboard-customizer-title"
         className={`${modalBottomSheetPanelClass} max-w-5xl`}
       >
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/9 px-4 py-3.5 sm:px-6 sm:py-5">
+        <header className="sticky top-0 z-10 flex shrink-0 items-start justify-between gap-4 border-b border-white/9 bg-[var(--dc-surface-glass-strong)] px-4 py-3.5 backdrop-blur-2xl sm:px-6 sm:py-5">
           <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-[0.15em] text-[var(--dc-primary)]/70">
               Page layout

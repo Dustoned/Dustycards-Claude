@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.28",
+    releasedAt: "August 7, 2026",
+    title: "Mobile popup and selling-grid fixes",
+    summary: "Long customization sheets stay closable, while For Sale and Sold remain visually and semantically separate.",
+    tone: "fixed",
+    highlights: [
+      "Bottom-sheet height now respects the top safe area on phones with a notch or Dynamic Island.",
+      "The customization header and close button remain fixed while the widget list scrolls.",
+      "Scrollable popup content includes the bottom safe area so the final controls remain reachable.",
+      "For Sale and Sold grids remount independently and apply a second client-side sale-status check.",
+      "Selling panels and card tiles now use the active theme surfaces, borders and text colours.",
+    ],
+  },
+  {
     version: "3.12.27",
     releasedAt: "August 7, 2026",
     title: "Artist conflicts are rejected automatically",

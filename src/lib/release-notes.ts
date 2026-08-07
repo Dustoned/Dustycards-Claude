@@ -20,6 +20,27 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.28",
+    releasedAt: "August 7, 2026",
+    title: "Safer mobile controls and selling views",
+    summary:
+      "Customization and other long bottom sheets now fit safely around modern phone status areas.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Safe on every phone edge",
+        highlights: [
+          "Popup headers no longer sit beneath the iPhone notch or Dynamic Island.",
+          "The close action stays visible while the popup body scrolls independently.",
+          "Bottom content receives matching home-indicator spacing.",
+          "For Sale only renders active unsold listings, while Sold only renders timestamped sale records.",
+          "Switching tabs creates a fresh grid so a duplicate physical copy cannot retain the other tab's visual state.",
+          "Selling grids follow every light, dark and custom theme instead of keeping a fixed black surface.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.27",
     releasedAt: "August 7, 2026",
     title: "Automatic illustrator protection",

@@ -76,6 +76,7 @@ import {
   collectionTileTrendClass,
   collectionTileTrendIconClass,
   compareCollectionCardItems,
+  filterSellingInventoryItems,
   formatMarketCurrency,
   formatSortSummary,
   getCollectionItemCostBasis,
@@ -345,10 +346,17 @@ export default function CollectionCardsView({
     () => new Set(optimisticallyMovedItemIds),
     [optimisticallyMovedItemIds]
   );
-  const visibleSourceItems = useMemo(
-    () => omitOptimisticallyMovedCollectionItems(items, optimisticallyMovedItemIdSet),
-    [items, optimisticallyMovedItemIdSet]
-  );
+  const visibleSourceItems = useMemo(() => {
+    const currentItems = omitOptimisticallyMovedCollectionItems(items, optimisticallyMovedItemIdSet);
+
+    // Keep the two selling modes strictly separated on the client as well as
+    // in the database query. This also prevents a reused grid from briefly
+    // retaining active inventory after switching to the Sold ledger.
+    return filterSellingInventoryItems(
+      currentItems,
+      salesLedger ? "sold" : allowSoldMarking ? "active" : "all"
+    );
+  }, [allowSoldMarking, items, optimisticallyMovedItemIdSet, salesLedger]);
 
   useEffect(() => {
     const currentItemIds = new Set(
@@ -441,7 +449,7 @@ export default function CollectionCardsView({
     () =>
       visibleSourceItems.map((item, index) => ({
         item,
-        selectionKey: `${item.card_id}-${index}`,
+        selectionKey: item.collection_item_id ?? `${item.card_id}-${index}`,
         normalizedRarity: normalizeRarityLabel(item.rarity),
         isPriced: hasAnyVisiblePrice(item),
         isGraded: isGradedCollectionCard(item),
@@ -2857,7 +2865,7 @@ export default function CollectionCardsView({
                           handleTileActivate(item, selectionKey, selectableInMode);
                         }
                       }}
-                      className={`relative flex h-full cursor-pointer flex-col rounded-[14px] border border-white/8 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.018))] p-1.5 text-left shadow-[0_12px_28px_rgba(0,0,0,0.24)] outline-none transition-colors hover:border-white/14 max-[640px]:rounded-[13px] max-[640px]:p-1 ${
+                      className={`relative flex h-full cursor-pointer flex-col rounded-[14px] border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(180deg,rgb(var(--dc-surface-elevated-rgb)/0.94),rgb(var(--dc-surface-primary-rgb)/0.9))] p-1.5 text-left shadow-[0_12px_28px_var(--dc-shadow-color)] outline-none transition-colors hover:border-[rgb(var(--dc-primary-rgb)/0.28)] max-[640px]:rounded-[13px] max-[640px]:p-1 ${
                         isSelected ? "border-blue-400/70 ring-2 ring-blue-400/60" : ""
                       }`}
                       style={{
@@ -2938,7 +2946,7 @@ export default function CollectionCardsView({
                           </div>
                         )}
 
-                        {salesLedger ? (
+                        {salesLedger && item.sold_at ? (
                           <span className={`absolute right-2 top-2 ${collectionOverlayBadgeClass(displaySettings.cardSize)}`}>
                             Sold
                           </span>
@@ -2976,7 +2984,7 @@ export default function CollectionCardsView({
                       {item.name}
                     </p>
                     <div className={collectionTileMetaLineClass(displaySettings.cardSize)}>
-                      <span className="shrink-0 text-white/42">
+                      <span className="shrink-0 text-[var(--dc-text-muted)]">
                         {item.card_number ? `#${item.card_number}` : "--"}
                       </span>
                       {item.version ? (

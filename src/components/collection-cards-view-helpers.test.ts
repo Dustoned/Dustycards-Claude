@@ -7,6 +7,7 @@ import {
   compareCollectionCardItems,
   compareCollectionCardNumbers,
   comparePriceValues,
+  filterSellingInventoryItems,
   formatMarketCurrency,
   formatSortSummary,
   getCollectionItemCostBasis,
@@ -120,6 +121,32 @@ describe("omitOptimisticallyMovedCollectionItems", () => {
         owned_count: 1,
       }),
     ]);
+  });
+});
+
+describe("filterSellingInventoryItems", () => {
+  const active = makeItem({
+    collection_item_id: "active",
+    for_sale: true,
+    sold_at: null,
+  });
+  const sold = makeItem({
+    collection_item_id: "sold",
+    for_sale: false,
+    sold_at: "2026-08-07T10:00:00.000Z",
+  });
+  const owned = makeItem({
+    collection_item_id: "owned",
+    for_sale: false,
+    sold_at: null,
+  });
+
+  it("keeps only unsold listings in For Sale", () => {
+    expect(filterSellingInventoryItems([active, sold, owned], "active")).toEqual([active]);
+  });
+
+  it("keeps only timestamped transactions in the Sold ledger", () => {
+    expect(filterSellingInventoryItems([active, sold, owned], "sold")).toEqual([sold]);
   });
 });
 

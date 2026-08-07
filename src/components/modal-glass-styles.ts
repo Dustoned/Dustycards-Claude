@@ -11,7 +11,7 @@ export const modalPanelBaseClass =
   "dc-modal-panel relative flex max-h-[calc(100dvh-2rem)] w-full flex-col overflow-hidden rounded-3xl border border-white/12 text-white shadow-2xl shadow-black/60";
 
 export const modalBottomSheetPanelClass =
-  `${modalPanelBaseClass} max-[640px]:max-h-[calc(100dvh-0.75rem)] max-[640px]:rounded-b-none max-[640px]:rounded-t-[26px] max-[640px]:border-x-0 max-[640px]:border-b-0`;
+  `${modalPanelBaseClass} max-[640px]:max-h-[calc(100dvh-env(safe-area-inset-top,0px)-0.75rem)] max-[640px]:rounded-b-none max-[640px]:rounded-t-[26px] max-[640px]:border-x-0 max-[640px]:border-b-0`;
 
 export const modalCenteredPanelClass =
   `${modalPanelBaseClass} max-[640px]:max-h-[calc(100dvh-1rem)] max-[640px]:max-w-[min(26rem,100%)] max-[640px]:rounded-[22px]`;
@@ -23,7 +23,7 @@ export const modalCompactHeaderClass =
   "flex items-start gap-3 border-b border-white/10 px-6 py-5 max-[640px]:px-4 max-[640px]:py-3";
 
 export const modalBodyClass =
-  "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 pb-6 pt-5 max-[640px]:px-4 max-[640px]:pb-4 max-[640px]:pt-3";
+  "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain px-6 pb-6 pt-5 max-[640px]:px-4 max-[640px]:pb-[calc(1rem+env(safe-area-inset-bottom,0px))] max-[640px]:pt-3";
 
 export const modalActionRowClass =
   "dc-modal-surface mt-6 flex gap-3 rounded-[22px] border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] p-2.5 shadow-[inset_0_1px_0_var(--dc-sheen)] max-[640px]:mt-4 max-[640px]:gap-2 max-[640px]:rounded-2xl max-[640px]:p-2";

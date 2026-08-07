@@ -62,6 +62,17 @@ export function omitOptimisticallyMovedCollectionItems(
   });
 }
 
+export function filterSellingInventoryItems(
+  items: CollectionCardViewItem[],
+  mode: "all" | "active" | "sold"
+): CollectionCardViewItem[] {
+  if (mode === "sold") return items.filter((item) => item.sold_at != null);
+  if (mode === "active") {
+    return items.filter((item) => item.for_sale === true && item.sold_at == null);
+  }
+  return items;
+}
+
 export function buildFilterOptions(
   values: Array<string | null | undefined>,
   preferredOrder: readonly string[],
@@ -341,18 +352,18 @@ export function collectionTileInfoClass(cardSize: CardSize): string {
 
 export function collectionTileTitleClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "line-clamp-2 text-[15px] font-bold leading-tight text-white max-[640px]:text-[14px]";
+    return "line-clamp-2 text-[15px] font-bold leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[14px]";
   }
 
   if (cardSize === "medium") {
-    return "line-clamp-2 text-[13px] font-bold leading-tight text-white max-[640px]:text-[12px]";
+    return "line-clamp-2 text-[13px] font-bold leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[12px]";
   }
 
   if (cardSize === "xsmall") {
-    return "line-clamp-3 text-[11px] font-bold leading-tight text-white max-[640px]:text-[10px]";
+    return "line-clamp-3 text-[11px] font-bold leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[10px]";
   }
 
-  return "line-clamp-2 text-[12px] font-bold leading-tight text-white max-[640px]:text-[11px]";
+  return "line-clamp-2 text-[12px] font-bold leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[11px]";
 }
 
 export function collectionTileMetaLineClass(cardSize: CardSize): string {
@@ -369,34 +380,34 @@ export function collectionTileMetaLineClass(cardSize: CardSize): string {
 
 export function collectionTilePriceClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "whitespace-nowrap text-[16px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[14px]";
+    return "whitespace-nowrap text-[16px] font-bold tabular-nums leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[14px]";
   }
 
   if (cardSize === "medium") {
-    return "whitespace-nowrap text-[14px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[12px]";
+    return "whitespace-nowrap text-[14px] font-bold tabular-nums leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[12px]";
   }
 
   if (cardSize === "xsmall") {
-    return "max-w-full whitespace-nowrap text-[11px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[clamp(9px,2.85vw,11px)]";
+    return "max-w-full whitespace-nowrap text-[11px] font-bold tabular-nums leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[clamp(9px,2.85vw,11px)]";
   }
 
-  return "whitespace-nowrap text-[13px] font-bold tabular-nums leading-tight text-white max-[640px]:text-[11px]";
+  return "whitespace-nowrap text-[13px] font-bold tabular-nums leading-tight text-[var(--dc-text-primary)] max-[640px]:text-[11px]";
 }
 
 export function collectionTileNoPriceClass(cardSize: CardSize): string {
   if (cardSize === "large") {
-    return "text-[13px] text-white/35";
+    return "text-[13px] text-[var(--dc-text-muted)]";
   }
 
   if (cardSize === "medium") {
-    return "text-xs text-white/35";
+    return "text-xs text-[var(--dc-text-muted)]";
   }
 
   if (cardSize === "xsmall") {
-    return "text-[10px] leading-tight text-white/35 max-[640px]:text-[9px]";
+    return "text-[10px] leading-tight text-[var(--dc-text-muted)] max-[640px]:text-[9px]";
   }
 
-  return "text-[11px] text-white/35";
+  return "text-[11px] text-[var(--dc-text-muted)]";
 }
 
 export function collectionTilePriceRowClass(cardSize: CardSize): string {
