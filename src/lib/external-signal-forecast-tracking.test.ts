@@ -36,20 +36,24 @@ describe("live forecast tracking status", () => {
     mocks.observationCount
       .mockResolvedValueOnce(80)
       .mockResolvedValueOnce(46);
-    mocks.outcomeFindMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([
-        {
-          horizon_days: 90,
-          status: "pending",
-          entry_observation: { observed_at: new Date("2026-08-04T00:00:00.000Z") },
-        },
-        {
-          horizon_days: 180,
-          status: "pending",
-          entry_observation: { observed_at: new Date("2026-08-04T00:00:00.000Z") },
-        },
-      ]);
+    // Cohort queries (filtered on status) may run once per model version in
+    // the fallback chain; the tracking query is the one without that filter.
+    mocks.outcomeFindMany.mockImplementation(async (args: { where?: { status?: unknown } }) =>
+      args?.where?.status
+        ? []
+        : [
+            {
+              horizon_days: 90,
+              status: "pending",
+              entry_observation: { observed_at: new Date("2026-08-04T00:00:00.000Z") },
+            },
+            {
+              horizon_days: 180,
+              status: "pending",
+              entry_observation: { observed_at: new Date("2026-08-04T00:00:00.000Z") },
+            },
+          ]
+    );
   });
 
   it("reports logged calls, active horizons and their next maturity dates", async () => {
@@ -59,6 +63,9 @@ describe("live forecast tracking status", () => {
     expect(tracking).toEqual({
       observations: 80,
       independentPredictions: 46,
+      pending30d: 0,
+      complete30d: 0,
+      insufficient30d: 0,
       pending90d: 1,
       complete90d: 0,
       insufficient90d: 0,
@@ -68,6 +75,7 @@ describe("live forecast tracking status", () => {
       meaningfulCorrect90d: 0,
       meaningfulWrong90d: 0,
       smallMove90d: 0,
+      next30dMaturesAt: null,
       next90dMaturesAt: "2026-11-02T00:00:00.000Z",
       next180dMaturesAt: "2027-01-31T00:00:00.000Z",
     });

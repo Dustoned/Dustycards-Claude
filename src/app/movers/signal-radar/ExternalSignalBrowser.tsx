@@ -516,6 +516,7 @@ function MarketIntelligencePanel({
 }
 
 const FORECAST_TARGETS = [
+  { key: "1.5x-30d", label: "1.5x", horizon: "30 days", minimum: 40 },
   { key: "1.5x-90d", label: "1.5x", horizon: "90 days", minimum: 50 },
   { key: "2x-90d", label: "2x", horizon: "90 days", minimum: 100 },
   { key: "3x-180d", label: "3x", horizon: "180 days", minimum: 200 },
@@ -551,7 +552,7 @@ function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
       </div>
       <LiveForecastDataStatus forecast={signal.forecast} className="mt-2" />
       {!signal.forecast?.tracking ? (
-        <div className="mt-2 grid grid-cols-3 gap-1.5">
+        <div className="mt-2 grid grid-cols-2 gap-1.5 min-[480px]:grid-cols-4">
           {FORECAST_TARGETS.map((target) => {
             const summary = signal.forecast?.targets[target.key];
             const interval = summary?.status === "calibrated" ? summary.interval : null;

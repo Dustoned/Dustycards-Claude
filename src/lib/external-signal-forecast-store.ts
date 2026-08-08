@@ -22,6 +22,14 @@ const OUTCOME_WRITE_CHUNK_SIZE = 50;
 
 export const EXTERNAL_FORECAST_TARGETS = [
   {
+    // Early-warning target: reuses the 1.5x hit verdict on the 30-day
+    // horizon so the learning loop gets completed samples within weeks.
+    key: "1.5x-30d",
+    targetMultiplier: 1.5,
+    horizonDays: 30,
+    hitField: "hit_15x",
+  },
+  {
     key: "1.5x-90d",
     targetMultiplier: 1.5,
     horizonDays: 90,
@@ -47,8 +55,26 @@ export const EXTERNAL_FORECAST_TARGETS = [
  * usingPreviousModelCohort) instead of restarting calibration from zero.
  */
 export const FORECAST_MODEL_VERSION_FALLBACKS: Readonly<Record<string, string>> = {
+  "v12-hype-reset-calibrated": "v11-hype-reset-support",
+  "v11-hype-reset-support": "v10-consistent-live-prices",
+  "v10-consistent-live-prices": "v9-calibrated-inputs",
   "v9-calibrated-inputs": "v8-expanded-coverage",
 };
+
+const MODEL_FALLBACK_CHAIN_LIMIT = 6;
+
+/** Walks the fallback map from a version to its oldest ancestor, cycle-safe. */
+export function getForecastModelVersionChain(modelVersion: string): string[] {
+  const chain: string[] = [];
+  const seen = new Set<string>([modelVersion]);
+  let cursor = FORECAST_MODEL_VERSION_FALLBACKS[modelVersion];
+  while (cursor && !seen.has(cursor) && chain.length < MODEL_FALLBACK_CHAIN_LIMIT) {
+    chain.push(cursor);
+    seen.add(cursor);
+    cursor = FORECAST_MODEL_VERSION_FALLBACKS[cursor];
+  }
+  return chain;
+}
 
 export type ExternalForecastTarget = (typeof EXTERNAL_FORECAST_TARGETS)[number];
 export type ExternalForecastTargetKey = ExternalForecastTarget["key"];
@@ -58,7 +84,7 @@ export type ExternalForecastCohortScope = "game-tier-price" | "game-tier" | "gam
 export interface ExternalForecastTargetSummary {
   key: ExternalForecastTargetKey;
   targetMultiplier: 1.5 | 2 | 3;
-  horizonDays: 90 | 180;
+  horizonDays: 30 | 90 | 180;
   status: "learning" | "calibrated";
   hits: number;
   samples: number;
@@ -80,6 +106,9 @@ export interface ExternalForecastTargetSummary {
 export interface ExternalForecastTrackingStatus {
   observations: number;
   independentPredictions: number;
+  pending30d: number;
+  complete30d: number;
+  insufficient30d: number;
   pending90d: number;
   complete90d: number;
   insufficient90d: number;
@@ -89,6 +118,7 @@ export interface ExternalForecastTrackingStatus {
   meaningfulCorrect90d: number;
   meaningfulWrong90d: number;
   smallMove90d: number;
+  next30dMaturesAt: string | null;
   next90dMaturesAt: string | null;
   next180dMaturesAt: string | null;
 }
@@ -134,6 +164,7 @@ interface DailyOutcomePriceRow {
   cardId: string;
   referenceSource: string;
   observedAt: Date;
+  sourcePriceAt: Date | null;
   value: number;
 }
 
@@ -423,6 +454,7 @@ async function loadDailyPriceRowsForMaturedOutcomes(
         reference_source: true,
         reference_price: true,
         observed_at: true,
+        source_price_at: true,
       },
     });
     for (const row of rows) {
@@ -432,6 +464,7 @@ async function loadDailyPriceRowsForMaturedOutcomes(
         cardId: row.card_id,
         referenceSource: row.reference_source,
         observedAt: row.observed_at,
+        sourcePriceAt: row.source_price_at,
         value: row.reference_price,
       });
       rowsByPair.set(key, bucket);
@@ -499,6 +532,7 @@ export async function evaluatePendingExternalSignalOutcomes(
       )
       .map((row) => ({
         observedAt: row.observedAt,
+        sourcePriceAt: row.sourcePriceAt,
         value: row.value,
       }));
     const entryPrice =
@@ -614,7 +648,7 @@ async function loadCompletedCohortOutcomes(
       const rows = await db.externalSignalOutcome.findMany({
         where: {
           status: { in: ["complete", "insufficient"] },
-          horizon_days: { in: [90, 180] },
+          horizon_days: { in: [30, 90, 180] },
           entry_observation: {
             game,
             model_version: modelVersion,
@@ -677,7 +711,7 @@ function getNextMaturityDate(
     status: string;
     entry_observation: { observed_at: Date };
   }[],
-  horizonDays: 90 | 180
+  horizonDays: 30 | 90 | 180
 ): string | null {
   const oldestPending = rows
     .filter((row) => row.horizon_days === horizonDays && row.status === "pending")
@@ -703,7 +737,7 @@ async function loadForecastTrackingStatuses(
         }),
         db.externalSignalOutcome.findMany({
           where: {
-            horizon_days: { in: [90, 180] },
+            horizon_days: { in: [30, 90, 180] },
             entry_observation: {
               ...observationFilter,
               is_episode_entry: true,
@@ -718,13 +752,16 @@ async function loadForecastTrackingStatuses(
           },
         }),
       ]);
-      const count = (horizonDays: 90 | 180, status: string) =>
+      const count = (horizonDays: 30 | 90 | 180, status: string) =>
         outcomeRows.filter(
           (row) => row.horizon_days === horizonDays && row.status === status
         ).length;
       statuses.set(pairKey(game, modelVersion), {
         observations,
         independentPredictions,
+        pending30d: count(30, "pending"),
+        complete30d: count(30, "complete"),
+        insufficient30d: count(30, "insufficient"),
         pending90d: count(90, "pending"),
         complete90d: count(90, "complete"),
         insufficient90d: count(90, "insufficient"),
@@ -750,6 +787,7 @@ async function loadForecastTrackingStatuses(
             row.meaningful_move === false &&
             row.meaningful_direction_hit == null
         ).length,
+        next30dMaturesAt: getNextMaturityDate(outcomeRows, 30),
         next90dMaturesAt: getNextMaturityDate(outcomeRows, 90),
         next180dMaturesAt: getNextMaturityDate(outcomeRows, 180),
       });
@@ -849,6 +887,7 @@ function summarizeRows(
   return {
     ...summarizeForecastCohort({
       targetMultiplier: target.targetMultiplier,
+      horizonDays: target.horizonDays,
       hits,
       samples,
       uniqueCards,
@@ -951,17 +990,30 @@ export function selectForecastCohort(input: {
   });
   if (primary.status === "calibrated") return primary;
   const gate = FORECAST_PUBLISH_GATES.find(
-    (candidate) => candidate.targetMultiplier === input.target.targetMultiplier
+    (candidate) =>
+      candidate.targetMultiplier === input.target.targetMultiplier &&
+      candidate.horizonDays === input.target.horizonDays
   );
   if (!gate || primary.samples >= gate.minimumSamples) return primary;
-  const fallbackVersion = FORECAST_MODEL_VERSION_FALLBACKS[input.current.modelVersion];
-  if (!fallbackVersion) return primary;
-  const fallback = selectForecastCohortForVersion({
-    ...input,
-    modelVersion: fallbackVersion,
-  });
-  if (fallback.samples <= primary.samples) return primary;
-  return { ...fallback, usingPreviousModelCohort: true };
+
+  // Walk the whole predecessor chain: a version bump must never reset the
+  // learning loop to zero when an older cohort still has more evidence.
+  let best = primary;
+  let bestIsFallback = false;
+  for (const fallbackVersion of getForecastModelVersionChain(input.current.modelVersion)) {
+    const fallback = selectForecastCohortForVersion({
+      ...input,
+      modelVersion: fallbackVersion,
+    });
+    if (fallback.samples > best.samples) {
+      best = fallback;
+      bestIsFallback = true;
+    }
+    if (fallback.status === "calibrated" && fallback.samples > primary.samples) {
+      return { ...fallback, usingPreviousModelCohort: true };
+    }
+  }
+  return bestIsFallback ? { ...best, usingPreviousModelCohort: true } : best;
 }
 
 /**
@@ -983,12 +1035,12 @@ export async function getExternalForecastSummaries(
     ])
   );
   for (const pair of [...pairsByKey.values()]) {
-    const fallbackVersion = FORECAST_MODEL_VERSION_FALLBACKS[pair.modelVersion];
-    if (!fallbackVersion) continue;
-    pairsByKey.set(pairKey(pair.game, fallbackVersion), {
-      game: pair.game,
-      modelVersion: fallbackVersion,
-    });
+    for (const fallbackVersion of getForecastModelVersionChain(pair.modelVersion)) {
+      pairsByKey.set(pairKey(pair.game, fallbackVersion), {
+        game: pair.game,
+        modelVersion: fallbackVersion,
+      });
+    }
   }
   const cohortRowsByPair = await loadCompletedCohortOutcomes([...pairsByKey.values()]);
   const currentPairs = [

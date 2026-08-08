@@ -7,7 +7,7 @@ import { db } from "@/lib/db";
 // generous quiet window so a collector returning between two five-minute
 // ticks cannot race a synchronous SQLite scan that already started.
 const ACTIVE_USER_WINDOW_MS = 15 * 60_000;
-const MAX_BACKGROUND_LOAD_PER_CPU = 0.7;
+export const MAX_BACKGROUND_LOAD_PER_CPU = 0.7;
 
 export interface BackgroundLoadSnapshot {
   activeUsers: number;

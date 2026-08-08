@@ -47,10 +47,13 @@ import {
 import { maybeRunUpcomingGallerySourceJob } from "@/lib/sync/upcoming-gallery-source-job";
 import {
   getBackgroundLoadSnapshot,
+  MAX_BACKGROUND_LOAD_PER_CPU,
   type BackgroundLoadSnapshot,
 } from "@/lib/background-load-guard";
 
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
+// 02:00-05:59 UTC = 04:00-07:59 NL summer time: the app's quietest hours.
+const QUIET_TICK_UTC_HOURS = new Set([2, 3, 4, 5]);
 
 export interface SyncSchedulerTickResult {
   ok: true;
@@ -183,7 +186,17 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
   // Next.js process can block every page on the same event loop for seconds.
   // Defer the whole tick while someone is actively browsing (or the host is
   // already busy); the five-minute timer catches up as soon as the app is idle.
-  if (backgroundLoad.deferred) {
+  //
+  // Starvation guard: a collector who browses all day can defer every tick,
+  // which froze the Signal Radar for days. During the quiet night window an
+  // active user no longer defers the tick as long as actual system load is
+  // fine, so time-based jobs are guaranteed at least one daily run.
+  const quietWindowOverride =
+    backgroundLoad.deferred &&
+    backgroundLoad.activeUsers > 0 &&
+    backgroundLoad.loadPerCpu < MAX_BACKGROUND_LOAD_PER_CPU &&
+    QUIET_TICK_UTC_HOURS.has(checkedAt.getUTCHours());
+  if (backgroundLoad.deferred && !quietWindowOverride) {
     const result: DeferredSyncSchedulerTickResult = {
       ok: true,
       deferred: true,
@@ -195,15 +208,18 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
     await recordSchedulerTick(result);
     return result;
   }
+  // Past the guard the tick runs in full; during a quiet-window override the
+  // sub-jobs must not re-apply the stale deferred flag.
+  const effectiveDeferred = backgroundLoad.deferred && !quietWindowOverride;
   // Fire-and-forget: persist DustyCards market scores in small batches so
   // search can rank on real market interest.
-  maybeRunMarketScoreJob(checkedAt, { defer: backgroundLoad.deferred });
+  maybeRunMarketScoreJob(checkedAt, { defer: effectiveDeferred });
   // Complete release galleries use a zero-credit direct fetch first, then
   // Scrape.do, and finally their last successful stored snapshot. The job is
   // fire-and-forget so a slow publisher never delays the main scheduler tick.
   maybeRunUpcomingGallerySourceJob({
     now: checkedAt,
-    skip: scraperDisabled || backgroundLoad.deferred,
+    skip: scraperDisabled || effectiveDeferred,
   });
   // Reprint image comparison runs in its own quiet-window system service.
   // Starting synchronous image/database work inside the web process made a
@@ -294,7 +310,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
         };
   const currentCardPriceWorkPending = pricePendingCards > 0 || priceRefresh.running;
   const externalRadar = await maybeStartExternalSignalRadarJob({
-    skip: scraperDisabled || backgroundLoad.deferred,
+    skip: scraperDisabled || effectiveDeferred,
     now: checkedAt,
   });
   // Sealed prices refresh on their own daily cadence; card price work keeps

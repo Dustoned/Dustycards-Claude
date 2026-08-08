@@ -3,6 +3,12 @@ export type SignalOutcomeStatus = "pending" | "complete" | "insufficient";
 export interface SignalDailyPrice {
   observedAt: Date | string;
   value: number | null;
+  /**
+   * When the underlying quote was actually produced by the source. Scheduler
+   * carry-forward may re-record one quote for up to 72 hours; deduping on the
+   * source timestamp keeps a carried quote from counting as fresh evidence.
+   */
+  sourcePriceAt?: Date | string | null;
 }
 
 export interface EvaluatedSignalOutcome {
@@ -26,6 +32,8 @@ export interface WilsonInterval {
 
 export interface ForecastPublishGate {
   targetMultiplier: 1.5 | 2 | 3;
+  /** Gates are horizon-specific; the 30-day early target gates looser. */
+  horizonDays: 30 | 90 | 180;
   minimumSamples: number;
   minimumUniqueCards: number;
   minimumHits: number;
@@ -43,7 +51,19 @@ export interface ForecastCohortSummary {
 
 export const FORECAST_PUBLISH_GATES: readonly ForecastPublishGate[] = [
   {
+    // Early-warning target: matures six times faster than the 180-day
+    // targets, so it deliberately gates looser to give the learning loop its
+    // first calibration data within weeks instead of months.
     targetMultiplier: 1.5,
+    horizonDays: 30,
+    minimumSamples: 40,
+    minimumUniqueCards: 25,
+    minimumHits: 4,
+    maximumIntervalWidth: 0.22,
+  },
+  {
+    targetMultiplier: 1.5,
+    horizonDays: 90,
     minimumSamples: 50,
     minimumUniqueCards: 30,
     minimumHits: 5,
@@ -51,6 +71,7 @@ export const FORECAST_PUBLISH_GATES: readonly ForecastPublishGate[] = [
   },
   {
     targetMultiplier: 2,
+    horizonDays: 90,
     minimumSamples: 100,
     minimumUniqueCards: 60,
     minimumHits: 5,
@@ -58,6 +79,7 @@ export const FORECAST_PUBLISH_GATES: readonly ForecastPublishGate[] = [
   },
   {
     targetMultiplier: 3,
+    horizonDays: 180,
     minimumSamples: 200,
     minimumUniqueCards: 100,
     minimumHits: 5,
@@ -86,9 +108,18 @@ function isValidPrice(value: number | null): value is number {
   return value != null && Number.isFinite(value) && value > 0;
 }
 
+function toDate(value: Date | string | null | undefined): Date | null {
+  if (value == null) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
 /**
  * Collapses repeat refreshes to the last observation of each UTC day. That
  * keeps a busy refresh day from counting as many independent confirmations.
+ * Days are keyed on the source quote timestamp when available, so a quote
+ * that scheduler carry-forward re-recorded across several days collapses back
+ * to the single day the market actually produced it.
  */
 export function collapseSignalPricesByUtcDay(
   prices: readonly SignalDailyPrice[]
@@ -97,12 +128,13 @@ export function collapseSignalPricesByUtcDay(
 
   for (const item of prices) {
     if (!isValidPrice(item.value)) continue;
-    const observedAt = item.observedAt instanceof Date ? item.observedAt : new Date(item.observedAt);
-    if (!Number.isFinite(observedAt.getTime())) continue;
-    const key = toUtcDayKey(observedAt);
+    const observedAt = toDate(item.observedAt);
+    if (!observedAt) continue;
+    const effectiveAt = toDate(item.sourcePriceAt) ?? observedAt;
+    const key = toUtcDayKey(effectiveAt);
     const current = byDay.get(key);
-    if (!current || current.observedAt < observedAt) {
-      byDay.set(key, { observedAt, value: item.value });
+    if (!current || current.observedAt < effectiveAt) {
+      byDay.set(key, { observedAt: effectiveAt, value: item.value });
     }
   }
 
@@ -307,15 +339,23 @@ export function calculateWilsonInterval(
 
 export function summarizeForecastCohort(input: {
   targetMultiplier: 1.5 | 2 | 3;
+  horizonDays?: 30 | 90 | 180;
   hits: number;
   samples: number;
   uniqueCards: number;
   holdoutSamples?: number;
   holdoutCalibrationError?: number | null;
 }): ForecastCohortSummary {
-  const gate = FORECAST_PUBLISH_GATES.find(
+  const multiplierGates = FORECAST_PUBLISH_GATES.filter(
     (candidate) => candidate.targetMultiplier === input.targetMultiplier
   );
+  // Without an explicit horizon the strictest gate applies, matching the
+  // behaviour from before gates became horizon-specific.
+  const gate =
+    (input.horizonDays != null
+      ? multiplierGates.find((candidate) => candidate.horizonDays === input.horizonDays)
+      : null) ??
+    [...multiplierGates].sort((left, right) => right.minimumSamples - left.minimumSamples)[0];
   if (!gate) throw new RangeError("Unsupported forecast target multiplier.");
 
   const hits = Math.max(0, Math.floor(input.hits));

@@ -770,8 +770,26 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         : pull.psa_avg_gem_pct <= 1
           ? Number((pull.psa_avg_gem_pct * 100).toFixed(1))
           : Number(pull.psa_avg_gem_pct.toFixed(1));
-    const psa10 = chooseLatestGrade(card.ebaySoldGradedPrices, "10");
-    const psa9 = chooseLatestGrade(card.ebaySoldGradedPrices, "9");
+    let psa10 = chooseLatestGrade(card.ebaySoldGradedPrices, "10");
+    let psa9 = chooseLatestGrade(card.ebaySoldGradedPrices, "9");
+    // Sanity guard: a PSA 9 median above the PSA 10 median is an inverted
+    // grade ladder (tiny eBay samples produce these). The side with the
+    // smaller sample is treated as noise so it cannot poison the grade
+    // premium or the graded scenario.
+    if (
+      psa10 != null &&
+      psa9 != null &&
+      psa10.currency === psa9.currency &&
+      psa9.median_price > psa10.median_price
+    ) {
+      const psa10Sample = psa10.sample_size ?? 0;
+      const psa9Sample = psa9.sample_size ?? 0;
+      if (psa10Sample >= psa9Sample) {
+        psa9 = null;
+      } else {
+        psa10 = null;
+      }
+    }
     const cardMarketPsa10 = chooseCardMarketPsa10(card.gradedPrices);
     const gradedCurrent = psa10?.median_price ?? cardMarketPsa10?.price ?? null;
     const gradedCurrency = psa10 ? (psa10.currency === "EUR" ? "EUR" : "USD") : "EUR";

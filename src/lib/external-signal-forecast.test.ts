@@ -27,6 +27,44 @@ describe("external signal outcome evaluation", () => {
     ).toEqual([{ observedAt: day(start, 1, 18), value: 11 }]);
   });
 
+  it("collapses scheduler carry-forward copies back to their source day", () => {
+    const start = new Date("2026-01-01T00:00:00.000Z");
+    const sourceAt = day(start, 1, 9);
+    expect(
+      collapseSignalPricesByUtcDay([
+        { observedAt: day(start, 1, 12), sourcePriceAt: sourceAt, value: 25 },
+        { observedAt: day(start, 2, 12), sourcePriceAt: sourceAt, value: 25 },
+        { observedAt: day(start, 3, 12), sourcePriceAt: sourceAt, value: 25 },
+      ])
+    ).toEqual([{ observedAt: sourceAt, value: 25 }]);
+  });
+
+  it("does not count one carried quote as a sustained threshold hit", () => {
+    const entryAt = new Date("2026-01-01T00:00:00.000Z");
+    const spikeSourceAt = day(entryAt, 27, 9);
+    const prices = [
+      // 26 real daily quotes below the threshold keep coverage sufficient.
+      ...Array.from({ length: 26 }, (_, index) => ({
+        observedAt: day(entryAt, index + 1),
+        sourcePriceAt: day(entryAt, index + 1, 9),
+        value: 12,
+      })),
+      // One real 2x spike that the scheduler carried forward for two days.
+      { observedAt: day(entryAt, 27, 12), sourcePriceAt: spikeSourceAt, value: 21 },
+      { observedAt: day(entryAt, 28, 12), sourcePriceAt: spikeSourceAt, value: 21 },
+    ];
+    const outcome = evaluateSignalOutcome({
+      entryAt,
+      entryPrice: 10,
+      horizonDays: 30,
+      prices,
+      now: day(entryAt, 31),
+    });
+
+    expect(outcome.status).toBe("complete");
+    expect(outcome.hit2x).toBe(false);
+  });
+
   it("requires two threshold days and sufficient end coverage", () => {
     const entryAt = new Date("2026-01-01T00:00:00.000Z");
     const prices = Array.from({ length: 27 }, (_, index) => ({

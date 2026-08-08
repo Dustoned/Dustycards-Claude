@@ -37,7 +37,12 @@ const sharedChaseCache = createSwrCache<ExpansionChaseRadarData | null>(
   { maxEntries: 24 }
 );
 const CHASE_SNAPSHOT_BACKGROUND_REFRESH_MS = 10 * 60_000;
+// The signals snapshot previously had no age limit at all: with the radar job
+// deferred for days the feed kept serving frozen predictions. Re-enrich in
+// the background once the snapshot outlives the competitive refresh cadence.
+const SIGNALS_SNAPSHOT_BACKGROUND_REFRESH_MS = 6 * 60 * 60_000;
 const chaseBackgroundRefreshes = new Map<string, Promise<void>>();
+const signalBackgroundRefreshes = new Map<string, Promise<void>>();
 
 function chaseCacheKey(options: SharedSignalRadarFeedOptions): string {
   return `${options.gameFilter}:${options.episodeId ?? "latest"}`;
@@ -68,9 +73,38 @@ export function getSharedSignalRadarSignals(
 ): Promise<ExternalCardSignal[]> {
   return sharedSignalCache.get(gameFilter, async () => {
     const snapshot = await readSignalRadarSnapshot(gameFilter);
-    if (snapshot) return snapshot.data.signals;
+    if (snapshot) {
+      const writtenAt = new Date(snapshot.writtenAt).getTime();
+      if (
+        !Number.isFinite(writtenAt) ||
+        writtenAt <= Date.now() - SIGNALS_SNAPSHOT_BACKGROUND_REFRESH_MS
+      ) {
+        scheduleSignalsBackgroundRefresh(gameFilter);
+      }
+      return snapshot.data.signals;
+    }
     return computeAndPersistSignals(gameFilter);
   });
+}
+
+function scheduleSignalsBackgroundRefresh(gameFilter: TradingCardGameFilter): void {
+  if (signalBackgroundRefreshes.has(gameFilter)) return;
+  const refresh = new Promise<void>((resolve) => {
+    const timer = setTimeout(() => {
+      void computeAndPersistSignals(gameFilter)
+        .then(() => {
+          sharedSignalCache.delete(gameFilter);
+        })
+        .catch((error) => {
+          console.error("[signal-radar signals background refresh]", error);
+        })
+        .finally(resolve);
+    }, 1_000);
+    timer.unref?.();
+  }).finally(() => {
+    signalBackgroundRefreshes.delete(gameFilter);
+  });
+  signalBackgroundRefreshes.set(gameFilter, refresh);
 }
 
 export function getSharedSignalRadarChases(

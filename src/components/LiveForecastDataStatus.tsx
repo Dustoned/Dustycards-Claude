@@ -9,6 +9,7 @@ const TARGET_GATES: Array<{
   label: string;
   minimum: number;
 }> = [
+  { key: "1.5x-30d", label: "1.5x / 30d", minimum: 40 },
   { key: "1.5x-90d", label: "1.5x / 90d", minimum: 50 },
   { key: "2x-90d", label: "2x / 90d", minimum: 100 },
   { key: "3x-180d", label: "3x / 180d", minimum: 200 },
@@ -40,6 +41,7 @@ export default function LiveForecastDataStatus({
   const tracking = forecast?.tracking;
   if (!forecast || !tracking) return null;
 
+  const next30d = formatExpectedDate(tracking.next30dMaturesAt ?? null);
   const next90d = formatExpectedDate(tracking.next90dMaturesAt);
   const next180d = formatExpectedDate(tracking.next180dMaturesAt);
 
@@ -68,8 +70,9 @@ export default function LiveForecastDataStatus({
       </summary>
 
       <div className="border-t border-white/7 px-3 pb-3 pt-2.5">
-        <div className="grid grid-cols-2 gap-1.5">
+        <div className="grid grid-cols-2 gap-1.5 min-[420px]:grid-cols-3">
           {[
+            ["30-day horizon", `${tracking.pending30d ?? 0} active · ${tracking.complete30d ?? 0} ready`],
             ["90-day horizon", `${tracking.pending90d} active · ${tracking.complete90d} ready`],
             ["180-day horizon", `${tracking.pending180d} active · ${tracking.complete180d} ready`],
           ].map(([label, value]) => (
@@ -139,13 +142,17 @@ export default function LiveForecastDataStatus({
           })}
         </div>
 
-        {next90d || next180d ? (
+        {next30d || next90d || next180d ? (
           <div className="mt-2.5 flex items-start gap-2 rounded-lg border border-violet-300/10 bg-violet-400/[0.045] px-2.5 py-2 text-[9px] leading-4 text-white/42">
             <Clock3 className="mt-0.5 h-3 w-3 shrink-0 text-violet-200/54" />
             <span>
-              {next90d ? `Next 90-day result expected ${next90d}.` : ""}
-              {next90d && next180d ? " " : ""}
-              {next180d ? `Next 180-day result expected ${next180d}.` : ""}
+              {[
+                next30d ? `Next 30-day result expected ${next30d}.` : null,
+                next90d ? `Next 90-day result expected ${next90d}.` : null,
+                next180d ? `Next 180-day result expected ${next180d}.` : null,
+              ]
+                .filter(Boolean)
+                .join(" ")}
             </span>
           </div>
         ) : null}

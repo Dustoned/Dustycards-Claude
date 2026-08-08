@@ -20,6 +20,26 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.34",
+    releasedAt: "August 8, 2026",
+    title: "A Signal Radar that learns faster and honestly",
+    summary:
+      "The prediction audit's first fixes: a 30-day early target feeds the learning loop within weeks, cohorts survive model bumps, and carried quotes or inverted PSA samples can no longer fake results.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Faster, cleaner learning loop",
+        highlights: [
+          "A 1.5x / 30-day target is tracked alongside the 90- and 180-day targets.",
+          "Model-version bumps borrow the full predecessor chain instead of restarting at zero samples.",
+          "Carried-forward quotes collapse to their source day, keeping hits and coverage honest.",
+          "Inverted PSA 9/10 ladders from tiny samples are dropped before they reach the grade premium.",
+          "Night-window scheduling and a six-hour snapshot age limit keep the radar from freezing for days.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.33",
     releasedAt: "August 8, 2026",
     title: "Smarter trade matching",

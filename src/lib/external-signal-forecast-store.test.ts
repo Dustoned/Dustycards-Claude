@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+﻿import { describe, expect, it, vi } from "vitest";
 
 vi.mock("@/lib/db", () => ({ db: {} }));
 
@@ -6,6 +6,7 @@ import {
   EXTERNAL_FORECAST_TARGETS,
   FORECAST_MODEL_VERSION_FALLBACKS,
   dedupeCohortRowsByHorizon,
+  getForecastModelVersionChain,
   getSameSourceCardmarketValue,
   selectForecastCohort,
   type ForecastCohortOutcomeSample,
@@ -13,6 +14,9 @@ import {
 } from "@/lib/external-signal-forecast-store";
 
 const DAY_MS = 24 * 60 * 60_000;
+const target15x30 = EXTERNAL_FORECAST_TARGETS.find((target) => target.key === "1.5x-30d")!;
+const target15x90 = EXTERNAL_FORECAST_TARGETS.find((target) => target.key === "1.5x-90d")!;
+const target3x180 = EXTERNAL_FORECAST_TARGETS.find((target) => target.key === "3x-180d")!;
 
 function sample(input: {
   index: number;
@@ -101,7 +105,7 @@ describe("external signal forecast store helpers", () => {
     const summary = selectForecastCohort({
       current,
       rows,
-      target: EXTERNAL_FORECAST_TARGETS[0],
+      target: target15x90,
     });
 
     expect(summary.status).toBe("calibrated");
@@ -124,7 +128,7 @@ describe("external signal forecast store helpers", () => {
     const summary = selectForecastCohort({
       current,
       rows: unrelatedRows,
-      target: EXTERNAL_FORECAST_TARGETS[0],
+      target: target15x90,
     });
 
     expect(summary.status).toBe("learning");
@@ -150,7 +154,7 @@ describe("external signal forecast store helpers", () => {
     const summary = selectForecastCohort({
       current,
       rows,
-      target: EXTERNAL_FORECAST_TARGETS[0],
+      target: target15x90,
     });
 
     // The insufficient rows never enter the hit counts.
@@ -174,7 +178,7 @@ describe("external signal forecast store helpers", () => {
     const summary = selectForecastCohort({
       current,
       rows,
-      target: EXTERNAL_FORECAST_TARGETS[2],
+      target: target3x180,
     });
 
     expect(summary.meanAbsoluteErrorPct180).toBe(10);
@@ -210,7 +214,7 @@ describe("external signal forecast store helpers", () => {
     const summary = selectForecastCohort({
       current: v9Current,
       rows,
-      target: EXTERNAL_FORECAST_TARGETS[0],
+      target: target15x90,
     });
 
     expect(summary.usingPreviousModelCohort).toBe(true);
@@ -218,25 +222,58 @@ describe("external signal forecast store helpers", () => {
     expect(summary.samples).toBe(200);
   });
 
-  it("starts the consistent-price model on a clean cohort", () => {
-    expect(FORECAST_MODEL_VERSION_FALLBACKS["v10-consistent-live-prices"]).toBeUndefined();
+  it("walks the whole model fallback chain from v12 down to v8", () => {
+    expect(getForecastModelVersionChain("v12-hype-reset-calibrated")).toEqual([
+      "v11-hype-reset-support",
+      "v10-consistent-live-prices",
+      "v9-calibrated-inputs",
+      "v8-expanded-coverage",
+    ]);
+    expect(getForecastModelVersionChain("unknown-version")).toEqual([]);
+  });
+
+  it("borrows a calibrated ancestor cohort across multiple version bumps", () => {
     const rows = Array.from({ length: 200 }, (_, index) =>
       sample({
         index,
         modelVersion: "v9-calibrated-inputs",
-        hit: true,
+        hit: index % 5 === 0,
+      })
+    );
+
+    // v12 has zero samples of its own; the chain reaches v9 two hops away.
+    const summary = selectForecastCohort({
+      current: { ...current, modelVersion: "v12-hype-reset-calibrated" },
+      rows,
+      target: target15x90,
+    });
+
+    expect(summary.status).toBe("calibrated");
+    expect(summary.samples).toBe(200);
+    expect(summary.usingPreviousModelCohort).toBe(true);
+  });
+
+  it("gates the 30-day early target looser than the 90-day target", () => {
+    const rows = Array.from({ length: 45 }, (_, index) =>
+      sample({
+        index: index * 31,
+        cardId: `early-${index}`,
+        horizonDays: 30,
+        hit: index % 5 === 0,
       })
     );
 
     const summary = selectForecastCohort({
-      current: { ...current, modelVersion: "v10-consistent-live-prices" },
+      current,
       rows,
-      target: EXTERNAL_FORECAST_TARGETS[0],
+      target: target15x30,
     });
 
-    expect(summary.status).toBe("learning");
-    expect(summary.samples).toBe(0);
-    expect(summary.usingPreviousModelCohort).not.toBe(true);
+    expect(summary.horizonDays).toBe(30);
+    // 45 samples clear the 40-sample gate; the same count would still be
+    // "learning" for the 90-day target that needs 50.
+    expect(summary.samples).toBe(45);
+    expect(summary.reason).not.toContain("more completed comparable signals");
   });
 
   it("keeps the current cohort once it clears the minimum sample gate", () => {
@@ -259,7 +296,7 @@ describe("external signal forecast store helpers", () => {
     const summary = selectForecastCohort({
       current: { ...current, modelVersion: "v9-calibrated-inputs" },
       rows,
-      target: EXTERNAL_FORECAST_TARGETS[0],
+      target: target15x90,
     });
 
     expect(summary.usingPreviousModelCohort).toBeUndefined();
