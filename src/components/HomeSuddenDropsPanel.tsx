@@ -154,10 +154,12 @@ function LoadingRows() {
 function HomeSuddenDropLane({
   title,
   items,
+  total,
   viewAllHref,
 }: {
   title: string;
   items: HomeSuddenDropPreviewItem[];
+  total: number;
   viewAllHref: string;
 }) {
   return (
@@ -167,17 +169,57 @@ function HomeSuddenDropLane({
           {title}
         </p>
         <span className="text-[10.5px] font-semibold text-white/34">
-          {items.length.toLocaleString("en-US")}
+          {total.toLocaleString("en-US")}
         </span>
       </div>
       <div className="min-w-0">
-        {items.map((item) => (
-          <HomeSuddenDropRow
-            key={`${item.cardId}:${item.source}`}
-            item={item}
-            href={buildHighlightedHref(viewAllHref, item.cardId)}
-          />
-        ))}
+        {items.length > 0 ? (
+          items.map((item) => (
+            <HomeSuddenDropRow
+              key={`${item.cardId}:${item.source}`}
+              item={item}
+              href={buildHighlightedHref(viewAllHref, item.cardId)}
+            />
+          ))
+        ) : (
+          <p className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
+            No verified card drops in the last 24 hours.
+          </p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HomeSealedDropLane({
+  items,
+  total,
+  viewAllHref,
+}: {
+  items: HomeSuddenDropSealedPreviewItem[];
+  total: number;
+  viewAllHref: string;
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="mb-1.5 flex items-center justify-between gap-2">
+        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
+          Sealed drops
+        </p>
+        <span className="text-[10.5px] font-semibold text-white/34">
+          {total.toLocaleString("en-US")}
+        </span>
+      </div>
+      <div className="min-w-0">
+        {items.length > 0 ? (
+          items.map((item) => (
+            <HomeSealedDropRow key={item.productId} item={item} href={viewAllHref} />
+          ))
+        ) : (
+          <p className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
+            No verified sealed drops in the last 24 hours.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -243,11 +285,8 @@ export default function HomeSuddenDropsPanel({
   const currency = previewItems[0]?.currency ?? "EUR";
   const thresholdLabel = formatCurrency(data.threshold, currency);
   const hasItems = previewItems.length > 0 || sealedItems.length > 0;
-  const primaryDrops = previewItems.slice(0, HOME_SUDDEN_DROP_LANE_SIZE);
-  const secondaryDrops = previewItems.slice(
-    HOME_SUDDEN_DROP_LANE_SIZE,
-    HOME_SUDDEN_DROP_LANE_SIZE * 2
-  );
+  const cardDrops = previewItems.slice(0, HOME_SUDDEN_DROP_LANE_SIZE);
+  const sealedDrops = sealedItems.slice(0, HOME_SUDDEN_DROP_LANE_SIZE);
   const sealedViewAllHref = `${viewAllHref}${viewAllHref.includes("#") ? "" : "#sealed"}`;
   return (
     <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
@@ -281,46 +320,27 @@ export default function HomeSuddenDropsPanel({
 
       <div className="mt-3 min-w-0">
         {isLoading ? (
-          <LoadingRows />
+          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+            <LoadingRows />
+            <LoadingRows />
+          </div>
         ) : state.status === "error" ? (
           <div className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
             Could not load sudden price drops right now.
           </div>
         ) : hasItems ? (
-          <div className="min-w-0 space-y-3">
-            <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-              <HomeSuddenDropLane
-                title="Biggest drops"
-                items={primaryDrops}
-                viewAllHref={viewAllHref}
-              />
-              <HomeSuddenDropLane
-                title="More drops"
-                items={secondaryDrops}
-                viewAllHref={viewAllHref}
-              />
-            </div>
-            {sealedItems.length > 0 ? (
-              <div className="min-w-0">
-                <div className="mb-1.5 flex items-center justify-between gap-2">
-                  <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
-                    Sealed drops
-                  </p>
-                  <span className="text-[10.5px] font-semibold text-white/34">
-                    {(data.sealedTotal ?? sealedItems.length).toLocaleString("en-US")}
-                  </span>
-                </div>
-                <div className="grid min-w-0 gap-x-3 lg:grid-cols-2">
-                  {sealedItems.map((item) => (
-                    <HomeSealedDropRow
-                      key={item.productId}
-                      item={item}
-                      href={sealedViewAllHref}
-                    />
-                  ))}
-                </div>
-              </div>
-            ) : null}
+          <div className="grid min-w-0 gap-3 lg:grid-cols-2">
+            <HomeSuddenDropLane
+              title="Card drops"
+              items={cardDrops}
+              total={data.total}
+              viewAllHref={viewAllHref}
+            />
+            <HomeSealedDropLane
+              items={sealedDrops}
+              total={data.sealedTotal ?? sealedItems.length}
+              viewAllHref={sealedViewAllHref}
+            />
           </div>
         ) : (
           <div className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">

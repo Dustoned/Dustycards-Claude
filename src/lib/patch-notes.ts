@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.39",
+    releasedAt: "August 9, 2026",
+    title: "Cleaner Home drop lanes and widget headers",
+    summary:
+      "Sudden Price Drops now keeps cards and sealed products in their own full lanes, while Home widgets collapse directly from their existing header instead of showing a duplicate bar.",
+    tone: "improved",
+    highlights: [
+      "Card drops always use the left lane and sealed drops always use the right lane; mobile stacks the same two sections cleanly.",
+      "The sealed preview now loads up to six products so its lane is filled as fully as the card lane.",
+      "Expanded Home widgets use one small collapse control inside the real widget header; only a collapsed widget shows a compact standalone title row.",
+    ],
+  },
+  {
     version: "3.12.38",
     releasedAt: "August 8, 2026",
     title: "CM/TCP switches stay on their page",

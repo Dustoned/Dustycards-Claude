@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.39",
+    releasedAt: "August 9, 2026",
+    title: "Cleaner customizable Home widgets",
+    summary:
+      "Home widgets now collapse from their own header, and Sudden Price Drops gives cards and sealed products one dedicated lane each.",
+    tone: "improved",
+    sections: [
+      {
+        title: "One clean widget surface",
+        highlights: [
+          "The duplicate expanded collapse bar is gone; its control now sits inside the widget header.",
+          "Card drops fill the left side and sealed drops fill the right side with up to six rows each.",
+          "On mobile the two lanes stack without changing which products belong to each section.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.38",
     releasedAt: "August 8, 2026",
     title: "Page-local price-source controls",

@@ -4,7 +4,10 @@ import {
   getFastSealedSuddenDropsData,
   getFastSuddenDropsData,
 } from "@/lib/home-sudden-drops-server";
-import type { HomeSuddenDropsResponse } from "@/lib/home-sudden-drops";
+import {
+  HOME_SUDDEN_DROP_LANE_SIZE,
+  type HomeSuddenDropsResponse,
+} from "@/lib/home-sudden-drops";
 import type { TradingCardGameFilter } from "@/lib/games";
 import { getMarketDataFingerprint } from "@/lib/market-data-fingerprint";
 import type { PriceSource } from "@/lib/user-settings";
@@ -32,7 +35,7 @@ async function buildHomeSuddenDropsPayload(
 
   return {
     ...data.preview,
-    sealedItems: sealed.items.slice(0, 4).map((item) => ({
+    sealedItems: sealed.items.slice(0, HOME_SUDDEN_DROP_LANE_SIZE).map((item) => ({
       productId: item.productId,
       name: item.name,
       episodeId: item.episodeId,

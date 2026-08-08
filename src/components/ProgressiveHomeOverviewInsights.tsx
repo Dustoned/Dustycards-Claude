@@ -200,30 +200,38 @@ function CollapsibleHomeModule({
   label: string;
   onToggle: () => void;
 }) {
-  return (
-    <div>
+  if (collapsed) {
+    return (
       <button
         type="button"
         onClick={onToggle}
-        aria-expanded={!collapsed}
-        className={`flex min-h-10 w-full items-center justify-between gap-3 rounded-xl border px-3 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)] ${
-          collapsed
-            ? "binder-panel border-white/10 text-white/72"
-            : "mb-1.5 border-white/7 bg-white/[0.02] text-white/42 hover:border-white/12 hover:text-white/68"
-        }`}
+        aria-expanded={false}
+        className="binder-panel flex min-h-11 w-full items-center justify-between gap-3 rounded-[var(--ui-page-header-radius)] border border-white/10 px-3 text-left text-white/72 transition-colors hover:border-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)]"
       >
         <span className="truncate text-[11px] font-bold uppercase tracking-[0.11em]">
           {label}
         </span>
         <span className="inline-flex shrink-0 items-center gap-1.5 text-[10px] font-semibold">
-          {collapsed ? "Expand" : "Collapse"}
-          <ChevronDown
-            className={`h-3.5 w-3.5 transition-transform ${collapsed ? "" : "rotate-180"}`}
-            aria-hidden="true"
-          />
+          Expand
+          <ChevronDown className="h-3.5 w-3.5" aria-hidden="true" />
         </span>
       </button>
-      {collapsed ? null : children}
+    );
+  }
+
+  return (
+    <div className="relative [&>section>div:first-child]:pr-11">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={true}
+        aria-label={`Collapse ${label}`}
+        title={`Collapse ${label}`}
+        className="absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/25 text-white/48 shadow-sm backdrop-blur-md transition-colors hover:border-white/18 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)]"
+      >
+        <ChevronDown className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+      </button>
+      {children}
     </div>
   );
 }
