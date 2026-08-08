@@ -20,6 +20,32 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.31",
+    releasedAt: "August 8, 2026",
+    title: "Smarter trade matching",
+    summary:
+      "Friend trades sort around the matching trade value, and the compare tab can pick either side straight from your own collection, including graded slabs.",
+    tone: "new",
+    sections: [
+      {
+        title: "Value-matched friend trades",
+        highlights: [
+          "Selecting a card sorts the other collection by closest trade value first, using the saved 80-100% convention.",
+          "Works in both directions, with a banner showing the target value.",
+          "Wanted matches break ties; unpriced cards sink to the end.",
+        ],
+      },
+      {
+        title: "Compare from your own collection",
+        highlights: [
+          "Both compare sides offer a From my collection picker next to the full card search.",
+          "Graded copies are selectable as individual slabs at their graded market value.",
+          "With side A chosen, the collection picker pre-sorts around the matching trade value.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.29",
     releasedAt: "August 7, 2026",
     title: "Unambiguous Sold ledger",

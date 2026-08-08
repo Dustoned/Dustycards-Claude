@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.31",
+    releasedAt: "August 8, 2026",
+    title: "Compare trades straight from your own collection",
+    summary:
+      "The compare tab can now pick either trade side from your own collection, including graded slabs at their graded market value.",
+    tone: "new",
+    highlights: [
+      "Both trade sides offer a From my collection picker next to the full card search, with search and lazy loading.",
+      "Graded copies appear as individual slabs with their grading label and graded value instead of the raw card price.",
+      "With side A chosen, the collection picker pre-sorts around the matching trade value of your saved percentage.",
+    ],
+  },
+  {
     version: "3.12.30",
     releasedAt: "August 8, 2026",
     title: "Friend trades sort around matching value",

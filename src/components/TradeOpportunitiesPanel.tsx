@@ -7,6 +7,10 @@ import CachedImage from "@/components/CachedImage";
 import CardSearchPickerDialog, {
   type CardSearchPickerResult,
 } from "@/components/CardSearchPickerDialog";
+import {
+  modalBottomSheetOverlayClass,
+  modalBottomSheetPanelClass,
+} from "@/components/modal-glass-styles";
 import { formatCollectionCurrency } from "@/lib/collection";
 import type { TradingCardGameFilter } from "@/lib/games";
 import type {
@@ -16,7 +20,20 @@ import type {
 
 type PanelMode = "compare" | "friends";
 
-type ManualTradeCard = CardSearchPickerResult;
+type ManualTradeCard = CardSearchPickerResult & { gradedLabel?: string | null };
+
+interface TradeCollectionEntry {
+  key: string;
+  cardId: string;
+  name: string;
+  cardNumber: string | null;
+  episodeName: string;
+  episodeCode: string | null;
+  imageUrl: string | null;
+  value: number | null;
+  availableCopies: number;
+  gradedLabel: string | null;
+}
 
 const TRADE_VALUE_RATE_STORAGE_KEY = "dustycards.trade.value-rate.v1";
 const TRADE_VALUE_RATE_OPTIONS = [80, 85, 90, 95, 100] as const;
@@ -43,11 +60,13 @@ function ManualCardPicker({
   label,
   selected,
   onOpen,
+  onOpenCollection,
   onClear,
 }: {
   label: string;
   selected: ManualTradeCard | null;
   onOpen: () => void;
+  onOpenCollection: () => void;
   onClear: () => void;
 }) {
   return (
@@ -67,6 +86,13 @@ function ManualCardPicker({
               className="inline-flex h-7 items-center gap-1 rounded-lg border border-violet-300/14 bg-violet-500/[0.06] px-2 text-[9px] font-bold text-violet-100/62 hover:bg-violet-500/[0.11] hover:text-white"
             >
               <Search className="h-3 w-3" /> Change
+            </button>
+            <button
+              type="button"
+              onClick={onOpenCollection}
+              className="inline-flex h-7 items-center gap-1 rounded-lg border border-violet-300/14 bg-violet-500/[0.06] px-2 text-[9px] font-bold text-violet-100/62 hover:bg-violet-500/[0.11] hover:text-white"
+            >
+              <UsersRound className="h-3 w-3" /> Mine
             </button>
             <button
               type="button"
@@ -101,6 +127,11 @@ function ManualCardPicker({
               {selected.episode_code ? ` · ${selected.episode_code}` : ""}
               {selected.card_number ? ` · #${selected.card_number}` : ""}
             </small>
+            {selected.gradedLabel ? (
+              <small className="mt-1 inline-block rounded-md border border-amber-300/22 bg-amber-500/[0.09] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.06em] text-amber-100/82">
+                {selected.gradedLabel}
+              </small>
+            ) : null}
             <span className="mt-2 block text-lg font-black tabular-nums text-white">
               {selected.cm_en_lowest_nm == null
                 ? "No EU price"
@@ -109,22 +140,191 @@ function ManualCardPicker({
           </span>
         </div>
       ) : (
-        <button
-          type="button"
-          onClick={onOpen}
-          className="group flex min-h-24 w-full items-center gap-3 rounded-xl border border-dashed border-white/9 bg-white/[0.018] p-3 text-left transition-colors hover:border-violet-300/20 hover:bg-violet-500/[0.045]"
-        >
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/14 bg-violet-500/[0.08] text-violet-100/52 transition-colors group-hover:text-violet-100">
-            <Search className="h-4 w-4" />
-          </span>
-          <span className="min-w-0">
-            <strong className="block text-xs font-black text-white/68">Choose a card</strong>
-            <small className="mt-1 block text-[9px] leading-snug text-white/30">
-              Open the full card search with clear images, sets and EU prices.
-            </small>
-          </span>
-        </button>
+        <div className="grid gap-1.5">
+          <button
+            type="button"
+            onClick={onOpen}
+            className="group flex min-h-16 w-full items-center gap-3 rounded-xl border border-dashed border-white/9 bg-white/[0.018] p-3 text-left transition-colors hover:border-violet-300/20 hover:bg-violet-500/[0.045]"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/14 bg-violet-500/[0.08] text-violet-100/52 transition-colors group-hover:text-violet-100">
+              <Search className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <strong className="block text-xs font-black text-white/68">Search all cards</strong>
+              <small className="mt-1 block text-[9px] leading-snug text-white/30">
+                Open the full card search with clear images, sets and EU prices.
+              </small>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={onOpenCollection}
+            className="group flex min-h-16 w-full items-center gap-3 rounded-xl border border-dashed border-white/9 bg-white/[0.018] p-3 text-left transition-colors hover:border-violet-300/20 hover:bg-violet-500/[0.045]"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-violet-300/14 bg-violet-500/[0.08] text-violet-100/52 transition-colors group-hover:text-violet-100">
+              <UsersRound className="h-4 w-4" />
+            </span>
+            <span className="min-w-0">
+              <strong className="block text-xs font-black text-white/68">From my collection</strong>
+              <small className="mt-1 block text-[9px] leading-snug text-white/30">
+                Pick an owned card, including graded slabs at their graded value.
+              </small>
+            </span>
+          </button>
+        </div>
       )}
+    </div>
+  );
+}
+
+function CollectionTradePickerDialog({
+  label,
+  game,
+  suggestedValue,
+  onClose,
+  onSelect,
+}: {
+  label: string;
+  game: TradingCardGameFilter;
+  suggestedValue: number | null;
+  onClose: () => void;
+  onSelect: (entry: TradeCollectionEntry) => void;
+}) {
+  const [entries, setEntries] = useState<TradeCollectionEntry[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [query, setQuery] = useState("");
+  const [visibleLimit, setVisibleLimit] = useState(TRADE_COLLECTION_BATCH_SIZE);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = game === "all" ? "" : `?game=${encodeURIComponent(game)}`;
+    void fetch(`/api/social/trade-collection${params}`, { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("failed");
+        const payload = (await response.json()) as { entries?: TradeCollectionEntry[] };
+        return Array.isArray(payload.entries) ? payload.entries : [];
+      })
+      .then((nextEntries) => {
+        if (!controller.signal.aborted) setEntries(nextEntries);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFailed(true);
+      });
+    return () => controller.abort();
+  }, [game]);
+
+  const visibleEntries = useMemo(() => {
+    if (!entries) return [];
+    const normalized = query.trim().toLocaleLowerCase();
+    const filtered = normalized
+      ? entries.filter((entry) =>
+          [entry.name, entry.episodeName, entry.cardNumber, entry.gradedLabel]
+            .filter(Boolean)
+            .some((value) => value!.toLocaleLowerCase().includes(normalized))
+        )
+      : entries;
+    if (suggestedValue == null) return filtered;
+    // With the other side already chosen, closest trade value first.
+    return [...filtered].sort((left, right) => {
+      const leftDistance = left.value == null ? Number.POSITIVE_INFINITY : Math.abs(left.value - suggestedValue);
+      const rightDistance = right.value == null ? Number.POSITIVE_INFINITY : Math.abs(right.value - suggestedValue);
+      return leftDistance - rightDistance || (right.value ?? -1) - (left.value ?? -1);
+    });
+  }, [entries, query, suggestedValue]);
+  const renderedEntries = visibleEntries.slice(0, visibleLimit);
+
+  return (
+    <div
+      className={`${modalBottomSheetOverlayClass} z-[260] sm:p-5`}
+      role="dialog"
+      aria-modal="true"
+      aria-label={`${label}: pick from your collection`}
+      onMouseDown={(event) => {
+        if (event.currentTarget === event.target) onClose();
+      }}
+    >
+      <div className={`${modalBottomSheetPanelClass} max-w-2xl`}>
+        <div className="flex items-center justify-between gap-2 border-b border-white/8 px-3.5 py-3">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.11em] text-white/40">{label}</p>
+            <p className="mt-0.5 text-xs font-bold text-white/74">
+              From my collection
+              {suggestedValue != null ? ` · best match around ${formatCollectionCurrency(suggestedValue)}` : ""}
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/8 text-white/40 hover:bg-white/[0.06] hover:text-white"
+            aria-label="Close collection picker"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        </div>
+        <label className="mx-3.5 mt-3 flex h-9 items-center gap-2 rounded-xl border border-white/8 bg-white/[0.025] px-2.5 focus-within:border-violet-300/24">
+          <Search className="h-3.5 w-3.5 shrink-0 text-white/30" />
+          <input
+            value={query}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              setVisibleLimit(TRADE_COLLECTION_BATCH_SIZE);
+            }}
+            placeholder="Search your collection..."
+            autoFocus
+            className="min-w-0 flex-1 bg-transparent text-[12px] font-semibold text-white/72 outline-none placeholder:text-white/25"
+          />
+        </label>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-3.5">
+          {failed ? (
+            <p className="rounded-xl border border-dashed border-white/8 px-3 py-6 text-center text-[11px] text-white/36">Your collection could not be loaded. Close and try again.</p>
+          ) : entries == null ? (
+            <p className="rounded-xl border border-dashed border-white/8 px-3 py-6 text-center text-[11px] text-white/36">Loading your collection...</p>
+          ) : renderedEntries.length === 0 ? (
+            <p className="rounded-xl border border-dashed border-white/8 px-3 py-6 text-center text-[11px] text-white/36">No owned cards match this search.</p>
+          ) : (
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+              {renderedEntries.map((entry) => (
+                <button
+                  key={entry.key}
+                  type="button"
+                  onClick={() => onSelect(entry)}
+                  className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-white/6 bg-white/[0.025] p-1.5 text-left transition-colors hover:border-violet-300/24 hover:bg-violet-500/[0.07]"
+                >
+                  <span className="relative aspect-[63/88] w-full shrink-0 overflow-hidden rounded-lg bg-black/20">
+                    {entry.imageUrl ? <CachedImage sourceUrl={entry.imageUrl} alt="" fill sizes="(max-width: 640px) 42vw, 220px" className="object-contain" unoptimized /> : null}
+                  </span>
+                  <span className="flex w-full min-w-0 items-start justify-between gap-2 px-0.5 pb-0.5 pt-1.5">
+                    <span className="min-w-0 flex-1">
+                      <strong className="block truncate text-[11px] text-white/82">{entry.name}</strong>
+                      <small className="block truncate text-[9px] text-white/38">
+                        {entry.episodeName} {entry.cardNumber ? `#${entry.cardNumber}` : ""}
+                      </small>
+                      {entry.gradedLabel ? (
+                        <small className="mt-1 inline-block rounded border border-amber-300/22 bg-amber-500/[0.09] px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] text-amber-100/82">
+                          {entry.gradedLabel}
+                        </small>
+                      ) : null}
+                    </span>
+                    <span className="shrink-0 text-right text-[10px] font-black tabular-nums text-white/64">
+                      {entry.value == null ? "--" : formatCollectionCurrency(entry.value)}
+                      {entry.availableCopies > 1 ? <small className="block text-[8px] text-white/34">x{entry.availableCopies}</small> : null}
+                    </span>
+                  </span>
+                </button>
+              ))}
+              {renderedEntries.length < visibleEntries.length ? (
+                <button
+                  type="button"
+                  onClick={() => setVisibleLimit((current) => current + TRADE_COLLECTION_BATCH_SIZE)}
+                  className="col-span-full rounded-xl border border-white/8 bg-white/[0.025] px-3 py-3 text-[10px] font-black text-white/52 transition-colors hover:border-violet-300/18 hover:bg-violet-500/[0.06] hover:text-white/78"
+                >
+                  Show {Math.min(TRADE_COLLECTION_BATCH_SIZE, visibleEntries.length - renderedEntries.length)} more
+                </button>
+              ) : null}
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
@@ -133,6 +333,7 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
   const [left, setLeft] = useState<ManualTradeCard | null>(null);
   const [right, setRight] = useState<ManualTradeCard | null>(null);
   const [pickerSide, setPickerSide] = useState<"left" | "right" | null>(null);
+  const [collectionPickerSide, setCollectionPickerSide] = useState<"left" | "right" | null>(null);
   const [tradeValueRate, setTradeValueRate] = useState(DEFAULT_TRADE_VALUE_RATE);
 
   useEffect(() => {
@@ -217,6 +418,7 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
           label="Trade side A"
           selected={left}
           onOpen={() => setPickerSide("left")}
+          onOpenCollection={() => setCollectionPickerSide("left")}
           onClear={() => setLeft(null)}
         />
         <button
@@ -234,6 +436,7 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
           label="Trade side B"
           selected={right}
           onOpen={() => setPickerSide("right")}
+          onOpenCollection={() => setCollectionPickerSide("right")}
           onClear={() => setRight(null)}
         />
       </div>
@@ -300,6 +503,37 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
             }
             setRight(card);
             setPickerSide(null);
+          }}
+        />
+      ) : null}
+
+      {collectionPickerSide ? (
+        <CollectionTradePickerDialog
+          key={collectionPickerSide}
+          label={collectionPickerSide === "left" ? "Trade side A" : "Trade side B"}
+          game={game}
+          suggestedValue={collectionPickerSide === "right" ? leftTradeTarget : null}
+          onClose={() => setCollectionPickerSide(null)}
+          onSelect={(entry) => {
+            const card: ManualTradeCard = {
+              id: entry.cardId,
+              name: entry.name,
+              card_number: entry.cardNumber,
+              image_url: entry.imageUrl,
+              episode_name: entry.episodeName,
+              episode_code: entry.episodeCode,
+              cm_en_lowest_nm: entry.value,
+              gradedLabel: entry.gradedLabel,
+            };
+            if (collectionPickerSide === "left") {
+              setLeft(card);
+              setRight(null);
+              setCollectionPickerSide(null);
+              setPickerSide("right");
+              return;
+            }
+            setRight(card);
+            setCollectionPickerSide(null);
           }}
         />
       ) : null}
