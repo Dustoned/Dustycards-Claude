@@ -675,13 +675,11 @@ function buildReasons(evidence: ExternalSignalEvidence[]): string[] {
 }
 
 function isActionableCollectorSignal(signal: ExternalCardSignal): boolean {
-  if (signal.currentPrice == null) return false;
-  if (signal.currentPrice >= 0.5) return true;
-
-  const premiumIdentity = `${signal.name} ${signal.rarity ?? ""}`;
-  return /\b(ex|vmax|vstar|gx)\b|ace spec|double rare|ultra rare|secret rare|illustration rare|special art|leader|super rare|promo/i.test(
-    premiumIdentity
-  );
+  // The forecast model refuses reference prices below EUR 1 ("Below EUR 1
+  // model floor"), so a cheaper card can never be tracked or predicted. The
+  // old premium-name exemption let cent-priced "ex"/"GX" commons through as
+  // pure noise; a known price below the model floor is now always dropped.
+  return signal.currentPrice != null && signal.currentPrice >= 1;
 }
 
 export function capCompetitiveSignalsPerGame<

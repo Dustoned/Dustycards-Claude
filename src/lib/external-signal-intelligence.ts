@@ -1035,6 +1035,10 @@ export async function enrichExternalSignalRadarData(
     })
     .filter(
       (signal) => {
+        // Cards priced below the EUR 1 forecast floor can never be tracked
+        // or predicted; they are noise on the radar regardless of how they
+        // entered (competitive, event or structural).
+        if (signal.currentPrice != null && signal.currentPrice < 1) return false;
         const eventLinked =
           (signal.sourceMode === "event" || signal.sourceMode === "hybrid") &&
           (signal.catalysts?.length ?? 0) > 0;

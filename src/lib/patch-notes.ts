@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.36",
+    releasedAt: "August 8, 2026",
+    title: "No more cent-priced cards on the Signal Radar",
+    summary:
+      "Cards priced below the EUR 1 forecast floor no longer appear on the radar: they could never be tracked or predicted, so they were pure noise.",
+    tone: "fixed",
+    highlights: [
+      "The premium-name exemption that let cent-priced \"ex\"/\"GX\" commons through is gone; a known price below EUR 1 is always dropped.",
+      "The same floor applies to every entry path - competitive, event-linked and structural signals alike.",
+    ],
+  },
+  {
     version: "3.12.35",
     releasedAt: "August 8, 2026",
     title: "Signal Radar learning loop unfrozen and honest",

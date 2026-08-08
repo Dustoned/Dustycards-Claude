@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.35",
+    version: "3.12.36",
     releasedAt: "August 8, 2026",
     title: "A Signal Radar that learns faster and honestly",
     summary:
@@ -35,6 +35,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Carried-forward quotes collapse to their source day, keeping hits and coverage honest.",
           "Inverted PSA 9/10 ladders from tiny samples are dropped before they reach the grade premium.",
           "Night-window scheduling and a six-hour snapshot age limit keep the radar from freezing for days.",
+          "Cards priced below the EUR 1 forecast floor no longer appear on the radar at all.",
         ],
       },
     ],
