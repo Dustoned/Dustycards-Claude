@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.31",
+    version: "3.12.32",
     releasedAt: "August 8, 2026",
     title: "Smarter trade matching",
     summary:
@@ -41,6 +41,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Both compare sides offer a From my collection picker next to the full card search.",
           "Graded copies are selectable as individual slabs at their graded market value.",
           "With side A chosen, the collection picker pre-sorts around the matching trade value.",
+          "Price lookups run in chunks so collections with thousands of cards load reliably.",
         ],
       },
     ],

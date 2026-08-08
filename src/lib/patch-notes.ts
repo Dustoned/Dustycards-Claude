@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.32",
+    releasedAt: "August 8, 2026",
+    title: "Collection trade picker works on large collections",
+    summary:
+      "The From my collection picker now loads: its price lookups run in chunks instead of one query that exceeded the SQLite parameter limit on collections with over a thousand cards.",
+    tone: "fixed",
+    highlights: [
+      "Latest usable prices, graded quotes and eBay sold data are fetched in batches of 400 cards.",
+      "Graded market data is only loaded for cards that actually have graded copies.",
+    ],
+  },
+  {
     version: "3.12.31",
     releasedAt: "August 8, 2026",
     title: "Compare trades straight from your own collection",
