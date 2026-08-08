@@ -40,7 +40,6 @@ import {
 } from "@/lib/games";
 import { requirePageUser } from "@/lib/page-auth";
 import { FAST_SUDDEN_DROP_MIN_AMOUNT } from "@/lib/home-sudden-drops-server";
-import { getCachedImageUrl } from "@/lib/image-cache";
 import CollectionValueHistoryPanel from "@/components/CollectionValueHistoryPanel";
 import EmptyState from "@/components/EmptyState";
 import HomePageLoading from "@/components/HomePageLoading";
@@ -162,67 +161,9 @@ function TopSetsProgressPanel({
         </Link>
       </div>
 
-      <div className="grid gap-2">
-        {rankedBinders.map((binder) => {
-          const completion = binder.completionPct == null
-            ? 0
-            : Math.min(100, Math.max(0, binder.completionPct));
-          const total = binder.totalCards ?? 0;
-          const accent = binder.accent_color ?? "var(--dc-primary)";
-          const logoUrl = binder.episode?.logo_url ?? null;
-          return (
-            <Link
-              key={binder.id}
-              href={`/binders/${binder.id}`}
-              prefetch={false}
-              className="group flex min-w-0 items-center gap-2.5"
-            >
-              <span
-                className="flex h-6 w-6 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.05]"
-                style={{
-                  borderColor: binder.accent_color
-                    ? `${binder.accent_color}55`
-                    : "rgb(var(--dc-primary-rgb) / 0.33)",
-                }}
-              >
-                {logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={getCachedImageUrl(logoUrl) ?? logoUrl}
-                    alt={binder.name}
-                    loading="lazy"
-                    decoding="async"
-                    fetchPriority="low"
-                    className="h-full w-full object-contain"
-                  />
-                ) : (
-                  <span className="text-[9px] font-black text-white/62">
-                    {binder.name.slice(0, 2).toUpperCase()}
-                  </span>
-                )}
-              </span>
-              <span className="min-w-0 flex-1 truncate text-[12px] font-semibold text-white/82 group-hover:text-white">
-                {binder.name}
-              </span>
-              <div className="hidden h-1.5 w-32 overflow-hidden rounded-full bg-white/8 sm:block">
-                <div
-                  className="h-full rounded-full"
-                  style={{
-                    width: `${completion}%`,
-                    background: `linear-gradient(90deg, ${accent}, var(--dc-primary-soft))`,
-                  }}
-                />
-              </div>
-              <span className="shrink-0 text-[11px] font-black tabular-nums text-white">
-                {completion.toFixed(0)}%
-              </span>
-              <span className="hidden shrink-0 text-[11px] font-semibold tabular-nums text-white/42 min-[480px]:inline">
-                {binder.ownedCards.toLocaleString("en-US")} / {total.toLocaleString("en-US")}
-              </span>
-            </Link>
-          );
-        })}
-      </div>
+      {/* Same tile presentation as the Binders overview, so set progress
+          reads identically everywhere in the app. */}
+      <BinderOverviewGrid binders={rankedBinders} />
     </section>
   );
 }

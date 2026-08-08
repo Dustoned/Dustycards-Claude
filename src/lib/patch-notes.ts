@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.33",
+    releasedAt: "August 8, 2026",
+    title: "Top Sets Progress uses the binder tiles",
+    summary:
+      "The home Top Sets Progress widget now renders the same rich tiles as the Binders overview instead of thin rows.",
+    tone: "improved",
+    highlights: [
+      "Each top set shows its logo, completion, missing count, value and recent change exactly like the Binders tab.",
+      "Tiles follow the account card-size setting and link straight to the binder.",
+    ],
+  },
+  {
     version: "3.12.32",
     releasedAt: "August 8, 2026",
     title: "Collection trade picker works on large collections",
