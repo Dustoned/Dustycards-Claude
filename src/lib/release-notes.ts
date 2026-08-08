@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.34",
+    version: "3.12.35",
     releasedAt: "August 8, 2026",
     title: "A Signal Radar that learns faster and honestly",
     summary:
@@ -35,6 +35,31 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Carried-forward quotes collapse to their source day, keeping hits and coverage honest.",
           "Inverted PSA 9/10 ladders from tiny samples are dropped before they reach the grade premium.",
           "Night-window scheduling and a six-hour snapshot age limit keep the radar from freezing for days.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "3.12.34",
+    releasedAt: "August 8, 2026",
+    title: "Consistent trade and market pricing",
+    summary:
+      "Trade targets are adjustable inside the picker, and CardMarket/TCGPlayer now consistently control the displayed prices and history currency.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Adjustable trade target",
+        highlights: [
+          "Choose 80%, 85%, 90%, 95% or 100% at the top of either card-search side.",
+          "Changing the percentage refreshes the value matches and preserves already selected cards.",
+        ],
+      },
+      {
+        title: "TCGPlayer USD with EUR reference",
+        highlights: [
+          "Collection cards, sorting, value history and card-detail charts follow the selected source.",
+          "TCGPlayer stays in USD and shows the converted EUR value alongside it as a reference.",
+          "Missing TCGPlayer prices no longer display an unrelated CardMarket euro value.",
         ],
       },
     ],

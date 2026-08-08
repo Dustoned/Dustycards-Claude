@@ -28,6 +28,9 @@ export interface CollectionCardViewItem {
   episode_release_date?: string | null;
   cm_value?: number | null;
   tcp_value?: number | null;
+  tcp_value_eur?: number | null;
+  exchange_rate_usd_eur?: number | null;
+  exchange_rate_date?: string | null;
   current_value: number | null;
   current_value_label?: string | null;
   signal_score?: number | null;

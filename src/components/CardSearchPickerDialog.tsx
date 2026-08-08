@@ -28,6 +28,30 @@ export type CardSearchPickerResult = {
 
 type SortMode = "relevance" | "price_asc" | "price_desc" | "newest" | "oldest";
 
+export type TradeSuggestionDirection = "multiply" | "divide";
+
+export function getTradeSuggestionTarget(
+  oppositeSideValue: number | null | undefined,
+  percentage: number,
+  direction: TradeSuggestionDirection
+): number | null {
+  if (
+    oppositeSideValue == null ||
+    !Number.isFinite(oppositeSideValue) ||
+    oppositeSideValue <= 0 ||
+    !Number.isFinite(percentage) ||
+    percentage <= 0
+  ) {
+    return null;
+  }
+
+  const target = direction === "multiply"
+    ? (oppositeSideValue * percentage) / 100
+    : (oppositeSideValue * 100) / percentage;
+
+  return Number(target.toFixed(2));
+}
+
 const SORT_OPTIONS: Array<{ value: SortMode; label: string }> = [
   { value: "relevance", label: "Best match" },
   { value: "price_asc", label: "Lowest price" },
@@ -64,6 +88,9 @@ export default function CardSearchPickerDialog({
   excludedCardId,
   suggestedValue,
   suggestedPercentage = 100,
+  suggestionDirection = "multiply",
+  percentageOptions = [],
+  onSuggestedPercentageChange,
   onClose,
   onSelect,
 }: {
@@ -73,6 +100,9 @@ export default function CardSearchPickerDialog({
   excludedCardId?: string | null;
   suggestedValue?: number | null;
   suggestedPercentage?: number;
+  suggestionDirection?: TradeSuggestionDirection;
+  percentageOptions?: readonly number[];
+  onSuggestedPercentageChange?: (percentage: number) => void;
   onClose: () => void;
   onSelect: (card: CardSearchPickerResult) => void;
 }) {
@@ -86,10 +116,11 @@ export default function CardSearchPickerDialog({
   const [sortMode, setSortMode] = useState<SortMode>("relevance");
   const [releaseYear, setReleaseYear] = useState("all");
   const trimmedQuery = query.trim();
-  const suggestionTarget =
-    suggestedValue != null && Number.isFinite(suggestedValue) && suggestedValue > 0
-      ? Number(((suggestedValue * suggestedPercentage) / 100).toFixed(2))
-      : null;
+  const suggestionTarget = getTradeSuggestionTarget(
+    suggestedValue,
+    suggestedPercentage,
+    suggestionDirection
+  );
   const isValueSuggestionMode = !trimmedQuery && suggestionTarget != null;
 
   useEffect(() => {
@@ -206,7 +237,7 @@ export default function CardSearchPickerDialog({
         className={`${modalBottomSheetPanelClass} max-w-5xl`}
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-white/9 px-4 py-3.5 sm:px-6 sm:py-5">
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[9px] font-black uppercase tracking-[0.14em] text-violet-200/55">
                 Trade card search
@@ -223,6 +254,45 @@ export default function CardSearchPickerDialog({
                 ? "Same matching as normal Search, including set codes, card numbers and typo correction."
                 : `Cards closest to ${formatCollectionCurrency(suggestionTarget)} are ready below. You can still search manually.`}
             </p>
+            {percentageOptions.length > 0 && onSuggestedPercentageChange ? (
+              <div className="mt-3 rounded-2xl border border-violet-300/14 bg-violet-500/[0.055] p-2.5 sm:flex sm:items-center sm:justify-between sm:gap-4 sm:p-3">
+                <div className="min-w-0">
+                  <p className="text-[9px] font-black uppercase tracking-[0.12em] text-violet-100/58">
+                    Trade percentage
+                  </p>
+                  <p className="mt-0.5 text-[9px] text-white/34 sm:text-[10px]">
+                    {suggestionTarget == null
+                      ? `${suggestedPercentage}% will be used as soon as the other side has a priced card.`
+                      : suggestionDirection === "multiply"
+                        ? `Side B target: ${formatCollectionCurrency(suggestionTarget)} (${suggestedPercentage}% of Side A).`
+                        : `Side A target: ${formatCollectionCurrency(suggestionTarget)} (so Side B is ${suggestedPercentage}% of Side A).`}
+                  </p>
+                </div>
+                <div
+                  className="mt-2 grid grid-cols-5 gap-1 sm:mt-0 sm:flex sm:shrink-0"
+                  aria-label={`Trade value percentage for ${label}`}
+                >
+                  {percentageOptions.map((percentage) => {
+                    const active = percentage === suggestedPercentage;
+                    return (
+                      <button
+                        key={percentage}
+                        type="button"
+                        aria-pressed={active}
+                        onClick={() => onSuggestedPercentageChange(percentage)}
+                        className={`min-h-9 rounded-xl border px-2 text-[10px] font-black tabular-nums transition-colors ${
+                          active
+                            ? "border-violet-300/38 bg-violet-500/[0.2] text-violet-50 shadow-sm shadow-violet-500/15"
+                            : "border-white/9 bg-white/[0.03] text-white/44 hover:border-violet-300/22 hover:text-white/76"
+                        }`}
+                      >
+                        {percentage}%
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : null}
           </div>
           <button type="button" onClick={onClose} className={modalCloseButtonClass} aria-label="Close card search">
             <X className="h-4 w-4" />

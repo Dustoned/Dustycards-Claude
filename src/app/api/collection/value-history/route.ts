@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
       onePieceEnabled: settings.onePieceLibraryEnabled,
     });
     const historyRange = request.nextUrl.searchParams.get("range") === "all" ? "all" : "year";
+    const source = request.nextUrl.searchParams.get("source") === "tcp" ? "tcp" : "cm";
     const data = await getCachedCollectionOverviewData({
       userId: user.id,
       activeTab: "overview",
@@ -25,7 +26,11 @@ export async function GET(request: NextRequest) {
 
     return compressedJsonResponse(
       request,
-      { range: historyRange, points: data.overview.chart },
+      {
+        range: historyRange,
+        source,
+        points: source === "tcp" ? data.overview.tcpChart : data.overview.chart,
+      },
       {
         headers: {
           "Cache-Control": "private, max-age=300, stale-while-revalidate=86400",

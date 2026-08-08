@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma";
 import type { CollectionCardViewItem, CollectionSealedViewItem } from "@/types/collection-view";
 import {
   buildOwnedCardValueHistory,
+  buildOwnedTcpCardValueHistory,
   buildOwnedGradedCardValueHistory,
   buildOwnedSealedValueHistory,
   buildLinkedBinderCostBasis,
@@ -17,7 +18,7 @@ import {
   sumCollectionPurchasePrices,
 } from "@/lib/collection";
 import { getEpisodeDisplayCardCount } from "@/lib/episodes";
-import { getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
+import { convertUsdToEur, getUsdToEurRate, type CurrencyExchangeRate } from "@/lib/exchange-rates";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
 import { parseBgsSubgrades } from "@/lib/graded-slabs";
 import {
@@ -109,6 +110,11 @@ export interface CollectionOverviewData {
     totalSealedUnits: number;
     totalBinders: number;
     chart: Array<{ date: string; label: string; value: number | null }>;
+    tcpChart: Array<{ date: string; label: string; value: number | null }>;
+    tcpCurrentValue: number;
+    tcpCurrentValueEur: number | null;
+    usdToEurRate: number | null;
+    usdToEurRateDate: string | null;
   };
   cards: CollectionCardViewItem[];
   looseSingles: CollectionCardViewItem[];
@@ -315,7 +321,12 @@ const collectionCardSelect = {
       tcggo_score_tier: true,
       episode_id: true,
       prices: {
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        where: {
+          OR: [
+            { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            { tcp_market: { gt: 0 } },
+          ],
+        },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
@@ -375,7 +386,12 @@ const collectionCardMetricSelect = {
       id: true,
       episode_id: true,
       prices: {
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        where: {
+          OR: [
+            { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            { tcp_market: { gt: 0 } },
+          ],
+        },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
@@ -429,7 +445,12 @@ const collectionWantSelect = {
       tcggo_score: true,
       tcggo_score_tier: true,
       prices: {
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        where: {
+          OR: [
+            { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            { tcp_market: { gt: 0 } },
+          ],
+        },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
@@ -1047,7 +1068,8 @@ export async function getCardHistoryRows(cardIds: string[], since?: string) {
           cm_fr_lowest_nm,
           cm_es_lowest_nm,
           cm_it_lowest_nm,
-          cm_jp_lowest_nm
+          cm_jp_lowest_nm,
+          tcp_market
         FROM (
           SELECT
             p.card_id,
@@ -1059,14 +1081,17 @@ export async function getCardHistoryRows(cardIds: string[], since?: string) {
             p.cm_es_lowest_nm,
             p.cm_it_lowest_nm,
             p.cm_jp_lowest_nm,
+            p.tcp_market,
             ROW_NUMBER() OVER (
               PARTITION BY p.card_id, DATE(p.fetched_at)
               ORDER BY p.fetched_at DESC, p.id DESC
             ) AS row_num
           FROM "Price" p
           WHERE p.card_id IN (${placeholdersFor(chunk)})
-            AND p.cm_en_lowest_nm > 0
-            AND p.cm_en_lowest_nm <> 9001
+            AND (
+              (p.cm_en_lowest_nm > 0 AND p.cm_en_lowest_nm <> 9001)
+              OR p.tcp_market > 0
+            )
             ${since ? "AND p.fetched_at >= ?" : ""}
         )
         WHERE row_num = 1
@@ -1307,6 +1332,10 @@ function buildCardViewItem(
     episode_release_date: record.card.episode.release_date,
     cm_value: cmValue,
     tcp_value: tcpValue,
+    tcp_value_eur:
+      tcpValue == null ? null : convertUsdToEur(tcpValue, options?.usdToEurRate ?? null),
+    exchange_rate_usd_eur: options?.usdToEurRate?.rate ?? null,
+    exchange_rate_date: options?.usdToEurRate?.date ?? null,
     current_value: valueInfo.value,
     current_value_label: valueInfo.label,
     purchase_price: record.purchase_price,
@@ -1982,6 +2011,18 @@ function hasUsdEbaySoldGradedPrices(records: CollectionCardMetricRecord[]): bool
   );
 }
 
+function hasTcpMarketPrices(records: CollectionCardMetricRecord[]): boolean {
+  return records.some((record) => (record.card.prices[0]?.tcp_market ?? 0) > 0);
+}
+
+function sumCardTcpCurrentValue(records: CollectionCardMetricRecord[]): number {
+  return Number(
+    records
+      .reduce((total, record) => total + (record.card.prices[0]?.tcp_market ?? 0), 0)
+      .toFixed(2)
+  );
+}
+
 function buildCardQuantityMap(records: Array<{ card: { id: string } }>): Map<string, number> {
   const quantities = new Map<string, number>();
   for (const record of records) {
@@ -2187,7 +2228,8 @@ export async function getCollectionOverviewData(
   const metricForSaleCards = forSaleCards as CollectionCardMetricRecord[];
   const metricSoldCards = soldCards as CollectionCardMetricRecord[];
   const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
-  const usdToEurRate = hasUsdEbaySoldGradedPrices([...metricCards, ...metricForSaleCards, ...metricSoldCards])
+  const pricedCardRecords = [...metricCards, ...metricForSaleCards, ...metricSoldCards];
+  const usdToEurRate = hasUsdEbaySoldGradedPrices(pricedCardRecords) || hasTcpMarketPrices(pricedCardRecords)
     ? await getUsdToEurRate()
     : null;
   const valueOptions = { usdToEurRate };
@@ -2204,6 +2246,8 @@ export async function getCollectionOverviewData(
     cardInvestment + sealedInvestment + binderBaseInvestment,
     cardCurrentValue + sealedCurrentValue
   );
+  const tcpCurrentValue = sumCardTcpCurrentValue(metricCards);
+  const tcpCurrentValueEur = convertUsdToEur(tcpCurrentValue, usdToEurRate);
 
   const cardQuantities = buildCardQuantityMap(metricCards);
   const sealedQuantities = buildProductQuantityMap(metricSealed);
@@ -2261,6 +2305,11 @@ export async function getCollectionOverviewData(
       usdToEurRate
     )
   ).map((point) => ({
+    date: point.date,
+    label: point.label,
+    value: point.total_market,
+  }));
+  const tcpHistory = buildOwnedTcpCardValueHistory(cardHistory, cardQuantities).map((point) => ({
     date: point.date,
     label: point.label,
     value: point.total_market,
@@ -2447,6 +2496,11 @@ export async function getCollectionOverviewData(
       totalSealedUnits: metricSealed.reduce((total, item) => total + item.quantity, 0),
       totalBinders: binders.length,
       chart: combinedHistory,
+      tcpChart: tcpHistory,
+      tcpCurrentValue,
+      tcpCurrentValueEur,
+      usdToEurRate: usdToEurRate?.rate ?? null,
+      usdToEurRateDate: usdToEurRate?.date ?? null,
     },
     cards: collectionCardViewItems,
     looseSingles: looseSingleViewItems,
@@ -2562,7 +2616,7 @@ export async function getSocialCollectionData(
   ]);
   const metricCards = collectionCards as CollectionCardMetricRecord[];
   const metricSealed = collectionSealed as CollectionSealedMetricRecord[];
-  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards)
+  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards) || hasTcpMarketPrices(metricCards)
     ? await getUsdToEurRate()
     : null;
   const valueOptions = { usdToEurRate };
@@ -2889,7 +2943,7 @@ export async function getCollectionValueDriversData(
     getSealedHistoryRows([...sealedQuantities.keys()], getHistoryCutoffDate()),
     getGradedHistoryRows(gradedCardIds, getHistoryCutoffDate()),
   ]);
-  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards)
+  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricCards) || hasTcpMarketPrices(metricCards)
     ? await getUsdToEurRate()
     : null;
   const valueOptions = { usdToEurRate };
@@ -3434,7 +3488,12 @@ export async function getBinderPageData(
           supertype: true,
           episode_id: true,
           prices: {
-            where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            where: {
+              OR: [
+                { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+                { tcp_market: { gt: 0 } },
+              ],
+            },
             orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
             take: 1,
             select: {
@@ -3676,7 +3735,7 @@ export async function getBinderPageData(
 
   const binderCards = await getCollectionCards({ binderId, userId });
   const metricBinderCards = binderCards as CollectionCardMetricRecord[];
-  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricBinderCards)
+  const usdToEurRate = hasUsdEbaySoldGradedPrices(metricBinderCards) || hasTcpMarketPrices(metricBinderCards)
     ? await getUsdToEurRate()
     : null;
   const valueOptions = { usdToEurRate };

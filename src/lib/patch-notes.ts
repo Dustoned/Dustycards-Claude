@@ -17,11 +17,11 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
-    version: "3.12.34",
+    version: "3.12.35",
     releasedAt: "August 8, 2026",
     title: "Signal Radar learning loop unfrozen and honest",
     summary:
-      "DustyCards 3.12.34 ships the first batch of the Signal Radar prediction audit: the learning loop gets data months sooner, survives model bumps, and can no longer be fooled by carried-forward quotes or inverted PSA samples.",
+      "DustyCards 3.12.35 ships the first batch of the Signal Radar prediction audit: the learning loop gets data months sooner, survives model bumps, and can no longer be fooled by carried-forward quotes or inverted PSA samples.",
     tone: "improved",
     highlights: [
       "A new 1.5x / 30-day forecast target is tracked and published, so calibration data starts arriving within weeks instead of November.",
@@ -29,6 +29,20 @@ export const patchNotes: PatchNoteEntry[] = [
       "Carried-forward price quotes collapse back to their real source day: one quote can no longer count as a sustained 2x hit or inflate coverage.",
       "An inverted PSA ladder (PSA 9 above PSA 10 from tiny eBay samples) is treated as noise instead of poisoning the grade premium and graded scenario.",
       "The radar can no longer freeze for days: during the quiet night window an active session no longer defers the scheduler, and a signals snapshot older than six hours re-enriches in the background.",
+    ],
+  },
+  {
+    version: "3.12.34",
+    releasedAt: "August 8, 2026",
+    title: "Trade percentages and true TCGPlayer prices",
+    summary:
+      "Trade search can change its target percentage in place, while TCGPlayer now stays in USD across collection cards, charts and card details with a converted EUR reference.",
+    tone: "improved",
+    highlights: [
+      "Trade search offers 80%, 85%, 90%, 95% and 100% at the top and recalculates the correct target for either side without clearing a selected card.",
+      "TCGPlayer no longer silently falls back to a CardMarket euro price when its own price is missing.",
+      "TCGPlayer prices and history charts use dollars, with the current converted euro value shown as a secondary indication.",
+      "Switching CardMarket or TCGPlayer inside a card detail updates the account-wide price source as well.",
     ],
   },
   {

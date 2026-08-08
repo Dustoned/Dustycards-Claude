@@ -448,6 +448,36 @@ export function buildOwnedCardValueHistory(
   return buildEpisodeSetPriceHistory(weighted);
 }
 
+export function buildOwnedTcpCardValueHistory(
+  prices: EpisodePriceHistorySnapshot[],
+  quantitiesByCardId: ReadonlyMap<string, number>
+): EpisodeSetPriceHistoryPoint[] {
+  if (quantitiesByCardId.size === 0) return [];
+
+  const weighted: EpisodePriceHistorySnapshot[] = [];
+
+  for (const price of prices) {
+    const quantity = quantitiesByCardId.get(price.card_id) ?? 0;
+    const tcpValue = price.tcp_market;
+    if (quantity <= 0 || tcpValue == null || !Number.isFinite(tcpValue) || tcpValue <= 0) {
+      continue;
+    }
+
+    // Reuse the collection history aggregator with a synthetic value field;
+    // the resulting totals remain USD and are labelled as such by the UI.
+    weighted.push({
+      ...price,
+      cm_en_lowest_nm: Number((tcpValue * quantity).toFixed(2)),
+      cm_de_lowest_nm: null,
+      cm_fr_lowest_nm: null,
+      cm_es_lowest_nm: null,
+      cm_it_lowest_nm: null,
+    });
+  }
+
+  return buildEpisodeSetPriceHistory(weighted);
+}
+
 export function buildOwnedSealedValueHistory(
   prices: EpisodeSealedPriceHistorySnapshot[],
   quantitiesByProductId: ReadonlyMap<string, number>
