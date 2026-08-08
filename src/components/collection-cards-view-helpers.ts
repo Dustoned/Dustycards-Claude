@@ -151,39 +151,44 @@ export function getCollectionItemPrice(
   item: CollectionCardViewItem,
   source: PriceSource
 ): number | null {
-  if (item.current_value_label) {
+  if (source !== "tcp" && item.current_value_label) {
     return item.current_value;
   }
 
-  return source === "tcp"
-    ? item.tcp_value ?? item.cm_value ?? item.current_value
-    : item.cm_value ?? item.tcp_value ?? item.current_value;
+  return source === "tcp" ? item.tcp_value ?? null : item.cm_value ?? item.current_value;
 }
 
 export function getCollectionItemPriceCurrency(
   item: CollectionCardViewItem,
   source: PriceSource
 ): CurrencyCode {
-  if (item.current_value_label) {
+  if (source !== "tcp" && item.current_value_label) {
     return "EUR";
   }
 
-  return source === "tcp" && item.tcp_value != null ? "USD" : "EUR";
+  return source === "tcp" ? "USD" : "EUR";
+}
+
+export function getCollectionItemConvertedPrice(
+  item: CollectionCardViewItem,
+  source: PriceSource
+): number | null {
+  return source === "tcp" ? item.tcp_value_eur ?? null : null;
 }
 
 export function getCollectionSortPrice(
   item: CollectionCardViewItem,
   sortBy: SortBy
 ): number | null {
-  if (item.current_value_label) {
+  if (sortBy !== "tcp" && item.current_value_label) {
     return item.current_value;
   }
 
   if (sortBy === "tcp") {
-    return item.tcp_value ?? item.cm_value ?? item.current_value;
+    return item.tcp_value ?? null;
   }
 
-  return item.cm_value ?? item.tcp_value ?? item.current_value;
+  return item.cm_value ?? item.current_value;
 }
 
 export function hasAnyVisiblePrice(item: CollectionCardViewItem): boolean {

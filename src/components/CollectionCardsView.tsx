@@ -82,6 +82,7 @@ import {
   formatSortSummary,
   getCollectionItemCostBasis,
   getCollectionItemCostBasisLabel,
+  getCollectionItemConvertedPrice,
   getCollectionItemPrice,
   getCollectionItemPriceCurrency,
   getDefaultSortDir,
@@ -2299,12 +2300,18 @@ export default function CollectionCardsView({
                   const displayPriceCurrency = salesLedger
                     ? "EUR"
                     : getCollectionItemPriceCurrency(item, primaryPriceSource);
+                  const convertedPrice = salesLedger
+                    ? null
+                    : getCollectionItemConvertedPrice(item, primaryPriceSource);
                   const costBasis = getCollectionItemCostBasis(item);
                   const costBasisLabel = getCollectionItemCostBasisLabel(item);
+                  const currentValueEur = primaryPriceSource === "tcp"
+                    ? item.tcp_value_eur
+                    : item.current_value;
                   const pnl = salesLedger
                     ? getSalePnl(item, costBasis)
-                    : item.current_value != null && costBasis != null
-                      ? Number((item.current_value - costBasis).toFixed(2))
+                    : currentValueEur != null && costBasis != null
+                      ? Number((currentValueEur - costBasis).toFixed(2))
                       : null;
 
                   return (
@@ -2386,7 +2393,7 @@ export default function CollectionCardsView({
                             }
                             value={
                               displayPrice != null
-                                ? formatMarketCurrency(displayPrice, displayPriceCurrency)
+                                ? `${formatMarketCurrency(displayPrice, displayPriceCurrency)}${convertedPrice != null ? ` · ≈${formatCollectionCurrency(convertedPrice)}` : ""}`
                                 : "—"
                             }
                           />
@@ -2544,12 +2551,18 @@ export default function CollectionCardsView({
                       const displayPriceCurrency = salesLedger
                         ? "EUR"
                         : getCollectionItemPriceCurrency(item, primaryPriceSource);
+                      const convertedPrice = salesLedger
+                        ? null
+                        : getCollectionItemConvertedPrice(item, primaryPriceSource);
                       const costBasis = getCollectionItemCostBasis(item);
                       const costBasisLabel = getCollectionItemCostBasisLabel(item);
+                      const currentValueEur = primaryPriceSource === "tcp"
+                        ? item.tcp_value_eur
+                        : item.current_value;
                       const pnl = salesLedger
                         ? getSalePnl(item, costBasis)
-                        : item.current_value != null && costBasis != null
-                          ? Number((item.current_value - costBasis).toFixed(2))
+                        : currentValueEur != null && costBasis != null
+                          ? Number((currentValueEur - costBasis).toFixed(2))
                           : null;
 
                       return (
@@ -2639,6 +2652,11 @@ export default function CollectionCardsView({
                                 <p className="font-semibold tabular-nums">
                                   {formatMarketCurrency(displayPrice, displayPriceCurrency)}
                                 </p>
+                                {convertedPrice != null ? (
+                                  <p className="text-[11px] tabular-nums text-[var(--dc-text-muted)]">
+                                    ≈ {formatCollectionCurrency(convertedPrice)}
+                                  </p>
+                                ) : null}
                                 {salesLedger && (item.sale_fee_eur ?? 0) > 0 ? (
                                   <p className="text-[11px] text-[var(--dc-text-muted)]">
                                     Net {formatCollectionCurrency(getNetSalePrice(item) ?? 0)} after fees
@@ -2817,9 +2835,17 @@ export default function CollectionCardsView({
                   const displayPriceCurrency = salesLedger
                     ? "EUR"
                     : getCollectionItemPriceCurrency(item, primaryPriceSource);
+                  const convertedPrice = salesLedger
+                    ? null
+                    : getCollectionItemConvertedPrice(item, primaryPriceSource);
                   const costBasis = getCollectionItemCostBasis(item);
+                  const trendValue = salesLedger
+                    ? getNetSalePrice(item)
+                    : primaryPriceSource === "tcp"
+                      ? item.tcp_value_eur
+                      : item.current_value;
                   const trendPercent = getTileTrendPercent(
-                    salesLedger ? getNetSalePrice(item) : item.current_value,
+                    trendValue,
                     costBasis
                   );
                   const tileAction =
@@ -3014,6 +3040,11 @@ export default function CollectionCardsView({
                         className={collectionTilePriceClass(displaySettings.cardSize)}
                       >
                         {formatMarketCurrency(displayPrice, displayPriceCurrency)}
+                        {convertedPrice != null ? (
+                          <span className="ml-1 font-medium text-[var(--dc-text-muted)]">
+                            · ≈{formatCollectionCurrency(convertedPrice)}
+                          </span>
+                        ) : null}
                       </span>
                     ) : (
                       <span className={collectionTileNoPriceClass(displaySettings.cardSize)}>No price</span>

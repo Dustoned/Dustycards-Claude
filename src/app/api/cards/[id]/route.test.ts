@@ -207,6 +207,8 @@ const CARD_DETAIL_API_KEYS = [
   "episode_name",
   "episode_release_date",
   "episode_series",
+  "exchange_rate_date",
+  "exchange_rate_usd_eur",
   "game",
   "graded_price_history",
   "graded_prices",

@@ -19,6 +19,7 @@ import {
   collectionTileTrendIconClass,
   formatMarketCurrency,
   getCollectionItemCostBasis,
+  getCollectionItemConvertedPrice,
   getCollectionItemPrice,
   getCollectionItemPriceCurrency,
 } from "@/components/collection-cards-view-helpers";
@@ -126,7 +127,11 @@ function FeaturedCardTile({
     item,
     settings.primaryPriceSource
   );
-  const trendPercent = getTileTrendPercent(item.current_value, getCollectionItemCostBasis(item));
+  const convertedPrice = getCollectionItemConvertedPrice(item, settings.primaryPriceSource);
+  const trendValue = settings.primaryPriceSource === "tcp"
+    ? item.tcp_value_eur
+    : item.current_value;
+  const trendPercent = getTileTrendPercent(trendValue, getCollectionItemCostBasis(item));
   const cardSize = displaySettings.cardSize;
 
   return (
@@ -203,6 +208,11 @@ function FeaturedCardTile({
             {displayPrice != null ? (
               <span className={collectionTilePriceClass(cardSize)}>
                 {formatMarketCurrency(displayPrice, displayPriceCurrency)}
+                {convertedPrice != null ? (
+                  <span className="ml-1 font-medium text-white/42">
+                    · ≈{formatMarketCurrency(convertedPrice, "EUR")}
+                  </span>
+                ) : null}
               </span>
             ) : (
               <span className={collectionTileNoPriceClass(cardSize)}>No price</span>

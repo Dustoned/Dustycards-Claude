@@ -352,7 +352,6 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
   function selectTradeValueRate(nextRate: number) {
     const normalized = normalizeTradeValueRate(nextRate);
     setTradeValueRate(normalized);
-    setRight(null);
     try {
       window.localStorage.setItem(TRADE_VALUE_RATE_STORAGE_KEY, String(normalized));
     } catch {
@@ -364,6 +363,8 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
   const rightValue = right?.cm_en_lowest_nm ?? null;
   const leftTradeTarget =
     leftValue == null ? null : Number(((leftValue * tradeValueRate) / 100).toFixed(2));
+  const rightTradeTarget =
+    rightValue == null ? null : Number(((rightValue * 100) / tradeValueRate).toFixed(2));
   const difference =
     leftTradeTarget != null && rightValue != null
       ? Number((leftTradeTarget - rightValue).toFixed(2))
@@ -491,14 +492,16 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
           game={game}
           selectedCardId={(pickerSide === "left" ? left : right)?.id ?? null}
           excludedCardId={pickerSide === "right" ? left?.id ?? null : right?.id ?? null}
-          suggestedValue={pickerSide === "right" ? leftValue : null}
+          suggestedValue={pickerSide === "right" ? leftValue : rightValue}
           suggestedPercentage={tradeValueRate}
+          suggestionDirection={pickerSide === "right" ? "multiply" : "divide"}
+          percentageOptions={TRADE_VALUE_RATE_OPTIONS}
+          onSuggestedPercentageChange={selectTradeValueRate}
           onClose={() => setPickerSide(null)}
           onSelect={(card) => {
             if (pickerSide === "left") {
               setLeft(card);
-              setRight(null);
-              setPickerSide("right");
+              setPickerSide(right ? null : "right");
               return;
             }
             setRight(card);
@@ -512,7 +515,7 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
           key={collectionPickerSide}
           label={collectionPickerSide === "left" ? "Trade side A" : "Trade side B"}
           game={game}
-          suggestedValue={collectionPickerSide === "right" ? leftTradeTarget : null}
+          suggestedValue={collectionPickerSide === "right" ? leftTradeTarget : rightTradeTarget}
           onClose={() => setCollectionPickerSide(null)}
           onSelect={(entry) => {
             const card: ManualTradeCard = {
@@ -527,9 +530,8 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
             };
             if (collectionPickerSide === "left") {
               setLeft(card);
-              setRight(null);
               setCollectionPickerSide(null);
-              setPickerSide("right");
+              if (!right) setPickerSide("right");
               return;
             }
             setRight(card);

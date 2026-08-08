@@ -256,7 +256,7 @@ export default function CardModal({
     cardId: string;
     price: CardModalGradedDisplayPrice | null;
   } | null>(null);
-  const { displaySettings, currentUserRole } = useSettings();
+  const { settings, displaySettings, currentUserRole, set } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
   const [priceAlertOpen, setPriceAlertOpen] = useState(false);
   const [cardMarketPriceCheckOpen, setCardMarketPriceCheckOpen] = useState(false);
@@ -285,7 +285,7 @@ export default function CardModal({
       : "graded"
   );
   const [marketDataSource, setMarketDataSource] = useState<"cardmarket" | "tcgplayer">(
-    "cardmarket"
+    settings.primaryPriceSource === "tcp" ? "tcgplayer" : "cardmarket"
   );
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
@@ -750,7 +750,10 @@ export default function CardModal({
       availableCardMarketHistorySeries={availableCardMarketHistorySeries}
       activeCardMarketHistorySeries={activeCardMarketHistorySeries}
       activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
-      onSelectMarketSource={setMarketDataSource}
+      onSelectMarketSource={(source) => {
+        setMarketDataSource(source);
+        set("primaryPriceSource", source === "tcgplayer" ? "tcp" : "cm_en");
+      }}
       onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
       onSelectHistoryChartMode={setHistoryChartMode}
       tcgPlayerHistory={tcgPlayerHistory}
@@ -776,6 +779,10 @@ export default function CardModal({
     effectiveHistoryChartMode === "market" && effectiveMarketDataSource === "tcgplayer";
   const tcgPlayerHeroValue =
     modalCard.price?.tcp_market ?? getLatestSeriesValue(tcgPlayerHistory);
+  const tcgPlayerHeroValueEur =
+    tcgPlayerHeroValue != null && modalCard.exchange_rate_usd_eur
+      ? Number((tcgPlayerHeroValue * modalCard.exchange_rate_usd_eur).toFixed(2))
+      : null;
   const heroPriceValue = showingGradedHero
     ? activeGradedHeroPrice.value
     : showingTcgPlayerHero
@@ -816,6 +823,14 @@ export default function CardModal({
       ]
     : showingTcgPlayerHero
       ? [
+          {
+            label: "EUR equivalent",
+            value: tcgPlayerHeroValueEur == null ? "Unavailable" : `≈ ${formatCurrency(tcgPlayerHeroValueEur, "EUR")}`,
+            hint: modalCard.exchange_rate_date
+              ? `Reference rate ${modalCard.exchange_rate_date}`
+              : "Converted from the USD market price",
+            tone: "positive" as const,
+          },
           {
             label: "TCGPlayer mid",
             value: formatCurrency(modalCard.price?.tcp_mid ?? null, "USD"),
@@ -1101,7 +1116,9 @@ export default function CardModal({
                 showingGradedHero ? (
                   activeGradedHeroPrice.hint ?? "Latest saved graded market value"
                 ) : showingTcgPlayerHero ? (
-                  "Selected TCGPlayer source"
+                  tcgPlayerHeroValueEur == null
+                    ? "Selected TCGPlayer source"
+                    : `≈ ${formatCurrency(tcgPlayerHeroValueEur, "EUR")} · converted reference`
                 ) : trend30d == null ? (
                   "Latest saved raw market value"
                 ) : (

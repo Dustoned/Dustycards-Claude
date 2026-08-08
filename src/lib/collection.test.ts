@@ -1,12 +1,35 @@
 import { describe, expect, it } from "vitest";
 import {
   buildLinkedBinderCostBasis,
+  buildOwnedTcpCardValueHistory,
   combineValueHistories,
   getCollectionCardMarketValue,
   getCollectionCardValueInfo,
   getCollectionMatchedGradedPrice,
   getCollectionSealedMarketValue,
 } from "@/lib/collection";
+
+describe("TCGPlayer collection value history", () => {
+  it("totals TCP prices in USD with owned quantities", () => {
+    const points = buildOwnedTcpCardValueHistory(
+      [
+        {
+          card_id: "card-1",
+          fetched_at: "2026-08-08T10:00:00.000Z",
+          cm_en_lowest_nm: 999,
+          cm_de_lowest_nm: null,
+          cm_fr_lowest_nm: null,
+          cm_es_lowest_nm: null,
+          cm_it_lowest_nm: null,
+          tcp_market: 12.5,
+        },
+      ],
+      new Map([["card-1", 2]])
+    );
+
+    expect(points.at(-1)?.total_market).toBe(25);
+  });
+});
 
 describe("sealed collection values", () => {
   it("values sealed products from EU Market before the general Market price", () => {

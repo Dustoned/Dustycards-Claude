@@ -513,11 +513,12 @@ async function HomePageContent({
     label: getGameFilterLabel(game),
   }));
   const valueRangePoints = data.overview.chart.filter((point) => point.value != null);
+  const tcpValueRangePoints = data.overview.tcpChart.filter((point) => point.value != null);
   const collectionValueRange =
     valueRangePoints.length > 1
       ? `${valueRangePoints[0].label} - ${valueRangePoints[valueRangePoints.length - 1].label}`
       : valueRangePoints[0]?.label ?? "No history yet";
-  const showCollectionChart = valueRangePoints.length > 1;
+  const showCollectionChart = valueRangePoints.length > 1 || tcpValueRangePoints.length > 1;
   const latestCollectionChartValue =
     valueRangePoints[valueRangePoints.length - 1]?.value ?? null;
   const collectionTitle =
@@ -645,7 +646,12 @@ async function HomePageContent({
                     {showCollectionChart ? (
                       <CollectionValueHistoryPanel
                         initialPoints={data.overview.chart}
+                        initialTcpPoints={data.overview.tcpChart}
                         currentValue={data.overview.currentValue}
+                        tcpCurrentValue={data.overview.tcpCurrentValue}
+                        tcpCurrentValueEur={data.overview.tcpCurrentValueEur}
+                        usdToEurRate={data.overview.usdToEurRate}
+                        usdToEurRateDate={data.overview.usdToEurRateDate}
                         deltaValue={latestCollectionChartValue}
                         subtitle={`P&L ${data.overview.pnl >= 0 ? "+" : ""}${formatCollectionCurrency(
                           data.overview.pnl

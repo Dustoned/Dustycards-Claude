@@ -41,6 +41,8 @@ export interface ModalCardData {
   ebay_sold_graded_checked_at?: string | null;
   ebay_sold_graded_synced_at?: string | null;
   price_fetched_at: string | null;
+  exchange_rate_usd_eur?: number | null;
+  exchange_rate_date?: string | null;
   price: {
     cm_en_lowest_nm: number | null;
     cm_de_lowest_nm: number | null;

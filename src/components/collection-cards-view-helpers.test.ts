@@ -13,6 +13,7 @@ import {
   formatSortSummary,
   getCollectionItemCostBasis,
   getCollectionItemCostBasisLabel,
+  getCollectionItemConvertedPrice,
   getCollectionItemPrice,
   getCollectionItemPriceCurrency,
   getCollectionSortPrice,
@@ -158,11 +159,11 @@ describe("collectionSoldOverlayBadgeClass", () => {
 });
 
 describe("getCollectionItemPrice", () => {
-  it("uses current_value when there is a label override", () => {
+  it("uses the graded EUR value for CardMarket when there is a label override", () => {
     expect(
       getCollectionItemPrice(
         makeItem({ current_value: 42, current_value_label: "Graded PSA 10" }),
-        "tcp"
+        "cm_en"
       )
     ).toBe(42);
   });
@@ -176,13 +177,22 @@ describe("getCollectionItemPrice", () => {
     ).toBe(20);
   });
 
-  it("falls back from tcp to cm to current_value", () => {
+  it("does not show a CardMarket EUR price when TCGPlayer has no price", () => {
     expect(
       getCollectionItemPrice(
         makeItem({ cm_value: 5, tcp_value: null, current_value: 1 }),
         "tcp"
       )
-    ).toBe(5);
+    ).toBeNull();
+  });
+
+  it("does not use the graded EUR override for a TCGPlayer price", () => {
+    expect(
+      getCollectionItemPrice(
+        makeItem({ current_value: 42, current_value_label: "Graded PSA 10", tcp_value: 20 }),
+        "tcp"
+      )
+    ).toBe(20);
   });
 
   it("prefers cm_value for cm source", () => {
@@ -196,11 +206,11 @@ describe("getCollectionItemPrice", () => {
 });
 
 describe("getCollectionItemPriceCurrency", () => {
-  it("returns EUR when current_value_label is set", () => {
+  it("returns EUR for a CardMarket graded value", () => {
     expect(
       getCollectionItemPriceCurrency(
         makeItem({ current_value_label: "Anything" }),
-        "tcp"
+        "cm_en"
       )
     ).toBe("EUR");
   });
@@ -211,10 +221,24 @@ describe("getCollectionItemPriceCurrency", () => {
     ).toBe("USD");
   });
 
-  it("returns EUR when tcp source falls back to cm", () => {
+  it("keeps USD as the selected TCGPlayer currency even when price is missing", () => {
     expect(
       getCollectionItemPriceCurrency(makeItem({ tcp_value: null }), "tcp")
-    ).toBe("EUR");
+    ).toBe("USD");
+  });
+});
+
+describe("getCollectionItemConvertedPrice", () => {
+  it("returns the EUR note for a TCGPlayer price", () => {
+    expect(
+      getCollectionItemConvertedPrice(makeItem({ tcp_value_eur: 18.4 }), "tcp")
+    ).toBe(18.4);
+  });
+
+  it("does not add a converted note to CardMarket prices", () => {
+    expect(
+      getCollectionItemConvertedPrice(makeItem({ tcp_value_eur: 18.4 }), "cm_en")
+    ).toBeNull();
   });
 });
 
@@ -229,6 +253,12 @@ describe("getCollectionSortPrice", () => {
     expect(
       getCollectionSortPrice(makeItem({ cm_value: 1, tcp_value: 9 }), "cm_en")
     ).toBe(1);
+  });
+
+  it("does not use CardMarket as a fallback while sorting TCGPlayer", () => {
+    expect(
+      getCollectionSortPrice(makeItem({ cm_value: 8, tcp_value: null }), "tcp")
+    ).toBeNull();
   });
 });
 

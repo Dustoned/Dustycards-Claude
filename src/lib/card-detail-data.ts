@@ -412,7 +412,14 @@ export async function getCardDetailPayload(id: string, userId: string) {
   const hasUsdEbaySoldGradedPrices = card.ebaySoldGradedPrices.some(
     (price) => price.currency.toUpperCase() === "USD"
   ) || dailyGradedHistory.ebaySold.some((price) => price.currency.toUpperCase() === "USD");
-  const usdToEurRate = hasUsdEbaySoldGradedPrices ? await getUsdToEurRate() : null;
+  const hasTcgPlayerPrice = [
+    latestSourceSnapshot?.tcp_market,
+    latestSourceSnapshot?.tcp_mid,
+    latestSourceSnapshot?.tcp_low,
+  ].some((value) => value != null && value > 0);
+  const usdToEurRate = hasUsdEbaySoldGradedPrices || hasTcgPlayerPrice
+    ? await getUsdToEurRate()
+    : null;
   const ebaySoldGradedPriceHistory = buildCardEbaySoldGradedPriceHistory(
     dailyGradedHistory.ebaySold,
     { usdToEurRate: usdToEurRate?.rate ?? null }
@@ -572,6 +579,8 @@ export async function getCardDetailPayload(id: string, userId: string) {
     price_fetched_at: latestEnglishNmSnapshot
       ? latestEnglishNmSnapshot.fetched_at.toISOString()
       : null,
+    exchange_rate_usd_eur: usdToEurRate?.rate ?? null,
+    exchange_rate_date: usdToEurRate?.date ?? null,
     price: latestPricePayload,
     graded_prices: card.gradedPrices,
     ebay_sold_graded_prices: ebaySoldGradedPrices,
