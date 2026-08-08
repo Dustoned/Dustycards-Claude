@@ -294,11 +294,20 @@ export function scoreForecastOutcome(input: {
       ? Math.abs(realizedReturnPct) >= MEANINGFUL_SIGNAL_MOVE_PCT &&
         absoluteChangeEur >= MEANINGFUL_SIGNAL_MOVE_EUR
       : null;
+  // Symmetric scoring: every completed outcome with price data produces a
+  // verdict for every outlook. A directional call that never produced a
+  // meaningful move counts as wrong, exactly like a flat call scored wrong on
+  // a breakout. The old rule dropped quiet directional calls as null while
+  // crediting flat by default, which let a flat-heavy model look accurate.
   let meaningfulDirectionHit: boolean | null = null;
-  if (input.entryOutlook === "flat" && meaningfulMove != null) {
-    meaningfulDirectionHit = !meaningfulMove;
-  } else if (meaningfulMove === true) {
-    meaningfulDirectionHit = directionHit;
+  if (meaningfulMove != null && input.entryOutlook != null) {
+    if (input.entryOutlook === "flat") {
+      meaningfulDirectionHit = !meaningfulMove;
+    } else if (meaningfulMove) {
+      meaningfulDirectionHit = directionHit;
+    } else {
+      meaningfulDirectionHit = false;
+    }
   }
 
   const band = parseScenarioBand(input.entryScenarioJson, input.horizonDays);

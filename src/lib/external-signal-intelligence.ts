@@ -20,6 +20,7 @@ import {
   getPressureTierForScore,
   RADAR_MIN_SIGNAL_PRICE_EUR,
 } from "@/lib/external-signal-radar";
+import { loadRadarStreakStarts } from "@/lib/external-signal-persisted";
 import type { TradingCardGame } from "@/lib/games";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import { formatPostLaunchReratingReason } from "@/lib/post-launch-rerating";
@@ -453,6 +454,71 @@ export function selectDiverseEventSignals(signals: ExternalCardSignal[]): Extern
  * age itself as a negative signal. Fresh event and tournament signals are not
  * subject to these structural-card quotas.
  */
+// Rotation: a signal that has been on the radar for two weeks without a
+// meaningful price move rests until its observation streak ages out of the
+// 21-day window (~three weeks off), or immediately returns on real movement,
+// a live catalyst or a hype-reset setup. This keeps the list from showing the
+// same static cards for months.
+export const RADAR_ROTATION_QUIET_DAYS = 14;
+export const RADAR_ROTATION_TREND_THRESHOLD_PCT = 8;
+const MIN_ACTIVE_RADAR_SIGNALS = 24;
+const ROTATION_DAY_MS = 24 * 60 * 60_000;
+
+export function isRestingRadarSignal(
+  signal: ExternalCardSignal,
+  streakStartAt: Date | null | undefined,
+  now: Date
+): boolean {
+  if (!streakStartAt) return false;
+  const onRadarDays = (now.getTime() - streakStartAt.getTime()) / ROTATION_DAY_MS;
+  if (onRadarDays < RADAR_ROTATION_QUIET_DAYS) return false;
+
+  const eventLinked =
+    (signal.sourceMode === "event" || signal.sourceMode === "hybrid") &&
+    (signal.catalysts?.length ?? 0) > 0;
+  if (eventLinked) return false;
+  if (signal.marketIntelligence?.hypeReset != null) return false;
+
+  const trend = signal.marketIntelligence?.scarcity?.rawTrend90dPct;
+  return trend != null && Math.abs(trend) < RADAR_ROTATION_TREND_THRESHOLD_PCT;
+}
+
+export function partitionRestingRadarSignals(
+  signals: readonly ExternalCardSignal[],
+  streakStartByCardId: ReadonlyMap<string, Date>,
+  now: Date
+): { activeSignals: ExternalCardSignal[]; restingSignals: ExternalCardSignal[] } {
+  const activeSignals: ExternalCardSignal[] = [];
+  const restingSignals: ExternalCardSignal[] = [];
+  for (const signal of signals) {
+    if (isRestingRadarSignal(signal, streakStartByCardId.get(signal.cardId), now)) {
+      restingSignals.push(signal);
+    } else {
+      activeSignals.push(signal);
+    }
+  }
+  return { activeSignals, restingSignals };
+}
+
+export function applyRadarRotation(
+  signals: readonly ExternalCardSignal[],
+  streakStartByCardId: ReadonlyMap<string, Date>,
+  now: Date
+): ExternalCardSignal[] {
+  const { activeSignals, restingSignals } = partitionRestingRadarSignals(
+    signals,
+    streakStartByCardId,
+    now
+  );
+  if (activeSignals.length >= MIN_ACTIVE_RADAR_SIGNALS) return activeSignals;
+  // Never let rotation starve the radar: backfill with the best resting
+  // signals until the feed reaches its minimum size.
+  return [
+    ...activeSignals,
+    ...restingSignals.slice(0, MIN_ACTIVE_RADAR_SIGNALS - activeSignals.length),
+  ];
+}
+
 export function selectActionableRadarCohort(
   signals: readonly ExternalCardSignal[]
 ): ExternalCardSignal[] {
@@ -1010,7 +1076,10 @@ export async function enrichExternalSignalRadarData(
     marketCandidates,
     now
   );
-  const forecasts = await getExternalForecastSummaries(selected.map((signal) => signal.cardId));
+  const [forecasts, streakStartByCardId] = await Promise.all([
+    getExternalForecastSummaries(selected.map((signal) => signal.cardId)),
+    loadRadarStreakStarts(selected.map((signal) => signal.cardId), now),
+  ]);
   const rankedSignals = selected
     .map((signal) => {
       const postLaunch = signal.marketIntelligence?.postLaunch;
@@ -1071,7 +1140,8 @@ export async function enrichExternalSignalRadarData(
         right.archetypeCount - left.archetypeCount ||
         left.rank - right.rank
     );
-  const signals = selectActionableRadarCohort(rankedSignals)
+  const rotatedSignals = applyRadarRotation(rankedSignals, streakStartByCardId, now);
+  const signals = selectActionableRadarCohort(rotatedSignals)
     .map((signal, index) => ({ ...signal, rank: index + 1 }));
 
   return {

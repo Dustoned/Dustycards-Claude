@@ -180,21 +180,32 @@ describe("scoreForecastOutcome", () => {
     expect(score({ endPrice: 10 }).realizedReturnPct).toBe(0);
   });
 
-  it("only scores directional learning after both a 15% and EUR 10 move", () => {
+  it("scores every completed call symmetrically on the 15% and EUR 10 rule", () => {
     expect(score({ entryPrice: 44, endPrice: 100 })).toMatchObject({
       absoluteChangeEur: 56,
       meaningfulMove: true,
       meaningfulDirectionHit: true,
     });
+    // A directional call without a meaningful move is a miss, not a skip.
     expect(score({ entryPrice: 100, endPrice: 114 })).toMatchObject({
       meaningfulMove: false,
-      meaningfulDirectionHit: null,
+      meaningfulDirectionHit: false,
     });
     expect(score({ entryPrice: 40, endPrice: 47 })).toMatchObject({
       meaningfulMove: false,
-      meaningfulDirectionHit: null,
+      meaningfulDirectionHit: false,
     });
     expect(score({ entryOutlook: "down", entryPrice: 44, endPrice: 100 })).toMatchObject({
+      meaningfulMove: true,
+      meaningfulDirectionHit: false,
+    });
+    // Flat is correct exactly when the meaningful move stays away...
+    expect(score({ entryOutlook: "flat", entryPrice: 100, endPrice: 106 })).toMatchObject({
+      meaningfulMove: false,
+      meaningfulDirectionHit: true,
+    });
+    // ...and wrong on a breakout, mirroring the directional rule.
+    expect(score({ entryOutlook: "flat", entryPrice: 44, endPrice: 100 })).toMatchObject({
       meaningfulMove: true,
       meaningfulDirectionHit: false,
     });

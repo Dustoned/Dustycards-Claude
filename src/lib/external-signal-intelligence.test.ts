@@ -3,11 +3,14 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 
 import {
+  applyRadarRotation,
   calculateExternalEventScore,
   catalystAgeDecayFactor,
   getSignalRadarCalibrationRankingAdjustment,
   getSignalRadarRankingScore,
   getStructuralSignalEras,
+  isRestingRadarSignal,
+  RADAR_ROTATION_QUIET_DAYS,
   selectActionableRadarCohort,
   selectDiverseEventSignals,
 } from "@/lib/external-signal-intelligence";
@@ -79,6 +82,76 @@ function signal(input: {
         : ({ sealed: { ageYears: input.ageYears } } as ExternalCardSignal["marketIntelligence"]),
   };
 }
+
+describe("radar rotation", () => {
+  const now = new Date("2026-08-08T12:00:00.000Z");
+  const DAY_MS = 24 * 60 * 60_000;
+  const streakStart = (daysAgo: number) => new Date(now.getTime() - daysAgo * DAY_MS);
+
+  function quietSignal(cardId: string, trend90dPct: number | null = 2): ExternalCardSignal {
+    return {
+      ...signal({ cardId, sourceMode: "structural" }),
+      marketIntelligence: {
+        scarcity: { rawTrend90dPct: trend90dPct },
+        hypeReset: null,
+      } as unknown as ExternalCardSignal["marketIntelligence"],
+    };
+  }
+
+  it("rests a signal after two quiet weeks on the radar", () => {
+    expect(
+      isRestingRadarSignal(quietSignal("sleepy"), streakStart(RADAR_ROTATION_QUIET_DAYS + 1), now)
+    ).toBe(true);
+    // Not yet two weeks on the radar.
+    expect(
+      isRestingRadarSignal(quietSignal("fresh"), streakStart(RADAR_ROTATION_QUIET_DAYS - 2), now)
+    ).toBe(false);
+    // No streak recorded at all.
+    expect(isRestingRadarSignal(quietSignal("new"), null, now)).toBe(false);
+  });
+
+  it("keeps moving, event-linked and unknown-trend signals active", () => {
+    const start = streakStart(RADAR_ROTATION_QUIET_DAYS + 5);
+    // Real movement always stays on the radar.
+    expect(isRestingRadarSignal(quietSignal("mover", 12), start, now)).toBe(false);
+    // Without trend evidence the signal is never benched.
+    expect(isRestingRadarSignal(quietSignal("no-data", null), start, now)).toBe(false);
+    // A live catalyst keeps the card active.
+    const eventSignal = {
+      ...quietSignal("news"),
+      sourceMode: "hybrid" as const,
+      catalysts: [catalyst()],
+    };
+    expect(isRestingRadarSignal(eventSignal, start, now)).toBe(false);
+  });
+
+  it("rotates resting signals out but never starves the feed", () => {
+    const streaks = new Map<string, Date>();
+    const signals: ExternalCardSignal[] = [];
+    for (let index = 0; index < 30; index += 1) {
+      const cardId = `card-${index}`;
+      signals.push(quietSignal(cardId));
+      // First ten cards have been quiet on the radar for three weeks.
+      if (index < 10) streaks.set(cardId, streakStart(21));
+    }
+
+    const rotated = applyRadarRotation(signals, streaks, now);
+    // 20 active remain; the feed backfills the best resting ones up to 24.
+    expect(rotated).toHaveLength(24);
+    expect(rotated.slice(0, 20).map((item) => item.cardId)).toEqual(
+      signals.slice(10).map((item) => item.cardId)
+    );
+    expect(rotated.slice(20).map((item) => item.cardId)).toEqual(
+      signals.slice(0, 4).map((item) => item.cardId)
+    );
+
+    // With only resting candidates the minimum feed size is backfilled.
+    const allResting = new Map(
+      signals.map((item) => [item.cardId, streakStart(21)] as const)
+    );
+    expect(applyRadarRotation(signals, allResting, now)).toHaveLength(24);
+  });
+});
 
 describe("external event score", () => {
   it("can make a confirmed reveal independently actionable", () => {

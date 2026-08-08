@@ -234,11 +234,16 @@ function buildForecastPanel(
       <DetailSurface
         eyebrow="Base scenario"
         title="Forecast targets"
-        copy="A directional model, not a guaranteed price target."
+        copy={
+          scenario?.outlook === "flat"
+            ? "No clear direction detected: the model expects the price to hold near current levels. The ranges show how uncertainty widens over time."
+            : "A directional model, not a guaranteed price target."
+        }
       >
         {scenario ? (
           <div className="grid gap-3 sm:grid-cols-3">
             {scenario.points.map((point) => {
+              const flatOutlook = scenario.outlook === "flat";
               const changePct =
                 displayPrice != null && displayPrice > 0
                   ? ((point.base - displayPrice) / displayPrice) * 100
@@ -253,10 +258,11 @@ function buildForecastPanel(
                     {point.days} days
                   </p>
                   <p className="mt-2 text-xl font-extrabold tabular-nums text-white/90">
+                    {flatOutlook ? "≈ " : ""}
                     {formatCurrency(point.base, scenario.currency)}
                   </p>
-                  <p className="mt-1 text-sm font-bold tabular-nums">
-                    {signedPercent(changePct)}
+                  <p className={cx("mt-1 text-sm font-bold", flatOutlook ? "text-white/44" : "tabular-nums")}>
+                    {flatOutlook ? "No clear direction" : signedPercent(changePct)}
                   </p>
                   <p className="mt-3 text-xs text-white/38">
                     Range {formatCurrency(point.low, scenario.currency)}–

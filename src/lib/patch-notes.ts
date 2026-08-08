@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.37",
+    releasedAt: "August 8, 2026",
+    title: "A radar that rotates, and honest flat forecasts",
+    summary:
+      "Signals that sit still for two weeks now rest to make room for fresh candidates, flat scenarios say \"no clear direction\" instead of repeating one price, and every finished forecast call receives a symmetric verdict.",
+    tone: "improved",
+    highlights: [
+      "Rotation: after 14 quiet days on the radar a signal rests (about three weeks) so fresh candidates surface; real price movement, a live catalyst or a hype-reset setup brings it straight back, and the feed never drops below 24 signals.",
+      "Flat scenarios now present honestly: one approximate hold level with widening ranges and the label No clear direction, instead of three identical price targets at 0.0%.",
+      "Forecast scoring is symmetric: a directional call without a meaningful move now counts as wrong, exactly like a flat call scored on a breakout - a cautious model can no longer look accurate by default.",
+    ],
+  },
+  {
     version: "3.12.36",
     releasedAt: "August 8, 2026",
     title: "No more cent-priced cards on the Signal Radar",

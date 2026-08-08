@@ -100,7 +100,7 @@ export default function LiveForecastDataStatus({
           ))}
         </div>
         <p className="mt-1.5 text-[8px] leading-3.5 text-white/28">
-          A directional result only scores after at least 15% and EUR 10 movement. Smaller changes stay neutral.
+          Every finished call gets a verdict: a directional call needs at least 15% and EUR 10 movement to count as correct, while a flat call is correct exactly when that movement stays away.
         </p>
 
         <div className="mt-2.5 space-y-2">

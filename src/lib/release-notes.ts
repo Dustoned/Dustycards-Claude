@@ -20,7 +20,7 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
-    version: "3.12.36",
+    version: "3.12.37",
     releasedAt: "August 8, 2026",
     title: "A Signal Radar that learns faster and honestly",
     summary:
@@ -36,6 +36,14 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Inverted PSA 9/10 ladders from tiny samples are dropped before they reach the grade premium.",
           "Night-window scheduling and a six-hour snapshot age limit keep the radar from freezing for days.",
           "Cards priced below a EUR 3 collector floor no longer appear on the radar at all.",
+        ],
+      },
+      {
+        title: "A rotating, honest radar",
+        highlights: [
+          "Signals that sit still for two weeks rest for about three weeks so fresh candidates surface; movement, catalysts or a hype-reset bring them straight back.",
+          "Flat scenarios say No clear direction with an approximate hold level instead of repeating one price at 0.0%.",
+          "Every finished forecast call gets a symmetric verdict, so cautious calls no longer score as accurate by default.",
         ],
       },
     ],

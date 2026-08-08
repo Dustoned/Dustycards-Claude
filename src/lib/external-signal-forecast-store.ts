@@ -780,12 +780,13 @@ async function loadForecastTrackingStatuses(
             row.status === "complete" &&
             row.meaningful_direction_hit === false
         ).length,
+        // Since symmetric scoring, quiet outcomes also carry a verdict; this
+        // counter reports how many completed 90d calls saw no meaningful move.
         smallMove90d: outcomeRows.filter(
           (row) =>
             row.horizon_days === 90 &&
             row.status === "complete" &&
-            row.meaningful_move === false &&
-            row.meaningful_direction_hit == null
+            row.meaningful_move === false
         ).length,
         next30dMaturesAt: getNextMaturityDate(outcomeRows, 30),
         next90dMaturesAt: getNextMaturityDate(outcomeRows, 90),

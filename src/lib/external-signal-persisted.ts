@@ -28,6 +28,42 @@ function requestedGames(filter: TradingCardGameFilter): TradingCardGame[] {
   return filter === ALL_GAMES ? [POKEMON_GAME, ONE_PIECE_GAME] : [filter];
 }
 
+/**
+ * How long each card has been on the radar in its current streak: the oldest
+ * persisted observation inside the rolling window. Once a rotated-out card
+ * stops receiving observations, its streak empties after this window and the
+ * card becomes eligible for the radar again.
+ */
+export const RADAR_STREAK_WINDOW_DAYS = 21;
+
+export async function loadRadarStreakStarts(
+  cardIds: readonly string[],
+  now: Date = new Date()
+): Promise<Map<string, Date>> {
+  const streakStartByCardId = new Map<string, Date>();
+  const uniqueCardIds = [...new Set(cardIds.filter(Boolean))];
+  const windowStart = new Date(now.getTime() - RADAR_STREAK_WINDOW_DAYS * 24 * 60 * 60_000);
+
+  for (let index = 0; index < uniqueCardIds.length; index += SQLITE_SAFE_CARD_CHUNK_SIZE) {
+    const chunk = uniqueCardIds.slice(index, index + SQLITE_SAFE_CARD_CHUNK_SIZE);
+    const rows = await db.externalSignalObservation.groupBy({
+      by: ["card_id"],
+      where: {
+        card_id: { in: chunk },
+        observed_at: { gte: windowStart },
+      },
+      _min: { observed_at: true },
+    });
+    for (const row of rows) {
+      if (row._min.observed_at) {
+        streakStartByCardId.set(row.card_id, row._min.observed_at);
+      }
+    }
+  }
+
+  return streakStartByCardId;
+}
+
 function parseJsonArray<T>(value: string | null): T[] {
   if (!value) return [];
   try {

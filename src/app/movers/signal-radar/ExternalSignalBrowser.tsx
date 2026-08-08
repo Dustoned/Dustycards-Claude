@@ -431,7 +431,11 @@ function MarketIntelligencePanel({
             <p className="text-[9px] font-semibold uppercase tracking-[0.13em] text-violet-200/68">
               {marketMode === "graded" ? "Graded value path" : "Raw value path"}
             </p>
-            <p className="mt-0.5 text-[9px] text-white/35">Model range · not a guaranteed target</p>
+            <p className="mt-0.5 text-[9px] text-white/35">
+              {scenario?.outlook === "flat"
+                ? "No clear direction · price expected to hold near current level"
+                : "Model range · not a guaranteed target"}
+            </p>
           </div>
           <span className="rounded-full border border-violet-300/14 bg-violet-400/[0.08] px-2 py-1 text-[10px] font-black text-violet-100">
             {score ?? "--"}/100
