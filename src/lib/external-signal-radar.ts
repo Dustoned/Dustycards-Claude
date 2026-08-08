@@ -674,12 +674,14 @@ function buildReasons(evidence: ExternalSignalEvidence[]): string[] {
   return reasons;
 }
 
+// Radar display floor. The forecast model already refuses references below
+// EUR 1; the radar itself keeps a higher collector floor because cards under
+// a few euro are not worth watching even when technically trackable. The old
+// premium-name exemption let cent-priced "ex"/"GX" commons through as noise.
+export const RADAR_MIN_SIGNAL_PRICE_EUR = 3;
+
 function isActionableCollectorSignal(signal: ExternalCardSignal): boolean {
-  // The forecast model refuses reference prices below EUR 1 ("Below EUR 1
-  // model floor"), so a cheaper card can never be tracked or predicted. The
-  // old premium-name exemption let cent-priced "ex"/"GX" commons through as
-  // pure noise; a known price below the model floor is now always dropped.
-  return signal.currentPrice != null && signal.currentPrice >= 1;
+  return signal.currentPrice != null && signal.currentPrice >= RADAR_MIN_SIGNAL_PRICE_EUR;
 }
 
 export function capCompetitiveSignalsPerGame<

@@ -21,10 +21,10 @@ export const patchNotes: PatchNoteEntry[] = [
     releasedAt: "August 8, 2026",
     title: "No more cent-priced cards on the Signal Radar",
     summary:
-      "Cards priced below the EUR 1 forecast floor no longer appear on the radar: they could never be tracked or predicted, so they were pure noise.",
+      "The radar now keeps a EUR 3 collector floor: cheaper cards were untrackable noise that could never produce a meaningful hit.",
     tone: "fixed",
     highlights: [
-      "The premium-name exemption that let cent-priced \"ex\"/\"GX\" commons through is gone; a known price below EUR 1 is always dropped.",
+      "The premium-name exemption that let cent-priced \"ex\"/\"GX\" commons through is gone; a known price below EUR 3 is always dropped.",
       "The same floor applies to every entry path - competitive, event-linked and structural signals alike.",
     ],
   },

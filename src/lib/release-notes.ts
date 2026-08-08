@@ -35,7 +35,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
           "Carried-forward quotes collapse to their source day, keeping hits and coverage honest.",
           "Inverted PSA 9/10 ladders from tiny samples are dropped before they reach the grade premium.",
           "Night-window scheduling and a six-hour snapshot age limit keep the radar from freezing for days.",
-          "Cards priced below the EUR 1 forecast floor no longer appear on the radar at all.",
+          "Cards priced below a EUR 3 collector floor no longer appear on the radar at all.",
         ],
       },
     ],

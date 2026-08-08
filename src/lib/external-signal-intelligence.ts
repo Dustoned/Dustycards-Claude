@@ -16,7 +16,10 @@ import type {
   ExternalSignalCatalyst,
   ExternalSignalRadarData,
 } from "@/lib/external-signal-radar";
-import { getPressureTierForScore } from "@/lib/external-signal-radar";
+import {
+  getPressureTierForScore,
+  RADAR_MIN_SIGNAL_PRICE_EUR,
+} from "@/lib/external-signal-radar";
 import type { TradingCardGame } from "@/lib/games";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 import { formatPostLaunchReratingReason } from "@/lib/post-launch-rerating";
@@ -1035,10 +1038,16 @@ export async function enrichExternalSignalRadarData(
     })
     .filter(
       (signal) => {
-        // Cards priced below the EUR 1 forecast floor can never be tracked
-        // or predicted; they are noise on the radar regardless of how they
-        // entered (competitive, event or structural).
-        if (signal.currentPrice != null && signal.currentPrice < 1) return false;
+        // Cards priced below the radar floor are noise regardless of how
+        // they entered (competitive, event or structural): below EUR 1 the
+        // model cannot even track them, and below a few euro a hit is
+        // meaningless for a collector.
+        if (
+          signal.currentPrice != null &&
+          signal.currentPrice < RADAR_MIN_SIGNAL_PRICE_EUR
+        ) {
+          return false;
+        }
         const eventLinked =
           (signal.sourceMode === "event" || signal.sourceMode === "hybrid") &&
           (signal.catalysts?.length ?? 0) > 0;
