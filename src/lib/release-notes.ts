@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.38",
+    releasedAt: "August 8, 2026",
+    title: "Page-local price-source controls",
+    summary:
+      "CM/TCP buttons now affect only the page being viewed; Settings is the only place that changes the saved app-wide default.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "No accidental global source changes",
+        highlights: [
+          "Collection and expansion source switches keep their price source and sorting local to that page.",
+          "Card Detail keeps source changes local and inherits a collection or expansion page's active source.",
+          "The saved CardMarket/TCGPlayer default only changes from Settings.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.37",
     releasedAt: "August 8, 2026",
     title: "A Signal Radar that learns faster and honestly",

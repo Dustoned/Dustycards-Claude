@@ -282,9 +282,9 @@ export default function ExpansionView({
   const rarities = settings.defaultRarities;
   const supertypes = settings.defaultSupertypes;
   const onlyPriced = settings.showOnlyPriced;
-  const primaryPriceSource = settings.primaryPriceSource;
-  const sortBy = settings.sortBy;
-  const sortDir = settings.sortDir;
+  const [primaryPriceSource, setPrimaryPriceSource] = useState(() => settings.primaryPriceSource);
+  const [sortBy, setPageSortBy] = useState<SortBy>(() => settings.sortBy);
+  const [sortDir, setPageSortDir] = useState<SortDir>(() => settings.sortDir);
   const collectionEpisode = useMemo(
     () =>
       episode ?? {
@@ -609,18 +609,18 @@ export default function ExpansionView({
 
   function toggleSort(col: SortBy) {
     if (col === "cm_en" || col === "tcp") {
-      set("primaryPriceSource", col);
+      setPrimaryPriceSource(col);
     }
 
     if (sortBy === col) {
       const next: SortDir = sortDir === "asc" ? "desc" : "asc";
-      set("sortDir", next);
+      setPageSortDir(next);
       return;
     }
 
     const nextDir = getDefaultSortDir(col);
-    set("sortBy", col);
-    set("sortDir", nextDir);
+    setPageSortBy(col);
+    setPageSortDir(nextDir);
   }
 
   function toggleRarity(r: string) {
@@ -1850,6 +1850,7 @@ export default function ExpansionView({
           key={selectedModalCard.id}
           card={selectedModalCard}
           backLabel={cardDetailBackLabel}
+          initialMarketSource={primaryPriceSource === "tcp" ? "tcgplayer" : "cardmarket"}
           onClose={closeDetails}
         />
       )}

@@ -77,6 +77,7 @@ interface Props {
   card: ModalCardData;
   showGradedSlabPreview?: boolean;
   backLabel?: string;
+  initialMarketSource?: "cardmarket" | "tcgplayer";
   onClose: () => void;
   onCollectionItemSaved?: (detail: CollectionCardSavedDetail) => void | Promise<void>;
 }
@@ -222,6 +223,7 @@ export default function CardModal({
   card,
   showGradedSlabPreview = false,
   backLabel = "Back",
+  initialMarketSource,
   onClose,
   onCollectionItemSaved,
 }: Props) {
@@ -256,7 +258,7 @@ export default function CardModal({
     cardId: string;
     price: CardModalGradedDisplayPrice | null;
   } | null>(null);
-  const { settings, displaySettings, currentUserRole, set } = useSettings();
+  const { settings, displaySettings, currentUserRole } = useSettings();
   const [threeDOpen, setThreeDOpen] = useState(false);
   const [priceAlertOpen, setPriceAlertOpen] = useState(false);
   const [cardMarketPriceCheckOpen, setCardMarketPriceCheckOpen] = useState(false);
@@ -285,7 +287,7 @@ export default function CardModal({
       : "graded"
   );
   const [marketDataSource, setMarketDataSource] = useState<"cardmarket" | "tcgplayer">(
-    settings.primaryPriceSource === "tcp" ? "tcgplayer" : "cardmarket"
+    initialMarketSource ?? (settings.primaryPriceSource === "tcp" ? "tcgplayer" : "cardmarket")
   );
   const [cardMarketHistorySeries, setCardMarketHistorySeries] =
     useState<CardMarketHistorySeriesKey>("cm_market_en");
@@ -750,10 +752,7 @@ export default function CardModal({
       availableCardMarketHistorySeries={availableCardMarketHistorySeries}
       activeCardMarketHistorySeries={activeCardMarketHistorySeries}
       activeCardMarketSeriesLabel={activeCardMarketSeriesLabel}
-      onSelectMarketSource={(source) => {
-        setMarketDataSource(source);
-        set("primaryPriceSource", source === "tcgplayer" ? "tcp" : "cm_en");
-      }}
+      onSelectMarketSource={setMarketDataSource}
       onSelectCardMarketHistorySeries={setCardMarketHistorySeries}
       onSelectHistoryChartMode={setHistoryChartMode}
       tcgPlayerHistory={tcgPlayerHistory}

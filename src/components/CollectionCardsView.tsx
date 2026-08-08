@@ -303,10 +303,12 @@ export default function CollectionCardsView({
   const loadMoreRef = useRef<HTMLDivElement | null>(null);
   const view: CollectionView =
     displaySettings.defaultView === "binder" ? "grid" : displaySettings.defaultView;
-  const sortBy = forcedSortBy ?? settings.sortBy;
-  const sortDir = forcedSortDir ?? settings.sortDir;
+  const [pageSortBy, setPageSortBy] = useState<SortBy>(() => settings.sortBy);
+  const [pageSortDir, setPageSortDir] = useState<SortDir>(() => settings.sortDir);
+  const [primaryPriceSource, setPrimaryPriceSource] = useState(() => settings.primaryPriceSource);
+  const sortBy = forcedSortBy ?? pageSortBy;
+  const sortDir = forcedSortDir ?? pageSortDir;
   const sortLocked = forcedSortBy != null || forcedSortDir != null;
-  const primaryPriceSource = settings.primaryPriceSource;
   const [internalSearch, setInternalSearch] = useState("");
   const search = searchValue ?? internalSearch;
   const setSearch = onSearchChange ?? setInternalSearch;
@@ -1502,16 +1504,16 @@ export default function CollectionCardsView({
     }
 
     if (nextSort === "cm_en" || nextSort === "tcp") {
-      set("primaryPriceSource", nextSort);
+      setPrimaryPriceSource(nextSort);
     }
 
     if (sortBy === nextSort) {
-      set("sortDir", sortDir === "asc" ? "desc" : "asc");
+      setPageSortDir(sortDir === "asc" ? "desc" : "asc");
       return;
     }
 
-    set("sortBy", nextSort);
-    set("sortDir", getDefaultSortDir(nextSort));
+    setPageSortBy(nextSort);
+    setPageSortDir(getDefaultSortDir(nextSort));
   }
 
   function clearAllFilters() {
@@ -3798,6 +3800,7 @@ export default function CollectionCardsView({
           key={selectedCard.id}
           card={selectedCard}
           backLabel="Back to Collection"
+          initialMarketSource={primaryPriceSource === "tcp" ? "tcgplayer" : "cardmarket"}
           showGradedSlabPreview={showGradedSlabPreview}
           onClose={() => setSelectedCard(null)}
           onCollectionItemSaved={handleCollectionItemSaved}

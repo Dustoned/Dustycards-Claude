@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.38",
+    releasedAt: "August 8, 2026",
+    title: "CM/TCP switches stay on their page",
+    summary:
+      "Market-source switches are now temporary page controls; only changing the price source in Settings updates the account-wide default.",
+    tone: "fixed",
+    highlights: [
+      "Collection and expansion CM/TCP controls keep their selected source and sorting inside the current page.",
+      "Card Detail inherits the source selected on the collection or expansion page, but changing it in the detail itself no longer rewrites account settings.",
+      "Settings remains the single place that saves a new CardMarket or TCGPlayer default for the whole app.",
+    ],
+  },
+  {
     version: "3.12.37",
     releasedAt: "August 8, 2026",
     title: "A radar that rotates, and honest flat forecasts",
@@ -67,7 +80,7 @@ export const patchNotes: PatchNoteEntry[] = [
       "Trade search offers 80%, 85%, 90%, 95% and 100% at the top and recalculates the correct target for either side without clearing a selected card.",
       "TCGPlayer no longer silently falls back to a CardMarket euro price when its own price is missing.",
       "TCGPlayer prices and history charts use dollars, with the current converted euro value shown as a secondary indication.",
-      "Switching CardMarket or TCGPlayer inside a card detail updates the account-wide price source as well.",
+      "Card details can switch between CardMarket and TCGPlayer without mixing their currencies.",
     ],
   },
   {
