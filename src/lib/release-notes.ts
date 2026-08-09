@@ -20,6 +20,14 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.50",
+    releasedAt: "August 9, 2026",
+    title: "For Sale total in both currencies",
+    summary: "TCGPlayer now shows the full selling total in dollars together with its euro conversion.",
+    tone: "fixed",
+    sections: [{ title: "Correct scope", highlights: ["The conversion belongs to Estimated Sale Value; graded trade tiles remain focused on grade and graded euro value."] }],
+  },
+  {
     version: "3.12.49",
     releasedAt: "August 9, 2026",
     title: "Dollar and euro on every slab",

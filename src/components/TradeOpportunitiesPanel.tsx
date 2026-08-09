@@ -23,8 +23,6 @@ type PanelMode = "compare" | "friends";
 type ManualTradeCard = CardSearchPickerResult & {
   gradedLabel?: string | null;
   itemKind?: "card" | "sealed";
-  sourcePrice?: number | null;
-  sourceCurrency?: "USD" | "EUR" | null;
 };
 
 interface TradeCollectionEntry {
@@ -40,13 +38,6 @@ interface TradeCollectionEntry {
   value: number | null;
   availableCopies: number;
   gradedLabel: string | null;
-  sourcePrice: number | null;
-  sourceCurrency: "USD" | "EUR" | null;
-}
-
-function formatSourceConversion(sourcePrice: number | null, sourceCurrency: "USD" | "EUR" | null, valueEur: number | null) {
-  if (sourcePrice == null || sourceCurrency !== "USD" || valueEur == null) return null;
-  return `$${sourcePrice.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} = ${formatCollectionCurrency(valueEur)}`;
 }
 
 const TRADE_VALUE_RATE_STORAGE_KEY = "dustycards.trade.value-rate.v1";
@@ -144,11 +135,6 @@ function ManualCardPicker({
             {selected.gradedLabel ? (
               <small className="mt-1 inline-block rounded-md border border-amber-300/22 bg-amber-500/[0.09] px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.06em] text-amber-100/82">
                 {selected.gradedLabel}
-              </small>
-            ) : null}
-            {formatSourceConversion(selected.sourcePrice ?? null, selected.sourceCurrency ?? null, selected.cm_en_lowest_nm) ? (
-              <small className="mt-1 block text-[9px] font-bold tabular-nums text-sky-200/72">
-                {formatSourceConversion(selected.sourcePrice ?? null, selected.sourceCurrency ?? null, selected.cm_en_lowest_nm)}
               </small>
             ) : null}
             <span className="mt-2 block text-lg font-black tabular-nums text-white">
@@ -325,11 +311,6 @@ function CollectionTradePickerDialog({
                       ) : entry.kind === "sealed" ? (
                         <small className="mt-1 inline-block rounded border border-violet-300/22 bg-violet-500/[0.09] px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] text-violet-100/82">
                           Sealed
-                        </small>
-                      ) : null}
-                      {formatSourceConversion(entry.sourcePrice, entry.sourceCurrency, entry.value) ? (
-                        <small className="mt-1 block text-[8px] font-bold tabular-nums text-sky-200/72">
-                          {formatSourceConversion(entry.sourcePrice, entry.sourceCurrency, entry.value)}
                         </small>
                       ) : null}
                     </span>
@@ -556,8 +537,6 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
               cm_en_lowest_nm: entry.value,
               gradedLabel: entry.gradedLabel,
               itemKind: entry.kind,
-              sourcePrice: entry.sourcePrice,
-              sourceCurrency: entry.sourceCurrency,
             };
             if (collectionPickerSide === "left") {
               setLeft(card);
@@ -694,11 +673,6 @@ function TradeColumn({
                       </small>
                     ) : card.kind === "sealed" ? (
                       <small className="mt-1 block text-[8px] font-black uppercase tracking-[0.08em] text-violet-200/78">Sealed product</small>
-                    ) : null}
-                    {formatSourceConversion(card.sourcePrice, card.sourceCurrency, card.value) ? (
-                      <small className="mt-1 block truncate text-[8px] font-bold tabular-nums text-sky-200/72">
-                        {formatSourceConversion(card.sourcePrice, card.sourceCurrency, card.value)}
-                      </small>
                     ) : null}
                     {isSuggested ? <small className="mt-1 block text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200/72">Wanted match</small> : null}
                   </span>

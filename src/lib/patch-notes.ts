@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.50",
+    releasedAt: "August 9, 2026",
+    title: "For Sale total shows USD and EUR",
+    summary: "The page-local TCGPlayer switch now updates the complete For Sale total in both currencies.",
+    tone: "fixed",
+    highlights: [
+      "Estimated Sale Value shows '$ TCGPlayer total = € converted total' when TCP is selected.",
+      "Only cards with a TCGPlayer price contribute to both totals, matching the card grid.",
+      "The unintended currency line on graded trade tiles has been removed; grade and graded euro value remain clear.",
+    ],
+  },
+  {
     version: "3.12.49",
     releasedAt: "August 9, 2026",
     title: "Dollar equivalent on every graded trade",

@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
 import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { formatCurrency } from "@/lib/format";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
 export const SELLING_PRICE_SOURCE_EVENT = "dustycards:selling-price-source";
@@ -23,14 +24,22 @@ export default function SellingValueSummary({ items, investment, pricedCards, so
     return () => window.removeEventListener(SELLING_PRICE_SOURCE_EVENT, onChange);
   }, []);
   const estimatedValue = useMemo(() => Number(items.reduce((total, item) => {
-    const value = source === "tcp" ? item.tcp_value_eur ?? item.current_value : item.cm_value ?? item.current_value;
+    const value = source === "tcp" ? item.tcp_value_eur : item.cm_value ?? item.current_value;
     return total + (value ?? 0);
   }, 0).toFixed(2)), [items, source]);
+  const sourceValue = useMemo(() => source === "tcp"
+    ? Number(items.reduce((total, item) => total + (item.tcp_value ?? 0), 0).toFixed(2))
+    : estimatedValue,
+  [estimatedValue, items, source]);
   return (
     <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
       <div className="min-w-0">
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">Estimated Sale Value · {source === "tcp" ? "TCGPlayer" : "CardMarket"}</p>
-        <p className="mt-1 text-xl font-black tabular-nums text-white">{formatCollectionCurrency(estimatedValue)}</p>
+        <p className="mt-1 text-xl font-black tabular-nums text-white">
+          {source === "tcp"
+            ? `${formatCurrency(sourceValue, "USD")} = ${formatCollectionCurrency(estimatedValue)}`
+            : formatCollectionCurrency(estimatedValue)}
+        </p>
         <VendorBuyEstimate estimatedValue={estimatedValue} />
       </div>
       <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">Active Cards</p><p className="mt-1 text-xl font-black tabular-nums text-white">{items.length.toLocaleString("en-US")}</p></div>

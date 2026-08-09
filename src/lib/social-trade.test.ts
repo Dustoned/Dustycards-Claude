@@ -53,12 +53,10 @@ describe("social trade opportunities", () => {
       key: "raw:card-yours", kind: "card", cardId: "card-yours", productId: null,
       name: "Your duplicate", cardNumber: "1", imageUrl: null, episodeName: "Test Set",
       episodeCode: "TST", value: 20, availableCopies: 2, gradedLabel: null,
-      sourcePrice: null, sourceCurrency: null,
     }] : [{
       key: "raw:card-theirs", kind: "card", cardId: "card-theirs", productId: null,
       name: "Their listed card", cardNumber: "2", imageUrl: null, episodeName: "Test Set",
       episodeCode: "TST", value: 25, availableCopies: 1, gradedLabel: null,
-      sourcePrice: null, sourceCurrency: null,
     }]));
     mocks.wantsFindMany.mockImplementation(({ where }) =>
       Promise.resolve([
