@@ -20,6 +20,14 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.51",
+    releasedAt: "August 9, 2026",
+    title: "Vendor totals in USD and EUR",
+    summary: "The For Sale vendor percentage now follows the selected TCGPlayer currency pair.",
+    tone: "fixed",
+    sections: [{ title: "Percentage-aware conversion", highlights: ["The selected vendor percentage is applied to both the dollar total and converted euro total."] }],
+  },
+  {
     version: "3.12.50",
     releasedAt: "August 9, 2026",
     title: "For Sale total in both currencies",

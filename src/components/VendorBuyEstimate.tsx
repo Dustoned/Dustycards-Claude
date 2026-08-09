@@ -22,9 +22,13 @@ function normalizeRate(value: unknown): number {
 
 export default function VendorBuyEstimate({
   estimatedValue,
+  sourceValue = null,
+  sourceCurrency = null,
   className = "",
 }: {
   estimatedValue: number;
+  sourceValue?: number | null;
+  sourceCurrency?: "USD" | null;
   className?: string;
 }) {
   const [rate, setRate] = useState(DEFAULT_RATE);
@@ -43,6 +47,10 @@ export default function VendorBuyEstimate({
   const vendorValue = useMemo(
     () => Number(((estimatedValue * rate) / 100).toFixed(2)),
     [estimatedValue, rate]
+  );
+  const sourceVendorValue = useMemo(
+    () => sourceValue == null ? null : Number(((sourceValue * rate) / 100).toFixed(2)),
+    [rate, sourceValue]
   );
 
   function handleRateChange(nextRate: string) {
@@ -77,7 +85,9 @@ export default function VendorBuyEstimate({
       <div className="mt-2 flex min-w-0 items-end justify-between gap-3">
         <p className="truncate text-[11px] font-semibold text-white/42">Vendor offer</p>
         <p className="shrink-0 text-lg font-black tabular-nums text-emerald-300">
-          {formatCurrency(vendorValue, "EUR")}
+          {sourceCurrency === "USD" && sourceVendorValue != null
+            ? `${formatCurrency(sourceVendorValue, "USD")} = ${formatCurrency(vendorValue, "EUR")}`
+            : formatCurrency(vendorValue, "EUR")}
         </p>
       </div>
     </div>

@@ -40,7 +40,11 @@ export default function SellingValueSummary({ items, investment, pricedCards, so
             ? `${formatCurrency(sourceValue, "USD")} = ${formatCollectionCurrency(estimatedValue)}`
             : formatCollectionCurrency(estimatedValue)}
         </p>
-        <VendorBuyEstimate estimatedValue={estimatedValue} />
+        <VendorBuyEstimate
+          estimatedValue={estimatedValue}
+          sourceValue={source === "tcp" ? sourceValue : null}
+          sourceCurrency={source === "tcp" ? "USD" : null}
+        />
       </div>
       <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">Active Cards</p><p className="mt-1 text-xl font-black tabular-nums text-white">{items.length.toLocaleString("en-US")}</p></div>
       <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">Priced / Paid</p><p className="mt-1 text-xl font-black tabular-nums text-white">{pricedCards.toLocaleString("en-US")} / {formatCollectionCurrency(investment)}</p></div>

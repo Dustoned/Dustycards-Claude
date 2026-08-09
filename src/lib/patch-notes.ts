@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.51",
+    releasedAt: "August 9, 2026",
+    title: "Vendor offer follows both currencies",
+    summary: "TCGPlayer vendor estimates now show their dollar amount together with the converted euro offer.",
+    tone: "fixed",
+    highlights: [
+      "Every 60–85% selection recalculates both the USD vendor offer and its EUR conversion.",
+      "CardMarket mode remains a single euro vendor estimate.",
+    ],
+  },
+  {
     version: "3.12.50",
     releasedAt: "August 9, 2026",
     title: "For Sale total shows USD and EUR",
