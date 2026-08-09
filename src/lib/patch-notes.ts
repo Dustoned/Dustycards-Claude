@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.44",
+    releasedAt: "August 9, 2026",
+    title: "Real card artwork takes over Home widgets",
+    summary:
+      "Grid previews now look like card tiles instead of compact list rows with thumbnail-sized artwork.",
+    tone: "improved",
+    highlights: [
+      "Card artwork grows from a 48px thumbnail to a dominant 185px mobile or 230px desktop preview.",
+      "Titles, set context and price or signal values now sit beneath the artwork in a clear card-grid hierarchy.",
+      "Value Drivers, drops, movers, Radar, Wants, For Sale and Upcoming each receive their own accent, surface and icon language.",
+    ],
+  },
+  {
     version: "3.12.43",
     releasedAt: "August 9, 2026",
     title: "Balanced rows on ultra-wide Home layouts",

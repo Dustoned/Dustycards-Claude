@@ -55,30 +55,30 @@ function HomeSuddenDropRow({
       <Link
         href={href}
         prefetch={false}
-        className="group flex min-h-[8.75rem] min-w-0 flex-col rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] p-2.5 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]"
+        data-home-preview-tile
+        data-preview-tone="drop"
+        className="home-preview-tile home-preview-tile--drop group flex min-w-0 flex-col rounded-2xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5"
       >
-        <span className="flex min-w-0 items-start gap-2.5">
-          <span className="relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-rose-400/14 bg-rose-400/[0.07] text-rose-300">
+        <span className="home-preview-tile__media home-preview-tile__media--card">
+          <span className="home-preview-tile__art home-preview-tile__art--card">
             {item.imageUrl ? (
-              <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="48px" className="object-cover" />
+              <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="(max-width: 640px) 145px, 190px" className="object-cover" />
             ) : (
-              <ArrowDownRight className="h-5 w-5" />
+              <ArrowDownRight className="h-8 w-8 text-rose-300" />
             )}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="line-clamp-2 text-[12px] font-black leading-[1.2] text-white/90 group-hover:text-white">
-              {item.name}
-            </span>
-            <span className="mt-1 line-clamp-2 text-[9.5px] font-semibold leading-4 text-white/42">
-              {item.episodeCode ?? item.episodeName}{item.cardNumber ? ` / #${item.cardNumber}` : ""}
-            </span>
+        </span>
+        <span className="mt-3 min-w-0">
+          <span className="line-clamp-2 text-[14px] font-black leading-[1.2] text-white/92 group-hover:text-white">{item.name}</span>
+          <span className="mt-1 line-clamp-1 text-[10.5px] font-semibold leading-4 text-white/45">
+            {item.episodeCode ?? item.episodeName}{item.cardNumber ? ` / #${item.cardNumber}` : ""}
           </span>
         </span>
-        <span className="mt-auto flex min-w-0 items-end justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2">
-          <span className="min-w-0 truncate text-[9.5px] font-bold text-white/38">
+        <span className="mt-2.5 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2.5">
+          <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
             Now {formatCurrency(item.currentPrice, item.currency)}
           </span>
-          <span className="shrink-0 text-[12px] font-black tabular-nums text-rose-300">
+          <span className="home-preview-tile__metric shrink-0 rounded-full px-2 py-1 text-[12px] font-black tabular-nums text-rose-300">
             -{formatCurrency(item.dropAmount, item.currency)}
           </span>
         </span>
@@ -139,30 +139,30 @@ function HomeSealedDropRow({
       <Link
         href={href}
         prefetch={false}
-        className="group flex min-h-[8.75rem] min-w-0 flex-col rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] p-2.5 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]"
+        data-home-preview-tile
+        data-preview-tone="sealed"
+        className="home-preview-tile home-preview-tile--sealed group flex min-w-0 flex-col rounded-2xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5"
       >
-        <span className="flex min-w-0 items-start gap-2.5">
-          <span className="relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-amber-400/14 bg-amber-400/[0.07] text-amber-300">
+        <span className="home-preview-tile__media home-preview-tile__media--product">
+          <span className="home-preview-tile__art home-preview-tile__art--product">
             {item.imageUrl ? (
-              <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="48px" className="object-contain" />
+              <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="(max-width: 640px) 145px, 190px" className="object-contain p-2" />
             ) : (
-              <Package className="h-5 w-5" />
+              <Package className="h-8 w-8 text-amber-300" />
             )}
           </span>
-          <span className="min-w-0 flex-1">
-            <span className="line-clamp-2 text-[12px] font-black leading-[1.2] text-white/90 group-hover:text-white">
-              {item.name}
-            </span>
-            <span className="mt-1 line-clamp-2 text-[9.5px] font-semibold leading-4 text-white/42">
-              {item.episodeCode ?? item.episodeName} / Sealed
-            </span>
+        </span>
+        <span className="mt-3 min-w-0">
+          <span className="line-clamp-2 text-[14px] font-black leading-[1.2] text-white/92 group-hover:text-white">{item.name}</span>
+          <span className="mt-1 line-clamp-1 text-[10.5px] font-semibold leading-4 text-amber-200/65">
+            {item.episodeCode ?? item.episodeName} / Sealed product
           </span>
         </span>
-        <span className="mt-auto flex min-w-0 items-end justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2">
-          <span className="min-w-0 truncate text-[9.5px] font-bold text-white/38">
+        <span className="mt-2.5 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2.5">
+          <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
             Now {formatCurrency(item.currentPrice, item.currency)}
           </span>
-          <span className="shrink-0 text-[12px] font-black tabular-nums text-rose-300">
+          <span className="home-preview-tile__metric shrink-0 rounded-full px-2 py-1 text-[12px] font-black tabular-nums text-rose-300">
             -{formatCurrency(item.dropAmount, item.currency)}
           </span>
         </span>
@@ -385,7 +385,7 @@ export default function HomeSuddenDropsPanel({
   const sealedDrops = sealedItems.slice(0, HOME_SUDDEN_DROP_LANE_SIZE);
   const sealedViewAllHref = `${viewAllHref}${viewAllHref.includes("#") ? "" : "#sealed"}`;
   return (
-    <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
+    <section className="binder-panel home-widget-panel home-widget-panel--drops overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/34">

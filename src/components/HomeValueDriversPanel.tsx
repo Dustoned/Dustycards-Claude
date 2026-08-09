@@ -135,7 +135,7 @@ function HomeValueDriverRow({
   const tileBaseClass =
     "group min-w-0 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] p-2.5 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
   const className = gridView
-    ? `${tileBaseClass} flex min-h-[8.75rem] flex-col`
+    ? `home-preview-tile home-preview-tile--${tone} group flex min-w-0 flex-col rounded-2xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5`
     : `${tileBaseClass} grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2`;
   const listContent = (
     <>
@@ -168,35 +168,35 @@ function HomeValueDriverRow({
   );
   const gridContent = (
     <>
-      <span className="flex min-w-0 items-start gap-2.5">
-        <span className={`relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border ${toneSurfaceClass} ${toneTextClass}`}>
+      <span className={`home-preview-tile__media home-preview-tile__media--${item.kind === "sealed" ? "product" : "card"}`}>
+        <span className={`home-preview-tile__art home-preview-tile__art--${item.kind === "sealed" ? "product" : "card"}`}>
           {item.imageUrl ? (
             <CachedImage
               sourceUrl={item.imageUrl}
               alt=""
               fill
-              sizes="48px"
-              className={item.kind === "sealed" ? "object-contain" : "object-cover"}
+              sizes="(max-width: 640px) 145px, 190px"
+              className={item.kind === "sealed" ? "object-contain p-2" : "object-cover"}
             />
           ) : (
-            <Icon className="h-5 w-5" />
+            <Icon className={`h-8 w-8 ${toneTextClass}`} />
           )}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 text-[12px] font-black leading-[1.2] text-white/90 group-hover:text-white">
-            {item.name}
-          </span>
-          <span className="mt-1 line-clamp-2 text-[9.5px] font-semibold leading-4 text-white/42">
-            {meta || getDriverSourceLabel(item)}
-          </span>
+      </span>
+      <span className="mt-3 min-w-0">
+        <span className="line-clamp-2 text-[14px] font-black leading-[1.2] text-white/92 group-hover:text-white">
+          {item.name}
+        </span>
+        <span className="mt-1 line-clamp-1 text-[10.5px] font-semibold leading-4 text-white/45">
+          {meta || getDriverSourceLabel(item)}
         </span>
       </span>
-      <span className="mt-auto flex min-w-0 items-end justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2">
-        <span className="min-w-0 truncate text-[9.5px] font-bold text-white/38">
+      <span className="mt-2.5 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2.5">
+        <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
           {getDriverSourceLabel(item)}
         </span>
         <span className="shrink-0 text-right">
-          <span className={`block text-[12px] font-black tabular-nums ${toneTextClass}`}>
+          <span className={`home-preview-tile__metric block rounded-full px-2 py-1 text-[12px] font-black tabular-nums ${toneTextClass}`}>
             {formatSignedCurrency(item.change)}
           </span>
           {percent ? <span className="block text-[9.5px] font-bold text-white/42">{percent}</span> : null}
@@ -211,6 +211,8 @@ function HomeValueDriverRow({
       <button
         type="button"
         data-home-value-driver-row
+        data-home-preview-tile
+        data-preview-tone={tone}
         data-driver-kind="card"
         onClick={() => onOpenCard(item)}
         aria-busy={loading}
@@ -226,6 +228,8 @@ function HomeValueDriverRow({
       <button
         type="button"
         data-home-value-driver-row
+        data-home-preview-tile
+        data-preview-tone={tone}
         data-driver-kind="sealed"
         onClick={() => onOpenSealed(item)}
         className={`${className} w-full transition-colors`}
@@ -355,7 +359,7 @@ export default function HomeValueDriversPanel({
   }, []);
 
   return (
-    <section className="binder-panel overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
+    <section className="binder-panel home-widget-panel home-widget-panel--drivers overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-white/34">

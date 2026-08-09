@@ -3710,9 +3710,133 @@ html[data-appearance-scheme="light"]
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.home-widget-panel {
+  --home-widget-accent-rgb: var(--dc-primary-rgb);
+  background:
+    radial-gradient(circle at 8% 0%, rgb(var(--home-widget-accent-rgb) / 0.11), transparent 28rem),
+    linear-gradient(145deg, rgb(var(--dc-surface-elevated-rgb) / 0.95), rgb(var(--dc-surface-primary-rgb) / 0.9));
+}
+
+.home-widget-panel--market { --home-widget-accent-rgb: 52 211 153; }
+.home-widget-panel--drivers { --home-widget-accent-rgb: 74 222 128; }
+.home-widget-panel--drops { --home-widget-accent-rgb: 251 113 133; }
+.home-widget-panel--radar { --home-widget-accent-rgb: 129 140 248; }
+.home-widget-panel--wants { --home-widget-accent-rgb: 244 114 182; }
+.home-widget-panel--sale { --home-widget-accent-rgb: 45 212 191; }
+.home-widget-panel--upcoming { --home-widget-accent-rgb: 56 189 248; }
+
+.home-widget-heading-icon {
+  display: inline-flex;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgb(var(--home-widget-accent-rgb) / 0.24);
+  border-radius: 0.75rem;
+  color: rgb(var(--home-widget-accent-rgb));
+  background: rgb(var(--home-widget-accent-rgb) / 0.1);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.05);
+}
+
+.home-widget-heading-icon--market,
+.home-widget-eyebrow--market { --home-widget-accent-rgb: 52 211 153; }
+.home-widget-heading-icon--radar,
+.home-widget-eyebrow--radar { --home-widget-accent-rgb: 129 140 248; }
+.home-widget-heading-icon--wants,
+.home-widget-eyebrow--wants { --home-widget-accent-rgb: 244 114 182; }
+.home-widget-heading-icon--sale,
+.home-widget-eyebrow--sale { --home-widget-accent-rgb: 45 212 191; }
+.home-widget-heading-icon--upcoming,
+.home-widget-eyebrow--upcoming { --home-widget-accent-rgb: 56 189 248; }
+.home-widget-eyebrow { color: rgb(var(--home-widget-accent-rgb)); }
+
+.home-preview-tile {
+  --home-tile-accent-rgb: var(--dc-primary-rgb);
+  min-height: 17.25rem;
+  border-color: rgb(var(--home-tile-accent-rgb) / 0.2);
+  background:
+    radial-gradient(circle at 50% 18%, rgb(var(--home-tile-accent-rgb) / 0.12), transparent 55%),
+    linear-gradient(160deg, rgb(var(--dc-surface-hover-rgb) / 0.72), rgb(var(--dc-bg-main-rgb) / 0.7));
+  box-shadow: 0 12px 28px rgb(0 0 0 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.04);
+}
+
+.home-preview-tile:hover {
+  border-color: rgb(var(--home-tile-accent-rgb) / 0.48);
+  box-shadow: 0 17px 34px rgb(0 0 0 / 0.22), 0 0 0 1px rgb(var(--home-tile-accent-rgb) / 0.08);
+}
+
+.home-preview-tile--gain { --home-tile-accent-rgb: 52 211 153; }
+.home-preview-tile--drop { --home-tile-accent-rgb: 251 113 133; }
+.home-preview-tile--radar { --home-tile-accent-rgb: 129 140 248; }
+.home-preview-tile--wants { --home-tile-accent-rgb: 244 114 182; }
+.home-preview-tile--sale { --home-tile-accent-rgb: 45 212 191; }
+.home-preview-tile--upcoming { --home-tile-accent-rgb: 56 189 248; }
+.home-preview-tile--sealed { --home-tile-accent-rgb: 251 191 36; }
+
+.home-preview-tile__media {
+  position: relative;
+  display: flex;
+  min-height: 11.5rem;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border: 1px solid rgb(var(--home-tile-accent-rgb) / 0.18);
+  border-radius: 0.9rem;
+  background:
+    radial-gradient(circle at 50% 40%, rgb(var(--home-tile-accent-rgb) / 0.14), transparent 68%),
+    rgb(var(--dc-bg-main-rgb) / 0.36);
+}
+
+.home-preview-tile__media--product {
+  background:
+    linear-gradient(135deg, rgb(var(--home-tile-accent-rgb) / 0.1), transparent 55%),
+    rgb(var(--dc-surface-elevated-rgb) / 0.58);
+}
+
+.home-preview-tile__art {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgb(var(--home-tile-accent-rgb));
+}
+
+.home-preview-tile__art--card {
+  height: 10.75rem;
+  aspect-ratio: 63 / 88;
+  overflow: hidden;
+  border-radius: 4.75%;
+  filter: drop-shadow(0 9px 13px rgb(0 0 0 / 0.34));
+}
+
+.home-preview-tile__art--product {
+  width: 100%;
+  height: 10.75rem;
+}
+
+.home-preview-tile__metric {
+  color: rgb(var(--home-tile-accent-rgb));
+  background: rgb(var(--home-tile-accent-rgb) / 0.11);
+  box-shadow: inset 0 0 0 1px rgb(var(--home-tile-accent-rgb) / 0.18);
+}
+
 @container (min-width: 28rem) {
   .home-widget-tile-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .home-preview-tile {
+    min-height: 20.25rem;
+  }
+
+  .home-preview-tile__media {
+    min-height: 14.5rem;
+  }
+
+  .home-preview-tile__art--card,
+  .home-preview-tile__art--product {
+    height: 13.75rem;
   }
 }
 

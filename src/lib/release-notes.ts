@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.44",
+    releasedAt: "August 9, 2026",
+    title: "Artwork-led Home widgets",
+    summary:
+      "Home grid mode now uses large, collection-style card previews and a distinct visual identity for every widget family.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Cards instead of thumbnail rows",
+        highlights: [
+          "Artwork is now the main content of each tile on desktop and mobile.",
+          "Market gains, market drops, Radar, Wants, For Sale, sealed products and releases are visually distinguishable at a glance.",
+          "The balanced responsive grid and twelve-item ultra-wide previews remain intact.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.43",
     releasedAt: "August 9, 2026",
     title: "Filled, balanced Home widget grids",

@@ -25,6 +25,8 @@ import type {
 const HOME_PREVIEW_TILE_CLASS =
   "group rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
 
+type HomePreviewTone = "gain" | "drop" | "radar" | "wants" | "sale" | "upcoming";
+
 function HomePreviewTile({
   href,
   imageUrl,
@@ -35,6 +37,8 @@ function HomePreviewTile({
   metric,
   metricClassName = "text-white/78",
   footer,
+  tone,
+  mediaKind = "card",
 }: {
   href: string;
   imageUrl: string | null;
@@ -45,41 +49,45 @@ function HomePreviewTile({
   metric: string;
   metricClassName?: string;
   footer: string;
+  tone: HomePreviewTone;
+  mediaKind?: "card" | "product";
 }) {
   return (
     <Link
       href={href}
       prefetch={false}
-      className={`${HOME_PREVIEW_TILE_CLASS} flex min-h-[8.75rem] min-w-0 flex-col p-2.5`}
+      data-home-preview-tile
+      data-preview-tone={tone}
+      className={`home-preview-tile home-preview-tile--${tone} group flex min-w-0 flex-col rounded-2xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5`}
     >
-      <span className="flex min-w-0 items-start gap-2.5">
-        <span className="relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-bg-main-rgb)/0.3)]">
+      <span className={`home-preview-tile__media home-preview-tile__media--${mediaKind}`}>
+        <span className={`home-preview-tile__art home-preview-tile__art--${mediaKind}`}>
           {imageUrl ? (
             <CachedImage
               sourceUrl={imageUrl}
               alt=""
               fill
-              sizes="48px"
-              className={imageFit}
+              sizes="(max-width: 640px) 145px, 190px"
+              className={`${imageFit} ${mediaKind === "product" ? "p-2" : ""}`}
             />
           ) : (
             fallback
           )}
         </span>
-        <span className="min-w-0 flex-1">
-          <span className="line-clamp-2 text-[12px] font-black leading-[1.2] text-white/90 transition-colors group-hover:text-white">
-            {title}
-          </span>
-          <span className="mt-1 line-clamp-2 text-[9.5px] font-semibold leading-4 text-white/42">
-            {meta}
-          </span>
+      </span>
+      <span className="mt-3 min-w-0">
+        <span className="line-clamp-2 text-[14px] font-black leading-[1.2] text-white/92 transition-colors group-hover:text-white">
+          {title}
+        </span>
+        <span className="mt-1 line-clamp-1 text-[10.5px] font-semibold leading-4 text-white/45">
+          {meta}
         </span>
       </span>
-      <span className="mt-auto flex min-w-0 items-end justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2">
-        <span className="min-w-0 truncate text-[9.5px] font-bold text-white/38">
+      <span className="mt-2.5 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2.5">
+        <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
           {footer}
         </span>
-        <span className={`shrink-0 text-[12px] font-black tabular-nums ${metricClassName}`}>
+        <span className={`home-preview-tile__metric shrink-0 rounded-full px-2 py-1 text-[12px] font-black tabular-nums ${metricClassName}`}>
           {metric}
         </span>
       </span>
@@ -92,21 +100,30 @@ function WidgetHeader({
   title,
   count,
   href,
+  icon: Icon,
+  tone,
 }: {
   eyebrow: string;
   title: string;
   count?: number;
   href: string;
+  icon: typeof ArrowUpRight;
+  tone: Exclude<HomePreviewTone, "gain" | "drop"> | "market";
 }) {
   return (
     <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-[var(--dc-primary)]/75">
-          {eyebrow}
-        </p>
-        <h2 className="mt-0.5 truncate text-base font-black tracking-tight text-white">
-          {title}
-        </h2>
+      <div className="flex min-w-0 items-center gap-2.5">
+        <span className={`home-widget-heading-icon home-widget-heading-icon--${tone}`}>
+          <Icon className="h-4 w-4" aria-hidden="true" />
+        </span>
+        <div className="min-w-0">
+          <p className={`home-widget-eyebrow home-widget-eyebrow--${tone} text-[9px] font-black uppercase tracking-[0.14em]`}>
+            {eyebrow}
+          </p>
+          <h2 className="mt-0.5 truncate text-base font-black tracking-tight text-white">
+            {title}
+          </h2>
+        </div>
       </div>
       <Link
         href={href}
@@ -144,8 +161,8 @@ export function HomeMarketMoversWidget({
   const gridView = displaySettings.defaultView !== "table";
 
   return (
-    <section className="binder-panel h-full rounded-[var(--ui-page-header-radius)] p-3">
-      <WidgetHeader eyebrow="Live market" title="Market Movers" href={viewAllHref} />
+    <section className="binder-panel home-widget-panel home-widget-panel--market h-full rounded-[var(--ui-page-header-radius)] p-3">
+      <WidgetHeader eyebrow="Live market" title="Market Movers" href={viewAllHref} icon={ArrowUpRight} tone="market" />
       {items.length === 0 ? (
         <EmptyWidget>No current mover snapshot is available yet.</EmptyWidget>
       ) : gridView ? (
@@ -166,6 +183,7 @@ export function HomeMarketMoversWidget({
                 metric={`${item.change > 0 ? "+" : ""}${formatCurrency(item.change, item.currency)}`}
                 metricClassName={tone}
                 footer={signedPercent(item.changePct) ?? formatCurrency(item.currentPrice, item.currency)}
+                tone={gain ? "gain" : "drop"}
               />
             );
           })}
@@ -223,8 +241,8 @@ export function HomeSignalRadarWidget({
   const gridView = displaySettings.defaultView !== "table";
 
   return (
-    <section className="binder-panel h-full rounded-[var(--ui-page-header-radius)] p-3">
-      <WidgetHeader eyebrow="Opportunity watch" title="Signal Radar" href={viewAllHref} />
+    <section className="binder-panel home-widget-panel home-widget-panel--radar h-full rounded-[var(--ui-page-header-radius)] p-3">
+      <WidgetHeader eyebrow="Opportunity watch" title="Signal Radar" href={viewAllHref} icon={Radar} tone="radar" />
       {items.length === 0 ? (
         <EmptyWidget>No active Radar signals match the current game.</EmptyWidget>
       ) : gridView ? (
@@ -240,6 +258,7 @@ export function HomeSignalRadarWidget({
               metric={`${Math.round(item.score)}/100`}
               metricClassName="text-[var(--dc-primary)]"
               footer={item.confidence}
+              tone="radar"
             />
           ))}
         </div>
@@ -298,8 +317,8 @@ function HomeCardListWidget({
   const { displaySettings } = useSettings();
   const gridView = displaySettings.defaultView !== "table";
   return (
-    <section className="binder-panel h-full rounded-[var(--ui-page-header-radius)] p-3">
-      <WidgetHeader eyebrow={eyebrow} title={title} count={data.total} href={viewAllHref} />
+    <section className={`binder-panel home-widget-panel home-widget-panel--${kind} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
+      <WidgetHeader eyebrow={eyebrow} title={title} count={data.total} href={viewAllHref} icon={Icon} tone={kind} />
       {data.items.length === 0 ? (
         <EmptyWidget>{emptyLabel}</EmptyWidget>
       ) : gridView ? (
@@ -314,6 +333,7 @@ function HomeCardListWidget({
               meta={`${item.episodeCode ?? item.episodeName}${item.cardNumber ? ` / #${item.cardNumber}` : ""}`}
               metric={item.price == null ? "--" : formatCurrency(item.price, item.currency)}
               footer={kind === "wants" ? "Wanted" : "For sale"}
+              tone={kind}
             />
           ))}
         </div>
@@ -395,8 +415,8 @@ export function HomeUpcomingWidget({
   const gridView = displaySettings.defaultView !== "table";
 
   return (
-    <section className="binder-panel h-full rounded-[var(--ui-page-header-radius)] p-3">
-      <WidgetHeader eyebrow="Release calendar" title="Upcoming" count={items.length} href={viewAllHref} />
+    <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">
+      <WidgetHeader eyebrow="Release calendar" title="Upcoming" count={items.length} href={viewAllHref} icon={CalendarClock} tone="upcoming" />
       {items.length === 0 ? (
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
       ) : gridView ? (
@@ -413,6 +433,8 @@ export function HomeUpcomingWidget({
               metric={item.daysUntil === 0 ? "Today" : `${item.daysUntil}d`}
               metricClassName="text-[var(--dc-primary)]"
               footer={new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(item.releaseDate))}
+              tone="upcoming"
+              mediaKind="product"
             />
           ))}
         </div>
