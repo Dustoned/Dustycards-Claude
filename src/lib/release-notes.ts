@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.40",
+    releasedAt: "August 9, 2026",
+    title: "Consistent tiles across Home",
+    summary:
+      "The customizable Home dashboard no longer mixes bare lists with card-style UI; its preview items now use proper DustyCards tiles.",
+    tone: "improved",
+    sections: [
+      {
+        title: "One visual language",
+        highlights: [
+          "Value, drop, mover, Radar, Wants, For Sale and Upcoming entries are each presented as a separate rounded tile.",
+          "Allocation entries follow the same surface treatment.",
+          "Tile colors and borders use the active theme variables and retain the compact mobile layout.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.39",
     releasedAt: "August 9, 2026",
     title: "Cleaner customizable Home widgets",

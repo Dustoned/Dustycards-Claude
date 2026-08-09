@@ -20,6 +20,9 @@ import type {
   HomeUpcomingPreviewItem,
 } from "@/lib/home-overview-insights";
 
+const HOME_PREVIEW_TILE_CLASS =
+  "group rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
+
 function WidgetHeader({
   eyebrow,
   title,
@@ -79,7 +82,7 @@ export function HomeMarketMoversWidget({
       {items.length === 0 ? (
         <EmptyWidget>No current mover snapshot is available yet.</EmptyWidget>
       ) : (
-        <div className="mt-2">
+        <div className="mt-2 grid gap-1.5">
           {items.map((item) => {
             const gain = item.change > 0;
             const Icon = gain ? ArrowUpRight : ArrowDownRight;
@@ -90,7 +93,7 @@ export function HomeMarketMoversWidget({
                 key={`${item.cardId}:${item.windowDays}:${item.change}`}
                 href={href}
                 prefetch={false}
-                className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
+                className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2`}
               >
                 <span className={`flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.035] ${tone}`}>
                   <Icon className="h-3.5 w-3.5" aria-hidden="true" />
@@ -133,13 +136,13 @@ export function HomeSignalRadarWidget({
       {items.length === 0 ? (
         <EmptyWidget>No active Radar signals match the current game.</EmptyWidget>
       ) : (
-        <div className="mt-2">
+        <div className="mt-2 grid gap-1.5">
           {items.map((item) => (
             <Link
               key={item.cardId}
               href={`/movers/signal-radar/${encodeURIComponent(item.cardId)}`}
               prefetch={false}
-              className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
+              className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2`}
             >
               <span className="flex h-8 w-8 items-center justify-center rounded-xl border border-[rgb(var(--dc-primary-rgb)/0.18)] bg-[rgb(var(--dc-primary-rgb)/0.08)] text-[var(--dc-primary)]">
                 <Radar className="h-3.5 w-3.5" aria-hidden="true" />
@@ -190,13 +193,13 @@ function HomeCardListWidget({
       {data.items.length === 0 ? (
         <EmptyWidget>{emptyLabel}</EmptyWidget>
       ) : (
-        <div className="mt-2">
+        <div className="mt-2 grid gap-1.5">
           {data.items.map((item, index) => (
             <Link
               key={`${item.cardId}:${index}`}
               href={`/cards/${encodeURIComponent(item.cardId)}`}
               prefetch={false}
-              className="group grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
+              className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}
             >
               <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
                 {item.imageUrl ? (
@@ -269,13 +272,13 @@ export function HomeUpcomingWidget({
       {items.length === 0 ? (
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
       ) : (
-        <div className="mt-2">
+        <div className="mt-2 grid gap-1.5">
           {items.map((item) => (
             <Link
               key={item.id}
               href={viewAllHref}
               prefetch={false}
-              className="group grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
+              className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}
             >
               <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
                 {item.imageUrl ? (

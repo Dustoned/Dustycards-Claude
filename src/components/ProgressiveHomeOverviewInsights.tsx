@@ -172,9 +172,12 @@ function CollectionAllocationPanel({ segments }: { segments: HomeAllocationSegme
         ))}
       </div>
 
-      <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2">
+      <div className="mt-3 grid grid-cols-2 gap-1.5 sm:gap-2">
         {segments.map((segment) => (
-          <div key={segment.key} className="flex min-w-0 items-center gap-2">
+          <div
+            key={segment.key}
+            className="flex min-w-0 items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.54),rgb(var(--dc-surface-primary-rgb)/0.68))] px-2.5 py-2 shadow-[0_8px_20px_rgba(0,0,0,0.1)]"
+          >
             <span className={`${TONE_CLASSES[segment.tone].dot} h-2 w-2 shrink-0 rounded-full`} />
             <span className="min-w-0 flex-1 truncate text-[11px] font-semibold text-white/52">
               {segment.label}

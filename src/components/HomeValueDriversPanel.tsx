@@ -129,7 +129,7 @@ function HomeValueDriverRow({
   const percent = formatSignedPercent(item.changePct);
   const meta = getDriverMetaLabel(item);
   const className =
-    "group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 text-left first:border-t-0";
+    "group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
   const content = (
     <>
       <span
@@ -224,7 +224,7 @@ function HomeValueDriverLane({
         </span>
       </div>
       {items.length > 0 ? (
-        <div className="min-w-0">
+        <div className="grid min-w-0 gap-1.5">
           {items.map((item) => (
             <HomeValueDriverRow
               key={item.id}
@@ -237,7 +237,7 @@ function HomeValueDriverLane({
           ))}
         </div>
       ) : (
-        <div className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/34">
+        <div className="rounded-xl border border-dashed border-[rgb(var(--dc-border-rgb)/0.72)] px-3 py-4 text-[12px] font-semibold text-white/34">
           {emptyLabel}
         </div>
       )}

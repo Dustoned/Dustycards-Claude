@@ -50,7 +50,7 @@ function HomeSuddenDropRow({
     <Link
       href={href}
       prefetch={false}
-      className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
+      className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]"
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-rose-400/14 bg-rose-400/[0.07] text-rose-300">
         <ArrowDownRight className="h-3.5 w-3.5" />
@@ -96,7 +96,7 @@ function HomeSealedDropRow({
     <Link
       href={href}
       prefetch={false}
-      className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
+      className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]"
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-amber-400/14 bg-amber-400/[0.07] text-amber-300">
         <Package className="h-3.5 w-3.5" />
@@ -130,11 +130,11 @@ function HomeSealedDropRow({
 
 function LoadingRows() {
   return (
-    <div className="min-w-0">
+    <div className="grid min-w-0 gap-1.5">
       {Array.from({ length: HOME_SUDDEN_DROP_LANE_SIZE }).map((_, index) => (
         <div
           key={index}
-          className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 border-t border-white/7 py-2 first:border-t-0"
+          className="grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-surface-hover-rgb)/0.38)] px-2.5 py-2"
         >
           <span className="h-8 w-8 shrink-0 animate-pulse rounded-xl bg-white/[0.07]" />
           <span className="min-w-0 space-y-1.5">
@@ -172,7 +172,7 @@ function HomeSuddenDropLane({
           {total.toLocaleString("en-US")}
         </span>
       </div>
-      <div className="min-w-0">
+      <div className="grid min-w-0 gap-1.5">
         {items.length > 0 ? (
           items.map((item) => (
             <HomeSuddenDropRow
@@ -182,7 +182,7 @@ function HomeSuddenDropLane({
             />
           ))
         ) : (
-          <p className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
+          <p className="rounded-xl border border-dashed border-[rgb(var(--dc-border-rgb)/0.72)] px-3 py-4 text-[12px] font-semibold text-white/38">
             No verified card drops in the last 24 hours.
           </p>
         )}
@@ -210,13 +210,13 @@ function HomeSealedDropLane({
           {total.toLocaleString("en-US")}
         </span>
       </div>
-      <div className="min-w-0">
+      <div className="grid min-w-0 gap-1.5">
         {items.length > 0 ? (
           items.map((item) => (
             <HomeSealedDropRow key={item.productId} item={item} href={viewAllHref} />
           ))
         ) : (
-          <p className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
+          <p className="rounded-xl border border-dashed border-[rgb(var(--dc-border-rgb)/0.72)] px-3 py-4 text-[12px] font-semibold text-white/38">
             No verified sealed drops in the last 24 hours.
           </p>
         )}

@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.40",
+    releasedAt: "August 9, 2026",
+    title: "Home lists are now real tiles",
+    summary:
+      "Every list-style item in the customizable Home widgets now uses the same separate, rounded tile treatment found throughout the rest of DustyCards.",
+    tone: "improved",
+    highlights: [
+      "Value Drivers and Sudden Drops use individual tiles for every card and sealed product instead of divider rows.",
+      "Market Movers, Signal Radar, Wants, For Sale and Upcoming now use the same tile surface and spacing.",
+      "Collection Allocation entries are tiled too, with theme-aware surfaces, borders and hover states across desktop and mobile.",
+    ],
+  },
+  {
     version: "3.12.39",
     releasedAt: "August 9, 2026",
     title: "Cleaner Home drop lanes and widget headers",
