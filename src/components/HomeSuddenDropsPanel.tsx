@@ -245,7 +245,7 @@ function HomeSuddenDropLane({
   gridView: boolean;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="home-widget-tile-lane min-w-0">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
           {title}
@@ -288,7 +288,7 @@ function HomeSealedDropLane({
   gridView: boolean;
 }) {
   return (
-    <div className="min-w-0">
+    <div className="home-widget-tile-lane min-w-0">
       <div className="mb-1.5 flex items-center justify-between gap-2">
         <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
           Sealed drops

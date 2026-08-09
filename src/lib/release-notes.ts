@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.43",
+    releasedAt: "August 9, 2026",
+    title: "Filled, balanced Home widget grids",
+    summary:
+      "Nested lanes now size independently and wide widgets receive enough preview data to avoid cramped rows or large empty areas.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Verified on the ultra-wide live layout",
+        highlights: [
+          "Half-widget lanes use three columns and two rows for their six entries.",
+          "Wide preview widgets can use twelve entries and twelve columns on ultra-wide displays.",
+          "Smaller desktop and phone grids retain six, three or two responsive columns as space allows.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.42",
     releasedAt: "August 9, 2026",
     title: "Balanced Home tile grids",

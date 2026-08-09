@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.43",
+    releasedAt: "August 9, 2026",
+    title: "Balanced rows on ultra-wide Home layouts",
+    summary:
+      "Each nested drop lane now measures its own width, while wide preview widgets can load twelve items to use their space cleanly.",
+    tone: "fixed",
+    highlights: [
+      "Value Driver and Sudden Drop halves form a balanced three-by-two tile layout on wide screens.",
+      "Market Movers, Radar, Wants, For Sale and Upcoming can show up to twelve preview tiles instead of leaving half the widget empty.",
+      "Ultra-wide modules use twelve columns; normal wide modules use six, compact modules three and phones two.",
+    ],
+  },
+  {
     version: "3.12.42",
     releasedAt: "August 9, 2026",
     title: "Home tiles size themselves to the widget",

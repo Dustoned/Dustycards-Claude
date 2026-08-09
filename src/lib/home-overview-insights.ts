@@ -7,6 +7,9 @@ import { getHomeFeaturedCards, getHomeValueDriversPreview } from "@/lib/home-pag
 import type { CollectionMoverItem } from "@/lib/movers";
 import type { UpcomingSealedRelease } from "@/lib/sealed-movers";
 
+const HOME_WIDGET_PREVIEW_LIMIT = 12;
+const HOME_WIDGET_MOVER_TONE_LIMIT = HOME_WIDGET_PREVIEW_LIMIT / 2;
+
 export type HomeAllocationTone = "sky" | "emerald" | "amber" | "rose";
 
 export interface HomeAllocationSegment {
@@ -111,11 +114,11 @@ function buildMarketMoverPreview(items: CollectionMoverItem[]): HomeMarketMoverP
   const gains = candidates
     .filter((candidate) => candidate.change > 0)
     .sort((left, right) => right.change - left.change)
-    .slice(0, 3);
+    .slice(0, HOME_WIDGET_MOVER_TONE_LIMIT);
   const drops = candidates
     .filter((candidate) => candidate.change < 0)
     .sort((left, right) => left.change - right.change)
-    .slice(0, 3);
+    .slice(0, HOME_WIDGET_MOVER_TONE_LIMIT);
 
   return [...gains, ...drops].map(({ item, change, changePct, windowDays }) => ({
     cardId: item.cardId,
@@ -133,7 +136,7 @@ function buildMarketMoverPreview(items: CollectionMoverItem[]): HomeMarketMoverP
 }
 
 function buildSignalRadarPreview(items: ExternalCardSignal[]): HomeSignalRadarPreviewItem[] {
-  return items.slice(0, 6).map((item) => ({
+  return items.slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => ({
     cardId: item.cardId,
     name: item.name,
     imageUrl: item.imageUrl,
@@ -163,7 +166,7 @@ function buildForSalePreview(data: CollectionOverviewData): HomeCardListPreview 
     totalValue: values.length > 0
       ? Number(values.reduce((total, value) => total + value, 0).toFixed(2))
       : null,
-    items: cards.slice(0, 6).map((item) => ({
+    items: cards.slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => ({
       cardId: item.card_id,
       name: item.name,
       cardNumber: item.card_number,
@@ -200,7 +203,7 @@ export function buildHomeOverviewInsights(
     radarSignals: buildSignalRadarPreview(extras.radarSignals ?? []),
     wants: extras.wants ?? { total: 0, totalValue: null, items: [] },
     forSale: buildForSalePreview(data),
-    upcoming: (extras.upcoming ?? []).slice(0, 6).map((item) => ({
+    upcoming: (extras.upcoming ?? []).slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => ({
       id: item.id,
       name: item.name,
       imageUrl: item.imageUrl,
