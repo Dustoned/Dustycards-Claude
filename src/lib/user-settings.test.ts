@@ -82,6 +82,15 @@ describe("user settings", () => {
     ]);
   });
 
+  it("roundtrips per-widget Home list views and removes invalid keys", () => {
+    const settings = mergeSettings({
+      homeDashboardListModules: ["market-movers", "wants", "unknown", "wants"] as never,
+    });
+    const restored = parseStoredSettings(serializeSettings(settings));
+
+    expect(restored?.homeDashboardListModules).toEqual(["market-movers", "wants"]);
+  });
+
   it("drops retired preferences while preserving current settings", () => {
     const restored = parseStoredSettings(
       JSON.stringify({ settingsVersion: 3, card3dSize: "large", retiredPreference: true })

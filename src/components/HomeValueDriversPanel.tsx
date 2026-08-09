@@ -5,10 +5,10 @@ import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { useCallback, useState } from "react";
 import CachedImage from "@/components/CachedImage";
-import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { formatCollectionCurrency } from "@/lib/collection";
+import type { HomeWidgetViewMode } from "@/lib/dashboard-module-preferences";
 import type {
   CollectionValueDriverItem,
   CollectionValueDriversData,
@@ -135,7 +135,7 @@ function HomeValueDriverRow({
   const tileBaseClass =
     "group min-w-0 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] p-2.5 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
   const className = gridView
-    ? `home-preview-tile home-preview-tile--${tone} group flex min-w-0 flex-col rounded-2xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5`
+    ? `home-preview-tile home-preview-tile--${tone} group flex min-w-0 flex-col rounded-xl border p-2 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5`
     : `${tileBaseClass} grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2`;
   const listContent = (
     <>
@@ -183,7 +183,7 @@ function HomeValueDriverRow({
           )}
         </span>
       </span>
-      <span className="mt-3 min-w-0">
+      <span className="mt-2 min-w-0">
         <span className="line-clamp-2 text-[14px] font-black leading-[1.2] text-white/92 group-hover:text-white">
           {item.name}
         </span>
@@ -191,7 +191,7 @@ function HomeValueDriverRow({
           {meta || getDriverSourceLabel(item)}
         </span>
       </span>
-      <span className="mt-2.5 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2.5">
+      <span className="mt-2 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.46)] pt-2">
         <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
           {getDriverSourceLabel(item)}
         </span>
@@ -303,17 +303,18 @@ function HomeValueDriverLane({
 export default function HomeValueDriversPanel({
   data,
   viewAllHref,
+  viewMode = "grid",
 }: {
   data: CollectionValueDriversData;
   viewAllHref: string;
+  viewMode?: HomeWidgetViewMode;
 }) {
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
-  const { displaySettings } = useSettings();
-  const gridView = displaySettings.defaultView !== "table";
+  const gridView = viewMode === "grid";
   const gains = data.gains.slice(0, 12);
   const drops = data.drops.slice(0, 12);
   const hasDrivers = gains.length > 0 || drops.length > 0;

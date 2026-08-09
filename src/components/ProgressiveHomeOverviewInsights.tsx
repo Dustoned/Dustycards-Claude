@@ -7,6 +7,8 @@ import {
   ChevronDown,
   Eye,
   EyeOff,
+  Grid2X2,
+  List,
   Maximize2,
   Minimize2,
   RotateCcw,
@@ -27,8 +29,10 @@ import { formatCollectionCurrency } from "@/lib/collection";
 import {
   DEFAULT_HIDDEN_HOME_DASHBOARD_MODULES,
   DEFAULT_HOME_DASHBOARD_MODULE_ORDER,
+  HOME_DASHBOARD_VIEW_MODULES,
   normalizeHomeDashboardModuleOrder,
   type HomeDashboardModuleKey,
+  type HomeWidgetViewMode,
 } from "@/lib/dashboard-module-preferences";
 import type {
   HomeAllocationSegment,
@@ -345,6 +349,11 @@ export default function ProgressiveHomeOverviewInsights({
   const hiddenModules = new Set(settings.homeDashboardHiddenModules);
   const compactModules = new Set(settings.homeDashboardCompactModules);
   const collapsedModules = new Set(settings.homeDashboardCollapsedModules);
+  const listModules = new Set(settings.homeDashboardListModules);
+
+  function viewModeFor(moduleKey: HomeDashboardModuleKey): HomeWidgetViewMode {
+    return listModules.has(moduleKey) ? "list" : "grid";
+  }
 
   function moveModule(moduleKey: HomeDashboardModuleKey, direction: -1 | 1) {
     const fromIndex = moduleOrder.indexOf(moduleKey);
@@ -371,6 +380,7 @@ export default function ProgressiveHomeOverviewInsights({
     set("homeDashboardHiddenModules", [...DEFAULT_HIDDEN_HOME_DASHBOARD_MODULES]);
     set("homeDashboardCompactModules", []);
     set("homeDashboardCollapsedModules", []);
+    set("homeDashboardListModules", []);
   }
 
   function toggleModuleCollapsed(moduleKey: HomeDashboardModuleKey) {
@@ -394,10 +404,21 @@ export default function ProgressiveHomeOverviewInsights({
     );
   }
 
+  function setModuleView(moduleKey: HomeDashboardModuleKey, viewMode: HomeWidgetViewMode) {
+    if (!HOME_DASHBOARD_VIEW_MODULES.has(moduleKey)) return;
+    const list = settings.homeDashboardListModules;
+    set(
+      "homeDashboardListModules",
+      viewMode === "list"
+        ? list.includes(moduleKey) ? list : [...list, moduleKey]
+        : list.filter((key) => key !== moduleKey)
+    );
+  }
+
   const modules: Record<HomeDashboardModuleKey, ReactNode> = {
     overview: portfolioSlot,
     "value-drivers": payload ? (
-      <HomeValueDriversPanel data={payload.valueDrivers} viewAllHref={valueDriversHref} />
+      <HomeValueDriversPanel data={payload.valueDrivers} viewAllHref={valueDriversHref} viewMode={viewModeFor("value-drivers")} />
     ) : (
       <InsightPanelSkeleton />
     ),
@@ -406,21 +427,22 @@ export default function ProgressiveHomeOverviewInsights({
         apiHref={suddenDropsApiHref}
         cacheScope={cacheScope}
         viewAllHref={suddenDropsHref}
+        viewMode={viewModeFor("sudden-drops")}
       />
     ),
     "market-movers": payload ? (
-      <HomeMarketMoversWidget items={payload.marketMovers ?? []} viewAllHref={moversHref} />
+      <HomeMarketMoversWidget items={payload.marketMovers ?? []} viewAllHref={moversHref} viewMode={viewModeFor("market-movers")} />
     ) : (
       <InsightPanelSkeleton />
     ),
     "signal-radar": payload ? (
-      <HomeSignalRadarWidget items={payload.radarSignals ?? []} viewAllHref={signalRadarHref} />
+      <HomeSignalRadarWidget items={payload.radarSignals ?? []} viewAllHref={signalRadarHref} viewMode={viewModeFor("signal-radar")} />
     ) : (
       <InsightPanelSkeleton />
     ),
     featured: payload ? (
       payload.featuredCards.length > 0 ? (
-        <HomeFeaturedCardsPanel cards={payload.featuredCards} viewAllHref={collectionHref} />
+        <HomeFeaturedCardsPanel cards={payload.featuredCards} viewAllHref={collectionHref} viewMode={viewModeFor("featured")} />
       ) : null
     ) : (
       <FeaturedCardsSkeleton />
@@ -435,6 +457,7 @@ export default function ProgressiveHomeOverviewInsights({
       <HomeWantsWidget
         data={payload.wants ?? { total: 0, totalValue: null, items: [] }}
         viewAllHref={wantsHref}
+        viewMode={viewModeFor("wants")}
       />
     ) : (
       <InsightPanelSkeleton />
@@ -443,12 +466,13 @@ export default function ProgressiveHomeOverviewInsights({
       <HomeForSaleWidget
         data={payload.forSale ?? { total: 0, totalValue: null, items: [] }}
         viewAllHref={forSaleHref}
+        viewMode={viewModeFor("for-sale")}
       />
     ) : (
       <InsightPanelSkeleton />
     ),
     upcoming: payload ? (
-      <HomeUpcomingWidget items={payload.upcoming ?? []} viewAllHref={upcomingHref} />
+      <HomeUpcomingWidget items={payload.upcoming ?? []} viewAllHref={upcomingHref} viewMode={viewModeFor("upcoming")} />
     ) : (
       <InsightPanelSkeleton />
     ),
@@ -477,7 +501,7 @@ export default function ProgressiveHomeOverviewInsights({
       {showCustomizer ? (
         <DashboardCustomizerDialog
           title="Customize Home"
-          description="Choose what appears, arrange the order and make selected modules compact so two can sit side by side. Changes save automatically to your account."
+          description="Choose what appears, arrange the order, set each card widget to Grid or List, and resize modules. Changes save automatically to your account."
           onClose={() => setShowCustomizer(false)}
         >
           <div className="flex justify-end">
@@ -495,11 +519,13 @@ export default function ProgressiveHomeOverviewInsights({
               const hidden = hiddenModules.has(moduleKey);
               const compact = compactModules.has(moduleKey);
               const compactable = COMPACTABLE_HOME_MODULES.has(moduleKey);
+              const viewSelectable = HOME_DASHBOARD_VIEW_MODULES.has(moduleKey);
+              const viewMode = viewModeFor(moduleKey);
               const meta = HOME_MODULE_LABELS[moduleKey];
               return (
                 <div
                   key={moduleKey}
-                  className={`flex min-w-0 items-center gap-2 rounded-2xl border p-3 transition-colors ${
+                  className={`flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border p-3 transition-colors ${
                     hidden
                       ? "border-white/6 bg-black/10 text-white/38"
                       : "border-white/10 bg-white/[0.045] text-white"
@@ -520,6 +546,7 @@ export default function ProgressiveHomeOverviewInsights({
                       {meta.description}
                     </span>
                   </span>
+                  <div className="flex basis-full items-center justify-end gap-1.5 pl-10 sm:basis-auto sm:pl-0">
                   {compactable ? (
                     <button
                       type="button"
@@ -539,6 +566,26 @@ export default function ProgressiveHomeOverviewInsights({
                       Wide
                     </span>
                   )}
+                  {viewSelectable ? (
+                    <span className="inline-flex h-8 shrink-0 items-center rounded-lg border border-white/8 bg-black/12 p-0.5" aria-label={`${meta.label} view`}>
+                      <button
+                        type="button"
+                        onClick={() => setModuleView(moduleKey, "grid")}
+                        aria-pressed={viewMode === "grid"}
+                        className={`inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[9px] font-bold transition-colors ${viewMode === "grid" ? "bg-[rgb(var(--dc-primary-rgb)/0.18)] text-[var(--dc-primary)]" : "text-white/38 hover:text-white"}`}
+                      >
+                        <Grid2X2 className="h-3 w-3" /> Grid
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setModuleView(moduleKey, "list")}
+                        aria-pressed={viewMode === "list"}
+                        className={`inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[9px] font-bold transition-colors ${viewMode === "list" ? "bg-[rgb(var(--dc-primary-rgb)/0.18)] text-[var(--dc-primary)]" : "text-white/38 hover:text-white"}`}
+                      >
+                        <List className="h-3 w-3" /> List
+                      </button>
+                    </span>
+                  ) : null}
                   <div className="flex shrink-0 items-center">
                     <button
                       type="button"
@@ -559,12 +606,13 @@ export default function ProgressiveHomeOverviewInsights({
                       <ArrowDown className="h-3.5 w-3.5" />
                     </button>
                   </div>
+                  </div>
                 </div>
               );
             })}
           </div>
           <p className="mt-4 text-[11px] font-semibold leading-5 text-white/35">
-            Compact modules pair automatically on desktop. Mobile always keeps one readable module per row.
+            Compact modules pair automatically on desktop. Grid/List is saved per widget. Mobile always keeps one readable module per row.
           </p>
         </DashboardCustomizerDialog>
       ) : null}

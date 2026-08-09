@@ -20,6 +20,20 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.53",
+    releasedAt: "August 10, 2026",
+    title: "Every Home widget gets its own view",
+    summary: "Card widgets can now independently use a cleaner Grid or compact List layout.",
+    tone: "improved",
+    sections: [{
+      title: "A Home layout that is actually yours",
+      highlights: [
+        "Customize Home now stores Grid or List separately for Value Drivers, Sudden Drops, Movers, Radar, Featured, Wants, For Sale and Upcoming.",
+        "Grid cards use a quieter frame, tighter spacing and a stronger artwork-first hierarchy without the previous empty dark space.",
+      ],
+    }],
+  },
+  {
     version: "3.12.52",
     releasedAt: "August 9, 2026",
     title: "Collection and For Sale stay separated",

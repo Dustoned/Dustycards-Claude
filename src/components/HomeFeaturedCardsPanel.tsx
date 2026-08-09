@@ -36,6 +36,7 @@ import {
   getCardGridTrackWidth,
 } from "@/lib/display-scale";
 import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-image-display";
+import type { HomeWidgetViewMode } from "@/lib/dashboard-module-preferences";
 import { HOME_FEATURED_CARD_LIMIT } from "@/lib/home-page-payload";
 import type { CollectionCardViewItem } from "@/types/collection-view";
 
@@ -246,12 +247,14 @@ function FeaturedCardTile({
 export default function HomeFeaturedCardsPanel({
   cards,
   viewAllHref,
+  viewMode = "grid",
   desktopRows = 1,
   mobileRows = MOBILE_FEATURED_ROWS,
   readOnlyCollectionItems = false,
 }: {
   cards: CollectionCardViewItem[];
   viewAllHref: string;
+  viewMode?: HomeWidgetViewMode;
   desktopRows?: number;
   mobileRows?: number;
   readOnlyCollectionItems?: boolean;
@@ -260,7 +263,7 @@ export default function HomeFeaturedCardsPanel({
   const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
   const [desktopColumnCount, setDesktopColumnCount] = useState(DEFAULT_DESKTOP_FEATURED_COLUMNS);
   const gridRef = useRef<HTMLDivElement | null>(null);
-  const { displaySettings, isMobileViewport } = useSettings();
+  const { settings, displaySettings, isMobileViewport } = useSettings();
   const imageSizes = getCardGridImageSizes(
     displaySettings.cardSize,
     displaySettings.widescreen,
@@ -281,15 +284,16 @@ export default function HomeFeaturedCardsPanel({
           : "gap-x-1.5 gap-y-2"
     : "gap-2.5";
   const visibleCards = useMemo(() => {
+    if (viewMode === "list") return cards.slice(0, Math.min(cards.length, 12));
     const visibleCount = isMobileViewport
       ? getCardGridColumnCount(displaySettings.cardSize, true) * Math.max(1, mobileRows)
       : desktopColumnCount * Math.max(1, desktopRows);
 
     return cards.slice(0, Math.min(cards.length, visibleCount, MAX_FEATURED_CARDS));
-  }, [cards, desktopColumnCount, desktopRows, displaySettings.cardSize, isMobileViewport, mobileRows]);
+  }, [cards, desktopColumnCount, desktopRows, displaySettings.cardSize, isMobileViewport, mobileRows, viewMode]);
 
   useEffect(() => {
-    if (isMobileViewport) return;
+    if (isMobileViewport || viewMode === "list") return;
 
     const element = gridRef.current;
     if (!element) return;
@@ -314,7 +318,7 @@ export default function HomeFeaturedCardsPanel({
     observer.observe(gridElement);
 
     return () => observer.disconnect();
-  }, [displaySettings.cardSize, displaySettings.widescreen, isMobileViewport]);
+  }, [displaySettings.cardSize, displaySettings.widescreen, isMobileViewport, viewMode]);
 
   async function openCard(item: CollectionCardViewItem) {
     const openingKey = getOpeningItemKey(item);
@@ -351,14 +355,37 @@ export default function HomeFeaturedCardsPanel({
       </div>
       <div
         ref={gridRef}
-        className={`grid ${gridGapClass}`}
-        style={{
-          gridTemplateColumns,
-          justifyContent: "stretch",
-        }}
+        className={viewMode === "grid" ? `grid ${gridGapClass}` : "grid gap-1.5 sm:grid-cols-2"}
+        style={viewMode === "grid" ? { gridTemplateColumns, justifyContent: "stretch" } : undefined}
       >
         {visibleCards.map((item) => {
           const key = getOpeningItemKey(item);
+          if (viewMode === "list") {
+            const displayPrice = getCollectionItemPrice(item, settings.primaryPriceSource);
+            const displayPriceCurrency = getCollectionItemPriceCurrency(item, settings.primaryPriceSource);
+            return (
+              <button
+                key={`${key}-${item.card_id}`}
+                type="button"
+                onClick={() => void openCard(item)}
+                className="group grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-surface-primary-rgb)/0.5)] px-2.5 py-2 text-left transition-colors hover:border-[rgb(var(--dc-border-hover-rgb)/0.9)] hover:bg-[rgb(var(--dc-surface-hover-rgb)/0.62)]"
+              >
+                <span className="relative aspect-[63/88] w-9 overflow-hidden rounded-[4.75%] bg-black/10 shadow-sm">
+                  {item.image_url ? (
+                    <CachedImage sourceUrl={item.image_url} alt="" fill sizes="36px" className="object-cover" />
+                  ) : null}
+                  {openingItemKey === key ? <CardLoadingOverlay /> : null}
+                </span>
+                <span className="min-w-0">
+                  <span className="block truncate text-[12px] font-black text-white/88 group-hover:text-white">{item.name}</span>
+                  <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/38">{item.episode_name ?? "Unknown set"}{item.card_number ? ` / #${item.card_number}` : ""}</span>
+                </span>
+                <span className="shrink-0 text-[11px] font-black tabular-nums text-white/72">
+                  {displayPrice == null ? "--" : formatMarketCurrency(displayPrice, displayPriceCurrency)}
+                </span>
+              </button>
+            );
+          }
           return (
             <FeaturedCardTile
               key={`${key}-${item.card_id}`}

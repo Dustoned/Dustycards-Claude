@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Package, Sparkles } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
-import { useSettings } from "@/components/SettingsProvider";
+import type { HomeWidgetViewMode } from "@/lib/dashboard-module-preferences";
 import { formatCurrency } from "@/lib/format";
 import type {
   HomeSuddenDropPreviewItem,
@@ -57,7 +57,7 @@ function HomeSuddenDropRow({
         prefetch={false}
         data-home-preview-tile
         data-preview-tone="drop"
-        className="home-preview-tile home-preview-tile--drop group flex min-w-0 flex-col rounded-2xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5"
+        className="home-preview-tile home-preview-tile--drop group flex min-w-0 flex-col rounded-xl border p-2 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5"
       >
         <span className="home-preview-tile__media home-preview-tile__media--card">
           <span className="home-preview-tile__art home-preview-tile__art--card">
@@ -68,13 +68,13 @@ function HomeSuddenDropRow({
             )}
           </span>
         </span>
-        <span className="mt-3 min-w-0">
+        <span className="mt-2 min-w-0">
           <span className="line-clamp-2 text-[14px] font-black leading-[1.2] text-white/92 group-hover:text-white">{item.name}</span>
           <span className="mt-1 line-clamp-1 text-[10.5px] font-semibold leading-4 text-white/45">
             {item.episodeCode ?? item.episodeName}{item.cardNumber ? ` / #${item.cardNumber}` : ""}
           </span>
         </span>
-        <span className="mt-2.5 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2.5">
+        <span className="mt-2 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.46)] pt-2">
           <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
             Now {formatCurrency(item.currentPrice, item.currency)}
           </span>
@@ -141,7 +141,7 @@ function HomeSealedDropRow({
         prefetch={false}
         data-home-preview-tile
         data-preview-tone="sealed"
-        className="home-preview-tile home-preview-tile--sealed group flex min-w-0 flex-col rounded-2xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5"
+        className="home-preview-tile home-preview-tile--sealed group flex min-w-0 flex-col rounded-xl border p-2 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5"
       >
         <span className="home-preview-tile__media home-preview-tile__media--product">
           <span className="home-preview-tile__art home-preview-tile__art--product">
@@ -152,13 +152,13 @@ function HomeSealedDropRow({
             )}
           </span>
         </span>
-        <span className="mt-3 min-w-0">
+        <span className="mt-2 min-w-0">
           <span className="line-clamp-2 text-[14px] font-black leading-[1.2] text-white/92 group-hover:text-white">{item.name}</span>
           <span className="mt-1 line-clamp-1 text-[10.5px] font-semibold leading-4 text-amber-200/65">
             {item.episodeCode ?? item.episodeName} / Sealed product
           </span>
         </span>
-        <span className="mt-2.5 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2.5">
+        <span className="mt-2 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.46)] pt-2">
           <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
             Now {formatCurrency(item.currentPrice, item.currency)}
           </span>
@@ -323,10 +323,12 @@ export default function HomeSuddenDropsPanel({
   apiHref,
   cacheScope,
   viewAllHref,
+  viewMode = "grid",
 }: {
   apiHref: string;
   cacheScope: string;
   viewAllHref: string;
+  viewMode?: HomeWidgetViewMode;
 }) {
   const [state, setState] = useState<LoadState>(() => {
     const cached = readHomeClientCache<HomeSuddenDropsResponse>(
@@ -338,8 +340,7 @@ export default function HomeSuddenDropsPanel({
       ? { status: "ready", apiHref, data: cached }
       : { status: "loading", apiHref };
   });
-  const { displaySettings } = useSettings();
-  const gridView = displaySettings.defaultView !== "table";
+  const gridView = viewMode === "grid";
 
   useEffect(() => {
     const controller = new AbortController();

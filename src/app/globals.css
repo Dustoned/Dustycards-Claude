@@ -3753,17 +3753,15 @@ html[data-appearance-scheme="light"]
 
 .home-preview-tile {
   --home-tile-accent-rgb: var(--dc-primary-rgb);
-  min-height: 17.25rem;
-  border-color: rgb(var(--home-tile-accent-rgb) / 0.2);
-  background:
-    radial-gradient(circle at 50% 18%, rgb(var(--home-tile-accent-rgb) / 0.12), transparent 55%),
-    linear-gradient(160deg, rgb(var(--dc-surface-hover-rgb) / 0.72), rgb(var(--dc-bg-main-rgb) / 0.7));
-  box-shadow: 0 12px 28px rgb(0 0 0 / 0.16), inset 0 1px 0 rgb(255 255 255 / 0.04);
+  min-height: 0;
+  border-color: rgb(var(--home-tile-accent-rgb) / 0.14);
+  background: linear-gradient(165deg, rgb(var(--dc-surface-hover-rgb) / 0.56), rgb(var(--dc-bg-main-rgb) / 0.58));
+  box-shadow: 0 7px 18px rgb(0 0 0 / 0.13), inset 0 1px 0 rgb(255 255 255 / 0.035);
 }
 
 .home-preview-tile:hover {
   border-color: rgb(var(--home-tile-accent-rgb) / 0.48);
-  box-shadow: 0 17px 34px rgb(0 0 0 / 0.22), 0 0 0 1px rgb(var(--home-tile-accent-rgb) / 0.08);
+  box-shadow: 0 12px 24px rgb(0 0 0 / 0.18), 0 0 0 1px rgb(var(--home-tile-accent-rgb) / 0.06);
 }
 
 .home-preview-tile--gain { --home-tile-accent-rgb: 52 211 153; }
@@ -3777,21 +3775,19 @@ html[data-appearance-scheme="light"]
 .home-preview-tile__media {
   position: relative;
   display: flex;
-  min-height: 11.5rem;
+  min-height: 10.75rem;
   align-items: center;
   justify-content: center;
   overflow: hidden;
-  border: 1px solid rgb(var(--home-tile-accent-rgb) / 0.18);
-  border-radius: 0.9rem;
-  background:
-    radial-gradient(circle at 50% 40%, rgb(var(--home-tile-accent-rgb) / 0.14), transparent 68%),
-    rgb(var(--dc-bg-main-rgb) / 0.36);
+  border: 0;
+  border-radius: 0.65rem;
+  background: radial-gradient(circle at 50% 45%, rgb(var(--home-tile-accent-rgb) / 0.08), transparent 70%);
 }
 
 .home-preview-tile__media--product {
   background:
-    linear-gradient(135deg, rgb(var(--home-tile-accent-rgb) / 0.1), transparent 55%),
-    rgb(var(--dc-surface-elevated-rgb) / 0.58);
+    linear-gradient(135deg, rgb(var(--home-tile-accent-rgb) / 0.07), transparent 58%),
+    rgb(var(--dc-surface-elevated-rgb) / 0.34);
 }
 
 .home-preview-tile__art {
@@ -3803,16 +3799,16 @@ html[data-appearance-scheme="light"]
 }
 
 .home-preview-tile__art--card {
-  height: 10.75rem;
+  height: 10.5rem;
   aspect-ratio: 63 / 88;
   overflow: hidden;
   border-radius: 4.75%;
-  filter: drop-shadow(0 9px 13px rgb(0 0 0 / 0.34));
+  filter: drop-shadow(0 7px 10px rgb(0 0 0 / 0.3));
 }
 
 .home-preview-tile__art--product {
   width: 100%;
-  height: 10.75rem;
+  height: 10.5rem;
 }
 
 .home-preview-tile__metric {
@@ -3826,17 +3822,13 @@ html[data-appearance-scheme="light"]
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .home-preview-tile {
-    min-height: 17.5rem;
-  }
-
   .home-preview-tile__media {
-    min-height: 12rem;
+    min-height: 11.25rem;
   }
 
   .home-preview-tile__art--card,
   .home-preview-tile__art--product {
-    height: 11.25rem;
+    height: 11rem;
   }
 }
 

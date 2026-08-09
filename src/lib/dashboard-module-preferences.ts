@@ -12,6 +12,19 @@ export type HomeDashboardModuleKey =
   | "upcoming"
   | "shortcuts";
 
+export type HomeWidgetViewMode = "grid" | "list";
+
+export const HOME_DASHBOARD_VIEW_MODULES = new Set<HomeDashboardModuleKey>([
+  "value-drivers",
+  "sudden-drops",
+  "market-movers",
+  "signal-radar",
+  "featured",
+  "wants",
+  "for-sale",
+  "upcoming",
+]);
+
 export const DEFAULT_HOME_DASHBOARD_MODULE_ORDER: HomeDashboardModuleKey[] = [
   "overview",
   "value-drivers",

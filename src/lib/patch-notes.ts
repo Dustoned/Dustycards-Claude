@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.53",
+    releasedAt: "August 10, 2026",
+    title: "Per-widget Grid and List layouts",
+    summary: "Home no longer forces every card widget into the same presentation.",
+    tone: "improved",
+    highlights: [
+      "Eight card-based widgets now expose their own Grid/List selector in Customize Home.",
+      "The selection persists to the signed-in account and is shared by desktop and mobile.",
+      "Grid tiles have slimmer borders, softer depth, less padding and no forced empty height.",
+      "Featured Cards now has a dedicated compact list layout instead of reusing its card grid.",
+    ],
+  },
+  {
     version: "3.12.52",
     releasedAt: "August 9, 2026",
     title: "For Sale cannot leak into collection",

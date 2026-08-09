@@ -20,6 +20,7 @@ import type {
   HomeSignalRadarPreviewItem,
   HomeUpcomingPreviewItem,
 } from "@/lib/home-overview-insights";
+import type { HomeWidgetViewMode } from "@/lib/dashboard-module-preferences";
 
 const HOME_PREVIEW_TILE_CLASS =
   "group rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
@@ -57,7 +58,7 @@ function HomePreviewTile({
       prefetch={false}
       data-home-preview-tile
       data-preview-tone={tone}
-      className={`home-preview-tile home-preview-tile--${tone} group flex min-w-0 flex-col rounded-2xl border p-3 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5`}
+      className={`home-preview-tile home-preview-tile--${tone} group flex min-w-0 flex-col rounded-xl border p-2 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5`}
     >
       <span className={`home-preview-tile__media home-preview-tile__media--${mediaKind}`}>
         <span className={`home-preview-tile__art home-preview-tile__art--${mediaKind}`}>
@@ -74,7 +75,7 @@ function HomePreviewTile({
           )}
         </span>
       </span>
-      <span className="mt-3 min-w-0">
+      <span className="mt-2 min-w-0">
         <span className="line-clamp-2 text-[14px] font-black leading-[1.2] text-white/92 transition-colors group-hover:text-white">
           {title}
         </span>
@@ -82,7 +83,7 @@ function HomePreviewTile({
           {meta}
         </span>
       </span>
-      <span className="mt-2.5 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2.5">
+      <span className="mt-2 flex min-w-0 items-center justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.46)] pt-2">
         <span className="min-w-0 truncate text-[10px] font-bold uppercase tracking-[0.08em] text-white/40">
           {footer}
         </span>
@@ -152,11 +153,13 @@ function signedPercent(value: number | null): string | null {
 export function HomeMarketMoversWidget({
   items,
   viewAllHref,
+  viewMode = "grid",
 }: {
   items: HomeMarketMoverPreviewItem[];
   viewAllHref: string;
+  viewMode?: HomeWidgetViewMode;
 }) {
-  const gridView = true;
+  const gridView = viewMode === "grid";
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--market h-full rounded-[var(--ui-page-header-radius)] p-3">
@@ -231,11 +234,13 @@ export function HomeMarketMoversWidget({
 export function HomeSignalRadarWidget({
   items,
   viewAllHref,
+  viewMode = "grid",
 }: {
   items: HomeSignalRadarPreviewItem[];
   viewAllHref: string;
+  viewMode?: HomeWidgetViewMode;
 }) {
-  const gridView = true;
+  const gridView = viewMode === "grid";
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--radar h-full rounded-[var(--ui-page-header-radius)] p-3">
@@ -302,6 +307,7 @@ function HomeCardListWidget({
   viewAllHref,
   emptyLabel,
   kind,
+  viewMode,
 }: {
   eyebrow: string;
   title: string;
@@ -309,9 +315,10 @@ function HomeCardListWidget({
   viewAllHref: string;
   emptyLabel: string;
   kind: "wants" | "sale";
+  viewMode: HomeWidgetViewMode;
 }) {
   const Icon = kind === "wants" ? Heart : ShoppingBag;
-  const gridView = true;
+  const gridView = viewMode === "grid";
   return (
     <section className={`binder-panel home-widget-panel home-widget-panel--${kind} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
       <WidgetHeader eyebrow={eyebrow} title={title} count={data.total} href={viewAllHref} icon={Icon} tone={kind} />
@@ -374,7 +381,7 @@ function HomeCardListWidget({
   );
 }
 
-export function HomeWantsWidget({ data, viewAllHref }: { data: HomeCardListPreview; viewAllHref: string }) {
+export function HomeWantsWidget({ data, viewAllHref, viewMode = "grid" }: { data: HomeCardListPreview; viewAllHref: string; viewMode?: HomeWidgetViewMode }) {
   return (
     <HomeCardListWidget
       eyebrow="Buy list"
@@ -383,11 +390,12 @@ export function HomeWantsWidget({ data, viewAllHref }: { data: HomeCardListPrevi
       viewAllHref={viewAllHref}
       emptyLabel="Your Wants list is empty."
       kind="wants"
+      viewMode={viewMode}
     />
   );
 }
 
-export function HomeForSaleWidget({ data, viewAllHref }: { data: HomeCardListPreview; viewAllHref: string }) {
+export function HomeForSaleWidget({ data, viewAllHref, viewMode = "grid" }: { data: HomeCardListPreview; viewAllHref: string; viewMode?: HomeWidgetViewMode }) {
   return (
     <HomeCardListWidget
       eyebrow="Selling"
@@ -396,6 +404,7 @@ export function HomeForSaleWidget({ data, viewAllHref }: { data: HomeCardListPre
       viewAllHref={viewAllHref}
       emptyLabel="No cards are currently listed for sale."
       kind="sale"
+      viewMode={viewMode}
     />
   );
 }
@@ -403,11 +412,13 @@ export function HomeForSaleWidget({ data, viewAllHref }: { data: HomeCardListPre
 export function HomeUpcomingWidget({
   items,
   viewAllHref,
+  viewMode = "grid",
 }: {
   items: HomeUpcomingPreviewItem[];
   viewAllHref: string;
+  viewMode?: HomeWidgetViewMode;
 }) {
-  const gridView = true;
+  const gridView = viewMode === "grid";
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">
