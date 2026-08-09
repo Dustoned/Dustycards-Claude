@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.55",
+    releasedAt: "August 10, 2026",
+    title: "Equal-height Home rows",
+    summary: "Compact widgets and their card lanes now stay visually aligned without slowing long dashboards.",
+    tone: "improved",
+    highlights: [
+      "Side-by-side widgets always fill the same dashboard row height.",
+      "Collection Shortcuts now supports the same Wide/Compact control as other modules.",
+      "List mode is capped at six preview rows per section to keep widgets compact.",
+      "Tile grids use one responsive minimum width instead of unrelated breakpoint sizes.",
+      "Biggest Gains, Biggest Drops, Card Drops and Sealed Drops now use clearer lane headers.",
+      "Content visibility and lighter paint effects reduce scroll work on widget-heavy Home pages.",
+    ],
+  },
+  {
     version: "3.12.54",
     releasedAt: "August 10, 2026",
     title: "Home customizer is a real layout preview",

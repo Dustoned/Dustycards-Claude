@@ -246,11 +246,12 @@ function HomeSuddenDropLane({
 }) {
   return (
     <div className="home-widget-tile-lane min-w-0">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
+      <div className="home-widget-lane-heading home-widget-lane-heading--drop mb-2 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.12em] text-white/78">
+          <span className="home-widget-lane-heading__dot" aria-hidden="true" />
           {title}
         </p>
-        <span className="text-[10.5px] font-semibold text-white/34">
+        <span className="rounded-full bg-black/18 px-2 py-0.5 text-[10.5px] font-bold text-white/52">
           {total.toLocaleString("en-US")}
         </span>
       </div>
@@ -289,11 +290,12 @@ function HomeSealedDropLane({
 }) {
   return (
     <div className="home-widget-tile-lane min-w-0">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
+      <div className="home-widget-lane-heading home-widget-lane-heading--sealed mb-2 flex items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.12em] text-white/78">
+          <span className="home-widget-lane-heading__dot" aria-hidden="true" />
           Sealed drops
         </p>
-        <span className="text-[10.5px] font-semibold text-white/34">
+        <span className="rounded-full bg-black/18 px-2 py-0.5 text-[10.5px] font-bold text-white/52">
           {total.toLocaleString("en-US")}
         </span>
       </div>
@@ -382,8 +384,9 @@ export default function HomeSuddenDropsPanel({
   const currency = previewItems[0]?.currency ?? "EUR";
   const thresholdLabel = formatCurrency(data.threshold, currency);
   const hasItems = previewItems.length > 0 || sealedItems.length > 0;
-  const cardDrops = previewItems.slice(0, HOME_SUDDEN_DROP_LANE_SIZE);
-  const sealedDrops = sealedItems.slice(0, HOME_SUDDEN_DROP_LANE_SIZE);
+  const laneLimit = gridView ? HOME_SUDDEN_DROP_LANE_SIZE : 6;
+  const cardDrops = previewItems.slice(0, laneLimit);
+  const sealedDrops = sealedItems.slice(0, laneLimit);
   const sealedViewAllHref = `${viewAllHref}${viewAllHref.includes("#") ? "" : "#sealed"}`;
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--drops overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">

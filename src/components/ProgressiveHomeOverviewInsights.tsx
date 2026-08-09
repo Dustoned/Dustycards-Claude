@@ -97,6 +97,7 @@ const COMPACTABLE_HOME_MODULES = new Set<HomeDashboardModuleKey>([
   "wants",
   "for-sale",
   "upcoming",
+  "shortcuts",
 ]);
 
 function InsightPanelSkeleton() {
@@ -213,7 +214,7 @@ function CollapsibleHomeModule({
         type="button"
         onClick={onToggle}
         aria-expanded={false}
-        className="binder-panel flex min-h-11 w-full items-center justify-between gap-3 rounded-[var(--ui-page-header-radius)] border border-white/10 px-3 text-left text-white/72 transition-colors hover:border-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)]"
+        className="binder-panel flex min-h-11 h-full w-full items-center justify-between gap-3 rounded-[var(--ui-page-header-radius)] border border-white/10 px-3 text-left text-white/72 transition-colors hover:border-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)]"
       >
         <span className="truncate text-[11px] font-bold uppercase tracking-[0.11em]">
           {label}
@@ -227,7 +228,7 @@ function CollapsibleHomeModule({
   }
 
   return (
-    <div className="home-dashboard-module relative [&>section>div:first-child]:pr-11">
+    <div className="home-dashboard-module relative h-full [&>section]:h-full [&>section>div:first-child]:pr-11">
       <button
         type="button"
         onClick={onToggle}
@@ -627,7 +628,7 @@ export default function ProgressiveHomeOverviewInsights({
             const compact =
               COMPACTABLE_HOME_MODULES.has(moduleKey) && compactModules.has(moduleKey);
             return (
-              <div key={moduleKey} className={compact ? "lg:col-span-1" : "lg:col-span-2"}>
+              <div key={moduleKey} className={`${compact ? "lg:col-span-1" : "lg:col-span-2"} h-full`}>
                 <CollapsibleHomeModule
                   collapsed={collapsedModules.has(moduleKey)}
                   label={HOME_MODULE_LABELS[moduleKey].label}

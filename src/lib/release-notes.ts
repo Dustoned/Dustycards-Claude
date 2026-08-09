@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.55",
+    releasedAt: "August 10, 2026",
+    title: "Balanced widgets and smoother scrolling",
+    summary: "Paired Home widgets now share one height and card lanes use consistent tile sizing.",
+    tone: "improved",
+    sections: [{
+      title: "Cleaner and faster Home",
+      highlights: [
+        "Widgets placed side by side now stretch to the same row height.",
+        "Collection Shortcuts can now also be switched between Wide and Compact.",
+        "List widgets show a focused six-item preview instead of stretching across almost an entire screen.",
+        "Gain, drop and sealed lane headings have stronger contrast and clearer structure.",
+        "Off-screen widgets defer rendering and expensive tile shadows were reduced for smoother scrolling.",
+      ],
+    }],
+  },
+  {
     version: "3.12.54",
     releasedAt: "August 10, 2026",
     title: "Customize Home mirrors the real page",

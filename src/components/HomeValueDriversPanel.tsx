@@ -267,11 +267,12 @@ function HomeValueDriverLane({
 }) {
   return (
     <div className="home-widget-tile-lane min-w-0">
-      <div className="mb-1.5 flex items-center justify-between gap-2">
-        <p className="text-[11px] font-black uppercase tracking-[0.14em] text-white/42">
+      <div className={`home-widget-lane-heading home-widget-lane-heading--${tone} mb-2 flex items-center justify-between gap-2`}>
+        <p className="flex items-center gap-2 text-[12px] font-black uppercase tracking-[0.12em] text-white/78">
+          <span className="home-widget-lane-heading__dot" aria-hidden="true" />
           {title}
         </p>
-        <span className="text-[10.5px] font-semibold text-white/34">
+        <span className="rounded-full bg-black/18 px-2 py-0.5 text-[10.5px] font-bold text-white/52">
           {items.length.toLocaleString("en-US")}
         </span>
       </div>
@@ -315,8 +316,9 @@ export default function HomeValueDriversPanel({
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
   const gridView = viewMode === "grid";
-  const gains = data.gains.slice(0, 12);
-  const drops = data.drops.slice(0, 12);
+  const previewLimit = gridView ? 12 : 6;
+  const gains = data.gains.slice(0, previewLimit);
+  const drops = data.drops.slice(0, previewLimit);
   const hasDrivers = gains.length > 0 || drops.length > 0;
   const netChange = data.totalChange ?? 0;
   const netToneClass = netChange >= 0 ? "text-emerald-300" : "text-rose-300";

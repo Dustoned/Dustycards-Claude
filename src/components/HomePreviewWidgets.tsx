@@ -160,6 +160,7 @@ export function HomeMarketMoversWidget({
   viewMode?: HomeWidgetViewMode;
 }) {
   const gridView = viewMode === "grid";
+  const visibleItems = gridView ? items : items.slice(0, 6);
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--market h-full rounded-[var(--ui-page-header-radius)] p-3">
@@ -168,7 +169,7 @@ export function HomeMarketMoversWidget({
         <EmptyWidget>No current mover snapshot is available yet.</EmptyWidget>
       ) : gridView ? (
         <div className="home-widget-tile-grid mt-2 grid gap-2">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const gain = item.change > 0;
             const Icon = gain ? ArrowUpRight : ArrowDownRight;
             const tone = gain ? "text-emerald-300" : "text-rose-300";
@@ -191,7 +192,7 @@ export function HomeMarketMoversWidget({
         </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
-          {items.map((item) => {
+          {visibleItems.map((item) => {
             const gain = item.change > 0;
             const Icon = gain ? ArrowUpRight : ArrowDownRight;
             const tone = gain ? "text-emerald-300" : "text-rose-300";
@@ -241,6 +242,7 @@ export function HomeSignalRadarWidget({
   viewMode?: HomeWidgetViewMode;
 }) {
   const gridView = viewMode === "grid";
+  const visibleItems = gridView ? items : items.slice(0, 6);
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--radar h-full rounded-[var(--ui-page-header-radius)] p-3">
@@ -249,7 +251,7 @@ export function HomeSignalRadarWidget({
         <EmptyWidget>No active Radar signals match the current game.</EmptyWidget>
       ) : gridView ? (
         <div className="home-widget-tile-grid mt-2 grid gap-2">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <HomePreviewTile
               key={item.cardId}
               href={`/movers/signal-radar/${encodeURIComponent(item.cardId)}`}
@@ -266,7 +268,7 @@ export function HomeSignalRadarWidget({
         </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <Link
               key={item.cardId}
               href={`/movers/signal-radar/${encodeURIComponent(item.cardId)}`}
@@ -319,6 +321,7 @@ function HomeCardListWidget({
 }) {
   const Icon = kind === "wants" ? Heart : ShoppingBag;
   const gridView = viewMode === "grid";
+  const visibleItems = gridView ? data.items : data.items.slice(0, 6);
   return (
     <section className={`binder-panel home-widget-panel home-widget-panel--${kind} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
       <WidgetHeader eyebrow={eyebrow} title={title} count={data.total} href={viewAllHref} icon={Icon} tone={kind} />
@@ -326,7 +329,7 @@ function HomeCardListWidget({
         <EmptyWidget>{emptyLabel}</EmptyWidget>
       ) : gridView ? (
         <div className="home-widget-tile-grid mt-2 grid gap-2">
-          {data.items.map((item, index) => (
+          {visibleItems.map((item, index) => (
             <HomePreviewTile
               key={`${item.cardId}:${index}`}
               href={`/cards/${encodeURIComponent(item.cardId)}`}
@@ -342,7 +345,7 @@ function HomeCardListWidget({
         </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
-          {data.items.map((item, index) => (
+          {visibleItems.map((item, index) => (
             <Link
               key={`${item.cardId}:${index}`}
               href={`/cards/${encodeURIComponent(item.cardId)}`}
@@ -419,6 +422,7 @@ export function HomeUpcomingWidget({
   viewMode?: HomeWidgetViewMode;
 }) {
   const gridView = viewMode === "grid";
+  const visibleItems = gridView ? items : items.slice(0, 6);
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">
@@ -427,7 +431,7 @@ export function HomeUpcomingWidget({
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
       ) : gridView ? (
         <div className="home-widget-tile-grid mt-2 grid gap-2">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <HomePreviewTile
               key={item.id}
               href={viewAllHref}
@@ -446,7 +450,7 @@ export function HomeUpcomingWidget({
         </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
-          {items.map((item) => (
+          {visibleItems.map((item) => (
             <Link
               key={item.id}
               href={viewAllHref}

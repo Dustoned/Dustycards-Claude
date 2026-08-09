@@ -284,7 +284,7 @@ export default function HomeFeaturedCardsPanel({
           : "gap-x-1.5 gap-y-2"
     : "gap-2.5";
   const visibleCards = useMemo(() => {
-    if (viewMode === "list") return cards.slice(0, Math.min(cards.length, 12));
+    if (viewMode === "list") return cards.slice(0, Math.min(cards.length, 6));
     const visibleCount = isMobileViewport
       ? getCardGridColumnCount(displaySettings.cardSize, true) * Math.max(1, mobileRows)
       : desktopColumnCount * Math.max(1, desktopRows);
