@@ -6,6 +6,8 @@ import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 import { getHomeFeaturedCards, getHomeValueDriversPreview } from "@/lib/home-page-payload";
 import type { CollectionMoverItem } from "@/lib/movers";
 import type { UpcomingSealedRelease } from "@/lib/sealed-movers";
+import type { UpcomingSingleItem } from "@/lib/upcoming-releases";
+import type { PriceSource } from "@/lib/user-settings";
 
 const HOME_WIDGET_PREVIEW_LIMIT = 24;
 const HOME_WIDGET_MOVER_TONE_LIMIT = HOME_WIDGET_PREVIEW_LIMIT / 2;
@@ -62,7 +64,22 @@ export interface HomeListCardPreviewItem {
 export interface HomeCardListPreview {
   total: number;
   totalValue: number | null;
+  marketValue?: number | null;
   items: HomeListCardPreviewItem[];
+}
+
+export interface HomeMarketPocketPreviewItem {
+  cardId: string;
+  name: string;
+  imageUrl: string | null;
+  cardNumber: string | null;
+  episodeName: string;
+  episodeCode: string | null;
+  rarity: string | null;
+  currentPrice: number;
+  currency: "EUR" | "USD";
+  gapToPeakPct: number | null;
+  opportunityScore: number;
 }
 
 export interface HomeUpcomingPreviewItem {
@@ -75,23 +92,43 @@ export interface HomeUpcomingPreviewItem {
   episodeCode: string | null;
 }
 
+export interface HomeUpcomingSinglePreviewItem {
+  id: string;
+  cardId: string | null;
+  name: string;
+  imageUrl: string | null;
+  cardNumber: string | null;
+  episodeName: string;
+  episodeCode: string | null;
+  releaseDate: string | null;
+  rarity: string | null;
+  status: UpcomingSingleItem["status"];
+  href: string;
+}
+
 export interface HomeOverviewInsightsPayload {
   featuredCards: CollectionOverviewData["cards"];
   valueDrivers: CollectionValueDriversData;
   allocation: HomeAllocationSegment[];
   marketMovers: HomeMarketMoverPreviewItem[];
+  cheapRarity: HomeMarketPocketPreviewItem[];
+  discountWatch: HomeMarketPocketPreviewItem[];
   radarSignals: HomeSignalRadarPreviewItem[];
   wants: HomeCardListPreview;
   forSale: HomeCardListPreview;
   upcoming: HomeUpcomingPreviewItem[];
+  upcomingSingles: HomeUpcomingSinglePreviewItem[];
 }
 
 export interface HomeOverviewInsightsExtras {
   movers?: CollectionMoverItem[];
+  cheapRarity?: CollectionMoverItem[];
+  discountWatch?: CollectionMoverItem[];
   radarSignals?: ExternalCardSignal[];
   wants?: HomeCardListPreview;
   forSale?: HomeCardListPreview;
   upcoming?: UpcomingSealedRelease[];
+  upcomingSingles?: UpcomingSingleItem[];
 }
 
 function isGraded(item: { grading_company: string | null; grading_grade: string | null }) {
@@ -152,7 +189,29 @@ function buildSignalRadarPreview(items: ExternalCardSignal[]): HomeSignalRadarPr
   }));
 }
 
-export function buildForSalePreview(data: CollectionOverviewData): HomeCardListPreview {
+function buildMarketPocketPreview(items: CollectionMoverItem[]): HomeMarketPocketPreviewItem[] {
+  return items
+    .filter((item) => item.priceQuality.status !== "suspicious")
+    .slice(0, HOME_WIDGET_PREVIEW_LIMIT)
+    .map((item) => ({
+      cardId: item.cardId,
+      name: item.name,
+      imageUrl: item.imageUrl,
+      cardNumber: item.cardNumber,
+      episodeName: item.episodeName,
+      episodeCode: item.episodeCode,
+      rarity: item.rarity,
+      currentPrice: item.currentPrice,
+      currency: item.currency,
+      gapToPeakPct: item.gapToPeakPct,
+      opportunityScore: item.opportunityScore,
+    }));
+}
+
+export function buildForSalePreview(
+  data: CollectionOverviewData,
+  source: PriceSource = "cm_en"
+): HomeCardListPreview {
   const cards = [...(data.forSaleCards ?? [])].sort(
     (left, right) =>
       (right.sale_price ?? right.current_value ?? 0) -
@@ -161,12 +220,14 @@ export function buildForSalePreview(data: CollectionOverviewData): HomeCardListP
   const values = cards.map((item) => item.sale_price ?? item.current_value).filter(
     (value): value is number => value != null && Number.isFinite(value)
   );
+  const marketValues = cards
+    .map((item) => source === "tcp" ? item.tcp_value_eur ?? item.current_value : item.cm_value ?? item.current_value)
+    .filter((value): value is number => value != null && Number.isFinite(value));
 
   return {
     total: cards.length,
-    totalValue: values.length > 0
-      ? Number(values.reduce((total, value) => total + value, 0).toFixed(2))
-      : null,
+    totalValue: Number(values.reduce((total, value) => total + value, 0).toFixed(2)),
+    marketValue: Number(marketValues.reduce((total, value) => total + value, 0).toFixed(2)),
     items: cards.slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => ({
       cardId: item.card_id,
       name: item.name,
@@ -201,6 +262,8 @@ export function buildHomeOverviewInsights(
     featuredCards: getHomeFeaturedCards(data.cards),
     valueDrivers: getHomeValueDriversPreview(data.valueDrivers),
     marketMovers: buildMarketMoverPreview(extras.movers ?? []),
+    cheapRarity: buildMarketPocketPreview(extras.cheapRarity ?? []),
+    discountWatch: buildMarketPocketPreview(extras.discountWatch ?? []),
     radarSignals: buildSignalRadarPreview(extras.radarSignals ?? []),
     wants: extras.wants ?? { total: 0, totalValue: null, items: [] },
     forSale: extras.forSale ?? buildForSalePreview(data),
@@ -212,6 +275,19 @@ export function buildHomeOverviewInsights(
       daysUntil: item.daysUntil,
       episodeName: item.episodeName,
       episodeCode: item.episodeCode,
+    })),
+    upcomingSingles: (extras.upcomingSingles ?? []).slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => ({
+      id: item.id,
+      cardId: item.cardId,
+      name: item.name,
+      imageUrl: item.imageUrl,
+      cardNumber: item.cardNumber,
+      episodeName: item.episodeName,
+      episodeCode: item.episodeCode,
+      releaseDate: item.releaseDate,
+      rarity: item.rarity,
+      status: item.status,
+      href: item.libraryReference?.href ?? (item.cardId ? `/cards/${encodeURIComponent(item.cardId)}` : "/upcoming"),
     })),
     allocation: [
       {

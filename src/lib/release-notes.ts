@@ -20,6 +20,31 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.56",
+    releasedAt: "August 10, 2026",
+    title: "Reliable Home cards and richer widgets",
+    summary: "Home card details open normally again, while For Sale, Market and Upcoming show more useful information.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Home interaction restored",
+        highlights: [
+          "Opening a card from any Home widget now uses the full viewport instead of being trapped inside the widget.",
+          "The collapse control sits on the widget edge and no longer covers graph or summary content.",
+        ],
+      },
+      {
+        title: "More useful at a glance",
+        highlights: [
+          "For Sale always shows both market value and a stronger Total Asking Value summary.",
+          "Cheap Rarity and Discount Watch are available as independent Grid/List Market widgets.",
+          "Upcoming is split into Upcoming Sealed and Upcoming Singles.",
+          "Desktop Favorites now includes the More destinations, including Social.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.55",
     releasedAt: "August 10, 2026",
     title: "Balanced widgets and smoother scrolling",
@@ -32,7 +57,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         "Collection Shortcuts can now also be switched between Wide and Compact.",
         "List widgets show a focused six-item preview instead of stretching across almost an entire screen.",
         "Gain, drop and sealed lane headings have stronger contrast and clearer structure.",
-        "Off-screen widgets defer rendering and expensive tile shadows were reduced for smoother scrolling.",
+        "Expensive tile shadows were reduced for smoother scrolling.",
       ],
     }],
   },

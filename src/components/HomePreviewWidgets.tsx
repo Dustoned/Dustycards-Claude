@@ -5,20 +5,25 @@ import type { ReactNode } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
+  BadgePercent,
   CalendarClock,
   ChevronRight,
+  Gem,
   Heart,
   Radar,
   ShoppingBag,
+  Sparkles,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { formatCurrency } from "@/lib/format";
 import type {
   HomeCardListPreview,
+  HomeMarketPocketPreviewItem,
   HomeMarketMoverPreviewItem,
   HomeSignalRadarPreviewItem,
   HomeUpcomingPreviewItem,
+  HomeUpcomingSinglePreviewItem,
 } from "@/lib/home-overview-insights";
 import type { HomeWidgetViewMode } from "@/lib/dashboard-module-preferences";
 
@@ -232,6 +237,79 @@ export function HomeMarketMoversWidget({
   );
 }
 
+function HomeMarketPocketWidget({
+  items,
+  viewAllHref,
+  viewMode,
+  kind,
+}: {
+  items: HomeMarketPocketPreviewItem[];
+  viewAllHref: string;
+  viewMode: HomeWidgetViewMode;
+  kind: "cheap" | "discount";
+}) {
+  const cheap = kind === "cheap";
+  const Icon = cheap ? Gem : BadgePercent;
+  const title = cheap ? "Cheap Rarity" : "Discount Watch";
+  const eyebrow = cheap ? "High-rarity value" : "Below earlier peak";
+  const gridView = viewMode === "grid";
+  const visibleItems = gridView ? items : items.slice(0, 6);
+
+  return (
+    <section className={`binder-panel home-widget-panel home-widget-panel--${cheap ? "market" : "drops"} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
+      <WidgetHeader eyebrow={eyebrow} title={title} count={items.length} href={viewAllHref} icon={Icon} tone="market" />
+      {items.length === 0 ? (
+        <EmptyWidget>{cheap ? "No affordable high-rarity cards match right now." : "No reliable high-rarity discounts match right now."}</EmptyWidget>
+      ) : gridView ? (
+        <div className="home-widget-tile-grid mt-2 grid gap-2">
+          {visibleItems.map((item) => (
+            <HomePreviewTile
+              key={item.cardId}
+              href={`/cards/${encodeURIComponent(item.cardId)}`}
+              imageUrl={item.imageUrl}
+              fallback={<Icon className="h-5 w-5 text-emerald-300" aria-hidden="true" />}
+              title={item.name}
+              meta={`${item.episodeCode ?? item.episodeName}${item.cardNumber ? ` / #${item.cardNumber}` : ""}`}
+              metric={formatCurrency(item.currentPrice, item.currency)}
+              metricClassName={cheap ? "text-emerald-300" : "text-rose-300"}
+              footer={cheap ? item.rarity ?? `Score ${Math.round(item.opportunityScore)}` : item.gapToPeakPct == null ? item.rarity ?? "Discount" : `${Math.abs(item.gapToPeakPct).toFixed(0)}% below peak`}
+              tone={cheap ? "gain" : "drop"}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 grid gap-1.5">
+          {visibleItems.map((item) => (
+            <Link
+              key={item.cardId}
+              href={`/cards/${encodeURIComponent(item.cardId)}`}
+              prefetch={false}
+              className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}
+            >
+              <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
+                {item.imageUrl ? <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="36px" className="object-cover" /> : <Icon className="h-3.5 w-3.5 text-white/45" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-black text-white/88 group-hover:text-white">{item.name}</span>
+                <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-white/40">{item.episodeCode ?? item.episodeName} / {item.rarity ?? "High rarity"}</span>
+              </span>
+              <span className={`text-right text-[12px] font-black tabular-nums ${cheap ? "text-emerald-300" : "text-rose-300"}`}>{formatCurrency(item.currentPrice, item.currency)}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function HomeCheapRarityWidget(props: { items: HomeMarketPocketPreviewItem[]; viewAllHref: string; viewMode?: HomeWidgetViewMode }) {
+  return <HomeMarketPocketWidget {...props} viewMode={props.viewMode ?? "grid"} kind="cheap" />;
+}
+
+export function HomeDiscountWatchWidget(props: { items: HomeMarketPocketPreviewItem[]; viewAllHref: string; viewMode?: HomeWidgetViewMode }) {
+  return <HomeMarketPocketWidget {...props} viewMode={props.viewMode ?? "grid"} kind="discount" />;
+}
+
 export function HomeSignalRadarWidget({
   items,
   viewAllHref,
@@ -325,6 +403,12 @@ function HomeCardListWidget({
   return (
     <section className={`binder-panel home-widget-panel home-widget-panel--${kind} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
       <WidgetHeader eyebrow={eyebrow} title={title} count={data.total} href={viewAllHref} icon={Icon} tone={kind} />
+      {kind === "sale" ? (
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-emerald-300/14 bg-emerald-300/[0.055] px-3 py-2">
+          <span className="text-[9px] font-black uppercase tracking-[0.13em] text-emerald-200/60">For-sale market value</span>
+          <span className="text-[15px] font-black tabular-nums text-emerald-200">{formatCollectionCurrency(data.marketValue ?? 0)}</span>
+        </div>
+      ) : null}
       {data.items.length === 0 ? (
         <EmptyWidget>{emptyLabel}</EmptyWidget>
       ) : gridView ? (
@@ -375,9 +459,9 @@ function HomeCardListWidget({
         </div>
       )}
       {data.totalValue != null ? (
-        <div className="mt-2 flex items-center justify-between border-t border-white/8 pt-2 text-[10.5px] font-semibold text-white/42">
-          <span>Total asking value</span>
-          <span className="font-black tabular-nums text-white/72">{formatCollectionCurrency(data.totalValue)}</span>
+        <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--dc-primary-rgb)/0.18)] bg-[rgb(var(--dc-primary-rgb)/0.07)] px-3 py-2">
+          <span className="text-[9px] font-black uppercase tracking-[0.13em] text-white/48">Total asking value</span>
+          <span className="text-[15px] font-black tabular-nums text-[var(--dc-primary)]">{formatCollectionCurrency(data.totalValue)}</span>
         </div>
       ) : null}
     </section>
@@ -426,7 +510,7 @@ export function HomeUpcomingWidget({
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">
-      <WidgetHeader eyebrow="Release calendar" title="Upcoming" count={items.length} href={viewAllHref} icon={CalendarClock} tone="upcoming" />
+      <WidgetHeader eyebrow="Release calendar" title="Upcoming Sealed" count={items.length} href={viewAllHref} icon={CalendarClock} tone="upcoming" />
       {items.length === 0 ? (
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
       ) : gridView ? (
@@ -480,6 +564,63 @@ export function HomeUpcomingWidget({
                   {new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(item.releaseDate))}
                 </span>
               </span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function HomeUpcomingSinglesWidget({
+  items,
+  viewAllHref,
+  viewMode = "grid",
+}: {
+  items: HomeUpcomingSinglePreviewItem[];
+  viewAllHref: string;
+  viewMode?: HomeWidgetViewMode;
+}) {
+  const gridView = viewMode === "grid";
+  const visibleItems = gridView ? items : items.slice(0, 6);
+  const dateLabel = (value: string | null) => value
+    ? new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(value))
+    : "TBA";
+
+  return (
+    <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">
+      <WidgetHeader eyebrow="Reveals & releases" title="Upcoming Singles" count={items.length} href={viewAllHref} icon={Sparkles} tone="upcoming" />
+      {items.length === 0 ? (
+        <EmptyWidget>No upcoming singles or recent reveals are available.</EmptyWidget>
+      ) : gridView ? (
+        <div className="home-widget-tile-grid mt-2 grid gap-2">
+          {visibleItems.map((item) => (
+            <HomePreviewTile
+              key={item.id}
+              href={item.href}
+              imageUrl={item.imageUrl}
+              fallback={<Sparkles className="h-5 w-5 text-sky-300" aria-hidden="true" />}
+              title={item.name}
+              meta={`${item.episodeCode ?? item.episodeName}${item.cardNumber ? ` / #${item.cardNumber}` : ""}`}
+              metric={dateLabel(item.releaseDate)}
+              metricClassName="text-sky-300"
+              footer={item.rarity ?? item.status}
+              tone="upcoming"
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 grid gap-1.5">
+          {visibleItems.map((item) => (
+            <Link key={item.id} href={item.href} prefetch={false} className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}>
+              <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
+                {item.imageUrl ? <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="36px" className="object-cover" /> : <Sparkles className="h-3.5 w-3.5 text-sky-300" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-black text-white/88 group-hover:text-white">{item.name}</span>
+                <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-white/40">{item.episodeCode ?? item.episodeName} / {item.status}</span>
+              </span>
+              <span className="text-right text-[12px] font-black tabular-nums text-sky-300">{dateLabel(item.releaseDate)}</span>
             </Link>
           ))}
         </div>

@@ -18,12 +18,15 @@ describe("dashboard module preferences", () => {
       "value-drivers",
       "sudden-drops",
       "market-movers",
+      "cheap-rarity",
+      "discount-watch",
       "signal-radar",
       "allocation",
       "top-sets",
       "wants",
       "for-sale",
       "upcoming",
+      "upcoming-singles",
       "shortcuts",
     ]);
   });
@@ -46,10 +49,13 @@ describe("dashboard module preferences", () => {
       "top-sets",
       "shortcuts",
       "market-movers",
+      "cheap-rarity",
+      "discount-watch",
       "signal-radar",
       "wants",
       "for-sale",
       "upcoming",
+      "upcoming-singles",
     ]);
   });
 
@@ -60,10 +66,13 @@ describe("dashboard module preferences", () => {
       "value-drivers",
       "sudden-drops",
       "market-movers",
+      "cheap-rarity",
+      "discount-watch",
       "signal-radar",
       "wants",
       "for-sale",
       "upcoming",
+      "upcoming-singles",
     ]);
     expect(normalizeHomeDashboardModuleSelection(["featured", "bad", "featured"])).toEqual([
       "featured",

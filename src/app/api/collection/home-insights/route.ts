@@ -23,6 +23,7 @@ import {
 } from "@/lib/movers-snapshot-store";
 import { getUpcomingSealedReleases } from "@/lib/sealed-movers";
 import { readSignalRadarSnapshot } from "@/lib/signal-radar-snapshot-store";
+import { getUpcomingReleaseFeed, type UpcomingSingleItem } from "@/lib/upcoming-releases";
 import type { PriceSource } from "@/lib/user-settings";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
@@ -104,6 +105,18 @@ async function getHomeUpcoming(game: TradingCardGameFilter) {
     .slice(0, 24);
 }
 
+let homeUpcomingSinglesCache: { expiresAt: number; items: UpcomingSingleItem[] } | null = null;
+
+async function getHomeUpcomingSingles(game: TradingCardGameFilter) {
+  if (game === ONE_PIECE_GAME) return [];
+  if (homeUpcomingSinglesCache && homeUpcomingSinglesCache.expiresAt > Date.now()) {
+    return homeUpcomingSinglesCache.items;
+  }
+  const items = (await getUpcomingReleaseFeed()).singles.slice(0, 24);
+  homeUpcomingSinglesCache = { expiresAt: Date.now() + 5 * 60_000, items };
+  return items;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const user = await requireUser();
@@ -111,7 +124,7 @@ export async function GET(request: NextRequest) {
     const game = parseVisibleGameFilter(request.nextUrl.searchParams.get("game"), {
       onePieceEnabled: settings.onePieceLibraryEnabled,
     });
-    const [data, sellingData, moversSnapshot, radarSnapshot, wants, upcoming] = await Promise.all([
+    const [data, sellingData, moversSnapshot, radarSnapshot, wants, upcoming, upcomingSingles] = await Promise.all([
       getCachedCollectionOverviewData({
         userId: user.id,
         activeTab: "overview",
@@ -136,14 +149,18 @@ export async function GET(request: NextRequest) {
         items: [],
       })),
       getHomeUpcoming(game).catch(() => []),
+      getHomeUpcomingSingles(game).catch(() => []),
     ]);
 
     return compressedJsonResponse(request, buildHomeOverviewInsights(data, {
       movers: moversSnapshot?.data.movers ?? [],
+      cheapRarity: moversSnapshot?.data.cheapestHighRarityMovers ?? [],
+      discountWatch: moversSnapshot?.data.discountedHighRarity ?? [],
       radarSignals: radarSnapshot?.data.signals ?? [],
       wants,
-      forSale: buildForSalePreview(sellingData),
+      forSale: buildForSalePreview(sellingData, settings.primaryPriceSource),
       upcoming,
+      upcomingSingles,
     }), {
       headers: {
         "Cache-Control": "private, max-age=300, stale-while-revalidate=86400",

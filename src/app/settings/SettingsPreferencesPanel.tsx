@@ -346,7 +346,7 @@ function NavigationIconPicker({
   onSelect: (key: NavigationShortcutKey) => void;
   onClose: () => void;
 }) {
-  const groups = ["Collection", "Browse", "Market"] as const;
+  const groups = ["Collection", "Browse", "Market", "More"] as const;
 
   return (
     <div className="rounded-2xl border border-violet-400/20 bg-violet-500/[0.035] p-3 shadow-[inset_0_1px_0_rgba(139,92,246,0.06)]">

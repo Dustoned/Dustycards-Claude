@@ -3698,12 +3698,6 @@ html[data-appearance-scheme="light"]
   pointer-events: none;
   user-select: none;
 }
-.home-dashboard-module {
-  container-type: inline-size;
-  content-visibility: auto;
-  contain-intrinsic-size: auto 34rem;
-}
-
 .home-widget-tile-lane {
   container-type: inline-size;
 }

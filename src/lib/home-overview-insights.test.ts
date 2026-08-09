@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CollectionOverviewData } from "@/lib/collection-data";
-import { buildHomeOverviewInsights } from "@/lib/home-overview-insights";
+import { buildForSalePreview, buildHomeOverviewInsights } from "@/lib/home-overview-insights";
 
 const EMPTY_DRIVERS: CollectionOverviewData["valueDrivers"] = {
   latestDate: null,
@@ -48,5 +48,24 @@ describe("buildHomeOverviewInsights", () => {
       expect.objectContaining({ key: "graded", itemCount: 1, value: 70 }),
       expect.objectContaining({ key: "sealed", itemCount: 2, value: 60 }),
     ]);
+  });
+
+  it("keeps asking value separate from the selected-source market value", () => {
+    const data = {
+      forSaleCards: [
+        { sale_price: 120, current_value: 100, cm_value: 95, tcp_value_eur: 110 },
+        { sale_price: null, current_value: 40, cm_value: 38, tcp_value_eur: 45 },
+      ],
+    } as CollectionOverviewData;
+
+    expect(buildForSalePreview(data, "cm_en")).toMatchObject({
+      total: 2,
+      totalValue: 160,
+      marketValue: 133,
+    });
+    expect(buildForSalePreview(data, "tcp")).toMatchObject({
+      totalValue: 160,
+      marketValue: 155,
+    });
   });
 });

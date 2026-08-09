@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.56",
+    releasedAt: "August 10, 2026",
+    title: "Home card popups and expanded widgets",
+    summary: "Card details are no longer clipped by dashboard widgets, and Home gains clearer totals plus new Market and Upcoming modules.",
+    tone: "fixed",
+    highlights: [
+      "Removed the widget containment that trapped full card details inside one dashboard tile.",
+      "For Sale now always exposes market value and a prominent Total Asking Value.",
+      "Added customizable Cheap Rarity, Discount Watch and Upcoming Singles widgets with Grid/List modes.",
+      "Renamed Upcoming to Upcoming Sealed so its content is unambiguous.",
+      "Moved collapse controls to a slim widget-edge handle that cannot cover graph statistics.",
+      "Desktop Favorites now offers More destinations such as Social, Upcoming and Submit Card.",
+    ],
+  },
+  {
     version: "3.12.55",
     releasedAt: "August 10, 2026",
     title: "Equal-height Home rows",
@@ -28,7 +43,7 @@ export const patchNotes: PatchNoteEntry[] = [
       "List mode is capped at six preview rows per section to keep widgets compact.",
       "Tile grids use one responsive minimum width instead of unrelated breakpoint sizes.",
       "Biggest Gains, Biggest Drops, Card Drops and Sealed Drops now use clearer lane headers.",
-      "Content visibility and lighter paint effects reduce scroll work on widget-heavy Home pages.",
+      "Lighter paint effects reduce scroll work on widget-heavy Home pages.",
     ],
   },
   {

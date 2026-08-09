@@ -3,6 +3,8 @@ export type HomeDashboardModuleKey =
   | "value-drivers"
   | "sudden-drops"
   | "market-movers"
+  | "cheap-rarity"
+  | "discount-watch"
   | "signal-radar"
   | "featured"
   | "allocation"
@@ -10,6 +12,7 @@ export type HomeDashboardModuleKey =
   | "wants"
   | "for-sale"
   | "upcoming"
+  | "upcoming-singles"
   | "shortcuts";
 
 export type HomeWidgetViewMode = "grid" | "list";
@@ -18,11 +21,14 @@ export const HOME_DASHBOARD_VIEW_MODULES = new Set<HomeDashboardModuleKey>([
   "value-drivers",
   "sudden-drops",
   "market-movers",
+  "cheap-rarity",
+  "discount-watch",
   "signal-radar",
   "featured",
   "wants",
   "for-sale",
   "upcoming",
+  "upcoming-singles",
 ]);
 
 export const DEFAULT_HOME_DASHBOARD_MODULE_ORDER: HomeDashboardModuleKey[] = [
@@ -30,6 +36,8 @@ export const DEFAULT_HOME_DASHBOARD_MODULE_ORDER: HomeDashboardModuleKey[] = [
   "value-drivers",
   "sudden-drops",
   "market-movers",
+  "cheap-rarity",
+  "discount-watch",
   "signal-radar",
   "featured",
   "allocation",
@@ -37,15 +45,19 @@ export const DEFAULT_HOME_DASHBOARD_MODULE_ORDER: HomeDashboardModuleKey[] = [
   "wants",
   "for-sale",
   "upcoming",
+  "upcoming-singles",
   "shortcuts",
 ];
 
 export const DEFAULT_HIDDEN_HOME_DASHBOARD_MODULES: HomeDashboardModuleKey[] = [
   "market-movers",
+  "cheap-rarity",
+  "discount-watch",
   "signal-radar",
   "wants",
   "for-sale",
   "upcoming",
+  "upcoming-singles",
 ];
 
 type LegacyHomeDashboardModuleKey = "market" | "breakdown";

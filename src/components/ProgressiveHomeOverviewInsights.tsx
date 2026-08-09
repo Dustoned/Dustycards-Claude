@@ -18,10 +18,13 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import DashboardCustomizerDialog from "@/components/DashboardCustomizerDialog";
 import {
+  HomeCheapRarityWidget,
+  HomeDiscountWatchWidget,
   HomeForSaleWidget,
   HomeMarketMoversWidget,
   HomeSignalRadarWidget,
   HomeUpcomingWidget,
+  HomeUpcomingSinglesWidget,
   HomeWantsWidget,
 } from "@/components/HomePreviewWidgets";
 import { useSettings } from "@/components/SettingsProvider";
@@ -76,13 +79,16 @@ const HOME_MODULE_LABELS: Record<
   "value-drivers": { label: "Value drivers", description: "What moved your collection value" },
   "sudden-drops": { label: "Sudden drops", description: "Verified fast price drops" },
   "market-movers": { label: "Market Movers", description: "Largest live market movements" },
+  "cheap-rarity": { label: "Cheap Rarity", description: "Affordable high-rarity market cards" },
+  "discount-watch": { label: "Discount Watch", description: "High-rarity cards below an earlier peak" },
   "signal-radar": { label: "Signal Radar", description: "Highest-scoring current opportunities" },
   featured: { label: "Featured cards", description: "Collection highlights" },
   allocation: { label: "Collection allocation", description: "Value by collection type" },
   "top-sets": { label: "Top sets", description: "Your strongest sets and binders" },
   wants: { label: "Wants", description: "Recently wanted cards and prices" },
   "for-sale": { label: "For Sale", description: "Highest-value cards currently listed" },
-  upcoming: { label: "Upcoming", description: "Next confirmed sealed releases" },
+  upcoming: { label: "Upcoming Sealed", description: "Next confirmed sealed releases" },
+  "upcoming-singles": { label: "Upcoming Singles", description: "New reveals, leaks and confirmed singles" },
   shortcuts: { label: "Collection shortcuts", description: "Quick links to each area" },
 };
 
@@ -90,6 +96,8 @@ const COMPACTABLE_HOME_MODULES = new Set<HomeDashboardModuleKey>([
   "value-drivers",
   "sudden-drops",
   "market-movers",
+  "cheap-rarity",
+  "discount-watch",
   "signal-radar",
   "featured",
   "allocation",
@@ -97,6 +105,7 @@ const COMPACTABLE_HOME_MODULES = new Set<HomeDashboardModuleKey>([
   "wants",
   "for-sale",
   "upcoming",
+  "upcoming-singles",
   "shortcuts",
 ]);
 
@@ -228,16 +237,16 @@ function CollapsibleHomeModule({
   }
 
   return (
-    <div className="home-dashboard-module relative h-full [&>section]:h-full [&>section>div:first-child]:pr-11">
+    <div className="home-dashboard-module relative h-full [&>section]:h-full">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={true}
         aria-label={`Collapse ${label}`}
         title={`Collapse ${label}`}
-        className="absolute right-2 top-2 z-20 inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/10 bg-black/25 text-white/48 shadow-sm backdrop-blur-md transition-colors hover:border-white/18 hover:bg-white/[0.08] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)]"
+        className="absolute -right-1 top-1/2 z-20 inline-flex h-9 w-5 -translate-y-1/2 items-center justify-center rounded-l-xl rounded-r-md border border-white/10 bg-[rgb(var(--dc-surface-elevated-rgb)/0.96)] text-white/48 shadow-md transition-colors hover:w-7 hover:border-white/18 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)]"
       >
-        <ChevronDown className="h-3.5 w-3.5 rotate-180" aria-hidden="true" />
+        <ChevronDown className="h-3.5 w-3.5 rotate-90" aria-hidden="true" />
       </button>
       {children}
     </div>
@@ -436,6 +445,24 @@ export default function ProgressiveHomeOverviewInsights({
     ) : (
       <InsightPanelSkeleton />
     ),
+    "cheap-rarity": payload ? (
+      <HomeCheapRarityWidget
+        items={payload.cheapRarity ?? []}
+        viewAllHref={`/movers/cheap-high-rarity${moversHref.includes("?") ? moversHref.slice(moversHref.indexOf("?")) : ""}`}
+        viewMode={viewModeFor("cheap-rarity")}
+      />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
+    "discount-watch": payload ? (
+      <HomeDiscountWatchWidget
+        items={payload.discountWatch ?? []}
+        viewAllHref={`/movers/discount-watch${moversHref.includes("?") ? moversHref.slice(moversHref.indexOf("?")) : ""}`}
+        viewMode={viewModeFor("discount-watch")}
+      />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
     "signal-radar": payload ? (
       <HomeSignalRadarWidget items={payload.radarSignals ?? []} viewAllHref={signalRadarHref} viewMode={viewModeFor("signal-radar")} />
     ) : (
@@ -465,7 +492,7 @@ export default function ProgressiveHomeOverviewInsights({
     ),
     "for-sale": payload ? (
       <HomeForSaleWidget
-        data={payload.forSale ?? { total: 0, totalValue: null, items: [] }}
+        data={payload.forSale ?? { total: 0, totalValue: 0, marketValue: 0, items: [] }}
         viewAllHref={forSaleHref}
         viewMode={viewModeFor("for-sale")}
       />
@@ -474,6 +501,11 @@ export default function ProgressiveHomeOverviewInsights({
     ),
     upcoming: payload ? (
       <HomeUpcomingWidget items={payload.upcoming ?? []} viewAllHref={upcomingHref} viewMode={viewModeFor("upcoming")} />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
+    "upcoming-singles": payload ? (
+      <HomeUpcomingSinglesWidget items={payload.upcomingSingles ?? []} viewAllHref={upcomingHref} viewMode={viewModeFor("upcoming-singles")} />
     ) : (
       <InsightPanelSkeleton />
     ),
