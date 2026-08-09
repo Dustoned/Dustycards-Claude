@@ -129,7 +129,7 @@ export async function getTradeCollectionEntries(
     }
   }
 
-  const needsUsdRate = [...ebaySoldByCardId.values()].some((rows) => rows.some((row) => row.currency.toUpperCase() === "USD"));
+  const needsUsdRate = gradedCardIds.length > 0 || [...ebaySoldByCardId.values()].some((rows) => rows.some((row) => row.currency.toUpperCase() === "USD"));
   const usdToEurRate = needsUsdRate ? await getUsdToEurRate().catch(() => null) : null;
   const rawByCardId = new Map<string, TradeCollectionEntry>();
   const gradedEntries: TradeCollectionEntry[] = [];
@@ -152,13 +152,18 @@ export async function getTradeCollectionEntries(
           String(Number(row.grade)) === String(Number(item.grading_grade))
         ) ?? null
       : null;
-    const sourceCurrency = matchingEbayPrice?.currency.toUpperCase() === "USD"
+    const matchingSourceCurrency = matchingEbayPrice?.currency.toUpperCase() === "USD"
       ? "USD" as const
       : matchingEbayPrice?.currency.toUpperCase() === "EUR" ? "EUR" as const : null;
-    const sourcePrice = matchingEbayPrice?.median_price ?? null;
-    const tradeValue = sourceCurrency === "USD" && sourcePrice != null && usdToEurRate
+    const sourceCurrency = matchingSourceCurrency ?? (isGraded && valueInfo.value != null && usdToEurRate ? "USD" as const : null);
+    const sourcePrice = matchingEbayPrice?.median_price ?? (
+      isGraded && valueInfo.value != null && usdToEurRate
+        ? Number((valueInfo.value / usdToEurRate.rate).toFixed(2))
+        : null
+    );
+    const tradeValue = matchingSourceCurrency === "USD" && sourcePrice != null && usdToEurRate
       ? Number((sourcePrice * usdToEurRate.rate).toFixed(2))
-      : sourceCurrency === "EUR" && sourcePrice != null
+      : matchingSourceCurrency === "EUR" && sourcePrice != null
         ? sourcePrice
         : valueInfo.value;
     if (isGraded) {

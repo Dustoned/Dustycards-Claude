@@ -20,6 +20,14 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.49",
+    releasedAt: "August 9, 2026",
+    title: "Dollar and euro on every slab",
+    summary: "All graded trade cards now show a dollar amount together with their euro value.",
+    tone: "fixed",
+    sections: [{ title: "Always visible", highlights: ["Exact USD data is used first; otherwise a live exchange-rate equivalent is shown."] }],
+  },
+  {
     version: "3.12.48",
     releasedAt: "August 9, 2026",
     title: "Real USD slab conversions",

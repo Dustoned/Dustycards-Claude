@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.49",
+    releasedAt: "August 9, 2026",
+    title: "Dollar equivalent on every graded trade",
+    summary: "Every graded trade now shows dollars and euros, even when only the European graded market has a match.",
+    tone: "fixed",
+    highlights: [
+      "Exact USD sold prices remain preferred when present.",
+      "Otherwise the graded EUR market value receives a live USD equivalent, so the conversion line never disappears.",
+    ],
+  },
+  {
     version: "3.12.48",
     releasedAt: "August 9, 2026",
     title: "Real USD slab prices in trades",
