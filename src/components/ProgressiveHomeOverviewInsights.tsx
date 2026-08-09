@@ -521,11 +521,14 @@ export default function ProgressiveHomeOverviewInsights({
               const compactable = COMPACTABLE_HOME_MODULES.has(moduleKey);
               const viewSelectable = HOME_DASHBOARD_VIEW_MODULES.has(moduleKey);
               const viewMode = viewModeFor(moduleKey);
+              const previewSpanClass = compactable && compact
+                ? "md:col-span-1"
+                : "md:col-span-2";
               const meta = HOME_MODULE_LABELS[moduleKey];
               return (
                 <div
                   key={moduleKey}
-                  className={`flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border p-3 transition-colors ${
+                  className={`${previewSpanClass} flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border p-3 transition-colors ${
                     hidden
                       ? "border-white/6 bg-black/10 text-white/38"
                       : "border-white/10 bg-white/[0.045] text-white"

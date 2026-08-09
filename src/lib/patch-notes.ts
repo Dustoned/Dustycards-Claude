@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.54",
+    releasedAt: "August 10, 2026",
+    title: "Home customizer is a real layout preview",
+    summary: "Customizer rows now occupy the same wide or compact footprint as their Home widgets.",
+    tone: "improved",
+    highlights: [
+      "Wide widgets span both preview columns.",
+      "Compact widgets pair in the same order they appear on Home.",
+      "Mobile keeps the readable single-column editor.",
+    ],
+  },
+  {
     version: "3.12.53",
     releasedAt: "August 10, 2026",
     title: "Per-widget Grid and List layouts",

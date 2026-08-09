@@ -20,6 +20,20 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.54",
+    releasedAt: "August 10, 2026",
+    title: "Customize Home mirrors the real page",
+    summary: "The customization popup now previews the exact wide and compact module flow used on Home.",
+    tone: "improved",
+    sections: [{
+      title: "True layout preview",
+      highlights: [
+        "Wide modules fill the entire preview row while compact modules can sit side by side.",
+        "The popup uses the same saved module order as the rendered Home dashboard.",
+      ],
+    }],
+  },
+  {
     version: "3.12.53",
     releasedAt: "August 10, 2026",
     title: "Every Home widget gets its own view",
