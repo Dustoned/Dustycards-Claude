@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.52",
+    releasedAt: "August 9, 2026",
+    title: "For Sale cannot leak into collection",
+    summary: "Complete Collection now enforces active ownership at both the server and rendered-grid boundaries.",
+    tone: "fixed",
+    highlights: [
+      "Active For Sale records and completed Sold records are rejected before Complete Collection is serialized.",
+      "Collection grids apply the same ownership filter again, preventing stale tab state from briefly showing selling inventory.",
+      "For Sale and Sold keep their existing strict, separate status filters.",
+    ],
+  },
+  {
     version: "3.12.51",
     releasedAt: "August 9, 2026",
     title: "Vendor offer follows both currencies",

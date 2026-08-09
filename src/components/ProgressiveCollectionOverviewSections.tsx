@@ -44,10 +44,15 @@ export default async function ProgressiveCollectionOverviewSections({
     activeTab: "complete",
     game,
   });
-  const gradedLooseSingles = data.looseSingles.filter(
+  // Complete Collection must remain ownership-only even when a cached server
+  // payload was produced around the same moment as a For Sale transition.
+  const activeLooseSingles = data.looseSingles.filter(
+    (item) => item.for_sale !== true && item.sold_at == null
+  );
+  const gradedLooseSingles = activeLooseSingles.filter(
     (item) => Boolean(item.grading_company && item.grading_grade)
   );
-  const rawLooseSingles = data.looseSingles.filter(
+  const rawLooseSingles = activeLooseSingles.filter(
     (item) => !item.grading_company || !item.grading_grade
   );
   // The complete tab uses binder cards only for Binder Watch. Sending every
@@ -56,7 +61,10 @@ export default async function ProgressiveCollectionOverviewSections({
   // Apply the account's watch threshold on the server and keep the complete
   // binder inventory on the dedicated Binders tab.
   const binderWatchCards = data.binderCards.filter(
-    (item) => (item.current_value ?? 0) >= binderWatchMinPrice
+    (item) =>
+      item.for_sale !== true &&
+      item.sold_at == null &&
+      (item.current_value ?? 0) >= binderWatchMinPrice
   );
 
   return (

@@ -150,6 +150,10 @@ describe("filterSellingInventoryItems", () => {
   it("keeps only timestamped transactions in the Sold ledger", () => {
     expect(filterSellingInventoryItems([active, sold, owned], "sold")).toEqual([sold]);
   });
+
+  it("keeps sale and sold rows out of normal collection grids", () => {
+    expect(filterSellingInventoryItems([active, sold, owned], "collection")).toEqual([owned]);
+  });
 });
 
 describe("collectionSoldOverlayBadgeClass", () => {

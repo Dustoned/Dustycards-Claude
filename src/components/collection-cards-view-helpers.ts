@@ -64,11 +64,14 @@ export function omitOptimisticallyMovedCollectionItems(
 
 export function filterSellingInventoryItems(
   items: CollectionCardViewItem[],
-  mode: "all" | "active" | "sold"
+  mode: "all" | "collection" | "active" | "sold"
 ): CollectionCardViewItem[] {
   if (mode === "sold") return items.filter((item) => item.sold_at != null);
   if (mode === "active") {
     return items.filter((item) => item.for_sale === true && item.sold_at == null);
+  }
+  if (mode === "collection") {
+    return items.filter((item) => item.for_sale !== true && item.sold_at == null);
   }
   return items;
 }

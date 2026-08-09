@@ -366,9 +366,15 @@ export default function CollectionCardsView({
     // retaining active inventory after switching to the Sold ledger.
     return filterSellingInventoryItems(
       currentItems,
-      salesLedger ? "sold" : allowSoldMarking ? "active" : "all"
+      salesLedger
+        ? "sold"
+        : allowSoldMarking
+          ? "active"
+          : allowSaleListing
+            ? "collection"
+            : "all"
     );
-  }, [allowSoldMarking, items, optimisticallyMovedItemIdSet, salesLedger]);
+  }, [allowSaleListing, allowSoldMarking, items, optimisticallyMovedItemIdSet, salesLedger]);
 
   useEffect(() => {
     const currentItemIds = new Set(

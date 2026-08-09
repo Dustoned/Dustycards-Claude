@@ -2,11 +2,18 @@ import { describe, expect, it } from "vitest";
 import { buildCompleteCollectionPayload } from "@/lib/complete-collection-payload";
 import type { CollectionOverviewData } from "@/lib/collection-data";
 
-function card(id: string, gradingCompany: string | null, gradingGrade: string | null) {
+function card(
+  id: string,
+  gradingCompany: string | null,
+  gradingGrade: string | null,
+  saleState: { for_sale?: boolean; sold_at?: string | null } = {}
+) {
   return {
     card_id: id,
     grading_company: gradingCompany,
     grading_grade: gradingGrade,
+    for_sale: saleState.for_sale ?? false,
+    sold_at: saleState.sold_at ?? null,
   };
 }
 
@@ -33,5 +40,26 @@ describe("buildCompleteCollectionPayload", () => {
       "rawLooseSingles",
       "sealed",
     ]);
+  });
+
+  it("never exposes For Sale or Sold rows as complete-collection cards", () => {
+    const data = {
+      looseSingles: [
+        card("owned", null, null),
+        card("for-sale", null, null, { for_sale: true }),
+        card("sold", null, null, { sold_at: "2026-08-09T10:00:00.000Z" }),
+      ],
+      binderCards: [
+        card("binder-owned", null, null),
+        card("binder-for-sale", null, null, { for_sale: true }),
+      ],
+      sealed: [],
+      binders: [],
+    } as unknown as CollectionOverviewData;
+
+    const payload = buildCompleteCollectionPayload(data);
+
+    expect(payload.rawLooseSingles.map((item) => item.card_id)).toEqual(["owned"]);
+    expect(payload.binderCards.map((item) => item.card_id)).toEqual(["binder-owned"]);
   });
 });

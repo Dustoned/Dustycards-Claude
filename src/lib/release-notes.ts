@@ -20,6 +20,20 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.52",
+    releasedAt: "August 9, 2026",
+    title: "Collection and For Sale stay separated",
+    summary: "Complete Collection can no longer retain active listings or sold records after navigation.",
+    tone: "fixed",
+    sections: [{
+      title: "Ownership-only collection",
+      highlights: [
+        "Server payloads and client grids now independently reject For Sale and Sold rows from Complete Collection.",
+        "A stale or reused navigation payload can no longer combine normal loose singles with the selling inventory.",
+      ],
+    }],
+  },
+  {
     version: "3.12.51",
     releasedAt: "August 9, 2026",
     title: "Vendor totals in USD and EUR",
