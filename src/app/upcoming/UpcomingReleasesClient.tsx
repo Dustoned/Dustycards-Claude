@@ -131,6 +131,7 @@ function SealedReleaseTile({
   imageSizes: string;
 }) {
   const mainHref = release.episodeId ? `/expansions/${release.episodeId}` : release.sourceUrl;
+  const justReleased = release.daysSinceRelease != null;
   const external = !release.episodeId && Boolean(release.sourceUrl);
   const content = (
     <>
@@ -149,7 +150,7 @@ function SealedReleaseTile({
           </span>
         )}
         <span className="absolute left-3 top-3 inline-flex items-center gap-1 rounded-full border border-[rgb(var(--dc-primary-rgb)/0.24)] bg-[var(--dc-surface-glass-strong)] px-2 py-1 text-[9px] font-bold uppercase tracking-[0.12em] text-[var(--dc-primary)] backdrop-blur-md">
-          <Package className="h-3 w-3" /> Sealed
+          <Package className="h-3 w-3" /> {justReleased ? "Just Released" : "Sealed"}
         </span>
       </div>
       <div className="flex min-h-[9.1rem] flex-col p-3.5 sm:p-4">
@@ -162,7 +163,9 @@ function SealedReleaseTile({
             <p className="text-xs font-bold text-violet-200">{formatDate(release.releaseDate)}</p>
             <p className="mt-0.5 inline-flex items-center gap-1 text-[10px] text-white/38">
               <Clock3 className="h-3 w-3" />
-              {release.daysUntil === 0 ? "Today" : `In ${release.daysUntil} days`}
+              {justReleased
+                ? release.daysSinceRelease === 1 ? "Released yesterday" : `Released ${release.daysSinceRelease} days ago`
+                : release.daysUntil === 0 ? "Today" : `In ${release.daysUntil} days`}
             </p>
           </div>
           <span className="text-[10px] font-semibold text-white/46">{release.sourceName}</span>
@@ -494,7 +497,11 @@ export default function UpcomingReleasesClient({
   const visibleSingleGroups = query
     ? singleGroups
     : singleGroups.slice(0, visibleSingleGroupCount);
-  const visibleSealed = view === "sealed" || query ? filtered.sealed : filtered.sealed.slice(0, 10);
+  const justReleased = filtered.sealed
+    .filter((item) => item.daysSinceRelease != null)
+    .sort((left, right) => right.releaseDate.localeCompare(left.releaseDate));
+  const upcomingSealed = filtered.sealed.filter((item) => item.daysSinceRelease == null);
+  const visibleSealed = view === "sealed" || query ? upcomingSealed : upcomingSealed.slice(0, 10);
   const visibleStories = view === "sources" || query ? filtered.stories : filtered.stories.slice(0, 6);
   const sealedGridTemplateColumns = getSealedProductGridTemplateColumns(
     displaySettings.cardSize,
@@ -555,16 +562,28 @@ export default function UpcomingReleasesClient({
       </div>
 
       {(view === "all" || view === "sealed") ? (
-        <section>
-          <SectionTitle Icon={Package} eyebrow="Release calendar" title="Upcoming sealed" description="Confirmed products ordered by their own release date, not only by the set launch." count={filtered.sealed.length} />
-          {filtered.sealed.length ? (
+        <div className="space-y-6">
+          {justReleased.length ? (
+            <section>
+              <SectionTitle Icon={Sparkles} eyebrow="Released this week" title="Just Released" description="New sealed products stay visible here for seven days after release." count={justReleased.length} />
+              <div className="grid gap-3" style={{ gridTemplateColumns: sealedGridTemplateColumns }}>
+                {justReleased.map((release) => (
+                  <SealedReleaseTile key={release.id} release={release} imageSizes={sealedImageSizes} />
+                ))}
+              </div>
+            </section>
+          ) : null}
+          <section>
+          <SectionTitle Icon={Package} eyebrow="Release calendar" title="Upcoming sealed" description="Confirmed products ordered by their own release date, not only by the set launch." count={upcomingSealed.length} />
+          {upcomingSealed.length ? (
             <div className="grid gap-3" style={{ gridTemplateColumns: sealedGridTemplateColumns }}>
               {visibleSealed.map((release) => (
                 <SealedReleaseTile key={release.id} release={release} imageSizes={sealedImageSizes} />
               ))}
             </div>
           ) : <EmptyState>No sealed releases match this search.</EmptyState>}
-        </section>
+          </section>
+        </div>
       ) : null}
 
       {(view === "all" || view === "singles") ? (

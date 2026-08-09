@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.46",
+    releasedAt: "August 9, 2026",
+    title: "Complete trade inventory and release handoff",
+    summary:
+      "Trading now preserves graded identity and value, while Home, For Sale and Upcoming use their complete live datasets.",
+    tone: "fixed",
+    highlights: [
+      "Friend Trades shows raw cards, individual graded slabs with their graded price, and sealed products in responsive tiles.",
+      "For Sale totals now follow the page-local CardMarket or TCGPlayer switch, and Home loads the real active sale inventory.",
+      "New sealed releases remain above Upcoming Sealed for seven days under a clear Just Released heading.",
+      "Home market, Radar, Wants, For Sale and Upcoming previews always use visual tiles instead of inheriting list view.",
+    ],
+  },
+  {
     version: "3.12.45",
     releasedAt: "August 9, 2026",
     title: "Denser Home card walls",

@@ -90,6 +90,7 @@ export interface HomeOverviewInsightsExtras {
   movers?: CollectionMoverItem[];
   radarSignals?: ExternalCardSignal[];
   wants?: HomeCardListPreview;
+  forSale?: HomeCardListPreview;
   upcoming?: UpcomingSealedRelease[];
 }
 
@@ -151,7 +152,7 @@ function buildSignalRadarPreview(items: ExternalCardSignal[]): HomeSignalRadarPr
   }));
 }
 
-function buildForSalePreview(data: CollectionOverviewData): HomeCardListPreview {
+export function buildForSalePreview(data: CollectionOverviewData): HomeCardListPreview {
   const cards = [...(data.forSaleCards ?? [])].sort(
     (left, right) =>
       (right.sale_price ?? right.current_value ?? 0) -
@@ -202,7 +203,7 @@ export function buildHomeOverviewInsights(
     marketMovers: buildMarketMoverPreview(extras.movers ?? []),
     radarSignals: buildSignalRadarPreview(extras.radarSignals ?? []),
     wants: extras.wants ?? { total: 0, totalValue: null, items: [] },
-    forSale: buildForSalePreview(data),
+    forSale: extras.forSale ?? buildForSalePreview(data),
     upcoming: (extras.upcoming ?? []).slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => ({
       id: item.id,
       name: item.name,

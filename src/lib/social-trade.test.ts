@@ -7,6 +7,11 @@ const mocks = vi.hoisted(() => ({
   wantsFindMany: vi.fn(),
   cardsFindMany: vi.fn(),
   queryRawUnsafe: vi.fn(),
+  tradeEntries: vi.fn(),
+}));
+
+vi.mock("@/lib/trade-collection", () => ({
+  getTradeCollectionEntries: mocks.tradeEntries,
 }));
 
 vi.mock("@/lib/db", () => ({
@@ -44,18 +49,15 @@ describe("social trade opportunities", () => {
       status: "accepted",
       full_access_status: "accepted",
     });
-    mocks.cardCopiesFindMany.mockImplementation(({ where }) =>
-      Promise.resolve(
-        where.user_id === "user-1"
-          ? [
-              { card_id: "card-yours", for_sale: false },
-              { card_id: "card-yours", for_sale: false },
-            ]
-          : [
-              { card_id: "card-theirs", for_sale: true },
-            ]
-      )
-    );
+    mocks.tradeEntries.mockImplementation((userId) => Promise.resolve(userId === "user-1" ? [{
+      key: "raw:card-yours", kind: "card", cardId: "card-yours", productId: null,
+      name: "Your duplicate", cardNumber: "1", imageUrl: null, episodeName: "Test Set",
+      episodeCode: "TST", value: 20, availableCopies: 2, gradedLabel: null,
+    }] : [{
+      key: "raw:card-theirs", kind: "card", cardId: "card-theirs", productId: null,
+      name: "Their listed card", cardNumber: "2", imageUrl: null, episodeName: "Test Set",
+      episodeCode: "TST", value: 25, availableCopies: 1, gradedLabel: null,
+    }]));
     mocks.wantsFindMany.mockImplementation(({ where }) =>
       Promise.resolve([
         { card_id: where.user_id === "user-1" ? "card-theirs" : "card-yours" },
@@ -92,15 +94,14 @@ describe("social trade opportunities", () => {
       matches: {
         yourOfferValue: 20,
         theirOfferValue: 25,
-        yourCardsTheyWant: [{ id: "card-yours", availableCopies: 1 }],
-        theirCardsYouWant: [{ id: "card-theirs", availableCopies: 1 }],
-        yourCollectionCards: [{ id: "card-yours", availableCopies: 2 }],
-        theirCollectionCards: [{ id: "card-theirs", availableCopies: 1 }],
+        yourCardsTheyWant: [{ id: "raw:card-yours", availableCopies: 2 }],
+        theirCardsYouWant: [{ id: "raw:card-theirs", availableCopies: 1 }],
+        yourCollectionCards: [{ id: "raw:card-yours", availableCopies: 2 }],
+        theirCollectionCards: [{ id: "raw:card-theirs", availableCopies: 1 }],
       },
     });
-    for (const call of mocks.cardCopiesFindMany.mock.calls) {
-      expect(call[0].where.card).toEqual({ game: "pokemon" });
-    }
+    expect(mocks.tradeEntries).toHaveBeenCalledWith("user-1", "pokemon");
+    expect(mocks.tradeEntries).toHaveBeenCalledWith("friend-1", "pokemon");
     for (const call of mocks.wantsFindMany.mock.calls) {
       expect(call[0].where.card).toEqual({ game: "pokemon" });
       expect(call[0].where.source).toBe("manual");

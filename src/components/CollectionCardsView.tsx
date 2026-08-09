@@ -33,6 +33,7 @@ import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-im
 import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display-scale";
 import { getExpansionHref } from "@/lib/games";
 import type { CollectionCardViewItem } from "@/types/collection-view";
+import { SELLING_PRICE_SOURCE_EVENT } from "@/components/SellingValueSummary";
 import {
   useSettings,
   type CardSize,
@@ -150,6 +151,7 @@ interface Props {
   readOnlyCollectionItems?: boolean;
   salesLedger?: boolean;
   allowSaleRecordEditing?: boolean;
+  announceSellingPriceSource?: boolean;
 }
 
 interface RemoveDialogState {
@@ -297,6 +299,7 @@ export default function CollectionCardsView({
   readOnlyCollectionItems = false,
   salesLedger = false,
   allowSaleRecordEditing = false,
+  announceSellingPriceSource = false,
 }: Props) {
   const router = useRouter();
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
@@ -306,6 +309,11 @@ export default function CollectionCardsView({
   const [pageSortBy, setPageSortBy] = useState<SortBy>(() => settings.sortBy);
   const [pageSortDir, setPageSortDir] = useState<SortDir>(() => settings.sortDir);
   const [primaryPriceSource, setPrimaryPriceSource] = useState(() => settings.primaryPriceSource);
+  useEffect(() => {
+    if (announceSellingPriceSource) {
+      window.dispatchEvent(new CustomEvent(SELLING_PRICE_SOURCE_EVENT, { detail: primaryPriceSource }));
+    }
+  }, [announceSellingPriceSource, primaryPriceSource]);
   const sortBy = forcedSortBy ?? pageSortBy;
   const sortDir = forcedSortDir ?? pageSortDir;
   const sortLocked = forcedSortBy != null || forcedSortDir != null;

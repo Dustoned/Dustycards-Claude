@@ -20,6 +20,32 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.46",
+    releasedAt: "August 9, 2026",
+    title: "Complete trading inventory",
+    summary:
+      "Friend Trades now keeps raw, graded and sealed items distinct and uses the correct market value for each item.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Clear grades and correct values",
+        highlights: [
+          "Every slab shows its grading company and grade next to its graded market price.",
+          "Sealed collection products can be selected alongside loose and graded cards.",
+          "Trade tiles scale responsively without becoming oversized on wide screens.",
+        ],
+      },
+      {
+        title: "Live collection data",
+        highlights: [
+          "Home now loads the actual active For Sale inventory.",
+          "Estimated Sale Value follows the local CardMarket or TCGPlayer switch.",
+          "New sealed releases remain visible as Just Released for seven days.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.45",
     releasedAt: "August 9, 2026",
     title: "More cards, less oversized tile",

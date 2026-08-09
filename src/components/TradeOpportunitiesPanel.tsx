@@ -20,11 +20,16 @@ import type {
 
 type PanelMode = "compare" | "friends";
 
-type ManualTradeCard = CardSearchPickerResult & { gradedLabel?: string | null };
+type ManualTradeCard = CardSearchPickerResult & {
+  gradedLabel?: string | null;
+  itemKind?: "card" | "sealed";
+};
 
 interface TradeCollectionEntry {
   key: string;
-  cardId: string;
+  kind: "card" | "sealed";
+  cardId: string | null;
+  productId: string | null;
   name: string;
   cardNumber: string | null;
   episodeName: string;
@@ -218,7 +223,7 @@ function CollectionTradePickerDialog({
     const normalized = query.trim().toLocaleLowerCase();
     const filtered = normalized
       ? entries.filter((entry) =>
-          [entry.name, entry.episodeName, entry.cardNumber, entry.gradedLabel]
+          [entry.name, entry.episodeName, entry.cardNumber, entry.gradedLabel, entry.kind]
             .filter(Boolean)
             .some((value) => value!.toLocaleLowerCase().includes(normalized))
         )
@@ -290,7 +295,7 @@ function CollectionTradePickerDialog({
                   onClick={() => onSelect(entry)}
                   className="group flex min-w-0 flex-col overflow-hidden rounded-xl border border-white/6 bg-white/[0.025] p-1.5 text-left transition-colors hover:border-violet-300/24 hover:bg-violet-500/[0.07]"
                 >
-                  <span className="relative aspect-[63/88] w-full shrink-0 overflow-hidden rounded-lg bg-black/20">
+                  <span className={`relative w-full shrink-0 overflow-hidden rounded-lg bg-black/20 ${entry.kind === "sealed" ? "aspect-[4/3]" : "aspect-[63/88]"}`}>
                     {entry.imageUrl ? <CachedImage sourceUrl={entry.imageUrl} alt="" fill sizes="(max-width: 640px) 42vw, 220px" className="object-contain" unoptimized /> : null}
                   </span>
                   <span className="flex w-full min-w-0 items-start justify-between gap-2 px-0.5 pb-0.5 pt-1.5">
@@ -302,6 +307,10 @@ function CollectionTradePickerDialog({
                       {entry.gradedLabel ? (
                         <small className="mt-1 inline-block rounded border border-amber-300/22 bg-amber-500/[0.09] px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] text-amber-100/82">
                           {entry.gradedLabel}
+                        </small>
+                      ) : entry.kind === "sealed" ? (
+                        <small className="mt-1 inline-block rounded border border-violet-300/22 bg-violet-500/[0.09] px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] text-violet-100/82">
+                          Sealed
                         </small>
                       ) : null}
                     </span>
@@ -519,7 +528,7 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
           onClose={() => setCollectionPickerSide(null)}
           onSelect={(entry) => {
             const card: ManualTradeCard = {
-              id: entry.cardId,
+              id: entry.key,
               name: entry.name,
               card_number: entry.cardNumber,
               image_url: entry.imageUrl,
@@ -527,6 +536,7 @@ function ManualTradeCompare({ game }: { game: TradingCardGameFilter }) {
               episode_code: entry.episodeCode,
               cm_en_lowest_nm: entry.value,
               gradedLabel: entry.gradedLabel,
+              itemKind: entry.kind,
             };
             if (collectionPickerSide === "left") {
               setLeft(card);
@@ -567,7 +577,7 @@ function TradeColumn({
     const normalized = query.trim().toLocaleLowerCase();
     const filtered = normalized
       ? cards.filter((card) =>
-          [card.name, card.episodeName, card.cardNumber]
+          [card.name, card.episodeName, card.cardNumber, card.gradedLabel, card.kind]
             .filter(Boolean)
             .some((value) => value!.toLocaleLowerCase().includes(normalized))
         )
@@ -632,7 +642,7 @@ function TradeColumn({
       ) : null}
       {cards.length > 0 ? (
         visibleCards.length > 0 ? (
-        <div className="grid max-h-[46rem] grid-cols-2 gap-2 overflow-y-auto overscroll-contain pr-1 sm:grid-cols-3 lg:grid-cols-2 2xl:grid-cols-3">
+        <div className="grid max-h-[46rem] grid-cols-[repeat(auto-fill,minmax(8.25rem,1fr))] gap-2 overflow-y-auto overscroll-contain pr-1">
           {renderedCards.map((card) => {
             const selected = card.id === selectedCardId;
             const isSuggested = suggested.has(card.id);
@@ -648,7 +658,7 @@ function TradeColumn({
                     : "border-white/6 bg-white/[0.025] hover:border-white/14 hover:bg-white/[0.05]"
                 }`}
               >
-                <span className="relative aspect-[63/88] w-full shrink-0 overflow-hidden rounded-lg bg-black/20">
+                <span className={`relative w-full shrink-0 overflow-hidden rounded-lg bg-black/20 ${card.kind === "sealed" ? "aspect-[4/3]" : "aspect-[63/88]"}`}>
                   {card.imageUrl ? <CachedImage sourceUrl={card.imageUrl} alt="" fill sizes="(max-width: 640px) 42vw, (max-width: 1024px) 28vw, (max-width: 1536px) 20vw, 210px" className="object-contain transition-transform duration-200 group-hover:scale-[1.015]" unoptimized /> : null}
                 </span>
                 <span className="flex w-full min-w-0 items-start justify-between gap-2 px-0.5 pb-0.5 pt-1.5">
@@ -657,10 +667,18 @@ function TradeColumn({
                     <small className="block truncate text-[9px] text-white/38">
                     {card.episodeName} {card.cardNumber ? `#${card.cardNumber}` : ""}
                     </small>
+                    {card.gradedLabel ? (
+                      <small className="mt-1 block truncate rounded border border-amber-300/22 bg-amber-500/[0.09] px-1 py-0.5 text-[8px] font-black uppercase tracking-[0.06em] text-amber-100/88">
+                        {card.gradedLabel} · graded price
+                      </small>
+                    ) : card.kind === "sealed" ? (
+                      <small className="mt-1 block text-[8px] font-black uppercase tracking-[0.08em] text-violet-200/78">Sealed product</small>
+                    ) : null}
                     {isSuggested ? <small className="mt-1 block text-[8px] font-black uppercase tracking-[0.08em] text-emerald-200/72">Wanted match</small> : null}
                   </span>
                   <span className="shrink-0 text-right text-[10px] font-black tabular-nums text-white/64">
                     {card.value == null ? "--" : formatCollectionCurrency(card.value)}
+                    {card.gradedLabel ? <small className="block text-[8px] uppercase tracking-[0.06em] text-amber-100/58">slab</small> : null}
                     {card.availableCopies > 1 ? <small className="block text-[8px] text-white/34">x{card.availableCopies}</small> : null}
                   </span>
                 </span>

@@ -12,7 +12,6 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
-import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { formatCurrency } from "@/lib/format";
 import type {
@@ -157,8 +156,7 @@ export function HomeMarketMoversWidget({
   items: HomeMarketMoverPreviewItem[];
   viewAllHref: string;
 }) {
-  const { displaySettings } = useSettings();
-  const gridView = displaySettings.defaultView !== "table";
+  const gridView = true;
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--market h-full rounded-[var(--ui-page-header-radius)] p-3">
@@ -237,8 +235,7 @@ export function HomeSignalRadarWidget({
   items: HomeSignalRadarPreviewItem[];
   viewAllHref: string;
 }) {
-  const { displaySettings } = useSettings();
-  const gridView = displaySettings.defaultView !== "table";
+  const gridView = true;
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--radar h-full rounded-[var(--ui-page-header-radius)] p-3">
@@ -314,8 +311,7 @@ function HomeCardListWidget({
   kind: "wants" | "sale";
 }) {
   const Icon = kind === "wants" ? Heart : ShoppingBag;
-  const { displaySettings } = useSettings();
-  const gridView = displaySettings.defaultView !== "table";
+  const gridView = true;
   return (
     <section className={`binder-panel home-widget-panel home-widget-panel--${kind} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
       <WidgetHeader eyebrow={eyebrow} title={title} count={data.total} href={viewAllHref} icon={Icon} tone={kind} />
@@ -411,8 +407,7 @@ export function HomeUpcomingWidget({
   items: HomeUpcomingPreviewItem[];
   viewAllHref: string;
 }) {
-  const { displaySettings } = useSettings();
-  const gridView = displaySettings.defaultView !== "table";
+  const gridView = true;
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">

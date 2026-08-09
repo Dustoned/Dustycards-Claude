@@ -14,6 +14,7 @@ import {
 } from "@/lib/games";
 import {
   buildHomeOverviewInsights,
+  buildForSalePreview,
   type HomeCardListPreview,
 } from "@/lib/home-overview-insights";
 import {
@@ -98,6 +99,7 @@ async function getHomeUpcoming(game: TradingCardGameFilter) {
     : [POKEMON_GAME, ONE_PIECE_GAME];
   const releases = (await Promise.all(games.map(getUpcomingSealedReleases))).flat();
   return releases
+    .filter((release) => release.daysSinceRelease == null)
     .sort((left, right) => left.releaseDate.localeCompare(right.releaseDate))
     .slice(0, 24);
 }
@@ -109,10 +111,15 @@ export async function GET(request: NextRequest) {
     const game = parseVisibleGameFilter(request.nextUrl.searchParams.get("game"), {
       onePieceEnabled: settings.onePieceLibraryEnabled,
     });
-    const [data, moversSnapshot, radarSnapshot, wants, upcoming] = await Promise.all([
+    const [data, sellingData, moversSnapshot, radarSnapshot, wants, upcoming] = await Promise.all([
       getCachedCollectionOverviewData({
         userId: user.id,
         activeTab: "overview",
+        game,
+      }),
+      getCachedCollectionOverviewData({
+        userId: user.id,
+        activeTab: "selling",
         game,
       }),
       readMoversSnapshot({
@@ -135,6 +142,7 @@ export async function GET(request: NextRequest) {
       movers: moversSnapshot?.data.movers ?? [],
       radarSignals: radarSnapshot?.data.signals ?? [],
       wants,
+      forSale: buildForSalePreview(sellingData),
       upcoming,
     }), {
       headers: {

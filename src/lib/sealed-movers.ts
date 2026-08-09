@@ -138,6 +138,7 @@ export interface UpcomingSealedRelease {
   imageUrl: string | null;
   releaseDate: string;
   daysUntil: number;
+  daysSinceRelease: number | null;
   sourceName: string;
   sourceUrl: string | null;
   confidence: number | null;
@@ -445,9 +446,10 @@ export async function getUpcomingSealedReleases(
 ): Promise<UpcomingSealedRelease[]> {
   const today = new Date();
   today.setUTCHours(0, 0, 0, 0);
+  const oneWeekAgo = new Date(today.getTime() - 7 * DAY_MS);
 
   const watchedProducts = await db.sealedReleaseWatch.findMany({
-    where: { game, release_date: { gte: today } },
+    where: { game, release_date: { gte: oneWeekAgo } },
     orderBy: [{ release_date: "asc" }, { name: "asc" }],
     take: 60,
   });
@@ -477,6 +479,9 @@ export async function getUpcomingSealedReleases(
       imageUrl: release.image_url,
       releaseDate: release.release_date.toISOString(),
       daysUntil: Math.max(0, Math.ceil((release.release_date.getTime() - today.getTime()) / DAY_MS)),
+      daysSinceRelease: release.release_date < today
+        ? Math.floor((today.getTime() - release.release_date.getTime()) / DAY_MS)
+        : null,
       sourceName: release.source_name,
       sourceUrl: release.source_url,
       confidence: release.confidence,

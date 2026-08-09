@@ -5,6 +5,7 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 import { WANT_SOURCE_MANUAL } from "@/lib/wantlist-planner";
+import { getTradeCollectionEntries } from "@/lib/trade-collection";
 
 export type SocialConnectionStatus = "pending" | "accepted";
 export type SocialFullAccessStatus = "none" | "pending" | "accepted";
@@ -64,12 +65,16 @@ export interface SocialPageData {
 
 export interface SocialTradeMatchCard {
   id: string;
+  kind: "card" | "sealed";
+  cardId: string | null;
+  productId: string | null;
   name: string;
   cardNumber: string | null;
   episodeName: string;
   imageUrl: string | null;
   value: number | null;
   availableCopies: number;
+  gradedLabel: string | null;
 }
 
 export interface SocialTradeMatches {
@@ -84,44 +89,6 @@ export interface SocialTradeMatches {
 export interface SocialTradeOpportunity {
   friend: SocialUserSummary;
   matches: SocialTradeMatches;
-}
-
-interface SocialTradePriceRow {
-  card_id: string;
-  cm_en_lowest_nm: number | null;
-}
-
-async function getLatestSocialTradePrices(cardIds: string[]): Promise<Map<string, number | null>> {
-  const prices = new Map<string, number | null>();
-
-  // Keep every lookup comfortably below SQLite/Postgres parameter limits. A
-  // correlated latest-price lookup avoids Prisma loading the complete price
-  // history for every card in both collections.
-  for (let offset = 0; offset < cardIds.length; offset += 400) {
-    const batch = cardIds.slice(offset, offset + 400);
-    if (batch.length === 0) continue;
-    const placeholders = batch.map(() => "?").join(", ");
-    const rows = await db.$queryRawUnsafe<SocialTradePriceRow[]>(
-      `
-      SELECT p.card_id, p.cm_en_lowest_nm
-      FROM "Price" p
-      WHERE p.card_id IN (${placeholders})
-        AND p.id = (
-          SELECT p2.id
-          FROM "Price" p2
-          WHERE p2.card_id = p.card_id
-            AND p2.cm_en_lowest_nm > 0
-            AND p2.cm_en_lowest_nm <> 9001
-          ORDER BY p2.fetched_at DESC, p2.id DESC
-          LIMIT 1
-        )
-      `,
-      ...batch
-    );
-    for (const row of rows) prices.set(row.card_id, row.cm_en_lowest_nm);
-  }
-
-  return prices;
 }
 
 type SocialConnectionWithUsers = Awaited<ReturnType<typeof getUserConnections>>[number];
@@ -390,23 +357,9 @@ export async function getSocialTradeMatches(
     return null;
   }
 
-  const [yourCopies, theirCopies, yourWants, theirWants] = await Promise.all([
-    db.collectionCard.findMany({
-      where: {
-        user_id: currentUserId,
-        sold_at: null,
-        ...(isSpecificTradingCardGame(game) ? { card: { game } } : {}),
-      },
-      select: { card_id: true, for_sale: true },
-    }),
-    db.collectionCard.findMany({
-      where: {
-        user_id: friendUserId,
-        sold_at: null,
-        ...(isSpecificTradingCardGame(game) ? { card: { game } } : {}),
-      },
-      select: { card_id: true, for_sale: true },
-    }),
+  const [yourInventory, theirInventory, yourWants, theirWants] = await Promise.all([
+    getTradeCollectionEntries(currentUserId, game),
+    getTradeCollectionEntries(friendUserId, game),
     db.collectionWant.findMany({
       where: {
         user_id: currentUserId,
@@ -427,80 +380,30 @@ export async function getSocialTradeMatches(
     }),
   ]);
 
-  function available(rows: Array<{ card_id: string; for_sale: boolean }>) {
-    const grouped = new Map<string, { total: number; listed: number }>();
-    for (const row of rows) {
-      const value = grouped.get(row.card_id) ?? { total: 0, listed: 0 };
-      value.total += 1;
-      if (row.for_sale) value.listed += 1;
-      grouped.set(row.card_id, value);
-    }
-    return new Map(
-      [...grouped.entries()]
-        .map(([cardId, value]) => [cardId, Math.max(value.listed, value.total - 1)] as const)
-        .filter((entry) => entry[1] > 0)
-    );
-  }
-
-  const yours = available(yourCopies);
-  const theirs = available(theirCopies);
-  const owned = (rows: Array<{ card_id: string }>) => {
-    const counts = new Map<string, number>();
-    for (const row of rows) counts.set(row.card_id, (counts.get(row.card_id) ?? 0) + 1);
-    return counts;
-  };
-  const yourCollection = owned(yourCopies);
-  const theirCollection = owned(theirCopies);
   const yourWantIds = new Set(yourWants.map((item) => item.card_id));
   const theirWantIds = new Set(theirWants.map((item) => item.card_id));
-  const yourMatchIds = [...yours.keys()].filter((cardId) => theirWantIds.has(cardId));
-  const theirMatchIds = [...theirs.keys()].filter((cardId) => yourWantIds.has(cardId));
-  const ids = [...new Set([...yourCollection.keys(), ...theirCollection.keys()])];
-  if (ids.length === 0) {
-    return {
-      yourCardsTheyWant: [],
-      theirCardsYouWant: [],
-      yourCollectionCards: [],
-      theirCollectionCards: [],
-      yourOfferValue: 0,
-      theirOfferValue: 0,
-    };
-  }
-  const cards = await db.card.findMany({
-    where: { id: { in: ids } },
-    select: {
-      id: true,
-      name: true,
-      card_number: true,
-      image_url: true,
-      episode: { select: { name: true } },
-    },
-  });
-  const prices = await getLatestSocialTradePrices(ids);
-  const cardById = new Map(cards.map((card) => [card.id, card]));
-  const build = (cardIds: string[], counts: Map<string, number>) => cardIds
-    .map((cardId) => {
-      const card = cardById.get(cardId);
-      if (!card) return null;
-      return {
-        id: card.id,
-        name: card.name,
-        cardNumber: card.card_number,
-        episodeName: card.episode.name,
-        imageUrl: card.image_url,
-        value: prices.get(card.id) ?? null,
-        availableCopies: counts.get(card.id) ?? 1,
-      };
-    })
-    .filter((card): card is SocialTradeMatchCard => Boolean(card))
+  const build = (entries: typeof yourInventory) => entries
+    .map((entry): SocialTradeMatchCard => ({
+      id: entry.key,
+      kind: entry.kind,
+      cardId: entry.cardId,
+      productId: entry.productId,
+      name: entry.name,
+      cardNumber: entry.cardNumber,
+      episodeName: entry.episodeName,
+      imageUrl: entry.imageUrl,
+      value: entry.value,
+      availableCopies: entry.availableCopies,
+      gradedLabel: entry.gradedLabel,
+    }))
     .sort((left, right) =>
       (right.value ?? -1) - (left.value ?? -1) ||
       left.name.localeCompare(right.name, undefined, { sensitivity: "base" })
     );
-  const yourCardsTheyWant = build(yourMatchIds, yours);
-  const theirCardsYouWant = build(theirMatchIds, theirs);
-  const yourCollectionCards = build([...yourCollection.keys()], yourCollection);
-  const theirCollectionCards = build([...theirCollection.keys()], theirCollection);
+  const yourCollectionCards = build(yourInventory);
+  const theirCollectionCards = build(theirInventory);
+  const yourCardsTheyWant = yourCollectionCards.filter((entry) => entry.cardId && theirWantIds.has(entry.cardId));
+  const theirCardsYouWant = theirCollectionCards.filter((entry) => entry.cardId && yourWantIds.has(entry.cardId));
   const sum = (items: SocialTradeMatchCard[]) => Number(items.reduce((total, item) => total + (item.value ?? 0), 0).toFixed(2));
   return {
     yourCardsTheyWant,

@@ -44,6 +44,7 @@ import CollectionValueHistoryPanel from "@/components/CollectionValueHistoryPane
 import EmptyState from "@/components/EmptyState";
 import HomePageLoading from "@/components/HomePageLoading";
 import ProgressiveTradeOpportunitiesPanel from "@/components/ProgressiveTradeOpportunitiesPanel";
+import SellingValueSummary from "@/components/SellingValueSummary";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
@@ -796,7 +797,8 @@ async function HomePageContent({
             endpoint={buildTradeOpportunitiesApiHref()}
             game={activeGame}
           />
-          <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
+          <SellingValueSummary items={data.forSaleCards} investment={forSaleInvestment} pricedCards={forSalePricedCards} soldNet={soldNet} soldCount={soldCount} soldTotal={soldTotal} soldFees={soldFees} soldPnl={soldPnl} />
+          {false ? <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
                 Estimated Sale Value
@@ -836,7 +838,7 @@ async function HomePageContent({
                 </span>
               </p>
             </div>
-          </section>
+          </section> : null}
           <SellingInventoryTabs
             activeCount={data.forSaleCards.length}
             soldCount={data.soldCards.length}
@@ -846,6 +848,7 @@ async function HomePageContent({
                 items={data.forSaleCards}
                 allowCollectionRemoval
                 allowSoldMarking
+                announceSellingPriceSource
                 showGradedSlabPreview
                 emptyTitle="No cards marked for sale"
                 emptyText="Cards you save to For Sale will appear here."
