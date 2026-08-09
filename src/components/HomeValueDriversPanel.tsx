@@ -23,10 +23,6 @@ const SealedProductModal = dynamic(() => import("@/components/SealedProductModal
   loading: () => null,
 });
 
-const HOME_DRIVER_GRID_STYLE = {
-  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 10rem), 1fr))",
-};
-
 function formatSignedCurrency(value: number | null | undefined): string {
   if (value == null) return "--";
 
@@ -277,8 +273,7 @@ function HomeValueDriverLane({
       </div>
       {items.length > 0 ? (
         <div
-          className="grid min-w-0 gap-2"
-          style={gridView ? HOME_DRIVER_GRID_STYLE : undefined}
+          className={`${gridView ? "home-widget-tile-grid" : ""} grid min-w-0 gap-2`}
         >
           {items.map((item) => (
             <HomeValueDriverRow

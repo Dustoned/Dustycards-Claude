@@ -223,7 +223,7 @@ function CollapsibleHomeModule({
   }
 
   return (
-    <div className="relative [&>section>div:first-child]:pr-11">
+    <div className="home-dashboard-module relative [&>section>div:first-child]:pr-11">
       <button
         type="button"
         onClick={onToggle}

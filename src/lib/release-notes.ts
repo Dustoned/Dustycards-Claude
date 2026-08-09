@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.42",
+    releasedAt: "August 9, 2026",
+    title: "Balanced Home tile grids",
+    summary:
+      "Home tiles now respond to the width of their own widget rather than the width of the whole browser window.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "No more tiny cards or empty tracks",
+        highlights: [
+          "Compact desktop widgets use a balanced three-column grid and wide widgets use up to six columns.",
+          "Mobile keeps a readable two-column grid.",
+          "Empty CSS grid tracks collapse, so every preview fills its available surface.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.41",
     releasedAt: "August 9, 2026",
     title: "Real Grid view for Home widgets",

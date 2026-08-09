@@ -34,10 +34,6 @@ const EMPTY_DATA: HomeSuddenDropsResponse = {
   refreshStatus: null,
 };
 
-const HOME_DROP_GRID_STYLE = {
-  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 10rem), 1fr))",
-};
-
 function buildHighlightedHref(baseHref: string, cardId: string): string {
   const [pathname, query = ""] = baseHref.split("?");
   const params = new URLSearchParams(query);
@@ -213,8 +209,7 @@ function HomeSealedDropRow({
 function LoadingRows({ gridView }: { gridView: boolean }) {
   return (
     <div
-      className="grid min-w-0 gap-2"
-      style={gridView ? HOME_DROP_GRID_STYLE : undefined}
+      className={`${gridView ? "home-widget-tile-grid" : ""} grid min-w-0 gap-2`}
     >
       {Array.from({ length: HOME_SUDDEN_DROP_LANE_SIZE }).map((_, index) => (
         <div
@@ -260,8 +255,7 @@ function HomeSuddenDropLane({
         </span>
       </div>
       <div
-        className="grid min-w-0 gap-2"
-        style={gridView ? HOME_DROP_GRID_STYLE : undefined}
+        className={`${gridView ? "home-widget-tile-grid" : ""} grid min-w-0 gap-2`}
       >
         {items.length > 0 ? (
           items.map((item) => (
@@ -304,8 +298,7 @@ function HomeSealedDropLane({
         </span>
       </div>
       <div
-        className="grid min-w-0 gap-2"
-        style={gridView ? HOME_DROP_GRID_STYLE : undefined}
+        className={`${gridView ? "home-widget-tile-grid" : ""} grid min-w-0 gap-2`}
       >
         {items.length > 0 ? (
           items.map((item) => (

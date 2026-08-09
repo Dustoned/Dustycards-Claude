@@ -3698,3 +3698,22 @@ html[data-appearance-scheme="light"]
   pointer-events: none;
   user-select: none;
 }
+.home-dashboard-module {
+  container-type: inline-size;
+}
+
+.home-widget-tile-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+@container (min-width: 40rem) {
+  .home-widget-tile-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@container (min-width: 75rem) {
+  .home-widget-tile-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+}

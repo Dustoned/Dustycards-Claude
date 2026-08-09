@@ -25,10 +25,6 @@ import type {
 const HOME_PREVIEW_TILE_CLASS =
   "group rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
 
-const HOME_PREVIEW_GRID_STYLE = {
-  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 10rem), 1fr))",
-};
-
 function HomePreviewTile({
   href,
   imageUrl,
@@ -153,7 +149,7 @@ export function HomeMarketMoversWidget({
       {items.length === 0 ? (
         <EmptyWidget>No current mover snapshot is available yet.</EmptyWidget>
       ) : gridView ? (
-        <div className="mt-2 grid gap-2" style={HOME_PREVIEW_GRID_STYLE}>
+        <div className="home-widget-tile-grid mt-2 grid gap-2">
           {items.map((item) => {
             const gain = item.change > 0;
             const Icon = gain ? ArrowUpRight : ArrowDownRight;
@@ -232,7 +228,7 @@ export function HomeSignalRadarWidget({
       {items.length === 0 ? (
         <EmptyWidget>No active Radar signals match the current game.</EmptyWidget>
       ) : gridView ? (
-        <div className="mt-2 grid gap-2" style={HOME_PREVIEW_GRID_STYLE}>
+        <div className="home-widget-tile-grid mt-2 grid gap-2">
           {items.map((item) => (
             <HomePreviewTile
               key={item.cardId}
@@ -307,7 +303,7 @@ function HomeCardListWidget({
       {data.items.length === 0 ? (
         <EmptyWidget>{emptyLabel}</EmptyWidget>
       ) : gridView ? (
-        <div className="mt-2 grid gap-2" style={HOME_PREVIEW_GRID_STYLE}>
+        <div className="home-widget-tile-grid mt-2 grid gap-2">
           {data.items.map((item, index) => (
             <HomePreviewTile
               key={`${item.cardId}:${index}`}
@@ -404,7 +400,7 @@ export function HomeUpcomingWidget({
       {items.length === 0 ? (
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
       ) : gridView ? (
-        <div className="mt-2 grid gap-2" style={HOME_PREVIEW_GRID_STYLE}>
+        <div className="home-widget-tile-grid mt-2 grid gap-2">
           {items.map((item) => (
             <HomePreviewTile
               key={item.id}

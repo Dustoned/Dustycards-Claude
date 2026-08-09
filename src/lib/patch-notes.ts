@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.42",
+    releasedAt: "August 9, 2026",
+    title: "Home tiles size themselves to the widget",
+    summary:
+      "Grid widgets now react to their actual module width, preventing tiny cards and large unused strips on widescreen layouts.",
+    tone: "fixed",
+    highlights: [
+      "Phone widgets use two columns, half-width desktop widgets use three, and genuinely wide widgets use up to six.",
+      "Six-item previews fill the available widget width instead of reserving invisible empty columns.",
+      "Compact Value Drivers and Sudden Drops naturally form two balanced rows instead of one cramped row.",
+    ],
+  },
+  {
     version: "3.12.41",
     releasedAt: "August 9, 2026",
     title: "Home widgets finally respect Grid view",
