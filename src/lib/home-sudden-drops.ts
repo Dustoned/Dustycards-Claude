@@ -1,6 +1,6 @@
 import type { CurrencyCode } from "@/lib/format";
 
-export const HOME_SUDDEN_DROP_LANE_SIZE = 6;
+export const HOME_SUDDEN_DROP_LANE_SIZE = 12;
 export const HOME_SUDDEN_DROP_PREVIEW_SIZE = HOME_SUDDEN_DROP_LANE_SIZE * 2;
 
 export interface HomeSuddenDropPreviewItem {

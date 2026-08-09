@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.45",
+    releasedAt: "August 9, 2026",
+    title: "Denser Home card walls",
+    summary:
+      "Ultra-wide widgets now favor more compact card tiles and substantially more visible cards.",
+    tone: "improved",
+    highlights: [
+      "Half-width lanes use six cards per row instead of three on ultra-wide displays.",
+      "Value Drivers and Sudden Drops can show twelve cards per lane; wide preview widgets can show twenty-four.",
+      "Artwork remains dominant while oversized media wells and unnecessary tile height are reduced.",
+    ],
+  },
+  {
     version: "3.12.44",
     releasedAt: "August 9, 2026",
     title: "Real card artwork takes over Home widgets",

@@ -9,10 +9,9 @@ import type {
 // desktop column count or two complete mobile rows.
 export const HOME_FEATURED_CARD_LIMIT = 48;
 
-// HomeValueDriversPanel displays six rows per lane so its widescreen density
-// matches Sudden Price Drops (four card rows plus two sealed rows). Keep totals
-// and source breakdown intact without shipping hidden rows through RSC.
-export const HOME_VALUE_DRIVER_LANE_LIMIT = 6;
+// Keep twelve ranked items per lane available for a compact six-column card
+// wall on ultra-wide screens while phones continue to use two columns.
+export const HOME_VALUE_DRIVER_LANE_LIMIT = 12;
 
 export function getHomeFeaturedCards(cards: CollectionOverviewData["cards"]) {
   return getFeaturedCollectionCards(cards, HOME_FEATURED_CARD_LIMIT);

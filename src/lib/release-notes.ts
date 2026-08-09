@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.45",
+    releasedAt: "August 9, 2026",
+    title: "More cards, less oversized tile",
+    summary:
+      "The artwork-led Home design is now denser, showing twice as many cards per lane without returning to thumbnail rows.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Ultra-wide card walls",
+        highlights: [
+          "Six compact card tiles fit across each half-widget lane.",
+          "Wide widgets can fill a row with up to twenty-four cards.",
+          "Mobile keeps its readable two-column layout and large artwork.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.44",
     releasedAt: "August 9, 2026",
     title: "Artwork-led Home widgets",

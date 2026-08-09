@@ -3827,20 +3827,20 @@ html[data-appearance-scheme="light"]
   }
 
   .home-preview-tile {
-    min-height: 20.25rem;
+    min-height: 17.5rem;
   }
 
   .home-preview-tile__media {
-    min-height: 14.5rem;
+    min-height: 12rem;
   }
 
   .home-preview-tile__art--card,
   .home-preview-tile__art--product {
-    height: 13.75rem;
+    height: 11.25rem;
   }
 }
 
-@container (min-width: 90rem) {
+@container (min-width: 68rem) {
   .home-widget-tile-grid {
     grid-template-columns: repeat(6, minmax(0, 1fr));
   }
@@ -3848,6 +3848,6 @@ html[data-appearance-scheme="light"]
 
 @container (min-width: 180rem) {
   .home-widget-tile-grid {
-    grid-template-columns: repeat(12, minmax(0, 1fr));
+    grid-template-columns: repeat(24, minmax(0, 1fr));
   }
 }

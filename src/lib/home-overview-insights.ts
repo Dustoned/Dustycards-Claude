@@ -7,7 +7,7 @@ import { getHomeFeaturedCards, getHomeValueDriversPreview } from "@/lib/home-pag
 import type { CollectionMoverItem } from "@/lib/movers";
 import type { UpcomingSealedRelease } from "@/lib/sealed-movers";
 
-const HOME_WIDGET_PREVIEW_LIMIT = 12;
+const HOME_WIDGET_PREVIEW_LIMIT = 24;
 const HOME_WIDGET_MOVER_TONE_LIMIT = HOME_WIDGET_PREVIEW_LIMIT / 2;
 
 export type HomeAllocationTone = "sky" | "emerald" | "amber" | "rose";

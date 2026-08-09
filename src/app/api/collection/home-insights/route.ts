@@ -51,7 +51,7 @@ async function getHomeWantsPreview(
     db.collectionWant.findMany({
       where,
       orderBy: { created_at: "desc" },
-      take: 12,
+      take: 24,
       select: {
         card: {
           select: {
@@ -99,7 +99,7 @@ async function getHomeUpcoming(game: TradingCardGameFilter) {
   const releases = (await Promise.all(games.map(getUpcomingSealedReleases))).flat();
   return releases
     .sort((left, right) => left.releaseDate.localeCompare(right.releaseDate))
-    .slice(0, 12);
+    .slice(0, 24);
 }
 
 export async function GET(request: NextRequest) {

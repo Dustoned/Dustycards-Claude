@@ -72,8 +72,8 @@ function driver(index: number, change: number): CollectionValueDriverItem {
 }
 
 describe("home page payload", () => {
-  it("keeps six driver rows per lane to match the sudden-drops panel", () => {
-    expect(HOME_VALUE_DRIVER_LANE_LIMIT).toBe(6);
+  it("keeps twelve driver rows per lane for the denser card wall", () => {
+    expect(HOME_VALUE_DRIVER_LANE_LIMIT).toBe(12);
   });
 
   it("keeps only the cards that can appear in the home rail", () => {
@@ -97,7 +97,7 @@ describe("home page payload", () => {
       dropsTotal: -8,
       sourceBreakdown: [{ source: "CardMarket", change: 42 }],
       gains: Array.from({ length: 12 }, (_, index) => driver(index, 12 - index)),
-      drops: Array.from({ length: 9 }, (_, index) => driver(index + 20, -(index + 1))),
+      drops: Array.from({ length: 15 }, (_, index) => driver(index + 20, -(index + 1))),
     };
 
     const result = getHomeValueDriversPreview(data);
@@ -107,6 +107,6 @@ describe("home page payload", () => {
     expect(result.totalChange).toBe(data.totalChange);
     expect(result.sourceBreakdown).toBe(data.sourceBreakdown);
     expect(data.gains).toHaveLength(12);
-    expect(data.drops).toHaveLength(9);
+    expect(data.drops).toHaveLength(15);
   });
 });

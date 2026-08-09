@@ -314,8 +314,8 @@ export default function HomeValueDriversPanel({
   const [detailError, setDetailError] = useState<string | null>(null);
   const { displaySettings } = useSettings();
   const gridView = displaySettings.defaultView !== "table";
-  const gains = data.gains.slice(0, 6);
-  const drops = data.drops.slice(0, 6);
+  const gains = data.gains.slice(0, 12);
+  const drops = data.drops.slice(0, 12);
   const hasDrivers = gains.length > 0 || drops.length > 0;
   const netChange = data.totalChange ?? 0;
   const netToneClass = netChange >= 0 ? "text-emerald-300" : "text-rose-300";
