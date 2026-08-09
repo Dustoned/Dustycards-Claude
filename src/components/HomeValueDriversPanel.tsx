@@ -4,6 +4,8 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight } from "lucide-react";
 import { useCallback, useState } from "react";
+import CachedImage from "@/components/CachedImage";
+import { useSettings } from "@/components/SettingsProvider";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { formatCollectionCurrency } from "@/lib/collection";
@@ -20,6 +22,10 @@ const SealedProductModal = dynamic(() => import("@/components/SealedProductModal
   ssr: false,
   loading: () => null,
 });
+
+const HOME_DRIVER_GRID_STYLE = {
+  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 10rem), 1fr))",
+};
 
 function formatSignedCurrency(value: number | null | undefined): string {
   if (value == null) return "--";
@@ -111,12 +117,14 @@ function HomeValueDriverRow({
   item,
   tone,
   loading,
+  gridView,
   onOpenCard,
   onOpenSealed,
 }: {
   item: CollectionValueDriverItem;
   tone: "gain" | "drop";
   loading: boolean;
+  gridView: boolean;
   onOpenCard: (item: CollectionValueDriverItem) => void;
   onOpenSealed: (item: CollectionValueDriverItem) => void;
 }) {
@@ -128,9 +136,12 @@ function HomeValueDriverRow({
       : "border-rose-400/14 bg-rose-400/[0.07]";
   const percent = formatSignedPercent(item.changePct);
   const meta = getDriverMetaLabel(item);
-  const className =
-    "group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
-  const content = (
+  const tileBaseClass =
+    "group min-w-0 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] p-2.5 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
+  const className = gridView
+    ? `${tileBaseClass} flex min-h-[8.75rem] flex-col`
+    : `${tileBaseClass} grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2`;
+  const listContent = (
     <>
       <span
         className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border ${toneSurfaceClass} ${toneTextClass}`}
@@ -159,6 +170,45 @@ function HomeValueDriverRow({
       </span>
     </>
   );
+  const gridContent = (
+    <>
+      <span className="flex min-w-0 items-start gap-2.5">
+        <span className={`relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border ${toneSurfaceClass} ${toneTextClass}`}>
+          {item.imageUrl ? (
+            <CachedImage
+              sourceUrl={item.imageUrl}
+              alt=""
+              fill
+              sizes="48px"
+              className={item.kind === "sealed" ? "object-contain" : "object-cover"}
+            />
+          ) : (
+            <Icon className="h-5 w-5" />
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 text-[12px] font-black leading-[1.2] text-white/90 group-hover:text-white">
+            {item.name}
+          </span>
+          <span className="mt-1 line-clamp-2 text-[9.5px] font-semibold leading-4 text-white/42">
+            {meta || getDriverSourceLabel(item)}
+          </span>
+        </span>
+      </span>
+      <span className="mt-auto flex min-w-0 items-end justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2">
+        <span className="min-w-0 truncate text-[9.5px] font-bold text-white/38">
+          {getDriverSourceLabel(item)}
+        </span>
+        <span className="shrink-0 text-right">
+          <span className={`block text-[12px] font-black tabular-nums ${toneTextClass}`}>
+            {formatSignedCurrency(item.change)}
+          </span>
+          {percent ? <span className="block text-[9.5px] font-bold text-white/42">{percent}</span> : null}
+        </span>
+      </span>
+    </>
+  );
+  const content = gridView ? gridContent : listContent;
 
   if (item.kind === "card" && item.cardId) {
     return (
@@ -201,6 +251,7 @@ function HomeValueDriverLane({
   items,
   tone,
   emptyLabel,
+  gridView,
   loadingCardId,
   onOpenCard,
   onOpenSealed,
@@ -209,6 +260,7 @@ function HomeValueDriverLane({
   items: CollectionValueDriverItem[];
   tone: "gain" | "drop";
   emptyLabel: string;
+  gridView: boolean;
   loadingCardId: string | null;
   onOpenCard: (item: CollectionValueDriverItem) => void;
   onOpenSealed: (item: CollectionValueDriverItem) => void;
@@ -224,13 +276,17 @@ function HomeValueDriverLane({
         </span>
       </div>
       {items.length > 0 ? (
-        <div className="grid min-w-0 gap-1.5">
+        <div
+          className="grid min-w-0 gap-2"
+          style={gridView ? HOME_DRIVER_GRID_STYLE : undefined}
+        >
           {items.map((item) => (
             <HomeValueDriverRow
               key={item.id}
               item={item}
               tone={tone}
               loading={item.cardId === loadingCardId}
+              gridView={gridView}
               onOpenCard={onOpenCard}
               onOpenSealed={onOpenSealed}
             />
@@ -257,6 +313,8 @@ export default function HomeValueDriversPanel({
   const [loadingCardId, setLoadingCardId] = useState<string | null>(null);
   const [cardDetailCache, setCardDetailCache] = useState<Record<string, ModalCardData>>({});
   const [detailError, setDetailError] = useState<string | null>(null);
+  const { displaySettings } = useSettings();
+  const gridView = displaySettings.defaultView !== "table";
   const gains = data.gains.slice(0, 6);
   const drops = data.drops.slice(0, 6);
   const hasDrivers = gains.length > 0 || drops.length > 0;
@@ -363,6 +421,7 @@ export default function HomeValueDriversPanel({
             items={gains}
             tone="gain"
             emptyLabel="No gains in this window"
+            gridView={gridView}
             loadingCardId={loadingCardId}
             onOpenCard={openCard}
             onOpenSealed={openSealed}
@@ -372,6 +431,7 @@ export default function HomeValueDriversPanel({
             items={drops}
             tone="drop"
             emptyLabel="No drops in this window"
+            gridView={gridView}
             loadingCardId={loadingCardId}
             onOpenCard={openCard}
             onOpenSealed={openSealed}

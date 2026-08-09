@@ -6,6 +6,7 @@ export const HOME_SUDDEN_DROP_PREVIEW_SIZE = HOME_SUDDEN_DROP_LANE_SIZE * 2;
 export interface HomeSuddenDropPreviewItem {
   cardId: string;
   name: string;
+  imageUrl: string | null;
   cardNumber: string | null;
   episodeName: string;
   episodeCode: string | null;
@@ -21,6 +22,7 @@ export interface HomeSuddenDropPreviewItem {
 export interface HomeSuddenDropSealedPreviewItem {
   productId: string;
   name: string;
+  imageUrl: string | null;
   episodeId: string;
   episodeName: string;
   episodeCode: string | null;

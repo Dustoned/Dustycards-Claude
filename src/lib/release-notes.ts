@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.41",
+    releasedAt: "August 9, 2026",
+    title: "Real Grid view for Home widgets",
+    summary:
+      "The Home dashboard now reads the same Table/Grid preference as the collection instead of hardcoding every preview as a list.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Actual card tiles",
+        highlights: [
+          "With Grid selected, widget entries flow into responsive multi-column tiles with larger artwork or icons.",
+          "Table is now the only setting that intentionally shows horizontal rows.",
+          "The behavior is shared by market, Radar, collection, sale, release and drop widgets.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.40",
     releasedAt: "August 9, 2026",
     title: "Consistent tiles across Home",

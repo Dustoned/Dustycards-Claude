@@ -20,6 +20,7 @@ export interface HomeAllocationSegment {
 export interface HomeMarketMoverPreviewItem {
   cardId: string;
   name: string;
+  imageUrl: string | null;
   cardNumber: string | null;
   episodeName: string;
   episodeCode: string | null;
@@ -33,6 +34,7 @@ export interface HomeMarketMoverPreviewItem {
 export interface HomeSignalRadarPreviewItem {
   cardId: string;
   name: string;
+  imageUrl: string | null;
   cardNumber: string | null;
   episodeName: string;
   episodeCode: string | null;
@@ -118,6 +120,7 @@ function buildMarketMoverPreview(items: CollectionMoverItem[]): HomeMarketMoverP
   return [...gains, ...drops].map(({ item, change, changePct, windowDays }) => ({
     cardId: item.cardId,
     name: item.name,
+    imageUrl: item.imageUrl,
     cardNumber: item.cardNumber,
     episodeName: item.episodeName,
     episodeCode: item.episodeCode,
@@ -133,6 +136,7 @@ function buildSignalRadarPreview(items: ExternalCardSignal[]): HomeSignalRadarPr
   return items.slice(0, 6).map((item) => ({
     cardId: item.cardId,
     name: item.name,
+    imageUrl: item.imageUrl,
     cardNumber: item.cardNumber,
     episodeName: item.episodeName,
     episodeCode: item.episodeCode,

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -11,6 +12,7 @@ import {
   ShoppingBag,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
+import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { formatCurrency } from "@/lib/format";
 import type {
@@ -22,6 +24,72 @@ import type {
 
 const HOME_PREVIEW_TILE_CLASS =
   "group rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]";
+
+const HOME_PREVIEW_GRID_STYLE = {
+  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 10rem), 1fr))",
+};
+
+function HomePreviewTile({
+  href,
+  imageUrl,
+  imageFit = "object-cover",
+  fallback,
+  title,
+  meta,
+  metric,
+  metricClassName = "text-white/78",
+  footer,
+}: {
+  href: string;
+  imageUrl: string | null;
+  imageFit?: "object-cover" | "object-contain";
+  fallback: ReactNode;
+  title: string;
+  meta: string;
+  metric: string;
+  metricClassName?: string;
+  footer: string;
+}) {
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      className={`${HOME_PREVIEW_TILE_CLASS} flex min-h-[8.75rem] min-w-0 flex-col p-2.5`}
+    >
+      <span className="flex min-w-0 items-start gap-2.5">
+        <span className="relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-[rgb(var(--dc-border-rgb)/0.78)] bg-[rgb(var(--dc-bg-main-rgb)/0.3)]">
+          {imageUrl ? (
+            <CachedImage
+              sourceUrl={imageUrl}
+              alt=""
+              fill
+              sizes="48px"
+              className={imageFit}
+            />
+          ) : (
+            fallback
+          )}
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="line-clamp-2 text-[12px] font-black leading-[1.2] text-white/90 transition-colors group-hover:text-white">
+            {title}
+          </span>
+          <span className="mt-1 line-clamp-2 text-[9.5px] font-semibold leading-4 text-white/42">
+            {meta}
+          </span>
+        </span>
+      </span>
+      <span className="mt-auto flex min-w-0 items-end justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2">
+        <span className="min-w-0 truncate text-[9.5px] font-bold text-white/38">
+          {footer}
+        </span>
+        <span className={`shrink-0 text-[12px] font-black tabular-nums ${metricClassName}`}>
+          {metric}
+        </span>
+      </span>
+    </Link>
+  );
+}
 
 function WidgetHeader({
   eyebrow,
@@ -76,11 +144,36 @@ export function HomeMarketMoversWidget({
   items: HomeMarketMoverPreviewItem[];
   viewAllHref: string;
 }) {
+  const { displaySettings } = useSettings();
+  const gridView = displaySettings.defaultView !== "table";
+
   return (
     <section className="binder-panel h-full rounded-[var(--ui-page-header-radius)] p-3">
       <WidgetHeader eyebrow="Live market" title="Market Movers" href={viewAllHref} />
       {items.length === 0 ? (
         <EmptyWidget>No current mover snapshot is available yet.</EmptyWidget>
+      ) : gridView ? (
+        <div className="mt-2 grid gap-2" style={HOME_PREVIEW_GRID_STYLE}>
+          {items.map((item) => {
+            const gain = item.change > 0;
+            const Icon = gain ? ArrowUpRight : ArrowDownRight;
+            const tone = gain ? "text-emerald-300" : "text-rose-300";
+            const href = `${viewAllHref}${viewAllHref.includes("?") ? "&" : "?"}highlight=${encodeURIComponent(item.cardId)}`;
+            return (
+              <HomePreviewTile
+                key={`${item.cardId}:${item.windowDays}:${item.change}`}
+                href={href}
+                imageUrl={item.imageUrl}
+                fallback={<Icon className={`h-5 w-5 ${tone}`} aria-hidden="true" />}
+                title={item.name}
+                meta={`${item.episodeCode ?? item.episodeName} / ${item.windowDays}d`}
+                metric={`${item.change > 0 ? "+" : ""}${formatCurrency(item.change, item.currency)}`}
+                metricClassName={tone}
+                footer={signedPercent(item.changePct) ?? formatCurrency(item.currentPrice, item.currency)}
+              />
+            );
+          })}
+        </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
           {items.map((item) => {
@@ -130,11 +223,30 @@ export function HomeSignalRadarWidget({
   items: HomeSignalRadarPreviewItem[];
   viewAllHref: string;
 }) {
+  const { displaySettings } = useSettings();
+  const gridView = displaySettings.defaultView !== "table";
+
   return (
     <section className="binder-panel h-full rounded-[var(--ui-page-header-radius)] p-3">
       <WidgetHeader eyebrow="Opportunity watch" title="Signal Radar" href={viewAllHref} />
       {items.length === 0 ? (
         <EmptyWidget>No active Radar signals match the current game.</EmptyWidget>
+      ) : gridView ? (
+        <div className="mt-2 grid gap-2" style={HOME_PREVIEW_GRID_STYLE}>
+          {items.map((item) => (
+            <HomePreviewTile
+              key={item.cardId}
+              href={`/movers/signal-radar/${encodeURIComponent(item.cardId)}`}
+              imageUrl={item.imageUrl}
+              fallback={<Radar className="h-5 w-5 text-[var(--dc-primary)]" aria-hidden="true" />}
+              title={item.name}
+              meta={`${item.episodeCode ?? item.episodeName} / ${item.pressureLabel}`}
+              metric={`${Math.round(item.score)}/100`}
+              metricClassName="text-[var(--dc-primary)]"
+              footer={item.confidence}
+            />
+          ))}
+        </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
           {items.map((item) => (
@@ -187,11 +299,28 @@ function HomeCardListWidget({
   kind: "wants" | "sale";
 }) {
   const Icon = kind === "wants" ? Heart : ShoppingBag;
+  const { displaySettings } = useSettings();
+  const gridView = displaySettings.defaultView !== "table";
   return (
     <section className="binder-panel h-full rounded-[var(--ui-page-header-radius)] p-3">
       <WidgetHeader eyebrow={eyebrow} title={title} count={data.total} href={viewAllHref} />
       {data.items.length === 0 ? (
         <EmptyWidget>{emptyLabel}</EmptyWidget>
+      ) : gridView ? (
+        <div className="mt-2 grid gap-2" style={HOME_PREVIEW_GRID_STYLE}>
+          {data.items.map((item, index) => (
+            <HomePreviewTile
+              key={`${item.cardId}:${index}`}
+              href={`/cards/${encodeURIComponent(item.cardId)}`}
+              imageUrl={item.imageUrl}
+              fallback={<Icon className="h-5 w-5 text-white/45" aria-hidden="true" />}
+              title={item.name}
+              meta={`${item.episodeCode ?? item.episodeName}${item.cardNumber ? ` / #${item.cardNumber}` : ""}`}
+              metric={item.price == null ? "--" : formatCurrency(item.price, item.currency)}
+              footer={kind === "wants" ? "Wanted" : "For sale"}
+            />
+          ))}
+        </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
           {data.items.map((item, index) => (
@@ -266,11 +395,31 @@ export function HomeUpcomingWidget({
   items: HomeUpcomingPreviewItem[];
   viewAllHref: string;
 }) {
+  const { displaySettings } = useSettings();
+  const gridView = displaySettings.defaultView !== "table";
+
   return (
     <section className="binder-panel h-full rounded-[var(--ui-page-header-radius)] p-3">
       <WidgetHeader eyebrow="Release calendar" title="Upcoming" count={items.length} href={viewAllHref} />
       {items.length === 0 ? (
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
+      ) : gridView ? (
+        <div className="mt-2 grid gap-2" style={HOME_PREVIEW_GRID_STYLE}>
+          {items.map((item) => (
+            <HomePreviewTile
+              key={item.id}
+              href={viewAllHref}
+              imageUrl={item.imageUrl}
+              imageFit="object-contain"
+              fallback={<CalendarClock className="h-5 w-5 text-white/45" aria-hidden="true" />}
+              title={item.name}
+              meta={item.episodeCode ?? item.episodeName ?? "Sealed release"}
+              metric={item.daysUntil === 0 ? "Today" : `${item.daysUntil}d`}
+              metricClassName="text-[var(--dc-primary)]"
+              footer={new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(item.releaseDate))}
+            />
+          ))}
+        </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
           {items.map((item) => (

@@ -38,6 +38,7 @@ async function buildHomeSuddenDropsPayload(
     sealedItems: sealed.items.slice(0, HOME_SUDDEN_DROP_LANE_SIZE).map((item) => ({
       productId: item.productId,
       name: item.name,
+      imageUrl: item.imageUrl,
       episodeId: item.episodeId,
       episodeName: item.episodeName,
       episodeCode: item.episodeCode,

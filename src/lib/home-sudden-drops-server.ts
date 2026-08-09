@@ -335,6 +335,7 @@ function toPreviewItem(
   return {
     cardId: item.cardId,
     name: item.name,
+    imageUrl: item.imageUrl,
     cardNumber: item.cardNumber,
     episodeName: item.episodeName,
     episodeCode: item.episodeCode,

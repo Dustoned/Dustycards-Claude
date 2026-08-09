@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Package, Sparkles } from "lucide-react";
+import CachedImage from "@/components/CachedImage";
+import { useSettings } from "@/components/SettingsProvider";
 import { formatCurrency } from "@/lib/format";
 import type {
   HomeSuddenDropPreviewItem,
@@ -32,6 +34,10 @@ const EMPTY_DATA: HomeSuddenDropsResponse = {
   refreshStatus: null,
 };
 
+const HOME_DROP_GRID_STYLE = {
+  gridTemplateColumns: "repeat(auto-fill, minmax(min(100%, 10rem), 1fr))",
+};
+
 function buildHighlightedHref(baseHref: string, cardId: string): string {
   const [pathname, query = ""] = baseHref.split("?");
   const params = new URLSearchParams(query);
@@ -42,10 +48,48 @@ function buildHighlightedHref(baseHref: string, cardId: string): string {
 function HomeSuddenDropRow({
   item,
   href,
+  gridView,
 }: {
   item: HomeSuddenDropPreviewItem;
   href: string;
+  gridView: boolean;
 }) {
+  if (gridView) {
+    return (
+      <Link
+        href={href}
+        prefetch={false}
+        className="group flex min-h-[8.75rem] min-w-0 flex-col rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] p-2.5 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]"
+      >
+        <span className="flex min-w-0 items-start gap-2.5">
+          <span className="relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-rose-400/14 bg-rose-400/[0.07] text-rose-300">
+            {item.imageUrl ? (
+              <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="48px" className="object-cover" />
+            ) : (
+              <ArrowDownRight className="h-5 w-5" />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="line-clamp-2 text-[12px] font-black leading-[1.2] text-white/90 group-hover:text-white">
+              {item.name}
+            </span>
+            <span className="mt-1 line-clamp-2 text-[9.5px] font-semibold leading-4 text-white/42">
+              {item.episodeCode ?? item.episodeName}{item.cardNumber ? ` / #${item.cardNumber}` : ""}
+            </span>
+          </span>
+        </span>
+        <span className="mt-auto flex min-w-0 items-end justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2">
+          <span className="min-w-0 truncate text-[9.5px] font-bold text-white/38">
+            Now {formatCurrency(item.currentPrice, item.currency)}
+          </span>
+          <span className="shrink-0 text-[12px] font-black tabular-nums text-rose-300">
+            -{formatCurrency(item.dropAmount, item.currency)}
+          </span>
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={href}
@@ -88,10 +132,48 @@ function HomeSuddenDropRow({
 function HomeSealedDropRow({
   item,
   href,
+  gridView,
 }: {
   item: HomeSuddenDropSealedPreviewItem;
   href: string;
+  gridView: boolean;
 }) {
+  if (gridView) {
+    return (
+      <Link
+        href={href}
+        prefetch={false}
+        className="group flex min-h-[8.75rem] min-w-0 flex-col rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] p-2.5 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]"
+      >
+        <span className="flex min-w-0 items-start gap-2.5">
+          <span className="relative flex h-14 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-amber-400/14 bg-amber-400/[0.07] text-amber-300">
+            {item.imageUrl ? (
+              <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="48px" className="object-contain" />
+            ) : (
+              <Package className="h-5 w-5" />
+            )}
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="line-clamp-2 text-[12px] font-black leading-[1.2] text-white/90 group-hover:text-white">
+              {item.name}
+            </span>
+            <span className="mt-1 line-clamp-2 text-[9.5px] font-semibold leading-4 text-white/42">
+              {item.episodeCode ?? item.episodeName} / Sealed
+            </span>
+          </span>
+        </span>
+        <span className="mt-auto flex min-w-0 items-end justify-between gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.62)] pt-2">
+          <span className="min-w-0 truncate text-[9.5px] font-bold text-white/38">
+            Now {formatCurrency(item.currentPrice, item.currency)}
+          </span>
+          <span className="shrink-0 text-[12px] font-black tabular-nums text-rose-300">
+            -{formatCurrency(item.dropAmount, item.currency)}
+          </span>
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <Link
       href={href}
@@ -128,9 +210,12 @@ function HomeSealedDropRow({
   );
 }
 
-function LoadingRows() {
+function LoadingRows({ gridView }: { gridView: boolean }) {
   return (
-    <div className="grid min-w-0 gap-1.5">
+    <div
+      className="grid min-w-0 gap-2"
+      style={gridView ? HOME_DROP_GRID_STYLE : undefined}
+    >
       {Array.from({ length: HOME_SUDDEN_DROP_LANE_SIZE }).map((_, index) => (
         <div
           key={index}
@@ -156,11 +241,13 @@ function HomeSuddenDropLane({
   items,
   total,
   viewAllHref,
+  gridView,
 }: {
   title: string;
   items: HomeSuddenDropPreviewItem[];
   total: number;
   viewAllHref: string;
+  gridView: boolean;
 }) {
   return (
     <div className="min-w-0">
@@ -172,13 +259,17 @@ function HomeSuddenDropLane({
           {total.toLocaleString("en-US")}
         </span>
       </div>
-      <div className="grid min-w-0 gap-1.5">
+      <div
+        className="grid min-w-0 gap-2"
+        style={gridView ? HOME_DROP_GRID_STYLE : undefined}
+      >
         {items.length > 0 ? (
           items.map((item) => (
             <HomeSuddenDropRow
               key={`${item.cardId}:${item.source}`}
               item={item}
               href={buildHighlightedHref(viewAllHref, item.cardId)}
+              gridView={gridView}
             />
           ))
         ) : (
@@ -195,10 +286,12 @@ function HomeSealedDropLane({
   items,
   total,
   viewAllHref,
+  gridView,
 }: {
   items: HomeSuddenDropSealedPreviewItem[];
   total: number;
   viewAllHref: string;
+  gridView: boolean;
 }) {
   return (
     <div className="min-w-0">
@@ -210,10 +303,18 @@ function HomeSealedDropLane({
           {total.toLocaleString("en-US")}
         </span>
       </div>
-      <div className="grid min-w-0 gap-1.5">
+      <div
+        className="grid min-w-0 gap-2"
+        style={gridView ? HOME_DROP_GRID_STYLE : undefined}
+      >
         {items.length > 0 ? (
           items.map((item) => (
-            <HomeSealedDropRow key={item.productId} item={item} href={viewAllHref} />
+            <HomeSealedDropRow
+              key={item.productId}
+              item={item}
+              href={viewAllHref}
+              gridView={gridView}
+            />
           ))
         ) : (
           <p className="rounded-xl border border-dashed border-[rgb(var(--dc-border-rgb)/0.72)] px-3 py-4 text-[12px] font-semibold text-white/38">
@@ -244,6 +345,8 @@ export default function HomeSuddenDropsPanel({
       ? { status: "ready", apiHref, data: cached }
       : { status: "loading", apiHref };
   });
+  const { displaySettings } = useSettings();
+  const gridView = displaySettings.defaultView !== "table";
 
   useEffect(() => {
     const controller = new AbortController();
@@ -321,8 +424,8 @@ export default function HomeSuddenDropsPanel({
       <div className="mt-3 min-w-0">
         {isLoading ? (
           <div className="grid min-w-0 gap-3 lg:grid-cols-2">
-            <LoadingRows />
-            <LoadingRows />
+            <LoadingRows gridView={gridView} />
+            <LoadingRows gridView={gridView} />
           </div>
         ) : state.status === "error" ? (
           <div className="border-t border-white/7 py-4 text-[12px] font-semibold text-white/38">
@@ -335,11 +438,13 @@ export default function HomeSuddenDropsPanel({
               items={cardDrops}
               total={data.total}
               viewAllHref={viewAllHref}
+              gridView={gridView}
             />
             <HomeSealedDropLane
               items={sealedDrops}
               total={data.sealedTotal ?? sealedItems.length}
               viewAllHref={sealedViewAllHref}
+              gridView={gridView}
             />
           </div>
         ) : (

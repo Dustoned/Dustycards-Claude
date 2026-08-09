@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.41",
+    releasedAt: "August 9, 2026",
+    title: "Home widgets finally respect Grid view",
+    summary:
+      "Home previews now follow the saved Table/Grid display choice instead of always forcing horizontal rows.",
+    tone: "fixed",
+    highlights: [
+      "Grid view renders multiple real preview cards beside each other with artwork, context and the important value in a tile footer.",
+      "Table view remains the only mode that uses horizontal rows.",
+      "Market Movers, Signal Radar, Wants, For Sale, Upcoming, Value Drivers and Sudden Drops all follow the same display choice on desktop and mobile.",
+    ],
+  },
+  {
     version: "3.12.40",
     releasedAt: "August 9, 2026",
     title: "Home lists are now real tiles",
