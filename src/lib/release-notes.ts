@@ -20,6 +20,20 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.48",
+    releasedAt: "August 9, 2026",
+    title: "Real USD slab conversions",
+    summary: "Graded trades now prefer the matching USD sold price and show its live euro conversion.",
+    tone: "fixed",
+    sections: [{
+      title: "Source-correct graded value",
+      highlights: [
+        "The saved company and grade select the matching eBay-sold USD market row.",
+        "The converted euro amount is the value used for the trade comparison.",
+      ],
+    }],
+  },
+  {
     version: "3.12.47",
     releasedAt: "August 9, 2026",
     title: "Graded dollars and euros together",

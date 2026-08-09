@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.48",
+    releasedAt: "August 9, 2026",
+    title: "Real USD slab prices in trades",
+    summary: "Exact eBay-sold USD slab prices now drive graded trade values when available.",
+    tone: "fixed",
+    highlights: [
+      "The exact grading company and grade are matched against the USD sold-price feed.",
+      "Trade value is converted with the current USD-to-EUR rate and displayed as '$ price = € value'.",
+      "CardMarket graded remains the fallback when no matching USD slab price exists.",
+    ],
+  },
+  {
     version: "3.12.47",
     releasedAt: "August 9, 2026",
     title: "Visible graded currency conversion",

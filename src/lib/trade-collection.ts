@@ -146,7 +146,7 @@ export async function getTradeCollectionEntries(
       },
       { gradingCompany: item.grading_company, gradingGrade: item.grading_grade, usdToEurRate }
     );
-    const matchingEbayPrice = valueInfo.source === "ebay_sold_graded"
+    const matchingEbayPrice = isGraded
       ? (ebaySoldByCardId.get(card.id) ?? []).find((row) =>
           row.company.trim().toUpperCase() === item.grading_company?.trim().toUpperCase() &&
           String(Number(row.grade)) === String(Number(item.grading_grade))
@@ -156,11 +156,16 @@ export async function getTradeCollectionEntries(
       ? "USD" as const
       : matchingEbayPrice?.currency.toUpperCase() === "EUR" ? "EUR" as const : null;
     const sourcePrice = matchingEbayPrice?.median_price ?? null;
+    const tradeValue = sourceCurrency === "USD" && sourcePrice != null && usdToEurRate
+      ? Number((sourcePrice * usdToEurRate.rate).toFixed(2))
+      : sourceCurrency === "EUR" && sourcePrice != null
+        ? sourcePrice
+        : valueInfo.value;
     if (isGraded) {
       gradedEntries.push({
         key: `graded:${item.id}`, kind: "card", cardId: card.id, productId: null,
         name: card.name, cardNumber: card.card_number, episodeName: card.episode.name,
-        episodeCode: card.episode.code, imageUrl: card.image_url, value: valueInfo.value, availableCopies: 1,
+        episodeCode: card.episode.code, imageUrl: card.image_url, value: tradeValue, availableCopies: 1,
         gradedLabel: `${item.grading_company} ${item.grading_grade}`,
         sourcePrice, sourceCurrency,
       });
