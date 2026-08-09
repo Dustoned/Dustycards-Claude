@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.47",
+    releasedAt: "August 9, 2026",
+    title: "Visible graded currency conversion",
+    summary: "USD-based graded prices now show their original dollar amount beside the converted euro trade value.",
+    tone: "improved",
+    highlights: [
+      "Friend Trades shows '$ price = € value' below graded cards when the source market is USD.",
+      "The collection trade picker and selected trade cards use the same conversion label.",
+    ],
+  },
+  {
     version: "3.12.46",
     releasedAt: "August 9, 2026",
     title: "Complete trade inventory and release handoff",

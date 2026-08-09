@@ -75,6 +75,8 @@ export interface SocialTradeMatchCard {
   value: number | null;
   availableCopies: number;
   gradedLabel: string | null;
+  sourcePrice: number | null;
+  sourceCurrency: "USD" | "EUR" | null;
 }
 
 export interface SocialTradeMatches {
@@ -395,6 +397,8 @@ export async function getSocialTradeMatches(
       value: entry.value,
       availableCopies: entry.availableCopies,
       gradedLabel: entry.gradedLabel,
+      sourcePrice: entry.sourcePrice,
+      sourceCurrency: entry.sourceCurrency,
     }))
     .sort((left, right) =>
       (right.value ?? -1) - (left.value ?? -1) ||

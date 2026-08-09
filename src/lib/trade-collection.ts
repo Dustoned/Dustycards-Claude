@@ -1,4 +1,4 @@
-import { getCollectionCardMarketValue, getCollectionSealedMarketValue } from "@/lib/collection";
+import { getCollectionCardValueInfo, getCollectionSealedMarketValue } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { getUsdToEurRate } from "@/lib/exchange-rates";
 import { isSpecificTradingCardGame, type TradingCardGameFilter } from "@/lib/games";
@@ -18,6 +18,8 @@ export interface TradeCollectionEntry {
   value: number | null;
   availableCopies: number;
   gradedLabel: string | null;
+  sourcePrice: number | null;
+  sourceCurrency: "USD" | "EUR" | null;
 }
 
 interface LatestPriceRow {
@@ -136,7 +138,7 @@ export async function getTradeCollectionEntries(
     const { card } = item;
     const priceRow = priceByCardId.get(card.id);
     const isGraded = Boolean(item.grading_company && item.grading_grade);
-    const value = getCollectionCardMarketValue(
+    const valueInfo = getCollectionCardValueInfo(
       {
         prices: priceRow ? [priceRow] : [],
         gradedPrices: gradedPricesByCardId.get(card.id) ?? [],
@@ -144,12 +146,23 @@ export async function getTradeCollectionEntries(
       },
       { gradingCompany: item.grading_company, gradingGrade: item.grading_grade, usdToEurRate }
     );
+    const matchingEbayPrice = valueInfo.source === "ebay_sold_graded"
+      ? (ebaySoldByCardId.get(card.id) ?? []).find((row) =>
+          row.company.trim().toUpperCase() === item.grading_company?.trim().toUpperCase() &&
+          String(Number(row.grade)) === String(Number(item.grading_grade))
+        ) ?? null
+      : null;
+    const sourceCurrency = matchingEbayPrice?.currency.toUpperCase() === "USD"
+      ? "USD" as const
+      : matchingEbayPrice?.currency.toUpperCase() === "EUR" ? "EUR" as const : null;
+    const sourcePrice = matchingEbayPrice?.median_price ?? null;
     if (isGraded) {
       gradedEntries.push({
         key: `graded:${item.id}`, kind: "card", cardId: card.id, productId: null,
         name: card.name, cardNumber: card.card_number, episodeName: card.episode.name,
-        episodeCode: card.episode.code, imageUrl: card.image_url, value, availableCopies: 1,
+        episodeCode: card.episode.code, imageUrl: card.image_url, value: valueInfo.value, availableCopies: 1,
         gradedLabel: `${item.grading_company} ${item.grading_grade}`,
+        sourcePrice, sourceCurrency,
       });
     } else {
       const existing = rawByCardId.get(card.id);
@@ -157,8 +170,8 @@ export async function getTradeCollectionEntries(
       else rawByCardId.set(card.id, {
         key: `raw:${card.id}`, kind: "card", cardId: card.id, productId: null,
         name: card.name, cardNumber: card.card_number, episodeName: card.episode.name,
-        episodeCode: card.episode.code, imageUrl: card.image_url, value, availableCopies: 1,
-        gradedLabel: null,
+        episodeCode: card.episode.code, imageUrl: card.image_url, value: valueInfo.value, availableCopies: 1,
+        gradedLabel: null, sourcePrice: null, sourceCurrency: null,
       });
     }
   }
@@ -172,7 +185,7 @@ export async function getTradeCollectionEntries(
       name: item.product.name, cardNumber: null, episodeName: item.product.episode.name,
       episodeCode: item.product.episode.code, imageUrl: item.product.image_url,
       value: getCollectionSealedMarketValue(item.product), availableCopies: item.quantity,
-      gradedLabel: null,
+      gradedLabel: null, sourcePrice: null, sourceCurrency: null,
     });
   }
 

@@ -20,6 +20,20 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.47",
+    releasedAt: "August 9, 2026",
+    title: "Graded dollars and euros together",
+    summary: "Trading now keeps the original USD graded price visible next to its converted euro value.",
+    tone: "improved",
+    sections: [{
+      title: "Clear conversion",
+      highlights: [
+        "USD graded sources display as '$ amount = € amount'.",
+        "The same label appears in Friend Trades, the collection picker and selected trade cards.",
+      ],
+    }],
+  },
+  {
     version: "3.12.46",
     releasedAt: "August 9, 2026",
     title: "Complete trading inventory",
