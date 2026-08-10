@@ -5093,7 +5093,10 @@ async function persistEpisodeSealedProducts(
           game: product.game,
           episode_id: episodeId,
           name: product.name,
-          image_url: product.image_url,
+          // Keep a curated/external fallback when the catalog has no image.
+          // Writing null here used to erase repaired sealed-product artwork on
+          // every subsequent sync.
+          image_url: product.image_url ?? undefined,
           tcggo_url: product.tcggo_url,
           cardmarket_url: product.cardmarket_url,
           cardmarket_id: product.cardmarket_id,
