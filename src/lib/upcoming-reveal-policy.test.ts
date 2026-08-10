@@ -14,7 +14,7 @@ describe("shouldShowUpcomingSourceReveal", () => {
     expect(shouldShowUpcomingSourceReveal({
       hasExactLibraryMatch: true,
       exactLibraryMatchIsReleased: false,
-      releasedNameMatchCount: 0,
+      releasedNameMatchCount: 12,
       episodeName: "Mega Promos",
     })).toBe(true);
   });

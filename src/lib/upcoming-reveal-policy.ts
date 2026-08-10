@@ -15,7 +15,9 @@ export function shouldShowUpcomingSourceReveal(input: {
   // A source reveal can already exist in our library before its actual
   // release. Keep that upcoming printing visible and turn it into a normal
   // DustyCards card; only hide exact matches that are already released.
-  if (input.hasExactLibraryMatch && input.exactLibraryMatchIsReleased !== false) return false;
+  if (input.hasExactLibraryMatch) {
+    return input.exactLibraryMatchIsReleased === false;
+  }
   if (
     input.releasedNameMatchCount > 0
     && RELEASED_REPRINT_CONTEXT.test(input.episodeName ?? "")
