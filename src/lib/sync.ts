@@ -78,6 +78,7 @@ import {
   type NormalizedCard,
   type NormalizedSealedProduct,
 } from "@/lib/tcggo";
+import { isCardCompatibleWithEpisodeCode } from "@/lib/card-episode-integrity";
 import {
   createAutoPriceRefreshBatchId,
   createAutoPriceRefreshLogDetails,
@@ -2451,7 +2452,10 @@ async function syncEpisodeCards(
     select: { code: true, name: true, card_count: true, game: true },
   });
   const game = normalizeTradingCardGame(episode?.game);
-  const cards = await fetchCardsForEpisode(episodeId, game);
+  const remoteCards = await fetchCardsForEpisode(episodeId, game);
+  const cards = remoteCards.filter((card) =>
+    isCardCompatibleWithEpisodeCode(card.tcgid, episode?.code)
+  );
 
   await options.throwIfCancelled?.();
 
