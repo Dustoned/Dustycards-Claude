@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { rankAndSelectAutoRefreshCandidates, type DueCardCandidate } from "@/lib/sync";
+import {
+  buildRetryableMissingPriceWhere,
+  rankAndSelectAutoRefreshCandidates,
+  type DueCardCandidate,
+} from "@/lib/sync";
 
 function candidate(overrides: {
   id: string;
@@ -86,5 +90,29 @@ describe("rankAndSelectAutoRefreshCandidates", () => {
     );
     const result = rankAndSelectAutoRefreshCandidates(cards, 12, 10);
     expect(result.selectedCards).toBe(10);
+  });
+});
+
+describe("buildRetryableMissingPriceWhere", () => {
+  it("retries cards previously marked unavailable after their cooldown", () => {
+    const retryBefore = new Date("2026-08-03T00:00:00.000Z");
+    const where = buildRetryableMissingPriceWhere({
+      hiddenEpisodeIds: ["hidden-set"],
+      game: "pokemon",
+      retryBefore,
+    });
+
+    expect(where).toEqual({
+      episode_id: { notIn: ["hidden-set"] },
+      game: "pokemon",
+      tcggo_url: { not: null },
+      prices: { none: {} },
+      OR: [
+        { price_source_checked_at: null },
+        { price_source_checked_at: { lt: retryBefore } },
+      ],
+    });
+    expect(where).not.toHaveProperty("price_source_status");
+    expect(where).not.toHaveProperty("AND");
   });
 });

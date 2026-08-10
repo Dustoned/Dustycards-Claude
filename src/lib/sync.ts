@@ -2871,6 +2871,30 @@ async function selectAutoRefreshBatch(
   };
 }
 
+export function buildRetryableMissingPriceWhere(input: {
+  hiddenEpisodeIds: string[];
+  game?: TradingCardGame;
+  retryBefore: Date;
+}): Prisma.CardWhereInput {
+  const visibleEpisodeFilter =
+    input.hiddenEpisodeIds.length > 0
+      ? { episode_id: { notIn: input.hiddenEpisodeIds } }
+      : {};
+
+  return {
+    ...visibleEpisodeFilter,
+    ...(input.game ? { game: input.game } : {}),
+    tcggo_url: { not: null },
+    prices: { none: {} },
+    // Every missing-price card gets another chance after the cooldown.
+    // `unavailable` is a temporary source observation, not a permanent ban.
+    OR: [
+      { price_source_checked_at: null },
+      { price_source_checked_at: { lt: input.retryBefore } },
+    ],
+  };
+}
+
 async function selectMissingPriceBackfillBatch(options?: {
   maxEpisodes?: number;
   maxCards?: number;
@@ -2892,31 +2916,12 @@ async function selectMissingPriceBackfillBatch(options?: {
   }
 
   const hiddenEpisodeIds = await getHiddenEpisodeIds();
-  const visibleEpisodeFilter =
-    hiddenEpisodeIds.length > 0 ? { episode_id: { notIn: hiddenEpisodeIds } } : {};
   const retryBefore = new Date(Date.now() - PRICE_SOURCE_UNAVAILABLE_RETRY_MS);
-  const retryableMissingPriceWhere: Prisma.CardWhereInput = {
-    ...visibleEpisodeFilter,
-    ...(options?.game ? { game: options.game } : {}),
-    tcggo_url: { not: null },
-    prices: {
-      none: {},
-    },
-    AND: [
-      {
-        OR: [
-          { price_source_status: null },
-          { price_source_status: { not: "unavailable" } },
-        ],
-      },
-      {
-        OR: [
-          { price_source_checked_at: null },
-          { price_source_checked_at: { lt: retryBefore } },
-        ],
-      },
-    ],
-  };
+  const retryableMissingPriceWhere = buildRetryableMissingPriceWhere({
+    hiddenEpisodeIds,
+    game: options?.game,
+    retryBefore,
+  });
 
   const [missingPriceCards, cards] = await Promise.all([
     db.card.count({
