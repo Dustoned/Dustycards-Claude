@@ -57,7 +57,8 @@ describe("Tavily search adapter", () => {
     expect(request[0]).toBe("https://api.tavily.com/search");
     const init = request[1];
     expect(init.headers).toMatchObject({ authorization: "Bearer tvly-test-key" });
-    expect(JSON.parse(String(init.body))).toMatchObject({
+    const body = JSON.parse(String(init.body));
+    expect(body).toMatchObject({
       search_depth: "basic",
       topic: "news",
       max_results: 5,
@@ -66,5 +67,6 @@ describe("Tavily search adapter", () => {
       include_raw_content: false,
       include_usage: true,
     });
+    expect(body).not.toHaveProperty("safe_search");
   });
 });

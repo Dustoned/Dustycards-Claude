@@ -106,7 +106,6 @@ export async function searchTavilyWeb(
       include_raw_content: false,
       include_images: false,
       include_usage: true,
-      safe_search: true,
     }),
     cache: "no-store",
   });

@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.60",
+    releasedAt: "August 10, 2026",
+    title: "Tavily discovery restored",
+    summary: "Web discovery now uses the configured Tavily plan instead of falling through to Firecrawl unnecessarily.",
+    tone: "fixed",
+    highlights: [
+      "Removed an Enterprise-only Tavily option that caused every standard-plan search to return 403.",
+      "Tavily once again handles link discovery before Firecrawl spends page-scrape credits.",
+      "Added regression coverage so unsupported request fields cannot silently return to the adapter.",
+    ],
+  },
+  {
     version: "3.12.57",
     releasedAt: "August 10, 2026",
     title: "Graded Movers and Grading Targets widgets",
