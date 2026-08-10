@@ -434,7 +434,25 @@ describe("GET /api/cards/[id]", () => {
     const body = await response.json();
 
     expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
     expect(Object.keys(body).sort()).toEqual([...CARD_DETAIL_API_KEYS].sort());
+  });
+
+  it("refreshes related printings separately without rebuilding the heavy card payload", async () => {
+    const card = makeCardRecord();
+    dbMock.card.findUnique.mockResolvedValue(card);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/cards/card-1?relatedPrintings=1"),
+      { params: Promise.resolve({ id: card.id }) }
+    );
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("private, no-store");
+    expect(body).toEqual({ related_printings: [] });
+    expect(historyMock.loadSafeCardMarketHistoryRows).not.toHaveBeenCalled();
+    expect(dbMock.sealedProduct.findMany).not.toHaveBeenCalled();
   });
 
   it("returns safe empty states without image, history, ownership or wants", async () => {

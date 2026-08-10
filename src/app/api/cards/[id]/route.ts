@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { getCardDetailPayload } from "@/lib/card-detail-data";
+import {
+  getCardDetailPayload,
+  getCardRelatedPrintingsPayload,
+} from "@/lib/card-detail-data";
 import {
   runCardPriceRefresh,
   runSingleCardHistoryImport,
@@ -31,7 +34,20 @@ export async function GET(
 
     if (req.nextUrl.searchParams.get("refreshStatus") === "1") {
       const refreshJob = await getSubmittedCardRefreshJobSnapshot(id);
-      return NextResponse.json({ refreshJob });
+      return NextResponse.json(
+        { refreshJob },
+        { headers: { "Cache-Control": "private, no-store" } }
+      );
+    }
+
+    if (req.nextUrl.searchParams.get("relatedPrintings") === "1") {
+      const relatedPrintingsPayload = await getCardRelatedPrintingsPayload(id);
+      if (!relatedPrintingsPayload) {
+        return NextResponse.json({ error: "Not found" }, { status: 404 });
+      }
+      return NextResponse.json(relatedPrintingsPayload, {
+        headers: { "Cache-Control": "private, no-store" },
+      });
     }
 
     const payload = await getCardDetailPayload(id, user.id);
@@ -40,7 +56,9 @@ export async function GET(
       return NextResponse.json({ error: "Not found" }, { status: 404 });
     }
 
-    return NextResponse.json(payload);
+    return NextResponse.json(payload, {
+      headers: { "Cache-Control": "private, no-store" },
+    });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Failed to load card" }, { status: 500 });
   }

@@ -635,6 +635,36 @@ export async function getCardDetailPayload(id: string, userId: string) {
   };
 }
 
+export async function getCardRelatedPrintingsPayload(id: string) {
+  const card = await db.card.findUnique({
+    where: { id },
+    select: {
+      id: true,
+      game: true,
+      name: true,
+      hp: true,
+      artist: true,
+      image_url: true,
+      tcgid: true,
+      supertype: true,
+      episode: {
+        select: {
+          id: true,
+          name: true,
+          code: true,
+          release_date: true,
+        },
+      },
+    },
+  });
+
+  if (!card) return null;
+
+  return {
+    related_printings: await loadRelatedCardPrintings(card),
+  };
+}
+
 export type CardDetailPayload = NonNullable<
   Awaited<ReturnType<typeof getCardDetailPayload>>
 >;

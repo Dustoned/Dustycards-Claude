@@ -73,6 +73,12 @@ const SealedProductModal = dynamic(() => import("@/components/SealedProductModal
   loading: () => null,
 });
 
+const relatedPrintingsCache = new Map<
+  string,
+  ModalCardData["related_printings"]
+>();
+const MIN_CURRENT_RULES_REPRINT_SIMILARITY = 0.92;
+
 interface Props {
   card: ModalCardData;
   showGradedSlabPreview?: boolean;
@@ -253,7 +259,12 @@ export default function CardModal({
     savedEbaySoldGradedLabel
   );
   const [modalCardOverride, setModalCard] = useState<ModalCardData | null>(null);
-  const modalCard = modalCardOverride?.id === card.id ? modalCardOverride : card;
+  const cachedRelatedPrintings = relatedPrintingsCache.get(card.id);
+  const cachedCard =
+    cachedRelatedPrintings !== undefined
+      ? { ...card, related_printings: cachedRelatedPrintings }
+      : card;
+  const modalCard = modalCardOverride?.id === card.id ? modalCardOverride : cachedCard;
   const [gradedHeroState, setGradedHeroState] = useState<{
     cardId: string;
     price: CardModalGradedDisplayPrice | null;
@@ -386,6 +397,45 @@ export default function CardModal({
       });
     return () => controller.abort();
   }, [modalCard.id]);
+
+  useEffect(() => {
+    const cached = relatedPrintingsCache.get(card.id);
+    if (cached !== undefined) return;
+
+    const hasLegacyAmbiguousMatch = (card.related_printings ?? []).some(
+      (printing) =>
+        printing.match_method === "rules-and-art" &&
+        printing.image_similarity != null &&
+        printing.image_similarity < MIN_CURRENT_RULES_REPRINT_SIMILARITY
+    );
+    if (!hasLegacyAmbiguousMatch) {
+      relatedPrintingsCache.set(card.id, card.related_printings);
+      return;
+    }
+
+    const controller = new AbortController();
+    void fetch(
+      `/api/cards/${encodeURIComponent(card.id)}?relatedPrintings=1`,
+      { cache: "no-store", signal: controller.signal }
+    )
+      .then(async (response) => {
+        const payload = (await response.json().catch(() => null)) as
+          | { related_printings?: ModalCardData["related_printings"] }
+          | null;
+        if (!response.ok || !Array.isArray(payload?.related_printings)) return;
+        relatedPrintingsCache.set(card.id, payload.related_printings);
+        setModalCard((current) => ({
+          ...(current?.id === card.id ? current : card),
+          related_printings: payload.related_printings,
+        }));
+      })
+      .catch((error: unknown) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          console.error("[card related printings]", error);
+        }
+      });
+    return () => controller.abort();
+  }, [card]);
   const availableCardMarketHistorySeries = CARD_MARKET_HISTORY_SERIES.filter(
     (series) =>
       series.key === "cm_market_en" ||
