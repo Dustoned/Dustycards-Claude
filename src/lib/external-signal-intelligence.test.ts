@@ -8,6 +8,7 @@ import {
   catalystAgeDecayFactor,
   getSignalRadarCalibrationRankingAdjustment,
   getSignalRadarRankingScore,
+  getStructuralAffordableRarityBonus,
   getStructuralSignalEras,
   isRestingRadarSignal,
   RADAR_ROTATION_QUIET_DAYS,
@@ -192,6 +193,37 @@ describe("external event score", () => {
         riskScore: 0.8,
       })
     ).toBeLessThan(50);
+  });
+});
+
+describe("older affordable high-rarity opportunities", () => {
+  it("gives the strongest value bonus to genuinely old, affordable high-rarity cards", () => {
+    const affordable = getStructuralAffordableRarityBonus({
+      currentPrice: 18,
+      ageYears: 12,
+      rarityStrength: 1,
+    });
+    const expensive = getStructuralAffordableRarityBonus({
+      currentPrice: 600,
+      ageYears: 12,
+      rarityStrength: 1,
+    });
+
+    expect(affordable).toBe(14);
+    expect(expensive).toBe(0);
+  });
+
+  it("does not promote recent or ordinary-rarity cards merely because they are cheap", () => {
+    expect(getStructuralAffordableRarityBonus({
+      currentPrice: 10,
+      ageYears: 2,
+      rarityStrength: 1,
+    })).toBe(0);
+    expect(getStructuralAffordableRarityBonus({
+      currentPrice: 10,
+      ageYears: 12,
+      rarityStrength: 0.35,
+    })).toBe(0);
   });
 });
 

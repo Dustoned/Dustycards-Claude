@@ -550,7 +550,7 @@ async function loadStructuralSignalSeeds(
   games: TradingCardGame[],
   now: Date
 ): Promise<ExternalCardSignal[]> {
-  const cacheKey = `structural-v9-post-launch:${[...games].sort().join(",")}`;
+  const cacheKey = `structural-v10-affordable-rarity:${[...games].sort().join(",")}`;
   return structuralSignalCache.get(cacheKey, () => loadStructuralSignalSeedsUncached(games, now));
 }
 
@@ -637,10 +637,14 @@ async function loadStructuralSignalSeedsUncached(
     const psa10 = card.ebaySoldGradedPrices[0];
     const comparablePsa10 = psa10?.currency === "EUR" ? psa10.median_price : null;
     const gradeMultiple = comparablePsa10 == null ? null : comparablePsa10 / currentPrice;
-    const valueWindow = currentPrice <= 25 ? 5 : currentPrice <= 100 ? 3 : currentPrice <= 300 ? 1 : 0;
+    const affordableRarityBonus = getStructuralAffordableRarityBonus({
+      currentPrice,
+      ageYears,
+      rarityStrength,
+    });
     // A high raw market on an old card is useful collector-demand evidence,
-    // not a reason to exclude it as "already expensive".
-    const establishedDemand = Math.min(14, Math.log10(currentPrice + 1) * 5.5);
+    // but it must not crowd affordable older high-rarity cards out of the feed.
+    const establishedDemand = Math.min(10, Math.log10(currentPrice + 1) * 4);
     const game: TradingCardGame = card.game === "one-piece" ? "one-piece" : "pokemon";
     const collectorDemand = entityDemand.get(getExternalEntityKey(game, card.name)) ?? 50;
     const collectorDemandBonus = Math.max(-3, Math.min(12, (collectorDemand - 50) * 0.24));
@@ -649,7 +653,7 @@ async function loadStructuralSignalSeedsUncached(
         28 +
           Math.min(24, ageYears * 2.2) +
           rarityStrength * 22 +
-          valueWindow +
+          affordableRarityBonus +
           establishedDemand +
           collectorDemandBonus +
           Math.min(12, Math.max(0, (gradeMultiple ?? 1) - 1) * 2.5),
@@ -674,6 +678,7 @@ async function loadStructuralSignalSeedsUncached(
       selectionScore,
       eraKey,
       collectorDemand,
+      affordableRarityBonus,
       postLaunch,
     }];
   });
@@ -712,6 +717,7 @@ async function loadStructuralSignalSeedsUncached(
       gradeMultiple,
       score,
       collectorDemand,
+      affordableRarityBonus,
       postLaunch,
     }) => {
       const game: TradingCardGame = card.game === "one-piece" ? "one-piece" : "pokemon";
@@ -740,8 +746,10 @@ async function loadStructuralSignalSeedsUncached(
         reasons: [
           postLaunch ? formatPostLaunchReratingReason(postLaunch) : null,
           `${card.rarity ?? "Higher rarity"} from a ${ageYears.toFixed(1)}-year-old set`,
-          currentPrice <= 100
-            ? `Raw market is still ${currency} ${currentPrice.toFixed(2)} despite older-set scarcity`
+          affordableRarityBonus >= 4
+            ? `Older high-rarity card remains accessible at ${currency} ${currentPrice.toFixed(2)}`
+            : currentPrice <= 100
+              ? `Raw market is still ${currency} ${currentPrice.toFixed(2)} despite older-set scarcity`
             : "Older sealed supply is increasingly expensive to replace",
           gradeMultiple != null
             ? `Observed PSA 10 sold value is about ${gradeMultiple.toFixed(1)}x the raw market`
@@ -770,6 +778,36 @@ function structuralRarityStrength(normalizedRarity: string | null, rarityIndex: 
   return rarityIndex < 0
     ? 0.35
     : Math.min(0.75, rarityIndex / Math.max(1, KNOWN_RARITY_ORDER.length - 1));
+}
+
+export function getStructuralAffordableRarityBonus(input: {
+  currentPrice: number;
+  ageYears: number;
+  rarityStrength: number;
+}): number {
+  const { currentPrice, ageYears, rarityStrength } = input;
+  if (
+    !Number.isFinite(currentPrice) ||
+    !Number.isFinite(ageYears) ||
+    !Number.isFinite(rarityStrength) ||
+    currentPrice <= 0 ||
+    ageYears < 4 ||
+    rarityStrength < 0.45
+  ) {
+    return 0;
+  }
+
+  const priceOpportunity =
+    currentPrice <= 20 ? 14 :
+    currentPrice <= 50 ? 11 :
+    currentPrice <= 100 ? 8 :
+    currentPrice <= 200 ? 4 :
+    currentPrice <= 350 ? 1 : 0;
+  if (priceOpportunity === 0) return 0;
+
+  const ageFactor = clamp((ageYears - 3) / 7, 0.25, 1);
+  const rarityFactor = clamp((rarityStrength - 0.35) / 0.65, 0.35, 1);
+  return Number((priceOpportunity * ageFactor * rarityFactor).toFixed(2));
 }
 
 export interface OnDemandExternalSignalCard {
