@@ -161,6 +161,17 @@ describe("card printings", () => {
     ).toBe("reprint");
   });
 
+  it("sends exact-rule matches with different-looking artwork to review", () => {
+    expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.859)).toMatchObject({
+      matchType: "reprint",
+      method: "likely-art",
+    });
+    expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.92)).toMatchObject({
+      matchType: "reprint",
+      method: "rules-and-art",
+    });
+  });
+
   it("normalizes historical power labels before comparing otherwise identical reprints", () => {
     const fossilGengar: TcgDexCardIdentity = {
       category: "Pokemon",

@@ -414,7 +414,17 @@ export function getPrintingMatchDetails(
       sameIllustrator &&
       imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY
     ) {
-      return { matchType: "reprint", method: "rules-and-art", imageSimilarity };
+      // Matching rules are necessary, but regular/full-art printings can share
+      // every attack while still using genuinely different artwork. Only a
+      // strong visual match bypasses review; the lower-confidence band must be
+      // confirmed by an admin before it appears in a print family.
+      return {
+        matchType: "reprint",
+        method: imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY
+          ? "rules-and-art"
+          : "likely-art",
+        imageSimilarity,
+      };
     }
   }
 
