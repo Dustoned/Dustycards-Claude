@@ -6,6 +6,7 @@ import {
 import { readStoredUpcomingReveals } from "@/lib/upcoming-source-reveals";
 import { groupUpcomingSingles } from "@/lib/upcoming-single-groups";
 import { shouldShowUpcomingSourceReveal } from "@/lib/upcoming-reveal-policy";
+import { resolveUpcomingLibraryReferenceKind } from "@/lib/upcoming-card-links";
 
 export type UpcomingSingleStatus = "confirmed" | "reveal" | "leak" | "upcoming";
 export type UpcomingStoryStatus = "confirmed" | "reveal" | "rumour" | "release";
@@ -417,11 +418,16 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
       }
       const libraryReference: UpcomingLibraryReference | null = resolvedCard
         ? {
-            kind: storedMatch?.method ?? "name",
+            kind: resolveUpcomingLibraryReferenceKind({
+              storedMethod: storedMatch?.method,
+              hasUniqueNumberMatch: numberedLocalMatches.length === 1,
+            }),
             count: Math.max(1, localNameMatches.length),
             href: `/expansions/${resolvedCard.episode.id}?card=${resolvedCard.id}`,
             label: storedMatch?.method === "artwork"
               ? `Artwork matched to ${resolvedCard.episode.name}`
+              : numberedLocalMatches.length === 1
+                ? `Card number matched to ${resolvedCard.episode.name}`
               : `Database card in ${resolvedCard.episode.name}`,
           }
         : releasedNameMatches.length

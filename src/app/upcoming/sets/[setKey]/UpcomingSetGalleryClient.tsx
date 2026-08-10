@@ -10,6 +10,7 @@ import { getCardGridImageSizes, getCardGridTemplateColumns } from "@/lib/display
 import type { UpcomingSingleGroup } from "@/lib/upcoming-single-groups";
 import { getUpcomingCardNumber } from "@/lib/upcoming-single-groups";
 import type { UpcomingSingleItem, UpcomingSingleStatus } from "@/lib/upcoming-releases";
+import { getUpcomingCardHref } from "@/lib/upcoming-card-links";
 
 type GallerySort = "number-desc" | "number-asc" | "name-asc" | "name-desc";
 
@@ -49,11 +50,7 @@ function GalleryCard({
   imageSizes: string;
   onPreview: (item: UpcomingSingleItem) => void;
 }) {
-  const cardHref = item.episodeId && item.cardId
-    ? `/expansions/${item.episodeId}?card=${item.cardId}`
-    : item.libraryReference?.kind !== "name"
-      ? item.libraryReference?.href ?? null
-      : null;
+  const cardHref = getUpcomingCardHref(item);
   const artwork = (
     <div className="relative aspect-[63/88] overflow-hidden rounded-[5%] bg-black/22 shadow-[0_16px_34px_rgba(0,0,0,0.3)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_20px_42px_rgba(0,0,0,0.42)]">
       {item.imageUrl ? (

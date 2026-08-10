@@ -44,6 +44,10 @@ import {
   groupUpcomingSingles,
   type UpcomingSingleGroup,
 } from "@/lib/upcoming-single-groups";
+import {
+  getUpcomingCardHref,
+  isExactUpcomingLibraryReference,
+} from "@/lib/upcoming-card-links";
 
 type ReleaseView = "all" | "sealed" | "singles" | "sources";
 
@@ -197,11 +201,7 @@ function BinderSingleTile({
   imageSizes: string;
   onPreview?: (item: UpcomingSingleItem) => void;
 }) {
-  const cardHref = item.episodeId && item.cardId
-    ? `/expansions/${item.episodeId}?card=${item.cardId}`
-    : item.libraryReference?.kind !== "name"
-      ? item.libraryReference?.href ?? null
-      : null;
+  const cardHref = getUpcomingCardHref(item);
   const image = (
     <div className="relative aspect-[63/88] w-full overflow-hidden rounded-[5%] bg-black/22 shadow-[0_16px_32px_rgba(0,0,0,0.28)] transition duration-300 group-hover:-translate-y-1 group-hover:shadow-[0_20px_38px_rgba(0,0,0,0.38)]">
       {item.imageUrl ? (
@@ -378,8 +378,11 @@ function SingleSetSection({
     group.statuses.confirmed ? `${group.statuses.confirmed} confirmed` : null,
     group.statuses.reveal ? `${group.statuses.reveal} revealed` : null,
     group.statuses.leak ? `${group.statuses.leak} early` : null,
-    group.items.some((item) => item.libraryReference)
-      ? `${group.items.filter((item) => item.libraryReference).length} database-linked`
+    group.items.some((item) => isExactUpcomingLibraryReference(item.libraryReference))
+      ? `${group.items.filter((item) => isExactUpcomingLibraryReference(item.libraryReference)).length} card pages`
+      : null,
+    group.items.some((item) => item.libraryReference?.kind === "name")
+      ? `${group.items.filter((item) => item.libraryReference?.kind === "name").length} related-print searches`
       : null,
   ].filter(Boolean).join(" · ");
 

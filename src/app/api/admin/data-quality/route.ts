@@ -3,6 +3,7 @@ import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import {
   KNOWN_UNAVAILABLE_PRICE_STATUS,
   STALE_PRICE_AGE_MS,
+  UPCOMING_PRICE_SOURCE_STATUS,
   type DataQualityItem,
 } from "@/lib/data-quality";
 import { db } from "@/lib/db";
@@ -13,17 +14,21 @@ export const dynamic = "force-dynamic";
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
 
-const NOT_KNOWN_UNAVAILABLE = {
+const ACTIONABLE_MISSING_PRICE = {
   OR: [
     { price_source_status: null },
-    { price_source_status: { not: KNOWN_UNAVAILABLE_PRICE_STATUS } },
+    {
+      price_source_status: {
+        notIn: [KNOWN_UNAVAILABLE_PRICE_STATUS, UPCOMING_PRICE_SOURCE_STATUS],
+      },
+    },
   ],
 };
 
 const CARD_ISSUE_WHERE: Record<string, object> = {
   "card-images": { OR: [{ image_url: null }, { image_url: "" }] },
   "card-source": { OR: [{ tcggo_url: null }, { tcggo_url: "" }] },
-  "card-prices": { prices: { none: {} }, ...NOT_KNOWN_UNAVAILABLE },
+  "card-prices": { prices: { none: {} }, ...ACTIONABLE_MISSING_PRICE },
   "card-price-unavailable": {
     prices: { none: {} },
     price_source_status: KNOWN_UNAVAILABLE_PRICE_STATUS,
@@ -164,7 +169,7 @@ async function listStalePriceCards(limit: number): Promise<DataQualityItem[]> {
     where: {
       tcggo_url: { not: null },
       price_source_checked_at: { lt: cutoff },
-      ...NOT_KNOWN_UNAVAILABLE,
+      ...ACTIONABLE_MISSING_PRICE,
     },
     take: limit,
     orderBy: { price_source_checked_at: "asc" },

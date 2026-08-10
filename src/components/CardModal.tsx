@@ -1198,7 +1198,10 @@ export default function CardModal({
                 },
                 {
                   label: "Market score",
-                  value: modalCard.market_stats ? `${modalCard.market_stats.score}/100` : "Building",
+                  value:
+                    typeof modalCard.market_stats?.score === "number"
+                      ? `${Math.round(modalCard.market_stats.score)}/100`
+                      : "Building",
                   hint: modalCard.market_stats?.tier ?? "More evidence needed",
                   tone: "violet",
                   targetTab: "market",

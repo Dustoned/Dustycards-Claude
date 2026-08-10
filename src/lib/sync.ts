@@ -79,6 +79,7 @@ import {
   type NormalizedSealedProduct,
 } from "@/lib/tcggo";
 import { isCardCompatibleWithEpisodeCode } from "@/lib/card-episode-integrity";
+import { UPCOMING_PRICE_SOURCE_STATUS } from "@/lib/price-source-status";
 import {
   createAutoPriceRefreshBatchId,
   createAutoPriceRefreshLogDetails,
@@ -2890,11 +2891,22 @@ export function buildRetryableMissingPriceWhere(input: {
     ...(input.game ? { game: input.game } : {}),
     tcggo_url: { not: null },
     prices: { none: {} },
-    // Every missing-price card gets another chance after the cooldown.
+    // Every released missing-price card gets another chance after the cooldown.
+    // Confirmed future cards stay out of the quota-consuming retry queue.
     // `unavailable` is a temporary source observation, not a permanent ban.
-    OR: [
-      { price_source_checked_at: null },
-      { price_source_checked_at: { lt: input.retryBefore } },
+    AND: [
+      {
+        OR: [
+          { price_source_status: null },
+          { price_source_status: { not: UPCOMING_PRICE_SOURCE_STATUS } },
+        ],
+      },
+      {
+        OR: [
+          { price_source_checked_at: null },
+          { price_source_checked_at: { lt: input.retryBefore } },
+        ],
+      },
     ],
   };
 }

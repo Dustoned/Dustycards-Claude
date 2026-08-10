@@ -19,6 +19,7 @@ import {
   getEmptyCardHistoryCountSnapshot,
   KNOWN_UNAVAILABLE_PRICE_STATUS,
   STALE_PRICE_AGE_MS,
+  UPCOMING_PRICE_SOURCE_STATUS,
 } from "@/lib/data-quality";
 import { requirePageUser } from "@/lib/page-auth";
 import { getFirecrawlConfigSnapshot } from "@/lib/firecrawl";
@@ -500,7 +501,11 @@ export default async function SettingsPage({
         prices: { none: {} },
         OR: [
           { price_source_status: null },
-          { price_source_status: { not: KNOWN_UNAVAILABLE_PRICE_STATUS } },
+          {
+            price_source_status: {
+              notIn: [KNOWN_UNAVAILABLE_PRICE_STATUS, UPCOMING_PRICE_SOURCE_STATUS],
+            },
+          },
         ],
       },
     }),
@@ -534,7 +539,11 @@ export default async function SettingsPage({
         price_source_checked_at: { lt: new Date(new Date().getTime() - STALE_PRICE_AGE_MS) },
         OR: [
           { price_source_status: null },
-          { price_source_status: { not: KNOWN_UNAVAILABLE_PRICE_STATUS } },
+          {
+            price_source_status: {
+              notIn: [KNOWN_UNAVAILABLE_PRICE_STATUS, UPCOMING_PRICE_SOURCE_STATUS],
+            },
+          },
         ],
       },
     }),

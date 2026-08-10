@@ -107,12 +107,21 @@ describe("buildRetryableMissingPriceWhere", () => {
       game: "pokemon",
       tcggo_url: { not: null },
       prices: { none: {} },
-      OR: [
-        { price_source_checked_at: null },
-        { price_source_checked_at: { lt: retryBefore } },
+      AND: [
+        {
+          OR: [
+            { price_source_status: null },
+            { price_source_status: { not: "upcoming" } },
+          ],
+        },
+        {
+          OR: [
+            { price_source_checked_at: null },
+            { price_source_checked_at: { lt: retryBefore } },
+          ],
+        },
       ],
     });
     expect(where).not.toHaveProperty("price_source_status");
-    expect(where).not.toHaveProperty("AND");
   });
 });
