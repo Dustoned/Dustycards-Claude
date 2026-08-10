@@ -21,6 +21,8 @@ import {
   HomeCheapRarityWidget,
   HomeDiscountWatchWidget,
   HomeForSaleWidget,
+  HomeGradedMoversWidget,
+  HomeGradingTargetsWidget,
   HomeMarketMoversWidget,
   HomeSignalRadarWidget,
   HomeUpcomingWidget,
@@ -79,6 +81,8 @@ const HOME_MODULE_LABELS: Record<
   "value-drivers": { label: "Value drivers", description: "What moved your collection value" },
   "sudden-drops": { label: "Sudden drops", description: "Verified fast price drops" },
   "market-movers": { label: "Market Movers", description: "Largest live market movements" },
+  "graded-movers": { label: "Graded Movers", description: "Recent movement for individual slab labels" },
+  "grading-targets": { label: "Grading Targets", description: "Risk-adjusted upside after grading costs" },
   "cheap-rarity": { label: "Cheap Rarity", description: "Affordable high-rarity market cards" },
   "discount-watch": { label: "Discount Watch", description: "High-rarity cards below an earlier peak" },
   "signal-radar": { label: "Signal Radar", description: "Highest-scoring current opportunities" },
@@ -96,6 +100,8 @@ const COMPACTABLE_HOME_MODULES = new Set<HomeDashboardModuleKey>([
   "value-drivers",
   "sudden-drops",
   "market-movers",
+  "graded-movers",
+  "grading-targets",
   "cheap-rarity",
   "discount-watch",
   "signal-radar",
@@ -204,6 +210,14 @@ function CollectionAllocationPanel({ segments }: { segments: HomeAllocationSegme
       </div>
     </section>
   );
+}
+
+function buildHomeMoversScopeHref(href: string, scope: "graded" | "grading"): string {
+  const query = href.includes("?") ? href.slice(href.indexOf("?") + 1) : "";
+  const params = new URLSearchParams(query);
+  params.set("scope", scope);
+  params.delete("view");
+  return `/movers?${params.toString()}`;
 }
 
 function CollapsibleHomeModule({
@@ -442,6 +456,24 @@ export default function ProgressiveHomeOverviewInsights({
     ),
     "market-movers": payload ? (
       <HomeMarketMoversWidget items={payload.marketMovers ?? []} viewAllHref={moversHref} viewMode={viewModeFor("market-movers")} />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
+    "graded-movers": payload ? (
+      <HomeGradedMoversWidget
+        items={payload.gradedMovers ?? []}
+        viewAllHref={buildHomeMoversScopeHref(moversHref, "graded")}
+        viewMode={viewModeFor("graded-movers")}
+      />
+    ) : (
+      <InsightPanelSkeleton />
+    ),
+    "grading-targets": payload ? (
+      <HomeGradingTargetsWidget
+        items={payload.gradingTargets ?? []}
+        viewAllHref={buildHomeMoversScopeHref(moversHref, "grading")}
+        viewMode={viewModeFor("grading-targets")}
+      />
     ) : (
       <InsightPanelSkeleton />
     ),

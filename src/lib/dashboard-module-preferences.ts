@@ -3,6 +3,8 @@ export type HomeDashboardModuleKey =
   | "value-drivers"
   | "sudden-drops"
   | "market-movers"
+  | "graded-movers"
+  | "grading-targets"
   | "cheap-rarity"
   | "discount-watch"
   | "signal-radar"
@@ -21,6 +23,8 @@ export const HOME_DASHBOARD_VIEW_MODULES = new Set<HomeDashboardModuleKey>([
   "value-drivers",
   "sudden-drops",
   "market-movers",
+  "graded-movers",
+  "grading-targets",
   "cheap-rarity",
   "discount-watch",
   "signal-radar",
@@ -36,6 +40,8 @@ export const DEFAULT_HOME_DASHBOARD_MODULE_ORDER: HomeDashboardModuleKey[] = [
   "value-drivers",
   "sudden-drops",
   "market-movers",
+  "graded-movers",
+  "grading-targets",
   "cheap-rarity",
   "discount-watch",
   "signal-radar",
@@ -51,6 +57,8 @@ export const DEFAULT_HOME_DASHBOARD_MODULE_ORDER: HomeDashboardModuleKey[] = [
 
 export const DEFAULT_HIDDEN_HOME_DASHBOARD_MODULES: HomeDashboardModuleKey[] = [
   "market-movers",
+  "graded-movers",
+  "grading-targets",
   "cheap-rarity",
   "discount-watch",
   "signal-radar",

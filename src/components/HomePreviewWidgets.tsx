@@ -19,6 +19,7 @@ import { formatCollectionCurrency } from "@/lib/collection";
 import { formatCurrency } from "@/lib/format";
 import type {
   HomeCardListPreview,
+  HomeGradedPreviewItem,
   HomeMarketPocketPreviewItem,
   HomeMarketMoverPreviewItem,
   HomeSignalRadarPreviewItem,
@@ -235,6 +236,96 @@ export function HomeMarketMoversWidget({
       )}
     </section>
   );
+}
+
+function HomeGradedWidget({
+  items,
+  viewAllHref,
+  viewMode,
+  kind,
+}: {
+  items: HomeGradedPreviewItem[];
+  viewAllHref: string;
+  viewMode: HomeWidgetViewMode;
+  kind: "movers" | "targets";
+}) {
+  const targets = kind === "targets";
+  const Icon = targets ? Sparkles : Gem;
+  const gridView = viewMode === "grid";
+  const visibleItems = gridView ? items : items.slice(0, 6);
+  const metricFor = (item: HomeGradedPreviewItem) => {
+    if (targets) return item.expectedGain == null ? "--" : `+${formatCurrency(item.expectedGain, "EUR")}`;
+    if (item.change == null) return formatCurrency(item.currentPrice, item.currency);
+    return `${item.change > 0 ? "+" : ""}${formatCurrency(item.change, item.currency)}`;
+  };
+  const metricTone = (item: HomeGradedPreviewItem) => targets || (item.change ?? 0) >= 0 ? "text-emerald-300" : "text-rose-300";
+
+  return (
+    <section className={`binder-panel home-widget-panel home-widget-panel--${targets ? "radar" : "market"} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
+      <WidgetHeader
+        eyebrow={targets ? "Risk-adjusted upside" : "Slab market"}
+        title={targets ? "Grading Targets" : "Graded Movers"}
+        count={items.length}
+        href={viewAllHref}
+        icon={Icon}
+        tone={targets ? "radar" : "market"}
+      />
+      {items.length === 0 ? (
+        <EmptyWidget>{targets ? "No positive-value grading targets are available yet." : "No graded mover snapshot is available yet."}</EmptyWidget>
+      ) : gridView ? (
+        <div className="home-widget-tile-grid mt-2 grid gap-2">
+          {visibleItems.map((item, index) => (
+            <HomePreviewTile
+              key={`${item.cardId}:${item.gradedLabel ?? index}`}
+              href={`/cards/${encodeURIComponent(item.cardId)}`}
+              imageUrl={item.imageUrl}
+              fallback={<Icon className="h-5 w-5 text-amber-200" aria-hidden="true" />}
+              title={item.name}
+              meta={targets
+                ? `${item.rawPrice == null ? "Raw --" : `Raw ${formatCollectionCurrency(item.rawPrice)}`} → ${item.gradedPrice == null ? "graded --" : formatCollectionCurrency(item.gradedPrice)}`
+                : `${item.episodeCode ?? item.episodeName} / ${item.gradedLabel ?? "Graded"}`}
+              metric={metricFor(item)}
+              metricClassName={metricTone(item)}
+              footer={targets
+                ? item.score == null ? "Grade target" : `Score ${Math.round(item.score)}/100`
+                : signedPercent(item.changePct) ?? `${item.windowDays}d move`}
+              tone={targets ? "radar" : (item.change ?? 0) >= 0 ? "gain" : "drop"}
+            />
+          ))}
+        </div>
+      ) : (
+        <div className="mt-2 grid gap-1.5">
+          {visibleItems.map((item, index) => (
+            <Link
+              key={`${item.cardId}:${item.gradedLabel ?? index}`}
+              href={`/cards/${encodeURIComponent(item.cardId)}`}
+              prefetch={false}
+              className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}
+            >
+              <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
+                {item.imageUrl ? <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="36px" className="object-cover" /> : <Icon className="h-3.5 w-3.5 text-amber-200" />}
+              </span>
+              <span className="min-w-0">
+                <span className="block truncate text-[13px] font-black text-white/88 group-hover:text-white">{item.name}</span>
+                <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-white/40">
+                  {targets ? `${item.gradedLabel ?? "Grade target"}${item.score == null ? "" : ` / ${Math.round(item.score)}/100`}` : `${item.gradedLabel ?? "Graded"} / ${item.windowDays}d`}
+                </span>
+              </span>
+              <span className={`text-right text-[12px] font-black tabular-nums ${metricTone(item)}`}>{metricFor(item)}</span>
+            </Link>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+export function HomeGradedMoversWidget(props: { items: HomeGradedPreviewItem[]; viewAllHref: string; viewMode?: HomeWidgetViewMode }) {
+  return <HomeGradedWidget {...props} viewMode={props.viewMode ?? "grid"} kind="movers" />;
+}
+
+export function HomeGradingTargetsWidget(props: { items: HomeGradedPreviewItem[]; viewAllHref: string; viewMode?: HomeWidgetViewMode }) {
+  return <HomeGradedWidget {...props} viewMode={props.viewMode ?? "grid"} kind="targets" />;
 }
 
 function HomeMarketPocketWidget({

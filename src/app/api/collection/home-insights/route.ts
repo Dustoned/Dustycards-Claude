@@ -124,7 +124,7 @@ export async function GET(request: NextRequest) {
     const game = parseVisibleGameFilter(request.nextUrl.searchParams.get("game"), {
       onePieceEnabled: settings.onePieceLibraryEnabled,
     });
-    const [data, sellingData, moversSnapshot, radarSnapshot, wants, upcoming, upcomingSingles] = await Promise.all([
+    const [data, sellingData, moversSnapshot, gradedSnapshot, gradingSnapshot, radarSnapshot, wants, upcoming, upcomingSingles] = await Promise.all([
       getCachedCollectionOverviewData({
         userId: user.id,
         activeTab: "overview",
@@ -142,6 +142,20 @@ export async function GET(request: NextRequest) {
         scope: "all",
         itemScope: "all",
       }),
+      readMoversSnapshot({
+        userId: SHARED_MOVERS_SNAPSHOT_USER_ID,
+        game,
+        source: settings.primaryPriceSource,
+        scope: "graded",
+        itemScope: "all",
+      }),
+      readMoversSnapshot({
+        userId: SHARED_MOVERS_SNAPSHOT_USER_ID,
+        game,
+        source: settings.primaryPriceSource,
+        scope: "grading",
+        itemScope: "all",
+      }),
       readSignalRadarSnapshot(game),
       getHomeWantsPreview(user.id, game, settings.primaryPriceSource).catch(() => ({
         total: 0,
@@ -154,6 +168,8 @@ export async function GET(request: NextRequest) {
 
     return compressedJsonResponse(request, buildHomeOverviewInsights(data, {
       movers: moversSnapshot?.data.movers ?? [],
+      gradedMovers: gradedSnapshot?.data.movers ?? [],
+      gradingTargets: gradingSnapshot?.data.movers ?? [],
       cheapRarity: moversSnapshot?.data.cheapestHighRarityMovers ?? [],
       discountWatch: moversSnapshot?.data.discountedHighRarity ?? [],
       radarSignals: radarSnapshot?.data.signals ?? [],

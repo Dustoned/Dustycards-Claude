@@ -82,6 +82,26 @@ export interface HomeMarketPocketPreviewItem {
   opportunityScore: number;
 }
 
+export interface HomeGradedPreviewItem {
+  cardId: string;
+  name: string;
+  imageUrl: string | null;
+  cardNumber: string | null;
+  episodeName: string;
+  episodeCode: string | null;
+  currentPrice: number;
+  currency: "EUR" | "USD";
+  gradedLabel: string | null;
+  change: number | null;
+  changePct: number | null;
+  windowDays: 7 | 30;
+  rawPrice: number | null;
+  gradedPrice: number | null;
+  expectedGain: number | null;
+  expectedMultiplier: number | null;
+  score: number | null;
+}
+
 export interface HomeUpcomingPreviewItem {
   id: string;
   name: string;
@@ -111,6 +131,8 @@ export interface HomeOverviewInsightsPayload {
   valueDrivers: CollectionValueDriversData;
   allocation: HomeAllocationSegment[];
   marketMovers: HomeMarketMoverPreviewItem[];
+  gradedMovers: HomeGradedPreviewItem[];
+  gradingTargets: HomeGradedPreviewItem[];
   cheapRarity: HomeMarketPocketPreviewItem[];
   discountWatch: HomeMarketPocketPreviewItem[];
   radarSignals: HomeSignalRadarPreviewItem[];
@@ -122,6 +144,8 @@ export interface HomeOverviewInsightsPayload {
 
 export interface HomeOverviewInsightsExtras {
   movers?: CollectionMoverItem[];
+  gradedMovers?: CollectionMoverItem[];
+  gradingTargets?: CollectionMoverItem[];
   cheapRarity?: CollectionMoverItem[];
   discountWatch?: CollectionMoverItem[];
   radarSignals?: ExternalCardSignal[];
@@ -208,6 +232,31 @@ function buildMarketPocketPreview(items: CollectionMoverItem[]): HomeMarketPocke
     }));
 }
 
+function buildGradedPreview(items: CollectionMoverItem[]): HomeGradedPreviewItem[] {
+  return items.slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => {
+    const useSevenDays = item.change7d != null && item.change7d !== 0;
+    return {
+      cardId: item.cardId,
+      name: item.name,
+      imageUrl: item.imageUrl,
+      cardNumber: item.cardNumber,
+      episodeName: item.episodeName,
+      episodeCode: item.episodeCode,
+      currentPrice: item.currentPrice,
+      currency: item.currency,
+      gradedLabel: item.gradedLabel,
+      change: useSevenDays ? item.change7d : item.change30d,
+      changePct: useSevenDays ? item.change7dPct : item.change30dPct,
+      windowDays: useSevenDays ? 7 : 30,
+      rawPrice: item.grading?.rawPrice ?? null,
+      gradedPrice: item.grading?.gradedPrice ?? null,
+      expectedGain: item.grading?.expectedGain ?? null,
+      expectedMultiplier: item.grading?.expectedMultiplier ?? null,
+      score: item.grading?.score ?? null,
+    };
+  });
+}
+
 export function buildForSalePreview(
   data: CollectionOverviewData,
   source: PriceSource = "cm_en"
@@ -262,6 +311,8 @@ export function buildHomeOverviewInsights(
     featuredCards: getHomeFeaturedCards(data.cards),
     valueDrivers: getHomeValueDriversPreview(data.valueDrivers),
     marketMovers: buildMarketMoverPreview(extras.movers ?? []),
+    gradedMovers: buildGradedPreview(extras.gradedMovers ?? []),
+    gradingTargets: buildGradedPreview(extras.gradingTargets ?? []),
     cheapRarity: buildMarketPocketPreview(extras.cheapRarity ?? []),
     discountWatch: buildMarketPocketPreview(extras.discountWatch ?? []),
     radarSignals: buildSignalRadarPreview(extras.radarSignals ?? []),

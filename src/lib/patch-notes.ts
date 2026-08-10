@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.57",
+    releasedAt: "August 10, 2026",
+    title: "Graded Movers and Grading Targets widgets",
+    summary: "Home now covers the two graded sections that were already available on the full Movers page.",
+    tone: "new",
+    highlights: [
+      "Added Graded Movers with slab label, current value and recent movement.",
+      "Added Grading Targets with raw-to-graded value path, expected gain and target score.",
+      "Both modules use the shared server snapshots instead of calculating graded markets during page rendering.",
+      "Both modules are individually customizable as Grid/List and Wide/Compact.",
+    ],
+  },
+  {
     version: "3.12.56",
     releasedAt: "August 10, 2026",
     title: "Home card popups and expanded widgets",

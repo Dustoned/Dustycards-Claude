@@ -20,6 +20,21 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.57",
+    releasedAt: "August 10, 2026",
+    title: "Graded Movers on Home",
+    summary: "The two graded Market views can now be placed directly on the customizable Home dashboard.",
+    tone: "new",
+    sections: [{
+      title: "Slabs and grading opportunities",
+      highlights: [
+        "Graded Movers shows recent price movement for each individual slab label.",
+        "Grading Targets shows risk-adjusted expected gain after grading cost and fallback risk.",
+        "Both widgets support their own Grid/List, Wide/Compact, visibility and ordering settings.",
+      ],
+    }],
+  },
+  {
     version: "3.12.56",
     releasedAt: "August 10, 2026",
     title: "Reliable Home cards and richer widgets",
