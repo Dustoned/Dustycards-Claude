@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.62",
+    releasedAt: "August 11, 2026",
+    title: "Upcoming prices stay future-safe",
+    summary: "Exact per-card release dates now keep unreleased cards out of every automatic price queue.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "No premature price scraping",
+        highlights: [
+          "Exact Upcoming library matches remain protected even when an older catalogue refresh reports them unavailable.",
+          "Hidden promo galleries remain out of the interface without losing the source metadata needed for release safety.",
+          "On release day the Upcoming status clears automatically and normal price refreshes become eligible again.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.61",
     releasedAt: "August 11, 2026",
     title: "Honest marketplace prices",

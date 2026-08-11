@@ -23,6 +23,10 @@ import {
   CARDMARKET_NO_EN_NM_PRICE_STATUS,
   UPCOMING_PRICE_SOURCE_STATUS,
 } from "@/lib/price-source-status";
+import {
+  classifyUpcomingPriceSourceCardIds,
+  loadUnreleasedUpcomingCardIds,
+} from "@/lib/sync/upcoming-price-source-status";
 
 const JOB_TYPE = "cardmarket-base-price";
 const FIRECRAWL_CONSUMER = "cardmarket-base-price";
@@ -367,25 +371,35 @@ function sortCandidates(candidates: BacklogCandidate[]): BacklogCandidate[] {
   });
 }
 
+export function excludeUnreleasedUpcomingCards<T extends { id: string }>(
+  candidates: T[],
+  unreleasedCardIds: ReadonlySet<string>
+): T[] {
+  return candidates.filter((candidate) => !unreleasedCardIds.has(candidate.id));
+}
+
 async function loadBacklog(now: Date): Promise<BacklogCandidate[]> {
-  const rows = await db.card.findMany({
-    where: buildCardMarketBasePriceBacklogWhere(now),
-    orderBy: [{ episode_id: "asc" }, { card_number: "asc" }, { id: "asc" }],
-    select: {
-      id: true,
-      name: true,
-      card_number: true,
-      printed_card_number: true,
-      cardmarket_url: true,
-      cardmarket_id: true,
-      price_source_status: true,
-      price_source_checked_at: true,
-      episode: {
-        select: { id: true, name: true, code: true, release_date: true },
+  const [rows, unreleasedCardIds] = await Promise.all([
+    db.card.findMany({
+      where: buildCardMarketBasePriceBacklogWhere(now),
+      orderBy: [{ episode_id: "asc" }, { card_number: "asc" }, { id: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        card_number: true,
+        printed_card_number: true,
+        cardmarket_url: true,
+        cardmarket_id: true,
+        price_source_status: true,
+        price_source_checked_at: true,
+        episode: {
+          select: { id: true, name: true, code: true, release_date: true },
+        },
       },
-    },
-  });
-  return sortCandidates(rows);
+    }),
+    loadUnreleasedUpcomingCardIds(now),
+  ]);
+  return sortCandidates(excludeUnreleasedUpcomingCards(rows, unreleasedCardIds));
 }
 
 function parseDetails(detailsJson: string | null | undefined): PersistedDetails {
@@ -526,8 +540,20 @@ async function persistAcceptedPrice(input: {
   priceEur: number;
   sourceUrl: string;
   observedAt: Date;
-}): Promise<boolean> {
+}): Promise<"inserted" | "already-priced" | "upcoming"> {
   return db.$transaction(async (tx) => {
+    const sources = await tx.externalCatalystSource.findMany({
+      where: {
+        game: "pokemon",
+        metadata_json: { contains: '"upcomingReveals"' },
+      },
+      select: { metadata_json: true },
+    });
+    if (classifyUpcomingPriceSourceCardIds(
+      sources.map((source) => source.metadata_json),
+      new Date()
+    ).unreleased.has(input.candidate.id)) return "upcoming";
+
     const existing = await tx.price.findFirst({
       where: {
         card_id: input.candidate.id,
@@ -535,7 +561,7 @@ async function persistAcceptedPrice(input: {
       },
       select: { id: true },
     });
-    if (existing) return false;
+    if (existing) return "already-priced";
 
     await tx.price.create({
       data: buildMergedCardMarketPriceData({
@@ -556,7 +582,7 @@ async function persistAcceptedPrice(input: {
         price_source_checked_at: input.observedAt,
       },
     });
-    return true;
+    return "inserted";
   });
 }
 
@@ -564,17 +590,32 @@ async function persistNoEnglishNmStatus(input: {
   candidate: BacklogCandidate;
   sourceUrl: string;
   observedAt: Date;
-}): Promise<void> {
+}): Promise<boolean> {
   const canonicalUrl = productParts(input.sourceUrl)?.url ?? null;
-  await db.card.update({
-    where: { id: input.candidate.id },
-    data: {
-      ...(canonicalUrl && !getSafeDirectCardMarketCardUrl(input.candidate.cardmarket_url, "pokemon")
-        ? { cardmarket_url: canonicalUrl }
-        : {}),
-      price_source_status: CARDMARKET_NO_EN_NM_PRICE_STATUS,
-      price_source_checked_at: input.observedAt,
-    },
+  return db.$transaction(async (tx) => {
+    const sources = await tx.externalCatalystSource.findMany({
+      where: {
+        game: "pokemon",
+        metadata_json: { contains: '"upcomingReveals"' },
+      },
+      select: { metadata_json: true },
+    });
+    if (classifyUpcomingPriceSourceCardIds(
+      sources.map((source) => source.metadata_json),
+      new Date()
+    ).unreleased.has(input.candidate.id)) return false;
+
+    await tx.card.update({
+      where: { id: input.candidate.id },
+      data: {
+        ...(canonicalUrl && !getSafeDirectCardMarketCardUrl(input.candidate.cardmarket_url, "pokemon")
+          ? { cardmarket_url: canonicalUrl }
+          : {}),
+        price_source_status: CARDMARKET_NO_EN_NM_PRICE_STATUS,
+        price_source_checked_at: input.observedAt,
+      },
+    });
+    return true;
   });
 }
 
@@ -601,6 +642,24 @@ function makeAttemptResult(input: {
   };
 }
 
+async function candidateIsNowUnreleasedUpcoming(cardId: string): Promise<boolean> {
+  return (await loadUnreleasedUpcomingCardIds(new Date(), { fresh: true })).has(cardId);
+}
+
+function makeUpcomingSkipResult(
+  candidate: BacklogCandidate,
+  startedAt: Date,
+  creditsUsed = 0
+): CardMarketBasePriceRunResult {
+  return makeAttemptResult({
+    outcome: "no-work",
+    startedAt,
+    candidate,
+    creditsUsed,
+    error: "Exact Upcoming metadata now marks this card unreleased; no price was written.",
+  });
+}
+
 async function processCandidate(
   candidate: BacklogCandidate,
   attempt: number,
@@ -609,6 +668,9 @@ async function processCandidate(
   let creditsUsed = 0;
   let sourceUrl = directSourceUrl(candidate);
   try {
+    if (await candidateIsNowUnreleasedUpcoming(candidate.id)) {
+      return makeUpcomingSkipResult(candidate, startedAt);
+    }
     if (!sourceUrl) {
       const discovery = await budgetedScrape({
         cardId: candidate.id,
@@ -647,6 +709,12 @@ async function processCandidate(
         });
       }
       sourceUrl = withCardMarketFilters(links[0]);
+    }
+
+    // A gallery match can land while discovery is running. Re-read the raw
+    // metadata before spending the product-page credit as well.
+    if (await candidateIsNowUnreleasedUpcoming(candidate.id)) {
+      return makeUpcomingSkipResult(candidate, startedAt, creditsUsed);
     }
 
     const product = await budgetedScrape({
@@ -702,11 +770,12 @@ async function processCandidate(
           error: "CardMarket did not return a readable priced offer table; no listing status was written.",
         });
       }
-      await persistNoEnglishNmStatus({
+      const persisted = await persistNoEnglishNmStatus({
         candidate,
         sourceUrl: product.scrape.sourceUrl,
         observedAt: startedAt,
       });
+      if (!persisted) return makeUpcomingSkipResult(candidate, startedAt, creditsUsed);
       return makeAttemptResult({
         outcome: "no-english-nm",
         startedAt,
@@ -717,14 +786,17 @@ async function processCandidate(
       });
     }
 
-    const inserted = await persistAcceptedPrice({
+    const persistence = await persistAcceptedPrice({
       candidate,
       priceEur: strictPrice.priceEur,
       sourceUrl: product.scrape.sourceUrl,
       observedAt: startedAt,
     });
+    if (persistence === "upcoming") {
+      return makeUpcomingSkipResult(candidate, startedAt, creditsUsed);
+    }
     return makeAttemptResult({
-      outcome: inserted ? "updated" : "already-priced",
+      outcome: persistence === "inserted" ? "updated" : "already-priced",
       startedAt,
       candidate,
       sourceUrl: product.scrape.sourceUrl,

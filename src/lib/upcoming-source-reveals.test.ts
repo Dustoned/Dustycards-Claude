@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { FirecrawlPageScrapeResult } from "@/lib/firecrawl";
 import {
   extractUpcomingRevealsFromScrape,
+  readAllStoredUpcomingReveals,
   readStoredUpcomingReveals,
 } from "@/lib/upcoming-source-reveals";
 
@@ -99,6 +100,12 @@ describe("upcoming source reveals", () => {
         name: "Mew ex",
         episodeName: "30th Celebration",
       }),
+    ]);
+    expect(readAllStoredUpcomingReveals(stored)).toHaveLength(3);
+    expect(readAllStoredUpcomingReveals(stored).map((row) => row.name)).toEqual([
+      "Victini",
+      "Mew ex",
+      "Umbreon ex",
     ]);
   });
 });

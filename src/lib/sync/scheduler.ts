@@ -58,6 +58,7 @@ import {
   type CardReprintJobSnapshot,
 } from "@/lib/sync/card-reprint-job";
 import { maybeRunUpcomingGallerySourceJob } from "@/lib/sync/upcoming-gallery-source-job";
+import { reconcileUpcomingPriceSourceStatuses } from "@/lib/sync/upcoming-price-source-status";
 import {
   getBackgroundLoadSnapshot,
   MAX_BACKGROUND_LOAD_PER_CPU,
@@ -199,6 +200,10 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
     loadPerCpu: 0,
     deferred: false,
   }));
+  // Per-card Upcoming metadata is more precise than an expansion-level date.
+  // This small lifecycle repair also runs on deferred ticks, so a release is
+  // never held back merely because visitors are active.
+  await reconcileUpcomingPriceSourceStatuses(checkedAt);
   // better-sqlite3 is synchronous. Running the full maintenance tick in this
   // Next.js process can block every page on the same event loop for seconds.
   // Defer the whole tick while someone is actively browsing (or the host is

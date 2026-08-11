@@ -57,7 +57,8 @@ import {
 } from "@/lib/sync/direct-cardmarket-protection";
 import {
   getLatestPriceSourceObservationAt,
-  preserveCardMarketNoEnglishNmStatus,
+  isProtectedPriceSourceStatus,
+  preserveProtectedPriceSourceStatus,
   resolvePriceSourceCheckUpdate,
   suppressStaleEnglishNmPriceForNoListing,
   type PriceSnapshotWriteMode,
@@ -2653,7 +2654,7 @@ async function syncEpisodeCards(
         priceCreates,
         priceRefreshes
       );
-      const priceSourceCheckUpdate = preserveCardMarketNoEnglishNmStatus({
+      const priceSourceCheckUpdate = preserveProtectedPriceSourceStatus({
         update: resolvePriceSourceCheckUpdate({
           mode: writeMode,
           checkedAt: fetchedAt,
@@ -2875,7 +2876,13 @@ async function selectAutoRefreshBatch(
     FROM "Card" c
     WHERE c.tcggo_url IS NOT NULL
       AND c.price_source_checked_at IS NOT NULL
-      AND (c.price_source_status IS NULL OR c.price_source_status <> 'unavailable')
+      AND (
+        c.price_source_status IS NULL
+        OR (
+          c.price_source_status <> 'unavailable'
+          AND c.price_source_status <> ${UPCOMING_PRICE_SOURCE_STATUS}
+        )
+      )
   `;
   const hiddenEpisodeIds = new Set(await getHiddenEpisodeIds());
 
@@ -3210,7 +3217,10 @@ export async function reconcilePriceSourceCheckedAtFromSnapshots(): Promise<numb
       WHERE tcggo_url IS NOT NULL
         AND (
           price_source_status IS NULL
-          OR price_source_status <> ${CARDMARKET_NO_EN_NM_PRICE_STATUS}
+          OR (
+            price_source_status <> ${CARDMARKET_NO_EN_NM_PRICE_STATUS}
+            AND price_source_status <> ${UPCOMING_PRICE_SOURCE_STATUS}
+          )
         )
         AND EXISTS (
           SELECT 1
@@ -3547,7 +3557,7 @@ async function refreshEpisodeDueCards(
       }
 
       if (!remoteCard) {
-        if (existingCard.price_source_status !== CARDMARKET_NO_EN_NM_PRICE_STATUS) {
+        if (!isProtectedPriceSourceStatus(existingCard.price_source_status)) {
           await tx.card.update({
             where: { id: cardId },
             data: {
@@ -3623,7 +3633,7 @@ async function refreshEpisodeDueCards(
         priceCreates,
         priceRefreshes
       );
-      const priceSourceCheckUpdate = preserveCardMarketNoEnglishNmStatus({
+      const priceSourceCheckUpdate = preserveProtectedPriceSourceStatus({
         update: resolvePriceSourceCheckUpdate({
           mode: writeMode,
           checkedAt: fetchedAt,
@@ -3788,7 +3798,7 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           priceCreates,
           priceRefreshes
         );
-        const priceSourceCheckUpdate = preserveCardMarketNoEnglishNmStatus({
+        const priceSourceCheckUpdate = preserveProtectedPriceSourceStatus({
           update: resolvePriceSourceCheckUpdate({
             mode: writeMode,
             checkedAt: fetchedAt,

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { getPriceRefreshInfo } from "@/lib/price-refresh";
 import {
   getLatestPriceSourceObservationAt,
-  preserveCardMarketNoEnglishNmStatus,
+  preserveProtectedPriceSourceStatus,
   resolvePriceSourceCheckUpdate,
   suppressStaleEnglishNmPriceForNoListing,
 } from "@/lib/sync/price-source-check";
@@ -50,9 +50,19 @@ describe("price source checks", () => {
     const update = { price_source_status: null, price_source_checked_at: checkedAt };
 
     expect(
-      preserveCardMarketNoEnglishNmStatus({
+      preserveProtectedPriceSourceStatus({
         update,
         currentStatus: "cardmarket-no-en-nm",
+      })
+    ).toBeNull();
+  });
+
+  it("does not let TCGGo clear an exact card that is still upcoming", () => {
+    const checkedAt = new Date("2026-08-11T12:00:00.000Z");
+    expect(
+      preserveProtectedPriceSourceStatus({
+        update: { price_source_status: null, price_source_checked_at: checkedAt },
+        currentStatus: "upcoming",
       })
     ).toBeNull();
   });

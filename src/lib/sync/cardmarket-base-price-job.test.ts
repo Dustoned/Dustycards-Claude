@@ -7,6 +7,7 @@ import {
   buildCardMarketBasePriceBacklogWhere,
   buildMergedCardMarketPriceData,
   cardMarketBasePriceIdentityMatches,
+  excludeUnreleasedUpcomingCards,
 } from "@/lib/sync/cardmarket-base-price-job";
 
 describe("CardMarket base-price backlog", () => {
@@ -30,6 +31,16 @@ describe("CardMarket base-price backlog", () => {
         },
       ],
     });
+  });
+
+  it("hard-excludes exact future cards even when their mutable status is stale", () => {
+    const rows = [
+      { id: "released", price_source_status: "unavailable" },
+      { id: "future", price_source_status: "unavailable" },
+    ];
+    expect(excludeUnreleasedUpcomingCards(rows, new Set(["future"]))).toEqual([
+      rows[0],
+    ]);
   });
 });
 

@@ -151,7 +151,10 @@ export function extractUpcomingRevealsFromScrape(
   return [...reveals.values()];
 }
 
-export function readStoredUpcomingReveals(metadataJson: string | null): StoredUpcomingReveal[] {
+export function readStoredUpcomingReveals(
+  metadataJson: string | null,
+  options: { includeHiddenGroups?: boolean } = {}
+): StoredUpcomingReveal[] {
   if (!metadataJson) return [];
   try {
     const parsed = JSON.parse(metadataJson) as { upcomingReveals?: unknown };
@@ -165,7 +168,11 @@ export function readStoredUpcomingReveals(metadataJson: string | null): StoredUp
       const episodeName = typeof row.episodeName === "string" && row.episodeName.trim()
         ? row.episodeName.trim()
         : null;
-      if (episodeName && isHiddenUpcomingGroup(episodeName)) return [];
+      if (
+        !options.includeHiddenGroups &&
+        episodeName &&
+        isHiddenUpcomingGroup(episodeName)
+      ) return [];
       const status = row.status === "confirmed" || row.status === "leak" ? row.status : "reveal";
       const rawMatch = row.libraryMatch && typeof row.libraryMatch === "object"
         ? row.libraryMatch as Record<string, unknown>
@@ -204,4 +211,13 @@ export function readStoredUpcomingReveals(metadataJson: string | null): StoredUp
   } catch {
     return [];
   }
+}
+
+/** Internal/background readers must retain every stored row. UI callers use
+ * `readStoredUpcomingReveals` so retired galleries can stay hidden without
+ * being deleted from source metadata or its release safeguards. */
+export function readAllStoredUpcomingReveals(
+  metadataJson: string | null
+): StoredUpcomingReveal[] {
+  return readStoredUpcomingReveals(metadataJson, { includeHiddenGroups: true });
 }

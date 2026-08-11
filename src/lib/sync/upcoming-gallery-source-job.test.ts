@@ -8,6 +8,9 @@ const dbMock = vi.hoisted(() => ({
     update: vi.fn(),
     upsert: vi.fn(),
   },
+  card: { findMany: vi.fn() },
+  episode: { findMany: vi.fn() },
+  cardPrintingEvidence: { findMany: vi.fn() },
 }));
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
@@ -96,6 +99,69 @@ describe("official Pokemon upcoming gallery extraction", () => {
       },
       orderBy: [{ updated_at: "desc" }],
       take: 160,
+    }));
+  });
+
+  it("never deletes a hidden stored gallery while matching another reveal", async () => {
+    const hidden = {
+      name: "Victini",
+      imageUrl: "https://cdn.example.com/victini.webp",
+      cardNumber: "102",
+      rarity: "Official promo",
+      episodeName: "30th Celebration MEP Promos",
+      releaseDate: "2026-09-16",
+      status: "confirmed",
+      libraryMatch: {
+        cardId: "hidden-card",
+        episodeId: "mep",
+        episodeName: "MEP Black Star Promos",
+        episodeCode: "MEP",
+        method: "set-number",
+        confidence: 1,
+      },
+      libraryMatchCheckedAt: "2026-08-10T00:00:00.000Z",
+      libraryMatchVersion: 2,
+    };
+    const visible = {
+      name: "Raikou ex",
+      imageUrl: "https://cdn.example.com/raikou.webp",
+      cardNumber: "002",
+      rarity: null,
+      episodeName: "Visible Set",
+      releaseDate: "2026-10-01",
+      status: "reveal",
+      libraryMatch: null,
+      libraryMatchCheckedAt: null,
+      libraryMatchVersion: 0,
+    };
+    dbMock.externalCatalystSource.findMany.mockResolvedValue([{
+      id: "source-1",
+      metadata_json: JSON.stringify({ upcomingReveals: [hidden, visible] }),
+    }]);
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.episode.findMany.mockResolvedValue([{
+      id: "visible-set",
+      name: "Visible Set",
+      code: "VIS",
+      release_date: "2026-10-01",
+      cards: [{
+        id: "visible-card",
+        name: "Raikou ex",
+        card_number: "002",
+        printingEvidence: null,
+      }],
+    }]);
+    dbMock.externalCatalystSource.update.mockResolvedValue({});
+
+    await matchStoredUpcomingRevealBacklog(new Date("2026-08-11T12:00:00.000Z"), 3);
+
+    const update = dbMock.externalCatalystSource.update.mock.calls[0]?.[0];
+    const stored = JSON.parse(update.data.metadata_json).upcomingReveals;
+    expect(stored).toHaveLength(2);
+    expect(stored[0]).toEqual(hidden);
+    expect(stored[1]).toEqual(expect.objectContaining({
+      name: "Raikou ex",
+      libraryMatch: expect.objectContaining({ cardId: "visible-card" }),
     }));
   });
 });

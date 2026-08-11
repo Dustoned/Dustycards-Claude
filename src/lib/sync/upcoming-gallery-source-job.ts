@@ -13,12 +13,16 @@ import {
 } from "@/lib/firecrawl";
 import { runBudgetedFirecrawlRequest } from "@/lib/firecrawl-budget";
 import {
+  invalidateUpcomingPriceSourceStatusCache,
+  reconcileUpcomingPriceSourceStatuses,
+} from "@/lib/sync/upcoming-price-source-status";
+import {
   getScrapeDoConfigSnapshot,
   scrapeScrapeDoPage,
 } from "@/lib/scrapedo";
 import {
   extractUpcomingRevealsFromScrape,
-  readStoredUpcomingReveals,
+  readAllStoredUpcomingReveals,
   type StoredUpcomingLibraryMatch,
   type StoredUpcomingReveal,
 } from "@/lib/upcoming-source-reveals";
@@ -548,7 +552,7 @@ async function refreshSource(
     select: { metadata_json: true },
   });
   const attempts: string[] = [];
-  const previousReveals = readStoredUpcomingReveals(existing?.metadata_json ?? null);
+  const previousReveals = readAllStoredUpcomingReveals(existing?.metadata_json ?? null);
   const acceptScrape = async (
     scrape: FirecrawlPageScrapeResult,
     provider: "firecrawl" | "direct" | "scrapedo"
@@ -705,7 +709,7 @@ export async function matchStoredUpcomingRevealBacklog(
     } catch {
       continue;
     }
-    const reveals = readStoredUpcomingReveals(source.metadata_json);
+    const reveals = readAllStoredUpcomingReveals(source.metadata_json);
     let changed = false;
     for (const reveal of reveals) {
       if (checked >= limit) break;
@@ -747,6 +751,8 @@ export function maybeRunUpcomingGallerySourceJob(
   activeRefresh = refreshUpcomingGallerySources({ now: options.now })
     .then(async (result) => {
       await matchStoredUpcomingRevealBacklog(options.now ?? new Date());
+      invalidateUpcomingPriceSourceStatusCache();
+      await reconcileUpcomingPriceSourceStatuses(options.now ?? new Date());
       if (warmStoredImagesAfterStartup || result.refreshed > 0) {
         warmStoredImagesAfterStartup = false;
         await warmUpcomingImages();

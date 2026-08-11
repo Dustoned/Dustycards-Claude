@@ -1,4 +1,7 @@
-import { CARDMARKET_NO_EN_NM_PRICE_STATUS } from "@/lib/price-source-status";
+import {
+  CARDMARKET_NO_EN_NM_PRICE_STATUS,
+  UPCOMING_PRICE_SOURCE_STATUS,
+} from "@/lib/price-source-status";
 
 export type PriceSnapshotWriteMode = "new" | "refreshed" | "none" | "protected";
 
@@ -38,22 +41,28 @@ export function resolvePriceSourceCheckUpdate(input: {
   return null;
 }
 
-/**
- * A TCP-only TCGGo refresh must not erase the stronger CardMarket-specific
- * observation that the exact product currently has no English/NM listing.
- * Only a direct CardMarket job may clear that observation; TCGGo can lag.
- */
-export function preserveCardMarketNoEnglishNmStatus(input: {
+/** TCGGo does not own direct CardMarket no-listing observations or the
+ * per-card Upcoming lifecycle status. */
+export function isProtectedPriceSourceStatus(
+  status: string | null | undefined
+): boolean {
+  return (
+    status === CARDMARKET_NO_EN_NM_PRICE_STATUS ||
+    status === UPCOMING_PRICE_SOURCE_STATUS
+  );
+}
+
+export function preserveProtectedPriceSourceStatus(input: {
   update: PriceSourceCheckUpdate | null;
   currentStatus: string | null | undefined;
 }): PriceSourceCheckUpdate | null {
-  if (input.currentStatus !== CARDMARKET_NO_EN_NM_PRICE_STATUS) {
+  if (!isProtectedPriceSourceStatus(input.currentStatus)) {
     return input.update;
   }
 
-  // This timestamp belongs to the direct CardMarket observation. A TCGGo
-  // refresh must not move it forward or the direct seven-day recheck can be
-  // postponed forever. The direct CardMarket jobs own both fields.
+  // For a no-listing result this timestamp belongs to the direct CardMarket
+  // observation. For an Upcoming card the per-card release metadata owns the
+  // status until release day. A TCGGo refresh must not overwrite either one.
   return null;
 }
 

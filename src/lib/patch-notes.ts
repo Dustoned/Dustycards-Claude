@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.62",
+    releasedAt: "August 11, 2026",
+    title: "Future cards no longer enter price queues",
+    summary: "Per-card Upcoming metadata now protects exact unreleased printings independently of mutable source status.",
+    tone: "fixed",
+    highlights: [
+      "All exact future library matches are excluded from TCGGo and paid CardMarket fallback work.",
+      "The worker rechecks source metadata immediately before spending a scrape credit and before saving a quote.",
+      "Hidden 30th Celebration promo rows remain stored for lifecycle safety while staying absent from Upcoming UI.",
+      "Statuses are restored automatically before queue selection and released automatically when their date arrives.",
+    ],
+  },
+  {
     version: "3.12.61",
     releasedAt: "August 11, 2026",
     title: "Honest CardMarket and sealed prices",
