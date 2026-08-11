@@ -29,7 +29,10 @@ const CARD_IMAGE_PATTERN =
 const IMAGE_EXTENSION_PATTERN = /\.(?:avif|gif|jpe?g|png|webp)(?:\?|$)/i;
 const MARKDOWN_IMAGE_PATTERN = /!\[([^\]]*)\]\((https?:\/\/[^\s)]+)(?:\s+["'][^"']*["'])?\)/gi;
 const HTML_IMAGE_PATTERN = /<img\b[^>]*>/gi;
-const HIDDEN_UPCOMING_GROUPS = new Set(["30th celebration promos"]);
+function isHiddenUpcomingGroup(value: string): boolean {
+  const normalized = value.trim().toLowerCase();
+  return normalized.startsWith("30th celebration") && /\bpromos?\b/.test(normalized);
+}
 
 function normalizeImageUrl(value: string): string | null {
   const candidate = value.trim().replace(/&amp;/g, "&");
@@ -162,7 +165,7 @@ export function readStoredUpcomingReveals(metadataJson: string | null): StoredUp
       const episodeName = typeof row.episodeName === "string" && row.episodeName.trim()
         ? row.episodeName.trim()
         : null;
-      if (episodeName && HIDDEN_UPCOMING_GROUPS.has(episodeName.toLowerCase())) return [];
+      if (episodeName && isHiddenUpcomingGroup(episodeName)) return [];
       const status = row.status === "confirmed" || row.status === "leak" ? row.status : "reveal";
       const rawMatch = row.libraryMatch && typeof row.libraryMatch === "object"
         ? row.libraryMatch as Record<string, unknown>

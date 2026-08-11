@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { preserveRecentDirectEnglishNmPrice } from "@/lib/sync/direct-cardmarket-protection";
+import {
+  hasPriceSourceProvenanceChanged,
+  preserveRecentDirectEnglishNmPrice,
+} from "@/lib/sync/direct-cardmarket-protection";
 import type { ExistingPriceRecord, PriceSnapshotData } from "@/lib/sync/card-helpers";
 
-function price(cm: number): PriceSnapshotData {
+function price(cm: number | null): PriceSnapshotData {
   return {
     cm_en_lowest_nm: cm,
     cm_de_lowest_nm: null,
@@ -19,7 +22,21 @@ function price(cm: number): PriceSnapshotData {
 }
 
 describe("direct CardMarket price protection", () => {
-  it("keeps a recent direct EN/NM quote when TCGGo is behind", () => {
+  it("treats identical values from a different provider as a new observation", () => {
+    const latest: ExistingPriceRecord = {
+      id: "base",
+      ...price(37),
+      fetched_at: new Date("2026-08-11T10:00:00Z"),
+      source: "cardmarket_base_backfill",
+      source_provider: "firecrawl",
+    };
+    expect(hasPriceSourceProvenanceChanged(latest, "tcggo", "tcggo")).toBe(true);
+    expect(
+      hasPriceSourceProvenanceChanged(latest, "cardmarket_base_backfill", "firecrawl")
+    ).toBe(false);
+  });
+
+  it("keeps direct EN/NM untouched while retaining an independent TCP observation", () => {
     const latest: ExistingPriceRecord = {
       id: "direct",
       ...price(90),
@@ -35,11 +52,33 @@ describe("direct CardMarket price protection", () => {
         new Date("2026-07-21T12:00:00Z")
       )
     ).toEqual({
-      preserveExistingSnapshot: true,
-      price: { ...price(90), tcp_market: 130 },
+      preserveExistingSnapshot: false,
+      price: { ...price(null), tcp_market: 130 },
+      source: "tcggo",
+      sourceProvider: "tcggo",
+      sourceUrl: null,
+    });
+  });
+
+  it("does not create an empty TCGGo row when only protected EN/NM was returned", () => {
+    const latest: ExistingPriceRecord = {
+      id: "direct",
+      ...price(90),
+      fetched_at: new Date("2026-07-21T10:00:00Z"),
       source: "cardmarket-direct",
-      sourceProvider: "scrapedo",
-      sourceUrl: "https://www.cardmarket.com/card",
+      source_provider: "scrapedo",
+    };
+
+    expect(
+      preserveRecentDirectEnglishNmPrice(
+        latest,
+        price(120),
+        new Date("2026-07-21T12:00:00Z")
+      )
+    ).toMatchObject({
+      preserveExistingSnapshot: true,
+      price: price(null),
+      source: "tcggo",
     });
   });
 
@@ -62,5 +101,65 @@ describe("direct CardMarket price protection", () => {
       price: { cm_en_lowest_nm: 120 },
       source: "tcggo",
     });
+  });
+
+  it("keeps base CM observations separate from later TCP-only snapshots", () => {
+    const latest: ExistingPriceRecord = {
+      id: "base-backfill",
+      ...price(37),
+      tcp_market: 40,
+      fetched_at: new Date("2026-07-01T10:00:00Z"),
+      source: "cardmarket_base_backfill",
+      source_provider: "firecrawl",
+      source_url: "https://www.cardmarket.com/card",
+    };
+
+    expect(
+      preserveRecentDirectEnglishNmPrice(
+        latest,
+        { ...price(null), tcp_market: 45 },
+        new Date("2026-08-11T12:00:00Z")
+      )
+    ).toMatchObject({
+      preserveExistingSnapshot: false,
+      price: { cm_en_lowest_nm: null, tcp_market: 45 },
+      source: "tcggo",
+    });
+
+    expect(
+      preserveRecentDirectEnglishNmPrice(
+        latest,
+        { ...price(39), tcp_market: 45 },
+        new Date("2026-08-11T12:00:00Z")
+      )
+    ).toMatchObject({
+      preserveExistingSnapshot: false,
+      price: { cm_en_lowest_nm: 39, tcp_market: 45 },
+      source: "tcggo",
+    });
+  });
+
+  it("protects a recent base backfill across consecutive TCGGo refreshes", () => {
+    const authoritativeBase: ExistingPriceRecord = {
+      id: "base-backfill",
+      ...price(37),
+      fetched_at: new Date("2026-08-11T10:00:00Z"),
+      source: "cardmarket_base_backfill",
+      source_provider: "firecrawl",
+    };
+
+    for (const checkedAt of ["2026-08-11T12:00:00Z", "2026-08-11T14:00:00Z"]) {
+      expect(
+        preserveRecentDirectEnglishNmPrice(
+          authoritativeBase,
+          { ...price(39), tcp_market: 45 },
+          new Date(checkedAt)
+        )
+      ).toMatchObject({
+        preserveExistingSnapshot: false,
+        price: { cm_en_lowest_nm: null, tcp_market: 45 },
+        source: "tcggo",
+      });
+    }
   });
 });

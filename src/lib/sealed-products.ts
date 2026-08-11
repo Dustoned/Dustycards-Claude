@@ -238,7 +238,10 @@ export function getSealedMarketPriceForSource(
   price: SealedProductPriceFields | null | undefined,
   source: SealedEuMarketPriceSource
 ): number | null {
-  return price?.[source] ?? null;
+  const value = price?.[source];
+  return value != null && Number.isFinite(value) && value > 0 && value !== 9001
+    ? value
+    : null;
 }
 
 export function getSealedEuMarketPriceSelection(

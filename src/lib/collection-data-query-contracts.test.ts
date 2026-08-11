@@ -64,11 +64,17 @@ describe("collection query contracts", () => {
 
     const categorySql = String(dbMock.$queryRawUnsafe.mock.calls[0]?.[0] ?? "");
     const collectionSql = String(dbMock.$queryRawUnsafe.mock.calls[1]?.[0] ?? "");
-    for (const sql of [categorySql, collectionSql]) {
-      expect(sql).toContain("p.cm_en_lowest_nm > 0");
-      expect(sql).toContain("p.cm_en_lowest_nm <> 9001");
-      expect(sql).toMatch(/FROM "Price" p[\s\S]*WHERE p\.card_id IN[\s\S]*p\.cm_en_lowest_nm > 0/);
-    }
+    expect(categorySql).toContain("p.cm_en_lowest_nm > 0");
+    expect(categorySql).toContain("p.cm_en_lowest_nm <> 9001");
+    expect(categorySql).toMatch(
+      /FROM "Price" p[\s\S]*WHERE p\.card_id IN[\s\S]*p\.cm_en_lowest_nm > 0/
+    );
+    expect(collectionSql).toContain("JOIN requested r ON r.id = p.card_id");
+    expect(collectionSql).toContain("WHERE p.cm_en_lowest_nm > 0");
+    expect(collectionSql).toContain("p.cm_en_lowest_nm <> 9001");
+    expect(collectionSql).toContain("WHERE p.tcp_market > 0");
+    expect(collectionSql).toContain("LEFT JOIN latest_cm");
+    expect(collectionSql).toContain("LEFT JOIN latest_tcp");
   });
 
   it("keeps active sale inventory and completed transactions mutually exclusive", () => {

@@ -38,6 +38,7 @@ async function getHomeWantsPreview(
   game: TradingCardGameFilter,
   source: PriceSource
 ): Promise<HomeCardListPreview> {
+  const isTcgPlayer = source === "tcp";
   const where = {
     user_id: userId,
     dismissed_at: null,
@@ -64,6 +65,9 @@ async function getHomeWantsPreview(
             printed_card_number: true,
             episode: { select: { name: true, code: true } },
             prices: {
+              where: isTcgPlayer
+                ? { tcp_market: { gt: 0, not: 9001 } }
+                : { cm_en_lowest_nm: { gt: 0, not: 9001 } },
               orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
               take: 1,
               select: { cm_en_lowest_nm: true, tcp_market: true },
@@ -79,7 +83,6 @@ async function getHomeWantsPreview(
     totalValue: null,
     items: rows.map(({ card }) => {
       const latest = card.prices[0];
-      const isTcgPlayer = source === "tcp";
       return {
         cardId: card.id,
         name: card.name,

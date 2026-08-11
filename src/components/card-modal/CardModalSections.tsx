@@ -62,6 +62,7 @@ import {
   formatRefreshCountdown,
   getPriceRefreshInfo,
 } from "@/lib/price-refresh";
+import { CARDMARKET_NO_EN_NM_PRICE_STATUS } from "@/lib/price-source-status";
 import type { CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 import { buildCardShareCopy } from "@/lib/card-share";
@@ -235,11 +236,27 @@ function getCurrentPriceCoverage(card: ModalCardData) {
   };
 }
 
-function getSourceStatusSummary(card: ModalCardData, checkedLabel: string | null): {
+function getSourceStatusSummary(
+  card: ModalCardData,
+  checkedLabel: string | null,
+  activeMarketSource: "cardmarket" | "tcgplayer",
+  activePriceFetchedAt: string | null
+): {
   value: string;
   hint: string;
   tone: PriceStatusTone;
 } {
+  if (
+    activeMarketSource === "cardmarket" &&
+    card.price_source_status === CARDMARKET_NO_EN_NM_PRICE_STATUS
+  ) {
+    return {
+      value: "No EN/NM listings",
+      hint: "CardMarket has no English Near Mint listings",
+      tone: "warning",
+    };
+  }
+
   if (!card.tcggo_url) {
     return {
       value: "No source",
@@ -256,7 +273,7 @@ function getSourceStatusSummary(card: ModalCardData, checkedLabel: string | null
     };
   }
 
-  if (card.price_fetched_at) {
+  if (activePriceFetchedAt) {
     return {
       value: "Live",
       hint: checkedLabel ? `Source checked ${checkedLabel}` : "Source price available",
@@ -316,9 +333,11 @@ function PriceStatusInlineItem({
 export function CardPriceStatusLine({
   card,
   className = "",
+  activeMarketSource = "cardmarket",
 }: {
   card: ModalCardData;
   className?: string;
+  activeMarketSource?: "cardmarket" | "tcgplayer";
 }) {
   const [now, setNow] = useState(() => Date.now());
 
@@ -327,14 +346,23 @@ export function CardPriceStatusLine({
     return () => window.clearInterval(intervalId);
   }, []);
 
+  const activePriceFetchedAt =
+    activeMarketSource === "tcgplayer"
+      ? card.tcp_price_fetched_at ?? null
+      : card.price_fetched_at;
   const refreshInfo = useMemo(
-    () => getPriceRefreshInfo(card.rarity, card.price_fetched_at, now),
-    [card.price_fetched_at, card.rarity, now]
+    () => getPriceRefreshInfo(card.rarity, activePriceFetchedAt, now),
+    [activePriceFetchedAt, card.rarity, now]
   );
-  const latestPriceLabel = formatPriceRefreshedAt(card.price_fetched_at);
-  const latestPriceAge = formatRelativeStatusAge(card.price_fetched_at, now);
+  const latestPriceLabel = formatPriceRefreshedAt(activePriceFetchedAt);
+  const latestPriceAge = formatRelativeStatusAge(activePriceFetchedAt, now);
   const sourceCheckedLabel = formatShortStatusDate(card.price_source_checked_at);
-  const sourceStatus = getSourceStatusSummary(card, sourceCheckedLabel);
+  const sourceStatus = getSourceStatusSummary(
+    card,
+    sourceCheckedLabel,
+    activeMarketSource,
+    activePriceFetchedAt
+  );
   const historyPoints = getPriceHistoryPoints(card);
   const firstHistoryLabel = formatShortStatusDate(historyPoints[0]?.date ?? null);
   const latestHistoryLabel = formatShortStatusDate(
@@ -348,7 +376,14 @@ export function CardPriceStatusLine({
       : refreshInfo.due
         ? "Due now"
         : formatRefreshCountdown(refreshInfo.remainingMs);
-  const updatedValue = latestPriceAge ? `Updated ${latestPriceAge}` : "No price yet";
+  const hasNoCardMarketEnglishNmListings =
+    activeMarketSource === "cardmarket" &&
+    card.price_source_status === CARDMARKET_NO_EN_NM_PRICE_STATUS;
+  const updatedValue = hasNoCardMarketEnglishNmListings
+    ? "No EN/NM listings"
+    : latestPriceAge
+      ? `Updated ${latestPriceAge}`
+      : "No price yet";
   const nextUpdateValue = !refreshInfo.hasFetchedAt
     ? "Update pending"
     : !refreshInfo.autoRefreshEnabled
@@ -368,8 +403,8 @@ export function CardPriceStatusLine({
       ? "warning"
       : "neutral"
     : "good";
-  const latestPriceTone: PriceStatusTone = card.price_fetched_at
-    ? card.price_source_status === "unavailable"
+  const latestPriceTone: PriceStatusTone = activePriceFetchedAt
+    ? card.price_source_status === "unavailable" || hasNoCardMarketEnglishNmListings
       ? "warning"
       : "good"
     : "warning";
@@ -3112,7 +3147,13 @@ export function CardModalHistorySection({
                 currentValue={selectedGradedRow?.chartCurrentValue ?? selectedGradedRow?.value ?? null}
                 showCurrentValue={showCurrentValue}
                 headerLeadingAccessory={gradedHeaderLeadingAccessory}
-                headerStatus={<CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />}
+                headerStatus={
+                  <CardPriceStatusLine
+                    card={card}
+                    activeMarketSource={activeMarketSource}
+                    className="!border-b-0 !pb-0"
+                  />
+                }
                 tone="dark"
                 layout="hero"
                 stabilizeMobileHeader
@@ -3133,7 +3174,13 @@ export function CardModalHistorySection({
                 showCurrentValue={showCurrentValue}
                 headerLeadingAccessory={historyHeaderLeadingAccessory}
                 headerAccessory={rawHeaderAccessory}
-                headerStatus={<CardPriceStatusLine card={card} className="!border-b-0 !pb-0" />}
+                headerStatus={
+                  <CardPriceStatusLine
+                    card={card}
+                    activeMarketSource={activeMarketSource}
+                    className="!border-b-0 !pb-0"
+                  />
+                }
                 tone="dark"
                 layout="hero"
                 stabilizeMobileHeader

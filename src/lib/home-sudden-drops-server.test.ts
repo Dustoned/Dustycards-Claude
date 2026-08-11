@@ -288,4 +288,153 @@ describe("getFastSuddenDropsData", () => {
       sqlite.close();
     }
   });
+
+  it("hydrates split CardMarket, TCGPlayer, and quality observations without changing the selected-source timestamp", async () => {
+    const sqlite = new Database(":memory:");
+    sqlite.exec(`
+      CREATE TABLE "Episode" (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        code TEXT,
+        release_date TEXT
+      );
+      CREATE TABLE "Card" (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        image_url TEXT,
+        card_number TEXT,
+        rarity TEXT,
+        episode_id TEXT NOT NULL,
+        game TEXT NOT NULL
+      );
+      CREATE TABLE "Price" (
+        id TEXT PRIMARY KEY,
+        card_id TEXT NOT NULL,
+        fetched_at TEXT NOT NULL,
+        changed_at TEXT,
+        cm_en_lowest_nm REAL,
+        cm_de_lowest_nm REAL,
+        cm_fr_lowest_nm REAL,
+        cm_es_lowest_nm REAL,
+        cm_it_lowest_nm REAL,
+        cm_jp_lowest_nm REAL,
+        cm_en_avg_30d REAL,
+        cm_en_avg_7d REAL,
+        tcp_market REAL,
+        tcp_mid REAL,
+        tcp_low REAL
+      );
+    `);
+
+    const now = Date.now();
+    const previousCmAt = new Date(now - 23 * 60 * 60 * 1000).toISOString();
+    const previousTcpAt = new Date(now - 22 * 60 * 60 * 1000).toISOString();
+    const currentCmAt = new Date(now - 60 * 60 * 1000).toISOString();
+    const currentTcpAt = new Date(now - 30 * 60 * 1000).toISOString();
+    const currentAuxAt = new Date(now - 15 * 60 * 1000).toISOString();
+
+    sqlite.prepare(
+      `INSERT INTO "Episode" (id, name, code, release_date) VALUES (?, ?, ?, ?)`
+    ).run("split-set", "Split Sources", "SPL", "2020-01-01T00:00:00.000Z");
+    sqlite.prepare(
+      `INSERT INTO "Card" (id, name, card_number, rarity, episode_id, game)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).run("split-card", "Split Card", "001", "Rare Ultra", "split-set", "pokemon");
+
+    const insertPrice = sqlite.prepare(
+      `INSERT INTO "Price" (
+        id, card_id, fetched_at, changed_at, cm_en_lowest_nm,
+        cm_de_lowest_nm, cm_en_avg_7d, cm_en_avg_30d, tcp_market
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    insertPrice.run(
+      "cm-before",
+      "split-card",
+      previousCmAt,
+      previousCmAt,
+      150,
+      null,
+      null,
+      null,
+      null
+    );
+    insertPrice.run(
+      "tcp-before",
+      "split-card",
+      previousTcpAt,
+      previousTcpAt,
+      null,
+      null,
+      null,
+      null,
+      180
+    );
+    insertPrice.run(
+      "cm-current",
+      "split-card",
+      currentCmAt,
+      currentCmAt,
+      90,
+      null,
+      null,
+      null,
+      null
+    );
+    insertPrice.run(
+      "tcp-current",
+      "split-card",
+      currentTcpAt,
+      currentTcpAt,
+      null,
+      null,
+      null,
+      null,
+      120
+    );
+    insertPrice.run(
+      "quality-current",
+      "split-card",
+      currentAuxAt,
+      currentAuxAt,
+      null,
+      92,
+      95,
+      100,
+      null
+    );
+
+    dbMock.$queryRawUnsafe.mockImplementation((sql: string, ...params: unknown[]) =>
+      sqlite.prepare(sql).all(...params)
+    );
+
+    try {
+      const [cardMarket, tcgPlayer] = await Promise.all([
+        getFastSuddenDropsData("cm_en", "pokemon"),
+        getFastSuddenDropsData("tcp", "pokemon"),
+      ]);
+
+      expect(cardMarket.items).toHaveLength(1);
+      expect(cardMarket.items[0]).toMatchObject({
+        cardId: "split-card",
+        currentPrice: 90,
+        cardmarketPrice: 90,
+        tcgplayerPrice: 120,
+        change7d: -60,
+        latestFetchedAt: currentCmAt,
+      });
+      expect(cardMarket.items[0]?.priceQuality.status).toBe("ok");
+
+      expect(tcgPlayer.items).toHaveLength(1);
+      expect(tcgPlayer.items[0]).toMatchObject({
+        cardId: "split-card",
+        currentPrice: 120,
+        cardmarketPrice: 90,
+        tcgplayerPrice: 120,
+        change7d: -60,
+        latestFetchedAt: currentTcpAt,
+      });
+    } finally {
+      sqlite.close();
+    }
+  });
 });

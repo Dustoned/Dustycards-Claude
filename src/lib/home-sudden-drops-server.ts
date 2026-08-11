@@ -464,14 +464,12 @@ async function getFastSuddenDropRows(
   const selectedPriceAnchor = priceExpression("anchor", source);
   const selectedPriceSubquery = priceExpression("p", source);
   const selectedPriceNewer = priceExpression("newer", source);
-  const cmCurrent = priceExpression("latest", "cm_en");
-  const tcpCurrent = priceExpression("latest", "tcp");
   const refreshStartedAt = refresh.startedAt.toISOString();
   const refreshEndedAt = (refresh.finishedAt ?? new Date()).toISOString();
 
   return db.$queryRawUnsafe<FastSuddenDropRow[]>(
     `
-    WITH latest AS (
+    WITH latest_selected AS (
       SELECT
         latest.id AS latest_price_id,
         c.id AS card_id,
@@ -484,16 +482,6 @@ async function getFastSuddenDropRows(
         e.code AS episode_code,
         e.release_date AS episode_release_date,
         ${selectedPrice} AS current_price,
-        ${cmCurrent} AS cardmarket_price,
-        ${tcpCurrent} AS tcgplayer_price,
-        latest.cm_en_lowest_nm AS latest_cm_en_lowest_nm,
-        latest.cm_de_lowest_nm AS latest_cm_de_lowest_nm,
-        latest.cm_fr_lowest_nm AS latest_cm_fr_lowest_nm,
-        latest.cm_es_lowest_nm AS latest_cm_es_lowest_nm,
-        latest.cm_it_lowest_nm AS latest_cm_it_lowest_nm,
-        latest.cm_jp_lowest_nm AS latest_cm_jp_lowest_nm,
-        latest.cm_en_avg_7d AS latest_cm_en_avg_7d,
-        latest.cm_en_avg_30d AS latest_cm_en_avg_30d,
         latest.fetched_at AS latest_fetched_at,
         latest.changed_at AS latest_changed_at,
         3 AS history_points
@@ -520,29 +508,130 @@ async function getFastSuddenDropRows(
           LIMIT 1
         )
     ),
-    raw AS (
+    raw_base AS (
       SELECT
-        latest.*,
+        selected.*,
         ${selectedPriceAnchor} AS old7_price,
         anchor.cm_en_lowest_nm AS anchor_cm_en_lowest_nm,
-        anchor.cm_de_lowest_nm AS anchor_cm_de_lowest_nm,
-        anchor.cm_fr_lowest_nm AS anchor_cm_fr_lowest_nm,
-        anchor.cm_es_lowest_nm AS anchor_cm_es_lowest_nm,
-        anchor.cm_it_lowest_nm AS anchor_cm_it_lowest_nm,
-        anchor.cm_jp_lowest_nm AS anchor_cm_jp_lowest_nm,
-        anchor.cm_en_avg_7d AS anchor_cm_en_avg_7d,
-        anchor.cm_en_avg_30d AS anchor_cm_en_avg_30d,
         anchor.fetched_at AS anchor_fetched_at,
         NULL AS old30_price
-      FROM latest
+      FROM latest_selected selected
       LEFT JOIN "Price" anchor ON anchor.id = (
         SELECT p.id
         FROM "Price" p
-        WHERE p.card_id = latest.card_id
-          AND ${selectedPriceSubquery} IS NOT NULL
+        WHERE p.card_id = selected.card_id
+          AND ${selectedPriceSubquery} > 0
+          AND ${selectedPriceSubquery} <> 9001
           AND (
-            p.fetched_at < latest.latest_fetched_at
-            OR (p.fetched_at = latest.latest_fetched_at AND p.id < latest.latest_price_id)
+            p.fetched_at < selected.latest_fetched_at
+            OR (p.fetched_at = selected.latest_fetched_at AND p.id < selected.latest_price_id)
+          )
+        ORDER BY p.fetched_at DESC, p.id DESC
+        LIMIT 1
+      )
+    ),
+    raw AS (
+      SELECT
+        base.card_id,
+        base.name,
+        base.image_url,
+        base.card_number,
+        base.rarity,
+        base.episode_id,
+        base.episode_name,
+        base.episode_code,
+        base.episode_release_date,
+        base.current_price,
+        cm.cm_en_lowest_nm AS cardmarket_price,
+        tcp.tcp_market AS tcgplayer_price,
+        cm.cm_en_lowest_nm AS latest_cm_en_lowest_nm,
+        CASE WHEN aux.cm_de_lowest_nm > 0 AND aux.cm_de_lowest_nm <> 9001
+          THEN aux.cm_de_lowest_nm ELSE NULL END AS latest_cm_de_lowest_nm,
+        CASE WHEN aux.cm_fr_lowest_nm > 0 AND aux.cm_fr_lowest_nm <> 9001
+          THEN aux.cm_fr_lowest_nm ELSE NULL END AS latest_cm_fr_lowest_nm,
+        CASE WHEN aux.cm_es_lowest_nm > 0 AND aux.cm_es_lowest_nm <> 9001
+          THEN aux.cm_es_lowest_nm ELSE NULL END AS latest_cm_es_lowest_nm,
+        CASE WHEN aux.cm_it_lowest_nm > 0 AND aux.cm_it_lowest_nm <> 9001
+          THEN aux.cm_it_lowest_nm ELSE NULL END AS latest_cm_it_lowest_nm,
+        CASE WHEN aux.cm_jp_lowest_nm > 0 AND aux.cm_jp_lowest_nm <> 9001
+          THEN aux.cm_jp_lowest_nm ELSE NULL END AS latest_cm_jp_lowest_nm,
+        CASE WHEN aux.cm_en_avg_7d > 0 AND aux.cm_en_avg_7d <> 9001
+          THEN aux.cm_en_avg_7d ELSE NULL END AS latest_cm_en_avg_7d,
+        CASE WHEN aux.cm_en_avg_30d > 0 AND aux.cm_en_avg_30d <> 9001
+          THEN aux.cm_en_avg_30d ELSE NULL END AS latest_cm_en_avg_30d,
+        base.anchor_cm_en_lowest_nm,
+        CASE WHEN anchor_aux.cm_de_lowest_nm > 0 AND anchor_aux.cm_de_lowest_nm <> 9001
+          THEN anchor_aux.cm_de_lowest_nm ELSE NULL END AS anchor_cm_de_lowest_nm,
+        CASE WHEN anchor_aux.cm_fr_lowest_nm > 0 AND anchor_aux.cm_fr_lowest_nm <> 9001
+          THEN anchor_aux.cm_fr_lowest_nm ELSE NULL END AS anchor_cm_fr_lowest_nm,
+        CASE WHEN anchor_aux.cm_es_lowest_nm > 0 AND anchor_aux.cm_es_lowest_nm <> 9001
+          THEN anchor_aux.cm_es_lowest_nm ELSE NULL END AS anchor_cm_es_lowest_nm,
+        CASE WHEN anchor_aux.cm_it_lowest_nm > 0 AND anchor_aux.cm_it_lowest_nm <> 9001
+          THEN anchor_aux.cm_it_lowest_nm ELSE NULL END AS anchor_cm_it_lowest_nm,
+        CASE WHEN anchor_aux.cm_jp_lowest_nm > 0 AND anchor_aux.cm_jp_lowest_nm <> 9001
+          THEN anchor_aux.cm_jp_lowest_nm ELSE NULL END AS anchor_cm_jp_lowest_nm,
+        CASE WHEN anchor_aux.cm_en_avg_7d > 0 AND anchor_aux.cm_en_avg_7d <> 9001
+          THEN anchor_aux.cm_en_avg_7d ELSE NULL END AS anchor_cm_en_avg_7d,
+        CASE WHEN anchor_aux.cm_en_avg_30d > 0 AND anchor_aux.cm_en_avg_30d <> 9001
+          THEN anchor_aux.cm_en_avg_30d ELSE NULL END AS anchor_cm_en_avg_30d,
+        base.latest_fetched_at,
+        base.latest_changed_at,
+        base.anchor_fetched_at,
+        base.history_points,
+        base.old7_price,
+        base.old30_price
+      FROM raw_base base
+      LEFT JOIN "Price" cm ON cm.id = (
+        SELECT p.id
+        FROM "Price" p
+        WHERE p.card_id = base.card_id
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
+          AND p.fetched_at <= ?
+        ORDER BY p.fetched_at DESC, p.id DESC
+        LIMIT 1
+      )
+      LEFT JOIN "Price" tcp ON tcp.id = (
+        SELECT p.id
+        FROM "Price" p
+        WHERE p.card_id = base.card_id
+          AND p.tcp_market > 0
+          AND p.tcp_market <> 9001
+          AND p.fetched_at <= ?
+        ORDER BY p.fetched_at DESC, p.id DESC
+        LIMIT 1
+      )
+      LEFT JOIN "Price" aux ON aux.id = (
+        SELECT p.id
+        FROM "Price" p
+        WHERE p.card_id = base.card_id
+          AND p.fetched_at <= ?
+          AND (
+            (p.cm_de_lowest_nm > 0 AND p.cm_de_lowest_nm <> 9001)
+            OR (p.cm_fr_lowest_nm > 0 AND p.cm_fr_lowest_nm <> 9001)
+            OR (p.cm_es_lowest_nm > 0 AND p.cm_es_lowest_nm <> 9001)
+            OR (p.cm_it_lowest_nm > 0 AND p.cm_it_lowest_nm <> 9001)
+            OR (p.cm_jp_lowest_nm > 0 AND p.cm_jp_lowest_nm <> 9001)
+            OR (p.cm_en_avg_7d > 0 AND p.cm_en_avg_7d <> 9001)
+            OR (p.cm_en_avg_30d > 0 AND p.cm_en_avg_30d <> 9001)
+          )
+        ORDER BY p.fetched_at DESC, p.id DESC
+        LIMIT 1
+      )
+      LEFT JOIN "Price" anchor_aux ON anchor_aux.id = (
+        SELECT p.id
+        FROM "Price" p
+        WHERE p.card_id = base.card_id
+          AND base.anchor_fetched_at IS NOT NULL
+          AND p.fetched_at <= base.anchor_fetched_at
+          AND (
+            (p.cm_de_lowest_nm > 0 AND p.cm_de_lowest_nm <> 9001)
+            OR (p.cm_fr_lowest_nm > 0 AND p.cm_fr_lowest_nm <> 9001)
+            OR (p.cm_es_lowest_nm > 0 AND p.cm_es_lowest_nm <> 9001)
+            OR (p.cm_it_lowest_nm > 0 AND p.cm_it_lowest_nm <> 9001)
+            OR (p.cm_jp_lowest_nm > 0 AND p.cm_jp_lowest_nm <> 9001)
+            OR (p.cm_en_avg_7d > 0 AND p.cm_en_avg_7d <> 9001)
+            OR (p.cm_en_avg_30d > 0 AND p.cm_en_avg_30d <> 9001)
           )
         ORDER BY p.fetched_at DESC, p.id DESC
         LIMIT 1
@@ -577,6 +666,9 @@ async function getFastSuddenDropRows(
     refreshEndedAt,
     SUDDEN_DROP_DEAL_MAX_CURRENT_PRICE,
     refreshStartedAt,
+    refreshEndedAt,
+    refreshEndedAt,
+    refreshEndedAt,
     refreshEndedAt,
     thresholds.minimumAmount,
     thresholds.minimumPercent,

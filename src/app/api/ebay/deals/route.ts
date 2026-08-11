@@ -11,6 +11,7 @@ import {
   COLLECTION_GRADING_COMPANIES,
   getCollectionMatchedGradedPrice,
 } from "@/lib/collection";
+import { hydrateLatestCardMarketFields } from "@/lib/current-card-prices";
 import { db } from "@/lib/db";
 import {
   buildEbayCardDemandSearchQuery,
@@ -157,7 +158,12 @@ async function getCardDealContext(cardId: string, userId: string) {
         },
       },
       prices: {
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        where: {
+          OR: [
+            { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            { tcp_market: { gt: 0, not: 9001 } },
+          ],
+        },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
@@ -202,12 +208,13 @@ async function getCardDealContext(cardId: string, userId: string) {
 
   if (!card) return null;
 
-  const latestPrice = card.prices[0] ?? null;
+  const [hydratedCard] = await hydrateLatestCardMarketFields([card]);
+  const latestPrice = hydratedCard.prices[0] ?? null;
   const collectionItem = card.collectionItems[0] ?? null;
   const hasSavedGrade = Boolean(collectionItem?.grading_company && collectionItem.grading_grade);
 
   return {
-    ...card,
+    ...hydratedCard,
     latestPrice,
     collectionItem,
     hasSavedGrade,
@@ -538,7 +545,12 @@ async function getCandidateCardContexts(input: {
         },
       },
       prices: {
-        where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        where: {
+          OR: [
+            { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+            { tcp_market: { gt: 0, not: 9001 } },
+          ],
+        },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
         take: 1,
         select: {
@@ -581,7 +593,8 @@ async function getCandidateCardContexts(input: {
     },
   });
 
-  const broadContexts = cards.map((card) => {
+  const hydratedCards = await hydrateLatestCardMarketFields(cards);
+  const broadContexts = hydratedCards.map((card) => {
     const latestPrice = card.prices[0] ?? null;
     const collectionItem = card.collectionItems[0] ?? null;
     const hasSavedGrade = Boolean(collectionItem?.grading_company && collectionItem.grading_grade);

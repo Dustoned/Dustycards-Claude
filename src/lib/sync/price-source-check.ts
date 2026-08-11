@@ -1,3 +1,5 @@
+import { CARDMARKET_NO_EN_NM_PRICE_STATUS } from "@/lib/price-source-status";
+
 export type PriceSnapshotWriteMode = "new" | "refreshed" | "none" | "protected";
 
 export interface PriceSourceCheckUpdate {
@@ -34,6 +36,43 @@ export function resolvePriceSourceCheckUpdate(input: {
   }
 
   return null;
+}
+
+/**
+ * A TCP-only TCGGo refresh must not erase the stronger CardMarket-specific
+ * observation that the exact product currently has no English/NM listing.
+ * Only a direct CardMarket job may clear that observation; TCGGo can lag.
+ */
+export function preserveCardMarketNoEnglishNmStatus(input: {
+  update: PriceSourceCheckUpdate | null;
+  currentStatus: string | null | undefined;
+}): PriceSourceCheckUpdate | null {
+  if (input.currentStatus !== CARDMARKET_NO_EN_NM_PRICE_STATUS) {
+    return input.update;
+  }
+
+  // This timestamp belongs to the direct CardMarket observation. A TCGGo
+  // refresh must not move it forward or the direct seven-day recheck can be
+  // postponed forever. The direct CardMarket jobs own both fields.
+  return null;
+}
+
+/**
+ * TCGGo can lag behind the live CardMarket offers page. Once the exact
+ * CardMarket product has conclusively returned no English/NM offer, do not
+ * let a later TCGGo payload resurrect an older English/NM quote. Independent
+ * TCP and other-language fields remain usable and are still persisted.
+ */
+export function suppressStaleEnglishNmPriceForNoListing<
+  T extends { cm_en_lowest_nm: number | null },
+>(input: {
+  price: T;
+  currentStatus: string | null | undefined;
+}): T {
+  if (input.currentStatus !== CARDMARKET_NO_EN_NM_PRICE_STATUS) {
+    return input.price;
+  }
+  return { ...input.price, cm_en_lowest_nm: null };
 }
 
 function parseTimestamp(value: Date | string | null | undefined): Date | null {

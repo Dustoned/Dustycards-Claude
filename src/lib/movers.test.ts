@@ -18,6 +18,7 @@ const TEST_NON_OWNED_CARD_ID = `${TEST_PREFIX}-non-owned-card`;
 const TEST_MIXED_LANGUAGE_CARD_ID = `${TEST_PREFIX}-mixed-language-card`;
 const TEST_SENTINEL_CARD_ID = `${TEST_PREFIX}-sentinel-card`;
 const TEST_SOLD_CARD_ID = `${TEST_PREFIX}-sold-card`;
+const TEST_SPLIT_SOURCE_CARD_ID = `${TEST_PREFIX}-split-source-card`;
 const TEST_COLLECTION_ITEM_ID = `${TEST_PREFIX}-collection-item`;
 const TEST_SOLD_COLLECTION_ITEM_ID = `${TEST_PREFIX}-sold-collection-item`;
 
@@ -27,6 +28,7 @@ const TEST_CARD_IDS = [
   TEST_MIXED_LANGUAGE_CARD_ID,
   TEST_SENTINEL_CARD_ID,
   TEST_SOLD_CARD_ID,
+  TEST_SPLIT_SOURCE_CARD_ID,
 ];
 
 function daysAgo(days: number): Date {
@@ -34,6 +36,17 @@ function daysAgo(days: number): Date {
   date.setUTCDate(date.getUTCDate() - days);
   return date;
 }
+
+function daysAgoAtHour(days: number, hour: number): Date {
+  const date = daysAgo(days);
+  date.setUTCHours(hour, 0, 0, 0);
+  return date;
+}
+
+const SPLIT_CM_BASELINE_AT = daysAgoAtHour(10, 8);
+const SPLIT_TCP_BASELINE_AT = daysAgoAtHour(10, 20);
+const SPLIT_CM_CURRENT_AT = daysAgoAtHour(1, 8);
+const SPLIT_TCP_CURRENT_AT = daysAgoAtHour(1, 20);
 
 async function cleanupMoverFixtures() {
   await db.collectionCard.deleteMany({
@@ -117,6 +130,14 @@ beforeAll(async () => {
         episode_id: TEST_EPISODE_ID,
         name: "Mover Fixture Sold",
         card_number: "5",
+        rarity: "Secret Rare",
+      },
+      {
+        id: TEST_SPLIT_SOURCE_CARD_ID,
+        game: POKEMON_GAME,
+        episode_id: TEST_EPISODE_ID,
+        name: "Mover Fixture Split Sources",
+        card_number: "6",
         rarity: "Secret Rare",
       },
     ],
@@ -204,6 +225,30 @@ beforeAll(async () => {
         cm_en_avg_7d: 45,
         cm_en_avg_30d: 45,
       },
+      {
+        card_id: TEST_SPLIT_SOURCE_CARD_ID,
+        fetched_at: SPLIT_CM_BASELINE_AT,
+        cm_en_lowest_nm: 20,
+        cm_en_avg_7d: 20,
+        cm_en_avg_30d: 20,
+      },
+      {
+        card_id: TEST_SPLIT_SOURCE_CARD_ID,
+        fetched_at: SPLIT_TCP_BASELINE_AT,
+        tcp_market: 25,
+      },
+      {
+        card_id: TEST_SPLIT_SOURCE_CARD_ID,
+        fetched_at: SPLIT_CM_CURRENT_AT,
+        cm_en_lowest_nm: 40,
+        cm_en_avg_7d: 40,
+        cm_en_avg_30d: 40,
+      },
+      {
+        card_id: TEST_SPLIT_SOURCE_CARD_ID,
+        fetched_at: SPLIT_TCP_CURRENT_AT,
+        tcp_market: 50,
+      },
     ],
   });
   await db.cardGradedPrice.create({
@@ -270,6 +315,47 @@ describe("mover pull-rate weighting", () => {
 });
 
 describe("mover scopes", () => {
+  it(
+    "preserves separately written CardMarket and TCGPlayer values for each day",
+    async () => {
+      const [cardmarketData, tcgplayerData] = await Promise.all([
+        getMovers("cm_en", "all", "all", TEST_USER_ID),
+        getMovers("tcp", "all", "all", TEST_USER_ID),
+      ]);
+      const cardmarketMover = cardmarketData.movers.find(
+        (item) => item.cardId === TEST_SPLIT_SOURCE_CARD_ID
+      );
+      const tcgplayerMover = tcgplayerData.movers.find(
+        (item) => item.cardId === TEST_SPLIT_SOURCE_CARD_ID
+      );
+
+      expect(cardmarketMover).toMatchObject({
+        source: "cardmarket",
+        currentPrice: 40,
+        cardmarketPrice: 40,
+        tcgplayerPrice: 50,
+        historyPoints: 2,
+        cardmarketHistoryPoints: 2,
+        tcgplayerHistoryPoints: 2,
+        change7d: 20,
+      });
+      expect(cardmarketMover?.latestFetchedAt).toBe(SPLIT_CM_CURRENT_AT.toISOString());
+
+      expect(tcgplayerMover).toMatchObject({
+        source: "tcgplayer",
+        currentPrice: 50,
+        cardmarketPrice: 40,
+        tcgplayerPrice: 50,
+        historyPoints: 2,
+        cardmarketHistoryPoints: 2,
+        tcgplayerHistoryPoints: 2,
+        change7d: 25,
+      });
+      expect(tcgplayerMover?.latestFetchedAt).toBe(SPLIT_TCP_CURRENT_AT.toISOString());
+    },
+    30000
+  );
+
   it(
     "keeps CardMarket on valid English NM data and excludes sold or sentinel ownership data",
     async () => {

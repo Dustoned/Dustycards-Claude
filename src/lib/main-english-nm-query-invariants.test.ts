@@ -30,7 +30,11 @@ describe("main English NM query invariants", () => {
 
   it("filters illustrator card and daily-history prices before ranking rows", () => {
     const contents = source("src/app/illustrators/[artist]/page.tsx");
-    expectUsableEnglishNmFilter(contents, "p2");
+    expect(contents).toContain("latest_cm AS");
+    expect(contents).toContain("LEFT JOIN latest_cm cm");
     expectUsableEnglishNmFilter(contents, "p");
+    for (const condition of USABLE_ENGLISH_NM_FILTER) {
+      expect(contents.match(new RegExp(`p\\.${condition}`, "g"))).toHaveLength(2);
+    }
   });
 });

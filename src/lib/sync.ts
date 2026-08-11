@@ -1,6 +1,10 @@
 import { db } from "@/lib/db";
 import type { Prisma } from "@/generated/prisma";
 import {
+  buildNormalizedSealedPriceFields,
+  buildPreservingSealedPriceUpdate,
+} from "@/lib/sealed-price-preservation";
+import {
   formatAutoPriceRefreshPauseRemaining,
   getAutoPriceRefreshPauseRemainingMs,
 } from "@/lib/auto-price-refresh-pause";
@@ -46,10 +50,16 @@ import {
   type GradedCreateRow,
   type PriceSnapshotData,
 } from "@/lib/sync/card-helpers";
-import { preserveRecentDirectEnglishNmPrice } from "@/lib/sync/direct-cardmarket-protection";
+import {
+  AUTHORITATIVE_DIRECT_CARDMARKET_SOURCES,
+  hasPriceSourceProvenanceChanged,
+  preserveRecentDirectEnglishNmPrice,
+} from "@/lib/sync/direct-cardmarket-protection";
 import {
   getLatestPriceSourceObservationAt,
+  preserveCardMarketNoEnglishNmStatus,
   resolvePriceSourceCheckUpdate,
+  suppressStaleEnglishNmPriceForNoListing,
   type PriceSnapshotWriteMode,
 } from "@/lib/sync/price-source-check";
 import {
@@ -79,7 +89,10 @@ import {
   type NormalizedSealedProduct,
 } from "@/lib/tcggo";
 import { isCardCompatibleWithEpisodeCode } from "@/lib/card-episode-integrity";
-import { UPCOMING_PRICE_SOURCE_STATUS } from "@/lib/price-source-status";
+import {
+  CARDMARKET_NO_EN_NM_PRICE_STATUS,
+  UPCOMING_PRICE_SOURCE_STATUS,
+} from "@/lib/price-source-status";
 import {
   createAutoPriceRefreshBatchId,
   createAutoPriceRefreshLogDetails,
@@ -1202,6 +1215,50 @@ function getTierWeight(tier: PriceRefreshTier): number {
   }
 }
 
+async function loadRecentAuthoritativeCardMarketPrices(
+  tx: Prisma.TransactionClient,
+  cardIds: readonly string[],
+  observedAt: Date
+): Promise<Map<string, ExistingPriceRecord>> {
+  const result = new Map<string, ExistingPriceRecord>();
+  if (cardIds.length === 0) return result;
+
+  const rows = await tx.price.findMany({
+    where: {
+      card_id: { in: [...cardIds] },
+      source: { in: [...AUTHORITATIVE_DIRECT_CARDMARKET_SOURCES] },
+      fetched_at: { gte: new Date(observedAt.getTime() - 24 * 60 * 60_000) },
+      cm_en_lowest_nm: { gt: 0, not: 9001 },
+    },
+    orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
+    select: {
+      id: true,
+      card_id: true,
+      fetched_at: true,
+      source: true,
+      source_provider: true,
+      source_url: true,
+      cm_en_lowest_nm: true,
+      cm_de_lowest_nm: true,
+      cm_fr_lowest_nm: true,
+      cm_es_lowest_nm: true,
+      cm_it_lowest_nm: true,
+      cm_jp_lowest_nm: true,
+      cm_en_avg_30d: true,
+      cm_en_avg_7d: true,
+      tcp_market: true,
+      tcp_mid: true,
+      tcp_low: true,
+    },
+  });
+  for (const row of rows) {
+    const { card_id: cardId, ...price } = row;
+    if (result.has(cardId)) continue;
+    result.set(cardId, price);
+  }
+  return result;
+}
+
 type PriceCreateRow = {
   card_id: string;
   fetched_at: Date;
@@ -1213,6 +1270,7 @@ type PriceCreateRow = {
 
 function queuePriceSnapshotWrite(
   latestPrice: ExistingPriceRecord | null,
+  authoritativeCardMarketPrice: ExistingPriceRecord | null,
   nextPrice: PriceSnapshotData,
   cardId: string,
   fetchedAt: Date,
@@ -1221,7 +1279,7 @@ function queuePriceSnapshotWrite(
   priceRefreshes: string[]
 ): PriceSnapshotWriteMode {
   const protectedPrice = preserveRecentDirectEnglishNmPrice(
-    latestPrice,
+    authoritativeCardMarketPrice ?? latestPrice,
     nextPrice,
     fetchedAt
   );
@@ -1229,11 +1287,18 @@ function queuePriceSnapshotWrite(
   // A normal TCGGo observation must not advance it while a fresher direct
   // CardMarket quote is protected, otherwise stale direct data looks new.
   if (protectedPrice.preserveExistingSnapshot) return "protected";
-  const plan = planPriceSnapshotWrite(
+  const provenanceChanged = hasPriceSourceProvenanceChanged(
     latestPrice,
-    protectedPrice.price,
-    options.refreshAllPrices
+    protectedPrice.source,
+    protectedPrice.sourceProvider
   );
+  const plan = provenanceChanged && hasAnyPrice(protectedPrice.price)
+    ? { mode: "new" as const, recordSnapshot: true, refreshExistingSnapshot: false }
+    : planPriceSnapshotWrite(
+        latestPrice,
+        protectedPrice.price,
+        options.refreshAllPrices
+      );
 
   if (plan.recordSnapshot) {
     priceCreates.push({
@@ -2476,6 +2541,11 @@ async function syncEpisodeCards(
     const existingCards = await findExistingCardsForSync(tx, {
       episode_id: episodeId,
     });
+    const authoritativeCardMarketPrices = await loadRecentAuthoritativeCardMarketPrices(
+      tx,
+      existingCards.map((card) => card.id),
+      fetchedAt
+    );
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: PriceCreateRow[] = [];
@@ -2569,9 +2639,13 @@ async function syncEpisodeCards(
       });
 
       const latestPrice = existingCard?.prices[0] ?? null;
-      const nextPrice = extractPrices(card.prices);
+      const nextPrice = suppressStaleEnglishNmPriceForNoListing({
+        price: extractPrices(card.prices),
+        currentStatus: existingCard?.price_source_status,
+      });
       const writeMode = queuePriceSnapshotWrite(
         latestPrice,
+        authoritativeCardMarketPrices.get(card.id) ?? null,
         nextPrice,
         card.id,
         fetchedAt,
@@ -2579,11 +2653,14 @@ async function syncEpisodeCards(
         priceCreates,
         priceRefreshes
       );
-      const priceSourceCheckUpdate = resolvePriceSourceCheckUpdate({
-        mode: writeMode,
-        checkedAt: fetchedAt,
-        refreshAllPrices: options.refreshAllPrices,
-        hasExistingPrice: Boolean(latestPrice),
+      const priceSourceCheckUpdate = preserveCardMarketNoEnglishNmStatus({
+        update: resolvePriceSourceCheckUpdate({
+          mode: writeMode,
+          checkedAt: fetchedAt,
+          refreshAllPrices: options.refreshAllPrices,
+          hasExistingPrice: Boolean(latestPrice),
+        }),
+        currentStatus: existingCard?.price_source_status,
       });
 
       if (writeMode === "new") {
@@ -3131,6 +3208,10 @@ export async function reconcilePriceSourceCheckedAtFromSnapshots(): Promise<numb
           WHERE "Price".card_id = "Card".id
         )
       WHERE tcggo_url IS NOT NULL
+        AND (
+          price_source_status IS NULL
+          OR price_source_status <> ${CARDMARKET_NO_EN_NM_PRICE_STATUS}
+        )
         AND EXISTS (
           SELECT 1
           FROM "Price"
@@ -3432,6 +3513,11 @@ async function refreshEpisodeDueCards(
     const existingCards = await findExistingCardsForSync(tx, {
       id: { in: cardIds },
     });
+    const authoritativeCardMarketPrices = await loadRecentAuthoritativeCardMarketPrices(
+      tx,
+      existingCards.map((card) => card.id),
+      fetchedAt
+    );
 
     const existingCardMap = new Map(existingCards.map((card) => [card.id, card]));
     const priceCreates: PriceCreateRow[] = [];
@@ -3461,13 +3547,15 @@ async function refreshEpisodeDueCards(
       }
 
       if (!remoteCard) {
-        await tx.card.update({
-          where: { id: cardId },
-          data: {
-            price_source_status: "unavailable",
-            price_source_checked_at: fetchedAt,
-          },
-        });
+        if (existingCard.price_source_status !== CARDMARKET_NO_EN_NM_PRICE_STATUS) {
+          await tx.card.update({
+            where: { id: cardId },
+            data: {
+              price_source_status: "unavailable",
+              price_source_checked_at: fetchedAt,
+            },
+          });
+        }
         continue;
       }
 
@@ -3521,9 +3609,13 @@ async function refreshEpisodeDueCards(
       });
 
       const latestPrice = existingCard.prices[0] ?? null;
-      const nextPrice = extractPrices(remoteCard.prices);
+      const nextPrice = suppressStaleEnglishNmPriceForNoListing({
+        price: extractPrices(remoteCard.prices),
+        currentStatus: existingCard.price_source_status,
+      });
       const writeMode = queuePriceSnapshotWrite(
         latestPrice,
+        authoritativeCardMarketPrices.get(cardId) ?? null,
         nextPrice,
         cardId,
         fetchedAt,
@@ -3531,11 +3623,14 @@ async function refreshEpisodeDueCards(
         priceCreates,
         priceRefreshes
       );
-      const priceSourceCheckUpdate = resolvePriceSourceCheckUpdate({
-        mode: writeMode,
-        checkedAt: fetchedAt,
-        refreshAllPrices: true,
-        hasExistingPrice: Boolean(latestPrice),
+      const priceSourceCheckUpdate = preserveCardMarketNoEnglishNmStatus({
+        update: resolvePriceSourceCheckUpdate({
+          mode: writeMode,
+          checkedAt: fetchedAt,
+          refreshAllPrices: true,
+          hasExistingPrice: Boolean(latestPrice),
+        }),
+        currentStatus: existingCard.price_source_status,
       });
 
       if (writeMode === "new") {
@@ -3674,11 +3769,18 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
         });
 
         const latestPrice = existingCard.prices[0] ?? null;
-        const nextPrice = extractPrices(remoteCard.prices);
+        const authoritativeCardMarketPrice = (
+          await loadRecentAuthoritativeCardMarketPrices(tx, [cardId], fetchedAt)
+        ).get(cardId) ?? null;
+        const nextPrice = suppressStaleEnglishNmPriceForNoListing({
+          price: extractPrices(remoteCard.prices),
+          currentStatus: existingCard.price_source_status,
+        });
         const priceCreates: PriceCreateRow[] = [];
         const priceRefreshes: string[] = [];
         const writeMode = queuePriceSnapshotWrite(
           latestPrice,
+          authoritativeCardMarketPrice,
           nextPrice,
           cardId,
           fetchedAt,
@@ -3686,11 +3788,14 @@ export async function runCardPriceRefresh(cardId: string): Promise<CardPriceRefr
           priceCreates,
           priceRefreshes
         );
-        const priceSourceCheckUpdate = resolvePriceSourceCheckUpdate({
-          mode: writeMode,
-          checkedAt: fetchedAt,
-          refreshAllPrices: true,
-          hasExistingPrice: Boolean(latestPrice),
+        const priceSourceCheckUpdate = preserveCardMarketNoEnglishNmStatus({
+          update: resolvePriceSourceCheckUpdate({
+            mode: writeMode,
+            checkedAt: fetchedAt,
+            refreshAllPrices: true,
+            hasExistingPrice: Boolean(latestPrice),
+          }),
+          currentStatus: existingCard.price_source_status,
         });
 
         if (writeMode === "new") {
@@ -5088,6 +5193,7 @@ async function persistEpisodeSealedProducts(
 
   await runExclusiveDbWrite(() => db.$transaction(async (tx) => {
     for (const product of products) {
+      const normalizedPrice = buildNormalizedSealedPriceFields(product.price);
       await tx.sealedProduct.upsert({
         where: { id: product.id },
         create: {
@@ -5100,14 +5206,7 @@ async function persistEpisodeSealedProducts(
           cardmarket_url: product.cardmarket_url,
           cardmarket_id: product.cardmarket_id,
           tcgplayer_id: product.tcgplayer_id,
-          cm_lowest: product.price.cm_lowest,
-          cm_lowest_eu: product.price.cm_lowest_eu,
-          cm_lowest_de: product.price.cm_lowest_de,
-          cm_lowest_fr: product.price.cm_lowest_fr,
-          cm_lowest_es: product.price.cm_lowest_es,
-          cm_lowest_it: product.price.cm_lowest_it,
-          cm_avg_7d: product.price.cm_avg_7d,
-          cm_avg_30d: product.price.cm_avg_30d,
+          ...normalizedPrice,
           synced_at: syncedAt,
         },
         update: {
@@ -5122,14 +5221,7 @@ async function persistEpisodeSealedProducts(
           cardmarket_url: product.cardmarket_url,
           cardmarket_id: product.cardmarket_id,
           tcgplayer_id: product.tcgplayer_id,
-          cm_lowest: product.price.cm_lowest,
-          cm_lowest_eu: product.price.cm_lowest_eu,
-          cm_lowest_de: product.price.cm_lowest_de,
-          cm_lowest_fr: product.price.cm_lowest_fr,
-          cm_lowest_es: product.price.cm_lowest_es,
-          cm_lowest_it: product.price.cm_lowest_it,
-          cm_avg_7d: product.price.cm_avg_7d,
-          cm_avg_30d: product.price.cm_avg_30d,
+          ...buildPreservingSealedPriceUpdate(product.price),
           synced_at: syncedAt,
         },
       });
@@ -5159,14 +5251,7 @@ async function persistEpisodeSealedProducts(
         product_id: product.id,
         episode_id: episodeId,
         fetched_at: syncedAt,
-        cm_lowest: product.price.cm_lowest,
-        cm_lowest_eu: product.price.cm_lowest_eu,
-        cm_lowest_de: product.price.cm_lowest_de,
-        cm_lowest_fr: product.price.cm_lowest_fr,
-        cm_lowest_es: product.price.cm_lowest_es,
-        cm_lowest_it: product.price.cm_lowest_it,
-        cm_avg_7d: product.price.cm_avg_7d,
-        cm_avg_30d: product.price.cm_avg_30d,
+        ...buildNormalizedSealedPriceFields(product.price),
       })),
     });
 

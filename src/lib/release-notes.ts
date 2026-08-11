@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.61",
+    releasedAt: "August 11, 2026",
+    title: "Honest marketplace prices",
+    summary: "CardMarket, TCGPlayer and sealed values now keep their own source history and freshness.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Correct prices without wasting credits",
+        highlights: [
+          "English Near Mint CardMarket quotes and TCGPlayer prices refresh independently throughout the app.",
+          "A confirmed empty English/NM listing now stays visible and cannot be overwritten by an older aggregator value.",
+          "Sealed quotes already present in local history are restored before the fallback worker spends a scrape credit.",
+          "Exact remaining CardMarket gaps are checked gradually with strict product matching and a safety reserve.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.57",
     releasedAt: "August 10, 2026",
     title: "Graded Movers on Home",

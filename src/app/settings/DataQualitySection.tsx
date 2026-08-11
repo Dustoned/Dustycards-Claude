@@ -340,11 +340,11 @@ export default function DataQualitySection({ cards, sealed }: DataQualitySection
     },
     {
       key: "card-prices",
-      label: "No price data",
+      label: "Missing CardMarket EN/NM",
       shortLabel: "No price",
       value: cards.missingPrices,
       total: cards.total,
-      hint: "Cards without a price that the source should be able to price. Known source-unpriced cards are excluded.",
+      hint: "Released Pokémon cards without a valid English Near Mint CardMarket quote. Confirmed no-listing and upcoming cards are excluded.",
       priority: "high",
     },
     {
@@ -416,7 +416,7 @@ export default function DataQualitySection({ cards, sealed }: DataQualitySection
       shortLabel: "No price",
       value: sealed.missingPrices,
       total: sealed.total,
-      hint: "Sealed products without stored market prices.",
+      hint: "Sealed products without a current EU market quote; averages alone do not count as a price.",
       priority: "high",
     },
     {

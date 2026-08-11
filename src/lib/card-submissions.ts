@@ -1215,6 +1215,25 @@ export function parseStrictCardMarketEnglishNmPrice(
   return { priceEur: Math.min(...prices), offerCount: prices.length };
 }
 
+/**
+ * Distinguishes a fully rendered offer table with no matching EN/NM row from
+ * a blocked, partial or otherwise unreadable page. A rendered product table
+ * is conclusive only when a priced offer row or CardMarket's exact empty-state
+ * marker is present.
+ */
+export function hasConclusiveCardMarketOfferState(
+  scrape: FirecrawlPageScrapeResult
+): boolean {
+  const hasReadableRow = extractCardMarketArticleRows(scrape.html).some((row) => {
+    const hasAttributes = /\bclass=["'][^"']*\bproduct-attributes\b/i.test(row);
+    return hasAttributes && extractCardMarketArticlePrice(row) != null;
+  });
+  if (hasReadableRow) return true;
+  return /<p\b[^>]*class=["'][^"']*\bnoResults\b[^"']*["'][^>]*>\s*Currently there are no available offers for this article\.\s*<\/p>/i.test(
+    scrape.html
+  );
+}
+
 function extractConditionPrice(
   scrape: FirecrawlPageScrapeResult,
   condition: string

@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import { getPriceRefreshInfo } from "@/lib/price-refresh";
 import {
   getLatestPriceSourceObservationAt,
+  preserveCardMarketNoEnglishNmStatus,
   resolvePriceSourceCheckUpdate,
+  suppressStaleEnglishNmPriceForNoListing,
 } from "@/lib/sync/price-source-check";
 
 describe("price source checks", () => {
@@ -41,6 +43,41 @@ describe("price source checks", () => {
       price_source_status: "unavailable",
       price_source_checked_at: checkedAt,
     });
+  });
+
+  it("does not let a TCP-only refresh erase a CardMarket no-EN/NM observation", () => {
+    const checkedAt = new Date("2026-08-11T12:00:00.000Z");
+    const update = { price_source_status: null, price_source_checked_at: checkedAt };
+
+    expect(
+      preserveCardMarketNoEnglishNmStatus({
+        update,
+        currentStatus: "cardmarket-no-en-nm",
+      })
+    ).toBeNull();
+  });
+
+  it("keeps stale TCGGo English/NM out while preserving independent prices", () => {
+    const price = suppressStaleEnglishNmPriceForNoListing({
+      currentStatus: "cardmarket-no-en-nm",
+      price: {
+        cm_en_lowest_nm: 12.5,
+        cm_de_lowest_nm: 13,
+        tcp_market: 14,
+      },
+    });
+
+    expect(price).toEqual({
+      cm_en_lowest_nm: null,
+      cm_de_lowest_nm: 13,
+      tcp_market: 14,
+    });
+    expect(
+      suppressStaleEnglishNmPriceForNoListing({
+        currentStatus: null,
+        price: { cm_en_lowest_nm: 12.5 },
+      })
+    ).toEqual({ cm_en_lowest_nm: 12.5 });
   });
 
   it("uses a later protected check so Chase Watch cards do not repeat every tick", () => {

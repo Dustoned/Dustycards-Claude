@@ -20,7 +20,15 @@ import {
   isCardHistoryQuotaDrainWindow,
   maybeStartCardHistoryQuotaDrainJob,
 } from "@/lib/sync/card-history-auto-drain";
-import { maybeStartExternalSignalRadarJob } from "@/lib/sync/external-signal-radar-job";
+import {
+  getCardMarketBasePriceJobSnapshot,
+  maybeStartCardMarketBasePriceJob,
+  type CardMarketBasePriceJobSnapshot,
+} from "@/lib/sync/cardmarket-base-price-job";
+import {
+  getExternalSignalRadarJobSnapshot,
+  maybeStartExternalSignalRadarJob,
+} from "@/lib/sync/external-signal-radar-job";
 import {
   captureOpenExternalSignalOutcomePrices,
   evaluatePendingExternalSignalOutcomes,
@@ -33,6 +41,11 @@ import {
   maybeStartSealedSyncJob,
   type SealedSyncJobSnapshot,
 } from "@/lib/sync/sealed-sync-job";
+import {
+  getSealedCardMarketBasePriceJobSnapshot,
+  maybeStartSealedCardMarketBasePriceJob,
+  type SealedCardMarketBasePriceJobSnapshot,
+} from "@/lib/sync/sealed-cardmarket-base-price-job";
 import {
   getSetLifecycleObservationBucket,
   maybeRunSetLifecycleJob,
@@ -92,6 +105,8 @@ export interface SyncSchedulerTickResult {
     error: string | null;
   };
   chaseWatch: NewReleaseChasePriceJobSnapshot;
+  cardmarketBasePrices: CardMarketBasePriceJobSnapshot;
+  sealedCardmarketBasePrices: SealedCardMarketBasePriceJobSnapshot;
   priceAlerts: CardPriceAlertSweepResult;
   setLifecycle: SetLifecycleJobSnapshot;
   sealedSync: SealedSyncJobSnapshot;
@@ -142,6 +157,8 @@ async function recordSchedulerTick(result: SyncSchedulerResult): Promise<void> {
       result.historyDrain.running ||
       result.externalRadar.running ||
       result.chaseWatch.running ||
+      result.cardmarketBasePrices.running ||
+      result.sealedCardmarketBasePrices.running ||
       result.setLifecycle.running ||
       result.sealedSync.running ||
       result.maintenance.reprints.running);
@@ -309,8 +326,50 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
           finishedAt: existingPriceJob.finishedAt,
         };
   const currentCardPriceWorkPending = pricePendingCards > 0 || priceRefresh.running;
+  // Slowly fill genuine CardMarket English/NM gaps, including cards that
+  // already have a TCGPlayer snapshot. The job processes only one card every
+  // two hours and keeps a provider-credit reserve, so history/current-price
+  // work cannot accidentally drain the Firecrawl pool.
+  // These three lanes share one Firecrawl provider balance. Inspect them
+  // together and allow at most one to run at a time, including across ticks.
+  // Without this gate, simultaneous pre-request reserve checks could all pass
+  // and together cross the provider safety reserve.
+  const [cardmarketBaseState, sealedCardmarketBaseState, externalRadarState] =
+    await Promise.all([
+      getCardMarketBasePriceJobSnapshot(checkedAt),
+      getSealedCardMarketBasePriceJobSnapshot(checkedAt),
+      getExternalSignalRadarJobSnapshot(checkedAt),
+    ]);
+  const existingFirecrawlLane = cardmarketBaseState.running
+    ? "cards"
+    : sealedCardmarketBaseState.running
+      ? "sealed"
+      : externalRadarState.running
+        ? "radar"
+        : null;
+  const commonFirecrawlSkip = scraperDisabled || shouldLetChaseWatchFinishFirst;
+
+  const cardmarketBasePrices = await maybeStartCardMarketBasePriceJob({
+    skip: commonFirecrawlSkip || (existingFirecrawlLane != null && existingFirecrawlLane !== "cards"),
+    now: checkedAt,
+  });
+  // Sealed catalogue sync can legitimately return averages without a current
+  // offer. This independent, one-product lane checks only exact CardMarket
+  // product identities and never turns an average into a live asking price.
+  const sealedCardmarketBasePrices = await maybeStartSealedCardMarketBasePriceJob({
+    skip:
+      commonFirecrawlSkip ||
+      cardmarketBasePrices.running ||
+      (existingFirecrawlLane != null && existingFirecrawlLane !== "sealed"),
+    now: checkedAt,
+  });
   const externalRadar = await maybeStartExternalSignalRadarJob({
-    skip: scraperDisabled || effectiveDeferred,
+    skip:
+      commonFirecrawlSkip ||
+      effectiveDeferred ||
+      cardmarketBasePrices.running ||
+      sealedCardmarketBasePrices.running ||
+      (existingFirecrawlLane != null && existingFirecrawlLane !== "radar"),
     now: checkedAt,
   });
   // Sealed prices refresh on their own daily cadence; card price work keeps
@@ -396,6 +455,8 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
     historyDrain,
     externalRadar,
     chaseWatch,
+    cardmarketBasePrices,
+    sealedCardmarketBasePrices,
     priceAlerts,
     setLifecycle,
     sealedSync,

@@ -7,6 +7,7 @@ import {
   getPriceRefreshInfo,
   type PriceRefreshTier,
 } from "@/lib/price-refresh";
+import { CARDMARKET_NO_EN_NM_PRICE_STATUS } from "@/lib/price-source-status";
 
 interface Props {
   rarity: string | null;
@@ -74,9 +75,13 @@ export default function PriceRefreshCountdown({
     refreshInfo.hasFetchedAt && refreshInfo.nextRefreshAt != null
       ? Math.max(0, now - refreshInfo.nextRefreshAt)
       : 0;
+  const hasNoCardMarketEnglishNmListings =
+    priceSourceStatus === CARDMARKET_NO_EN_NM_PRICE_STATUS;
 
-  const summary = !refreshInfo.hasFetchedAt
-    ? priceSourceStatus === "unavailable"
+  const summary = hasNoCardMarketEnglishNmListings
+    ? "No EN/NM listings"
+    : !refreshInfo.hasFetchedAt
+      ? priceSourceStatus === "unavailable"
       ? "No source price available right now"
       : refreshInfo.tier === "base"
         ? "Waiting for first base price sync"
@@ -87,8 +92,10 @@ export default function PriceRefreshCountdown({
       ? `Refresh overdue by ${formatRefreshCountdown(overdueMs)}`
       : `Next refresh in ${formatRefreshCountdown(refreshInfo.remainingMs)}`;
 
-  const compactSummary = !refreshInfo.hasFetchedAt
-    ? priceSourceStatus === "unavailable"
+  const compactSummary = hasNoCardMarketEnglishNmListings
+    ? "No EN/NM listings"
+    : !refreshInfo.hasFetchedAt
+      ? priceSourceStatus === "unavailable"
       ? "No source price available"
       : refreshInfo.tier === "base"
         ? "Waiting for first base sync"
@@ -119,8 +126,10 @@ export default function PriceRefreshCountdown({
 
   if (compact && variant === "micro") {
     const titleText = [compactSummary, compactDetail, cadenceText].filter(Boolean).join(" · ");
-    const microSummary = !refreshInfo.hasFetchedAt
-      ? priceSourceStatus === "unavailable"
+    const microSummary = hasNoCardMarketEnglishNmListings
+      ? "No EN/NM listings"
+      : !refreshInfo.hasFetchedAt
+        ? priceSourceStatus === "unavailable"
         ? "No source"
         : "Pending sync"
       : !refreshInfo.autoRefreshEnabled

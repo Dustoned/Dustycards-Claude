@@ -162,6 +162,34 @@ async function loadSnapshotRows(productIds: string[], cutoff: Date): Promise<Sea
   return rows;
 }
 
+async function loadLatestValidSnapshotDates(
+  productIds: string[]
+): Promise<Map<string, Date>> {
+  const latestDates = new Map<string, Date>();
+  for (let index = 0; index < productIds.length; index += SQLITE_PRODUCT_CHUNK_SIZE) {
+    const grouped = await db.sealedPriceSnapshot.groupBy({
+      by: ["product_id"],
+      where: {
+        product_id: { in: productIds.slice(index, index + SQLITE_PRODUCT_CHUNK_SIZE) },
+        OR: [
+          { cm_lowest_eu: { gt: 0, not: 9001 } },
+          { cm_lowest: { gt: 0, not: 9001 } },
+          { cm_lowest_de: { gt: 0, not: 9001 } },
+          { cm_lowest_fr: { gt: 0, not: 9001 } },
+          { cm_lowest_es: { gt: 0, not: 9001 } },
+          { cm_lowest_it: { gt: 0, not: 9001 } },
+        ],
+      },
+      _max: { fetched_at: true },
+    });
+    for (const row of grouped) {
+      const fetchedAt = row._max.fetched_at;
+      if (fetchedAt) latestDates.set(row.product_id, fetchedAt);
+    }
+  }
+  return latestDates;
+}
+
 export async function getSealedSignalRadarData(
   gameFilter: TradingCardGameFilter,
   now = new Date()
@@ -233,22 +261,38 @@ export async function getSealedSignalRadarData(
     bucket.push(snapshot);
     snapshotsByProduct.set(snapshot.product_id, bucket);
   }
+  const missingRecentSnapshotProductIds = productIds.filter(
+    (productId) =>
+      !(snapshotsByProduct.get(productId) ?? []).some(
+        (snapshot) => safeSealedEuPrice(snapshot) != null
+      )
+  );
+  const latestHistoricalSnapshotDates = await loadLatestValidSnapshotDates(
+    missingRecentSnapshotProductIds
+  );
   const lifecycleByEpisode = new Map<string, (typeof lifecycleRows)[number]>();
   for (const row of lifecycleRows) {
     if (!lifecycleByEpisode.has(row.episode_id)) lifecycleByEpisode.set(row.episode_id, row);
   }
 
   const allItems = candidates.map(({ product, currentPrice, category }) => {
-    const productSnapshots = snapshotsByProduct.get(product.id) ?? [];
-    const latestSnapshotAt = productSnapshots.at(-1)?.fetched_at ?? product.synced_at;
-    const latestObservedAt =
-      latestSnapshotAt > product.synced_at ? latestSnapshotAt : product.synced_at;
+    const productSnapshots = (snapshotsByProduct.get(product.id) ?? []).filter(
+      (snapshot) => safeSealedEuPrice(snapshot) != null
+    );
+    const latestSnapshotAt =
+      productSnapshots.at(-1)?.fetched_at ??
+      latestHistoricalSnapshotDates.get(product.id) ??
+      product.synced_at;
+    // synced_at is only a legacy fallback for a current value that has no
+    // matching snapshot at all. Preserved history always keeps its real quote
+    // timestamp, even when that quote falls outside the trend lookback.
+    const latestObservedAt = latestSnapshotAt;
     const history = buildDailyMarketHistory([
       ...productSnapshots.map((snapshot) => ({
         observedAt: snapshot.fetched_at,
         primaryValue: safeSealedEuPrice(snapshot),
       })),
-      { observedAt: product.synced_at, primaryValue: currentPrice },
+      { observedAt: latestObservedAt, primaryValue: currentPrice },
     ]);
     const trend30dPct = calculateRobustPriceTrend(history, 30)?.percent ?? null;
     const trend90dPct = calculateRobustPriceTrend(history, 90)?.percent ?? null;

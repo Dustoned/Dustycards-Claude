@@ -13,6 +13,10 @@ import { resolveCardMarketSealedProductUrl } from "@/lib/cardmarket";
 import { isTcggoQuotaExceededError } from "@/lib/tcggo";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
 import { getPullRateInfoForSetRarity } from "@/lib/pull-rates";
+import {
+  getLatestValidSealedPriceAt,
+  hasValidSealedCurrentPrice,
+} from "@/lib/sealed-price-preservation";
 
 type SealedAction = "refresh" | "sync-history";
 
@@ -171,6 +175,11 @@ async function getSealedDetailPayload(
   });
 
   const snapshots = await getSealedPriceSnapshotsByProduct(id);
+  const latestValidPriceAt =
+    getLatestValidSealedPriceAt(snapshots) ??
+    (hasValidSealedCurrentPrice(product) && product.synced_at
+      ? product.synced_at.toISOString()
+      : null);
   const collectionItem =
     (preferredCollectionItemId
       ? product.collectionItems.find((item) => item.id === preferredCollectionItemId)
@@ -205,7 +214,10 @@ async function getSealedDetailPayload(
     tcggo_url: product.tcggo_url,
     cardmarket_id: product.cardmarket_id,
     cardmarket_url: resolveCardMarketSealedProductUrl(product),
-    price_fetched_at: product.synced_at ? product.synced_at.toISOString() : null,
+    // Catalog sync time and quote time are not the same thing. When TCGGO
+    // temporarily returns no current quote we preserve the last known value;
+    // expose its real snapshot date so the UI can honestly show that it is old.
+    price_fetched_at: latestValidPriceAt,
     history_synced_at: product.native_history_synced_at
       ? product.native_history_synced_at.toISOString()
       : null,

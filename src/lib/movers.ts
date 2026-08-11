@@ -795,31 +795,38 @@ function buildMoverBuySignal(input: {
   episodeName: string;
   episodeCode: string | null;
   episodeReleaseDate: string | null;
-  latestPrice: LatestPriceSnapshot | null;
+  latestPrices: Record<RawMoverSource, LatestPriceSnapshot | null>;
   priceHistory: CardPriceHistoryPoint[];
   pullRateInfo: PullRateInfo | null;
 }): MoverBuySignal | null {
+  const latestCardmarketPrice = input.latestPrices.cardmarket;
+  const latestTcgplayerPrice = input.latestPrices.tcgplayer;
+  const hasCurrentRawPrice = Boolean(latestCardmarketPrice || latestTcgplayerPrice);
   const signal = buildBuySignal({
     rarity: input.rarity,
     episode_name: input.episodeName,
     episode_code: input.episodeCode,
     episode_release_date: input.episodeReleaseDate,
-    price: input.latestPrice
+    price: hasCurrentRawPrice
       ? {
-          cm_en_lowest_nm: input.latestPrice.cm_en_lowest_nm,
-          cm_de_lowest_nm: input.latestPrice.cm_de_lowest_nm,
-          cm_fr_lowest_nm: input.latestPrice.cm_fr_lowest_nm,
-          cm_es_lowest_nm: input.latestPrice.cm_es_lowest_nm,
-          cm_it_lowest_nm: input.latestPrice.cm_it_lowest_nm,
-          cm_jp_lowest_nm: input.latestPrice.cm_jp_lowest_nm ?? null,
-          tcp_market: input.latestPrice.tcp_market,
+          cm_en_lowest_nm: latestCardmarketPrice?.cm_en_lowest_nm ?? null,
+          cm_de_lowest_nm: latestCardmarketPrice?.cm_de_lowest_nm ?? null,
+          cm_fr_lowest_nm: latestCardmarketPrice?.cm_fr_lowest_nm ?? null,
+          cm_es_lowest_nm: latestCardmarketPrice?.cm_es_lowest_nm ?? null,
+          cm_it_lowest_nm: latestCardmarketPrice?.cm_it_lowest_nm ?? null,
+          cm_jp_lowest_nm: latestCardmarketPrice?.cm_jp_lowest_nm ?? null,
+          tcp_market: latestTcgplayerPrice?.tcp_market ?? null,
           tcp_mid: null,
           tcp_low: null,
-          cm_en_avg_7d: input.latestPrice.cm_en_avg_7d,
-          cm_en_avg_30d: input.latestPrice.cm_en_avg_30d,
+          cm_en_avg_7d: latestCardmarketPrice?.cm_en_avg_7d ?? null,
+          cm_en_avg_30d: latestCardmarketPrice?.cm_en_avg_30d ?? null,
         }
       : null,
-    price_fetched_at: toIsoOrNull(input.latestPrice?.fetched_at),
+    // CardMarket is the primary raw selection in buildBuySignal. Its timestamp
+    // must not be advanced by a newer TCGPlayer comparison quote.
+    price_fetched_at: toIsoOrNull(
+      latestCardmarketPrice?.fetched_at ?? latestTcgplayerPrice?.fetched_at
+    ),
     price_history: input.priceHistory,
     pull_rate_info: input.pullRateInfo
       ? {
@@ -1686,25 +1693,38 @@ function buildGradedMoverKey(cardId: string, label: string): string {
   return `${cardId}\u0000${label}`;
 }
 
-function buildLatestRawPriceFromGradedRow(
+function buildLatestRawPricesFromGradedRow(
   row: GradedMoverCandidateRow
-): LatestPriceSnapshot | null {
-  const fetchedAt = row.raw_fetched_at ?? row.tcp_fetched_at;
-  if (!fetchedAt) {
-    return null;
-  }
-
+): Record<RawMoverSource, LatestPriceSnapshot | null> {
   return {
-    fetched_at: fetchedAt,
-    cm_en_lowest_nm: row.cm_en_lowest_nm,
-    cm_de_lowest_nm: row.cm_de_lowest_nm,
-    cm_fr_lowest_nm: row.cm_fr_lowest_nm,
-    cm_es_lowest_nm: row.cm_es_lowest_nm,
-    cm_it_lowest_nm: row.cm_it_lowest_nm,
-    cm_jp_lowest_nm: row.cm_jp_lowest_nm,
-    tcp_market: row.tcp_market,
-    cm_en_avg_7d: row.cm_en_avg_7d,
-    cm_en_avg_30d: row.cm_en_avg_30d,
+    cardmarket: row.raw_fetched_at
+      ? {
+          fetched_at: row.raw_fetched_at,
+          cm_en_lowest_nm: row.cm_en_lowest_nm,
+          cm_de_lowest_nm: row.cm_de_lowest_nm,
+          cm_fr_lowest_nm: row.cm_fr_lowest_nm,
+          cm_es_lowest_nm: row.cm_es_lowest_nm,
+          cm_it_lowest_nm: row.cm_it_lowest_nm,
+          cm_jp_lowest_nm: row.cm_jp_lowest_nm,
+          tcp_market: null,
+          cm_en_avg_7d: row.cm_en_avg_7d,
+          cm_en_avg_30d: row.cm_en_avg_30d,
+        }
+      : null,
+    tcgplayer: row.tcp_fetched_at
+      ? {
+          fetched_at: row.tcp_fetched_at,
+          cm_en_lowest_nm: null,
+          cm_de_lowest_nm: null,
+          cm_fr_lowest_nm: null,
+          cm_es_lowest_nm: null,
+          cm_it_lowest_nm: null,
+          cm_jp_lowest_nm: null,
+          tcp_market: row.tcp_market,
+          cm_en_avg_7d: null,
+          cm_en_avg_30d: null,
+        }
+      : null,
   };
 }
 
@@ -2050,14 +2070,18 @@ async function buildGradedMoversData(
           null
         : null;
     const isGradeTen = isGradeTenLabel(row.graded_label);
-    const rawLatestPrice = buildLatestRawPriceFromGradedRow(row);
-    const rawPriceHistory = rawLatestPrice ? buildCardPriceHistory([rawLatestPrice]) : [];
+    const rawLatestPrices = buildLatestRawPricesFromGradedRow(row);
+    const rawPriceHistory = buildCardPriceHistory(
+      [rawLatestPrices.cardmarket, rawLatestPrices.tcgplayer].filter(
+        (price): price is LatestPriceSnapshot => Boolean(price)
+      )
+    );
     const buySignal = buildMoverBuySignal({
       rarity: row.rarity,
       episodeName: row.episode_name,
       episodeCode: row.episode_code,
       episodeReleaseDate: row.episode_release_date,
-      latestPrice: rawLatestPrice,
+      latestPrices: rawLatestPrices,
       priceHistory: rawPriceHistory,
       pullRateInfo,
     });
@@ -2065,8 +2089,8 @@ async function buildGradedMoversData(
     const cheapnessWeight = getCheapnessWeight(currentPrice);
     const releaseAgeYears = getReleaseAgeYears(row.episode_release_date);
     const ageWeight = getAgeWeight(releaseAgeYears);
-    const cardmarketPrice = getCurrentSourceValue(rawLatestPrice, "cardmarket");
-    const tcgplayerPrice = getCurrentSourceValue(rawLatestPrice, "tcgplayer");
+    const cardmarketPrice = getCurrentSourceValue(rawLatestPrices.cardmarket, "cardmarket");
+    const tcgplayerPrice = getCurrentSourceValue(rawLatestPrices.tcgplayer, "tcgplayer");
     const olderValueScore = getOlderValueScore({
       releaseAgeYears,
       currentPrice: scope === "grading" ? cardmarketPrice ?? currentPrice : currentPrice,
@@ -2396,22 +2420,11 @@ export async function getMovers(
       `
       WITH candidate_cards AS (
         ${candidateCardsCte.sql}
-      )
-      SELECT
-        card_id,
-        fetched_at,
-        cm_en_lowest_nm,
-        cm_de_lowest_nm,
-        cm_fr_lowest_nm,
-        cm_es_lowest_nm,
-        cm_it_lowest_nm,
-        cm_jp_lowest_nm,
-        tcp_market,
-        cm_en_avg_7d,
-        cm_en_avg_30d
-      FROM (
+      ),
+      cardmarket_ranked AS (
         SELECT
           p.card_id,
+          DATE(p.fetched_at) AS price_date,
           p.fetched_at,
           p.cm_en_lowest_nm,
           p.cm_de_lowest_nm,
@@ -2419,7 +2432,6 @@ export async function getMovers(
           p.cm_es_lowest_nm,
           p.cm_it_lowest_nm,
           p.cm_jp_lowest_nm,
-          p.tcp_market,
           p.cm_en_avg_7d,
           p.cm_en_avg_30d,
           ROW_NUMBER() OVER (
@@ -2429,11 +2441,59 @@ export async function getMovers(
         FROM "Price" p
         INNER JOIN candidate_cards cc ON cc.card_id = p.card_id
         WHERE p.fetched_at >= ?
+          AND p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
+      ),
+      tcgplayer_ranked AS (
+        SELECT
+          p.card_id,
+          DATE(p.fetched_at) AS price_date,
+          p.fetched_at,
+          p.tcp_market,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id, DATE(p.fetched_at)
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        INNER JOIN candidate_cards cc ON cc.card_id = p.card_id
+        WHERE p.fetched_at >= ?
+          AND p.tcp_market > 0
+          AND p.tcp_market <> 9001
+      ),
+      daily_sources AS (
+        SELECT card_id, price_date
+        FROM cardmarket_ranked
+        WHERE row_num = 1
+        UNION
+        SELECT card_id, price_date
+        FROM tcgplayer_ranked
+        WHERE row_num = 1
       )
-      WHERE row_num = 1
-      ORDER BY card_id ASC, fetched_at ASC
+      SELECT
+        daily_sources.card_id,
+        COALESCE(cardmarket_ranked.fetched_at, tcgplayer_ranked.fetched_at) AS fetched_at,
+        cardmarket_ranked.cm_en_lowest_nm,
+        cardmarket_ranked.cm_de_lowest_nm,
+        cardmarket_ranked.cm_fr_lowest_nm,
+        cardmarket_ranked.cm_es_lowest_nm,
+        cardmarket_ranked.cm_it_lowest_nm,
+        cardmarket_ranked.cm_jp_lowest_nm,
+        tcgplayer_ranked.tcp_market,
+        cardmarket_ranked.cm_en_avg_7d,
+        cardmarket_ranked.cm_en_avg_30d
+      FROM daily_sources
+      LEFT JOIN cardmarket_ranked
+        ON cardmarket_ranked.card_id = daily_sources.card_id
+        AND cardmarket_ranked.price_date = daily_sources.price_date
+        AND cardmarket_ranked.row_num = 1
+      LEFT JOIN tcgplayer_ranked
+        ON tcgplayer_ranked.card_id = daily_sources.card_id
+        AND tcgplayer_ranked.price_date = daily_sources.price_date
+        AND tcgplayer_ranked.row_num = 1
+      ORDER BY daily_sources.card_id ASC, daily_sources.price_date ASC
     `,
       ...candidateCardsCte.params,
+      historyCutoff,
       historyCutoff
     ),
     db.$queryRawUnsafe<AllTimeHistorySummaryRow[]>(
@@ -2692,12 +2752,6 @@ export async function getMovers(
   for (const card of candidateCards) {
     const latestCardmarketPrice = card.latestPrices.cardmarket;
     const latestTcgplayerPrice = card.latestPrices.tcgplayer;
-    const latestPrice = latestCardmarketPrice
-      ? {
-          ...latestCardmarketPrice,
-          tcp_market: latestTcgplayerPrice?.tcp_market ?? null,
-        }
-      : latestTcgplayerPrice;
     const historyPoints = buildCardPriceHistory(historyRowsByCardId.get(card.id) ?? []);
     const allTimeSummary =
       allTimeSummariesByCardId.get(card.id) ??
@@ -2753,7 +2807,7 @@ export async function getMovers(
       episodeName: card.episode.name,
       episodeCode: card.episode.code,
       episodeReleaseDate: card.episode.release_date,
-      latestPrice,
+      latestPrices: card.latestPrices,
       priceHistory: historyPoints,
       pullRateInfo,
     });

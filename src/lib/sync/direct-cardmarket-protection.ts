@@ -4,6 +4,38 @@ import type {
 } from "@/lib/sync/card-helpers";
 
 export const RECENT_DIRECT_CARDMARKET_PROTECTION_MS = 24 * 60 * 60_000;
+export const CARDMARKET_BASE_BACKFILL_SOURCE = "cardmarket_base_backfill";
+export const AUTHORITATIVE_DIRECT_CARDMARKET_SOURCES = [
+  "cardmarket-direct",
+  CARDMARKET_BASE_BACKFILL_SOURCE,
+] as const;
+
+function isValidEnglishNmPrice(value: number | null | undefined): boolean {
+  return value != null && Number.isFinite(value) && value > 0 && value !== 9001;
+}
+
+function hasUsablePriceBesidesEnglishNm(price: PriceSnapshotData): boolean {
+  return Object.entries(price).some(
+    ([field, value]) =>
+      field !== "cm_en_lowest_nm" &&
+      value != null &&
+      Number.isFinite(value) &&
+      value > 0 &&
+      value !== 9001
+  );
+}
+
+export function hasPriceSourceProvenanceChanged(
+  latestPrice: ExistingPriceRecord | null,
+  nextSource: string,
+  nextProvider: string | null
+): boolean {
+  return Boolean(
+    latestPrice &&
+      ((latestPrice.source ?? null) !== nextSource ||
+        (latestPrice.source_provider ?? null) !== nextProvider)
+  );
+}
 
 /**
  * TCGGo can publish yesterday's CardMarket value after a direct launch-market
@@ -23,21 +55,33 @@ export function preserveRecentDirectEnglishNmPrice(
   sourceUrl: string | null;
 } {
   const protectDirect = Boolean(
-    latestPrice?.source === "cardmarket-direct" &&
+    latestPrice?.source &&
+      AUTHORITATIVE_DIRECT_CARDMARKET_SOURCES.includes(
+        latestPrice.source as (typeof AUTHORITATIVE_DIRECT_CARDMARKET_SOURCES)[number]
+      ) &&
       latestPrice.fetched_at &&
       latestPrice.fetched_at.getTime() >=
         fetchedAt.getTime() - RECENT_DIRECT_CARDMARKET_PROTECTION_MS &&
-      latestPrice.cm_en_lowest_nm != null &&
-      latestPrice.cm_en_lowest_nm > 0 &&
-      latestPrice.cm_en_lowest_nm !== 9001
+      isValidEnglishNmPrice(latestPrice.cm_en_lowest_nm)
   );
+  if (!protectDirect) {
+    return {
+      preserveExistingSnapshot: false,
+      price: nextPrice,
+      source: "tcggo",
+      sourceProvider: "tcggo",
+      sourceUrl: null,
+    };
+  }
+
+  // Keep the authoritative direct EN/NM row untouched, but still persist all
+  // independently observed TCGGo series in their own source-pure row.
+  const protectedTcggoPrice = { ...nextPrice, cm_en_lowest_nm: null };
   return {
-    preserveExistingSnapshot: protectDirect,
-    price: protectDirect
-      ? { ...nextPrice, cm_en_lowest_nm: latestPrice?.cm_en_lowest_nm ?? null }
-      : nextPrice,
-    source: protectDirect ? "cardmarket-direct" : "tcggo",
-    sourceProvider: protectDirect ? latestPrice?.source_provider ?? null : "tcggo",
-    sourceUrl: protectDirect ? latestPrice?.source_url ?? null : null,
+    preserveExistingSnapshot: !hasUsablePriceBesidesEnglishNm(protectedTcggoPrice),
+    price: protectedTcggoPrice,
+    source: "tcggo",
+    sourceProvider: "tcggo",
+    sourceUrl: null,
   };
 }

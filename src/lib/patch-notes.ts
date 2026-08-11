@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.61",
+    releasedAt: "August 11, 2026",
+    title: "Honest CardMarket and sealed prices",
+    summary: "Marketplace sources now refresh independently, while known sealed quotes are recovered without spending scrape credits.",
+    tone: "fixed",
+    highlights: [
+      "CardMarket English/NM and TCGPlayer observations no longer overwrite or disguise each other's age.",
+      "Cards with no active English Near Mint offer show that exact status instead of a misleading generic missing price.",
+      "Sealed current prices are recovered from the latest valid local snapshot before any CardMarket fallback is attempted.",
+      "The remaining exact CardMarket gaps drain incrementally with identity checks and a protected provider reserve.",
+    ],
+  },
+  {
     version: "3.12.60",
     releasedAt: "August 10, 2026",
     title: "Tavily discovery restored",

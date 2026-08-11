@@ -40,6 +40,24 @@ describe("getSealedProductPrice", () => {
     expect(getSealedMarketPriceForSource(price, "cm_lowest_it")).toBe(90);
     expect(getSealedMarketPriceForSource(price, "cm_lowest_fr")).toBeNull();
   });
+
+  it("ignores zero and TCGGo's 9001 no-listing sentinel", () => {
+    const price = {
+      cm_lowest: 85,
+      cm_lowest_eu: 9001,
+      cm_lowest_de: 0,
+      cm_lowest_fr: null,
+      cm_lowest_es: null,
+      cm_lowest_it: null,
+    };
+
+    expect(getSealedEuMarketPriceSelection(price)).toEqual({
+      source: "cm_lowest",
+      value: 85,
+    });
+    expect(getSealedMarketPriceForSource(price, "cm_lowest_eu")).toBeNull();
+    expect(getSealedMarketPriceForSource(price, "cm_lowest_de")).toBeNull();
+  });
 });
 
 describe("selectCardDetailSealedProducts", () => {

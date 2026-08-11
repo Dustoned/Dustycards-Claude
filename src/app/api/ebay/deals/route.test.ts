@@ -7,6 +7,7 @@ const { collectionMock, dbMock, demandMock, ebayMock, exchangeMock, priceHistory
       getCollectionMatchedGradedPrice: vi.fn(),
     },
     dbMock: {
+      $queryRawUnsafe: vi.fn(),
       card: {
         findMany: vi.fn(),
         findUnique: vi.fn(),
@@ -327,6 +328,7 @@ describe("GET /api/ebay/deals", () => {
       })
     );
     collectionMock.getCollectionMatchedGradedPrice.mockReturnValue(null);
+    dbMock.$queryRawUnsafe.mockResolvedValue([]);
     dbMock.ebayListingCardOverride.findMany.mockResolvedValue([]);
     exchangeMock.convertUsdToEur.mockImplementation((value: number) => value);
     exchangeMock.getUsdToEurRate.mockResolvedValue(1);
@@ -399,6 +401,51 @@ describe("GET /api/ebay/deals", () => {
     expect(body.listings[0].differenceEur).toBe(399);
     expect(promoListing.cardMatch.status).toBe("unmatched");
     expect(promoListing.reference.valueEur).toBeNull();
+  });
+
+  it("keeps an older valid CardMarket quote beside the newest TCP-only row", async () => {
+    const baseCard = makeUmbreonCard();
+    const card = {
+      ...baseCard,
+      prices: [
+        {
+          ...baseCard.prices[0],
+          cm_en_lowest_nm: null,
+          tcp_market: 1_000,
+        },
+      ],
+    };
+    dbMock.card.findUnique.mockResolvedValue(card);
+    dbMock.$queryRawUnsafe.mockResolvedValue([
+      {
+        card_id: card.id,
+        cm_en_lowest_nm: 899,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+        cm_jp_lowest_nm: null,
+        tcp_market: 1_000,
+        tcp_mid: null,
+        tcp_low: null,
+      },
+    ]);
+    mockSearchResults([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/ebay/deals?cardId=21554&mode=raw")
+    );
+    const body = await response.json();
+    const sql = String(dbMock.$queryRawUnsafe.mock.calls[0]?.[0] ?? "");
+
+    expect(response.status).toBe(200);
+    expect(body.reference).toEqual({
+      label: "CardMarket raw",
+      valueEur: 899,
+      source: "cardmarket",
+    });
+    expect(sql).toContain('p."cm_en_lowest_nm" <> 9001');
+    expect(sql).toContain('p."tcp_market" <> 9001');
   });
 
   it("uses the strict US NM English demand profile and persists only that scan", async () => {

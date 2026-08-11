@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import {
+  CARDMARKET_NO_EN_NM_PRICE_STATUS,
   KNOWN_UNAVAILABLE_PRICE_STATUS,
   STALE_PRICE_AGE_MS,
   UPCOMING_PRICE_SOURCE_STATUS,
@@ -13,13 +14,18 @@ export const dynamic = "force-dynamic";
 
 const DEFAULT_LIMIT = 100;
 const MAX_LIMIT = 200;
+const TODAY_KEY = new Date().toISOString().slice(0, 10);
 
 const ACTIONABLE_MISSING_PRICE = {
   OR: [
     { price_source_status: null },
     {
       price_source_status: {
-        notIn: [KNOWN_UNAVAILABLE_PRICE_STATUS, UPCOMING_PRICE_SOURCE_STATUS],
+        notIn: [
+          KNOWN_UNAVAILABLE_PRICE_STATUS,
+          UPCOMING_PRICE_SOURCE_STATUS,
+          CARDMARKET_NO_EN_NM_PRICE_STATUS,
+        ],
       },
     },
   ],
@@ -28,7 +34,12 @@ const ACTIONABLE_MISSING_PRICE = {
 const CARD_ISSUE_WHERE: Record<string, object> = {
   "card-images": { OR: [{ image_url: null }, { image_url: "" }] },
   "card-source": { OR: [{ tcggo_url: null }, { tcggo_url: "" }] },
-  "card-prices": { prices: { none: {} }, ...ACTIONABLE_MISSING_PRICE },
+  "card-prices": {
+    game: "pokemon",
+    episode: { release_date: { not: null, lte: TODAY_KEY } },
+    prices: { none: { cm_en_lowest_nm: { gt: 0, not: 9001 } } },
+    ...ACTIONABLE_MISSING_PRICE,
+  },
   "card-price-unavailable": {
     prices: { none: {} },
     price_source_status: KNOWN_UNAVAILABLE_PRICE_STATUS,
@@ -40,14 +51,14 @@ const SEALED_ISSUE_WHERE: Record<string, object> = {
   "sealed-images": { OR: [{ image_url: null }, { image_url: "" }] },
   "sealed-source": { OR: [{ tcggo_url: null }, { tcggo_url: "" }] },
   "sealed-prices": {
-    cm_lowest: null,
-    cm_lowest_eu: null,
-    cm_lowest_de: null,
-    cm_lowest_fr: null,
-    cm_lowest_es: null,
-    cm_lowest_it: null,
-    cm_avg_7d: null,
-    cm_avg_30d: null,
+    AND: [
+      { OR: [{ cm_lowest: null }, { cm_lowest: { lte: 0 } }, { cm_lowest: 9001 }] },
+      { OR: [{ cm_lowest_eu: null }, { cm_lowest_eu: { lte: 0 } }, { cm_lowest_eu: 9001 }] },
+      { OR: [{ cm_lowest_de: null }, { cm_lowest_de: { lte: 0 } }, { cm_lowest_de: 9001 }] },
+      { OR: [{ cm_lowest_fr: null }, { cm_lowest_fr: { lte: 0 } }, { cm_lowest_fr: 9001 }] },
+      { OR: [{ cm_lowest_es: null }, { cm_lowest_es: { lte: 0 } }, { cm_lowest_es: 9001 }] },
+      { OR: [{ cm_lowest_it: null }, { cm_lowest_it: { lte: 0 } }, { cm_lowest_it: 9001 }] },
+    ],
   },
 };
 

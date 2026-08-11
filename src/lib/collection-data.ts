@@ -48,6 +48,7 @@ import {
 } from "@/lib/binder-next-buy";
 import { calculateSetRarityPosition } from "@/lib/external-market-intelligence-core";
 import { WANT_SOURCE_BINDER_MISSING, syncMissingBinderWantsForUser } from "@/lib/wantlist-planner";
+import { hydrateLatestCardMarketFields } from "@/lib/current-card-prices";
 
 export interface CollectionSummaryMetric {
   investment: number;
@@ -324,7 +325,7 @@ const collectionCardSelect = {
         where: {
           OR: [
             { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-            { tcp_market: { gt: 0 } },
+            { tcp_market: { gt: 0, not: 9001 } },
           ],
         },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
@@ -389,7 +390,7 @@ const collectionCardMetricSelect = {
         where: {
           OR: [
             { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-            { tcp_market: { gt: 0 } },
+            { tcp_market: { gt: 0, not: 9001 } },
           ],
         },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
@@ -448,7 +449,7 @@ const collectionWantSelect = {
         where: {
           OR: [
             { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-            { tcp_market: { gt: 0 } },
+            { tcp_market: { gt: 0, not: 9001 } },
           ],
         },
         orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
@@ -764,7 +765,13 @@ async function fetchCollectionCards(options: {
     skip += pageSize;
   }
 
-  return records;
+  const hydratedCards = await hydrateLatestCardMarketFields(
+    records.map((record) => record.card)
+  );
+  return records.map((record, index) => ({
+    ...record,
+    card: hydratedCards[index] ?? record.card,
+  }));
 }
 
 type CollectionCardMetricRecord = {
@@ -968,7 +975,7 @@ async function getSoldCollectionCards(options: {
 }
 
 async function getCollectionWants(userId: string, game: TradingCardGameFilter = POKEMON_GAME) {
-  return db.collectionWant.findMany({
+  const records = await db.collectionWant.findMany({
     where: {
       user_id: userId,
       dismissed_at: null,
@@ -982,6 +989,13 @@ async function getCollectionWants(userId: string, game: TradingCardGameFilter = 
     orderBy: { created_at: "desc" },
     select: collectionWantSelect,
   });
+  const hydratedCards = await hydrateLatestCardMarketFields(
+    records.map((record) => record.card)
+  );
+  return records.map((record, index) => ({
+    ...record,
+    card: hydratedCards[index] ?? record.card,
+  }));
 }
 
 async function getCollectionSealedItems(
@@ -1059,45 +1073,114 @@ export async function getCardHistoryRows(cardIds: string[], since?: string) {
   const rows = await Promise.all(
     chunkValues(cardIds).map((chunk) =>
       db.$queryRawUnsafe<EpisodePriceHistorySnapshot[]>(
-        `SELECT
-          card_id,
-          fetched_at,
-          changed_at,
-          cm_en_lowest_nm,
-          cm_de_lowest_nm,
-          cm_fr_lowest_nm,
-          cm_es_lowest_nm,
-          cm_it_lowest_nm,
-          cm_jp_lowest_nm,
-          tcp_market
-        FROM (
+        `WITH requested AS (
+          SELECT id
+          FROM "Card"
+          WHERE id IN (${placeholdersFor(chunk)})
+        ),
+        cm_candidate_ids AS (
+          SELECT p.id
+          FROM "Price" p
+          JOIN requested r ON r.id = p.card_id
+          WHERE p.cm_en_lowest_nm > 0
+            AND p.cm_en_lowest_nm <> 9001
+            ${since ? "AND p.fetched_at >= ?" : ""}
+          ${since ? `
+          UNION
+          SELECT id
+          FROM (
+            SELECT
+              p.id,
+              ROW_NUMBER() OVER (
+                PARTITION BY p.card_id
+                ORDER BY p.fetched_at DESC, p.id DESC
+              ) AS seed_rank
+            FROM "Price" p
+            JOIN requested r ON r.id = p.card_id
+            WHERE p.cm_en_lowest_nm > 0
+              AND p.cm_en_lowest_nm <> 9001
+              AND p.fetched_at < ?
+          )
+          WHERE seed_rank = 1` : ""}
+        ),
+        tcp_candidate_ids AS (
+          SELECT p.id
+          FROM "Price" p
+          JOIN requested r ON r.id = p.card_id
+          WHERE p.tcp_market > 0
+            AND p.tcp_market <> 9001
+            ${since ? "AND p.fetched_at >= ?" : ""}
+          ${since ? `
+          UNION
+          SELECT id
+          FROM (
+            SELECT
+              p.id,
+              ROW_NUMBER() OVER (
+                PARTITION BY p.card_id
+                ORDER BY p.fetched_at DESC, p.id DESC
+              ) AS seed_rank
+            FROM "Price" p
+            JOIN requested r ON r.id = p.card_id
+            WHERE p.tcp_market > 0
+              AND p.tcp_market <> 9001
+              AND p.fetched_at < ?
+          )
+          WHERE seed_rank = 1` : ""}
+        ),
+        cm_ranked AS (
           SELECT
-            p.card_id,
-            p.fetched_at,
-            p.changed_at,
-            p.cm_en_lowest_nm,
-            p.cm_de_lowest_nm,
-            p.cm_fr_lowest_nm,
-            p.cm_es_lowest_nm,
-            p.cm_it_lowest_nm,
-            p.cm_jp_lowest_nm,
-            p.tcp_market,
+            p.*,
+            DATE(p.fetched_at) AS day_key,
             ROW_NUMBER() OVER (
               PARTITION BY p.card_id, DATE(p.fetched_at)
               ORDER BY p.fetched_at DESC, p.id DESC
             ) AS row_num
           FROM "Price" p
-          WHERE p.card_id IN (${placeholdersFor(chunk)})
-            AND (
-              (p.cm_en_lowest_nm > 0 AND p.cm_en_lowest_nm <> 9001)
-              OR p.tcp_market > 0
-            )
-            ${since ? "AND p.fetched_at >= ?" : ""}
+          JOIN cm_candidate_ids candidates ON candidates.id = p.id
+        ),
+        tcp_ranked AS (
+          SELECT
+            p.*,
+            DATE(p.fetched_at) AS day_key,
+            ROW_NUMBER() OVER (
+              PARTITION BY p.card_id, DATE(p.fetched_at)
+              ORDER BY p.fetched_at DESC, p.id DESC
+            ) AS row_num
+          FROM "Price" p
+          JOIN tcp_candidate_ids candidates ON candidates.id = p.id
+        ),
+        latest_cm AS (SELECT * FROM cm_ranked WHERE row_num = 1),
+        latest_tcp AS (SELECT * FROM tcp_ranked WHERE row_num = 1),
+        observed_days AS (
+          SELECT card_id, day_key FROM latest_cm
+          UNION
+          SELECT card_id, day_key FROM latest_tcp
         )
-        WHERE row_num = 1
-        ORDER BY fetched_at ASC, card_id ASC`,
+        SELECT
+          d.card_id,
+          CASE
+            WHEN cm.fetched_at IS NULL THEN tcp.fetched_at
+            WHEN tcp.fetched_at IS NULL THEN cm.fetched_at
+            WHEN datetime(cm.fetched_at) >= datetime(tcp.fetched_at) THEN cm.fetched_at
+            ELSE tcp.fetched_at
+          END AS fetched_at,
+          COALESCE(cm.changed_at, tcp.changed_at) AS changed_at,
+          cm.cm_en_lowest_nm,
+          cm.cm_de_lowest_nm,
+          cm.cm_fr_lowest_nm,
+          cm.cm_es_lowest_nm,
+          cm.cm_it_lowest_nm,
+          cm.cm_jp_lowest_nm,
+          tcp.tcp_market
+        FROM observed_days d
+        LEFT JOIN latest_cm cm
+          ON cm.card_id = d.card_id AND cm.day_key = d.day_key
+        LEFT JOIN latest_tcp tcp
+          ON tcp.card_id = d.card_id AND tcp.day_key = d.day_key
+        ORDER BY fetched_at ASC, d.card_id ASC`,
         ...chunk,
-        ...(since ? [since] : [])
+        ...(since ? [since, since, since, since] : [])
       )
     )
   );
@@ -3381,12 +3464,19 @@ export async function getWantBinderPageData(
       },
     }),
   ]);
+  const hydratedWantCards = await hydrateLatestCardMarketFields(
+    wants.map((want) => want.card)
+  );
+  const hydratedWants = wants.map((want, index) => ({
+    ...want,
+    card: hydratedWantCards[index] ?? want.card,
+  })) as CollectionWantRecord[];
 
   const items = sortWantPlannerItems(
-    await addWantChasePosition((wants as CollectionWantRecord[]).map(buildWantViewItem))
+    await addWantChasePosition(hydratedWants.map(buildWantViewItem))
   );
   const pricedItems = items.filter((item) => item.current_value != null);
-  const wantQuantities = buildCardQuantityMap(wants as CollectionWantRecord[]);
+  const wantQuantities = buildCardQuantityMap(hydratedWants);
   const historyRows = await getCardHistoryRows(
     [...wantQuantities.keys()],
     getHistoryCutoffDate()
@@ -3473,7 +3563,7 @@ export async function getBinderPageData(
     options.historyRange === "all" ? undefined : getHistoryCutoffDate(BINDER_HISTORY_RECENT_DAYS);
 
   if (binder.type === "linked_set" && binder.episode) {
-    const [allSetCards, ownedCards] = await Promise.all([
+    const [allSetCardsRaw, ownedCards] = await Promise.all([
       db.card.findMany({
         where: { episode_id: binder.episode.id },
         orderBy: [{ card_number: "asc" }, { name: "asc" }],
@@ -3491,7 +3581,7 @@ export async function getBinderPageData(
             where: {
               OR: [
                 { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-                { tcp_market: { gt: 0 } },
+                { tcp_market: { gt: 0, not: 9001 } },
               ],
             },
             orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
@@ -3557,6 +3647,7 @@ export async function getBinderPageData(
         },
       }),
     ]);
+    const allSetCards = await hydrateLatestCardMarketFields(allSetCardsRaw);
 
     const hasUsdEbaySoldForLinkedCards = ownedCards.some((item) => {
       if (!item.grading_company || !item.grading_grade) return false;

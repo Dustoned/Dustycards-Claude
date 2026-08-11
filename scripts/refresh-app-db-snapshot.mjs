@@ -6,6 +6,7 @@ import {
   assertSnapshotIsSanitized,
   sanitizeAppSnapshot,
 } from "./snapshot-sanitizer.mjs";
+import { prunePriceHistoryForSnapshot } from "./snapshot-price-pruner.mjs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -13,23 +14,8 @@ const __dirname = dirname(__filename);
 const LIVE_DB_PATH = resolve(__dirname, "../dustycards.db");
 const SNAPSHOT_DB_PATH = resolve(__dirname, "../data/dustycards.app.db");
 
-function prunePriceHistoryForSnapshot(db) {
+function refreshCurrentGradedSnapshots(db) {
   db.exec(`
-    DELETE FROM "Price"
-    WHERE "id" NOT IN (
-      SELECT "id"
-      FROM (
-        SELECT
-          "id",
-          ROW_NUMBER() OVER (
-            PARTITION BY "card_id"
-            ORDER BY "fetched_at" DESC, "id" DESC
-          ) AS "snapshot_rank"
-        FROM "Price"
-      )
-      WHERE "snapshot_rank" = 1
-    );
-
     DELETE FROM "CardGradedPriceSnapshot";
     INSERT INTO "CardGradedPriceSnapshot" ("id", "card_id", "label", "price", "fetched_at")
     SELECT
@@ -83,6 +69,7 @@ const db = new Database(SNAPSHOT_DB_PATH);
 try {
   const sanitation = sanitizeAppSnapshot(db);
   prunePriceHistoryForSnapshot(db);
+  refreshCurrentGradedSnapshots(db);
   db.pragma("foreign_keys = ON");
   assertSnapshotIsSanitized(db);
 

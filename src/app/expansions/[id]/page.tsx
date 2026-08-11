@@ -92,6 +92,132 @@ function getKnownEpisodeCardCount(episode: {
   );
 }
 
+interface CurrentEpisodePriceRow {
+  card_id: string;
+  cm_fetched_at: Date | string | null;
+  tcp_fetched_at: Date | string | null;
+  cm_en_lowest_nm: number | null;
+  cm_de_lowest_nm: number | null;
+  cm_fr_lowest_nm: number | null;
+  cm_es_lowest_nm: number | null;
+  cm_it_lowest_nm: number | null;
+  cm_jp_lowest_nm: number | null;
+  cm_en_avg_7d: number | null;
+  cm_en_avg_30d: number | null;
+  tcp_market: number | null;
+  tcp_mid: number | null;
+  tcp_low: number | null;
+}
+
+interface CurrentEpisodePrice {
+  fetchedAt: Date | null;
+  price: NonNullable<CardData["price"]>;
+}
+
+async function getCurrentEpisodePrices(
+  episodeId: string
+): Promise<Map<string, CurrentEpisodePrice>> {
+  // CardMarket and TCGPlayer observations are independent. Ranking the two
+  // sources separately prevents a newer single-source row from hiding the
+  // other source's last valid current quote.
+  const rows = await db.$queryRaw<CurrentEpisodePriceRow[]>`
+    WITH episode_cards AS (
+      SELECT id
+      FROM "Card"
+      WHERE episode_id = ${episodeId}
+    ),
+    latest_cm AS (
+      SELECT
+        p.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.card_id
+          ORDER BY p.fetched_at DESC, p.id DESC
+        ) AS row_num
+      FROM "Price" p
+      JOIN episode_cards c ON c.id = p.card_id
+      WHERE p.cm_en_lowest_nm > 0
+        AND p.cm_en_lowest_nm <> 9001
+    ),
+    latest_tcp AS (
+      SELECT
+        p.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.card_id
+          ORDER BY p.fetched_at DESC, p.id DESC
+        ) AS row_num
+      FROM "Price" p
+      JOIN episode_cards c ON c.id = p.card_id
+      WHERE p.tcp_market > 0
+        AND p.tcp_market <> 9001
+    ),
+    latest_aux AS (
+      SELECT
+        p.*,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.card_id
+          ORDER BY p.fetched_at DESC, p.id DESC
+        ) AS row_num
+      FROM "Price" p
+      JOIN episode_cards c ON c.id = p.card_id
+      WHERE (p.cm_de_lowest_nm > 0 AND p.cm_de_lowest_nm <> 9001)
+         OR (p.cm_fr_lowest_nm > 0 AND p.cm_fr_lowest_nm <> 9001)
+         OR (p.cm_es_lowest_nm > 0 AND p.cm_es_lowest_nm <> 9001)
+         OR (p.cm_it_lowest_nm > 0 AND p.cm_it_lowest_nm <> 9001)
+         OR (p.cm_jp_lowest_nm > 0 AND p.cm_jp_lowest_nm <> 9001)
+         OR (p.cm_en_avg_7d > 0 AND p.cm_en_avg_7d <> 9001)
+         OR (p.cm_en_avg_30d > 0 AND p.cm_en_avg_30d <> 9001)
+    )
+    SELECT
+      c.id AS card_id,
+      cm.fetched_at AS cm_fetched_at,
+      tcp.fetched_at AS tcp_fetched_at,
+      cm.cm_en_lowest_nm,
+      aux.cm_de_lowest_nm,
+      aux.cm_fr_lowest_nm,
+      aux.cm_es_lowest_nm,
+      aux.cm_it_lowest_nm,
+      aux.cm_jp_lowest_nm,
+      aux.cm_en_avg_7d,
+      aux.cm_en_avg_30d,
+      tcp.tcp_market,
+      tcp.tcp_mid,
+      tcp.tcp_low
+    FROM episode_cards c
+    LEFT JOIN latest_cm cm ON cm.card_id = c.id AND cm.row_num = 1
+    LEFT JOIN latest_aux aux ON aux.card_id = c.id AND aux.row_num = 1
+    LEFT JOIN latest_tcp tcp ON tcp.card_id = c.id AND tcp.row_num = 1
+    WHERE cm.card_id IS NOT NULL OR aux.card_id IS NOT NULL OR tcp.card_id IS NOT NULL
+  `;
+
+  return new Map(
+    rows.map((row) => [
+      row.card_id,
+      {
+        // CardData exposes one timestamp and defaults to CardMarket, so never
+        // let a newer TCP-only observation make an older CM quote look fresh.
+        fetchedAt: row.cm_fetched_at
+          ? new Date(row.cm_fetched_at)
+          : row.tcp_fetched_at
+            ? new Date(row.tcp_fetched_at)
+            : null,
+        price: {
+          cm_en_lowest_nm: row.cm_en_lowest_nm,
+          cm_de_lowest_nm: row.cm_de_lowest_nm,
+          cm_fr_lowest_nm: row.cm_fr_lowest_nm,
+          cm_es_lowest_nm: row.cm_es_lowest_nm,
+          cm_it_lowest_nm: row.cm_it_lowest_nm,
+          cm_jp_lowest_nm: row.cm_jp_lowest_nm,
+          cm_en_avg_7d: row.cm_en_avg_7d,
+          cm_en_avg_30d: row.cm_en_avg_30d,
+          tcp_market: row.tcp_market,
+          tcp_mid: row.tcp_mid,
+          tcp_low: row.tcp_low,
+        },
+      },
+    ])
+  );
+}
+
 export default async function ExpansionDetailPage({
   params,
   searchParams,
@@ -207,7 +333,7 @@ export default async function ExpansionDetailPage({
   let headerCountLabel = "Cards";
   let headerCountValue = cardCountDenominator;
   if (activeTab === "cards") {
-    const [rawSetPriceSnapshots, dbCards] = await Promise.all([
+    const [rawSetPriceSnapshots, dbCards, currentPriceByCardId] = await Promise.all([
       getEpisodeSetPriceSnapshotRows(id),
       db.card.findMany({
         where: { episode_id: id },
@@ -221,13 +347,9 @@ export default async function ExpansionDetailPage({
               created_at: true,
             },
           },
-          prices: {
-            where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-            orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-            take: 1,
-          },
         },
       }),
+      getCurrentEpisodePrices(id),
     ]);
 
     const setPriceHistory = buildEpisodeSetPriceHistory(rawSetPriceSnapshots);
@@ -272,7 +394,7 @@ export default async function ExpansionDetailPage({
     );
 
     cards = dbCards.map((card) => {
-      const price = card.prices[0] ?? null;
+      const currentPrice = currentPriceByCardId.get(card.id) ?? null;
       const wantItem = card.wants[0] ?? null;
       const normalizedRarity = normalizeRarityLabel(card.rarity) ?? card.rarity;
       const pullRateInfo = normalizedRarity ? pullRateByRarity.get(normalizedRarity) : null;
@@ -295,22 +417,8 @@ export default async function ExpansionDetailPage({
         price_source_checked_at: card.price_source_checked_at
           ? card.price_source_checked_at.toISOString()
           : null,
-        price_fetched_at: price ? price.fetched_at.toISOString() : null,
-        price: price
-          ? {
-              cm_en_lowest_nm: price.cm_en_lowest_nm,
-              cm_de_lowest_nm: price.cm_de_lowest_nm,
-              cm_fr_lowest_nm: price.cm_fr_lowest_nm,
-              cm_es_lowest_nm: price.cm_es_lowest_nm,
-              cm_it_lowest_nm: price.cm_it_lowest_nm,
-              cm_jp_lowest_nm: price.cm_jp_lowest_nm,
-              tcp_market: price.tcp_market,
-              tcp_mid: price.tcp_mid,
-              tcp_low: price.tcp_low,
-              cm_en_avg_7d: price.cm_en_avg_7d,
-              cm_en_avg_30d: price.cm_en_avg_30d,
-            }
-          : null,
+        price_fetched_at: currentPrice?.fetchedAt?.toISOString() ?? null,
+        price: currentPrice?.price ?? null,
         pull_rate_info: pullRateInfo
           ? {
               source: pullRateInfo.source,

@@ -44,6 +44,7 @@ import { getExpansionHref } from "@/lib/games";
 import { MOBILE_EDGE_BACK_EVENT } from "@/lib/mobile-edge-back";
 import { invalidateMarketHomeClientCache } from "@/lib/home-client-cache";
 import type { CollectionCardSavedDetail } from "@/lib/collection-client-events";
+import { CARDMARKET_NO_EN_NM_PRICE_STATUS } from "@/lib/price-source-status";
 import EbayCardDemandPanel from "@/components/ebay/EbayCardDemandPanel";
 import {
   CardModalActiveListingsPanel,
@@ -842,6 +843,11 @@ export default function CardModal({
     : showingTcgPlayerHero
       ? "USD"
       : "EUR";
+  const showingCardMarketWithoutEnglishNmListings =
+    !showingGradedHero &&
+    !showingTcgPlayerHero &&
+    heroPriceValue == null &&
+    modalCard.price_source_status === CARDMARKET_NO_EN_NM_PRICE_STATUS;
   const heroPriceLabel = showingGradedHero
     ? `${activeGradedHeroPrice.sourceLabel} · ${activeGradedHeroPrice.label}`
     : showingTcgPlayerHero
@@ -1160,7 +1166,11 @@ export default function CardModal({
                 ) : null
               }
               priceLabel={heroPriceLabel}
-              price={formatCurrency(heroPriceValue, heroPriceCurrency)}
+              price={
+                showingCardMarketWithoutEnglishNmListings
+                  ? "No EN/NM listings"
+                  : formatCurrency(heroPriceValue, heroPriceCurrency)
+              }
               priceMeta={
                 showingGradedHero ? (
                   activeGradedHeroPrice.hint ?? "Latest saved graded market value"
@@ -1168,6 +1178,8 @@ export default function CardModal({
                   tcgPlayerHeroValueEur == null
                     ? "Selected TCGPlayer source"
                     : `≈ ${formatCurrency(tcgPlayerHeroValueEur, "EUR")} · converted reference`
+                ) : showingCardMarketWithoutEnglishNmListings ? (
+                  "CardMarket currently has no English Near Mint listings"
                 ) : trend30d == null ? (
                   "Latest saved raw market value"
                 ) : (

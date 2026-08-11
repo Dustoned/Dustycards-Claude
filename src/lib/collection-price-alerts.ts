@@ -149,12 +149,27 @@ async function resolveTarget(
       },
     });
     if (!product) throw new CollectionPriceAlertError("Sealed product not found", 404);
+    const latestValidPriceSnapshot = await db.sealedPriceSnapshot.findFirst({
+      where: {
+        product_id: product.id,
+        OR: [
+          { cm_lowest_eu: { gt: 0, not: 9001 } },
+          { cm_lowest: { gt: 0, not: 9001 } },
+          { cm_lowest_de: { gt: 0, not: 9001 } },
+          { cm_lowest_fr: { gt: 0, not: 9001 } },
+          { cm_lowest_es: { gt: 0, not: 9001 } },
+          { cm_lowest_it: { gt: 0, not: 9001 } },
+        ],
+      },
+      orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
+      select: { fetched_at: true },
+    });
 
     return {
       name: product.name,
       subtitle: product.episode.name,
       currentPriceEur: getSealedCardMarketValue(product),
-      currentPriceAt: product.synced_at,
+      currentPriceAt: latestValidPriceSnapshot?.fetched_at ?? product.synced_at,
       sourceLabel: "CardMarket EU sealed",
       pathname: `/search?sealed=${encodeURIComponent(product.id)}`,
       actionLabel: "View sealed product",

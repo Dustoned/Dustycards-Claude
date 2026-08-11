@@ -16,6 +16,7 @@ import { TCGGO_REQUEST_CONCURRENCY } from "@/lib/tcggo";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import { listBackups, type BackupFileInfo } from "@/lib/backups";
 import {
+  CARDMARKET_NO_EN_NM_PRICE_STATUS,
   getEmptyCardHistoryCountSnapshot,
   KNOWN_UNAVAILABLE_PRICE_STATUS,
   STALE_PRICE_AGE_MS,
@@ -498,12 +499,20 @@ export default async function SettingsPage({
     }),
     db.card.count({
       where: {
-        prices: { none: {} },
+        game: POKEMON_GAME,
+        episode: {
+          release_date: { not: null, lte: new Date().toISOString().slice(0, 10) },
+        },
+        prices: { none: { cm_en_lowest_nm: { gt: 0, not: 9001 } } },
         OR: [
           { price_source_status: null },
           {
             price_source_status: {
-              notIn: [KNOWN_UNAVAILABLE_PRICE_STATUS, UPCOMING_PRICE_SOURCE_STATUS],
+              notIn: [
+                KNOWN_UNAVAILABLE_PRICE_STATUS,
+                UPCOMING_PRICE_SOURCE_STATUS,
+                CARDMARKET_NO_EN_NM_PRICE_STATUS,
+              ],
             },
           },
         ],
@@ -561,14 +570,14 @@ export default async function SettingsPage({
     }),
     db.sealedProduct.count({
       where: {
-        cm_lowest: null,
-        cm_lowest_eu: null,
-        cm_lowest_de: null,
-        cm_lowest_fr: null,
-        cm_lowest_es: null,
-        cm_lowest_it: null,
-        cm_avg_7d: null,
-        cm_avg_30d: null,
+        AND: [
+          { OR: [{ cm_lowest: null }, { cm_lowest: { lte: 0 } }, { cm_lowest: 9001 }] },
+          { OR: [{ cm_lowest_eu: null }, { cm_lowest_eu: { lte: 0 } }, { cm_lowest_eu: 9001 }] },
+          { OR: [{ cm_lowest_de: null }, { cm_lowest_de: { lte: 0 } }, { cm_lowest_de: 9001 }] },
+          { OR: [{ cm_lowest_fr: null }, { cm_lowest_fr: { lte: 0 } }, { cm_lowest_fr: 9001 }] },
+          { OR: [{ cm_lowest_es: null }, { cm_lowest_es: { lte: 0 } }, { cm_lowest_es: 9001 }] },
+          { OR: [{ cm_lowest_it: null }, { cm_lowest_it: { lte: 0 } }, { cm_lowest_it: 9001 }] },
+        ],
       },
     }),
     db.setPullRateProfile.count({

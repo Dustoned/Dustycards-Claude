@@ -653,16 +653,18 @@ export async function getSealedMovers(
       const currentPrice = getSealedPrice(product);
       if (currentPrice == null) return null;
 
+      const historicalEvents = allByProductId.get(product.id) ?? [];
+      const currentObservedAt = historicalEvents.at(-1)?.fetchedAt ?? product.synced_at;
       const currentEvent = {
-        fetchedAt: product.synced_at,
+        fetchedAt: currentObservedAt,
         price: currentPrice,
       };
       const recentEvents = [...(recentByProductId.get(product.id) ?? []), currentEvent];
-      const allEvents = [...(allByProductId.get(product.id) ?? []), currentEvent];
+      const allEvents = [...historicalEvents, currentEvent];
       const series = buildSeries(recentEvents);
       const change7d = computeWindowMetric(series, 7);
       const change30d = computeWindowMetric(series, 30);
-      const lifetime = buildLifetimeMetrics(currentPrice, product.synced_at, allEvents);
+      const lifetime = buildLifetimeMetrics(currentPrice, currentObservedAt, allEvents);
       const category = classifySealedProduct(product.name);
       const ownedCount = product.collectionItems.reduce(
         (sum, item) => sum + Math.max(0, item.quantity),
@@ -692,7 +694,7 @@ export async function getSealedMovers(
         ownedCount,
         currency: "EUR",
         currentPrice: round(currentPrice),
-        latestFetchedAt: product.synced_at.toISOString(),
+        latestFetchedAt: currentObservedAt.toISOString(),
         historyPoints: series.length,
         lifetimeHistoryPoints: lifetime.lifetimeHistoryPoints,
         recentPriceSeries: buildRecentPriceSeries(series),

@@ -1,4 +1,7 @@
-import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
+import {
+  loadSafeCardMarketHistoryRows,
+  type CardMarketHistoryPriceRow,
+} from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import {
   buildLinkedBinderCostBasis,
@@ -10,6 +13,7 @@ import {
   buildCardEbaySoldGradedPriceHistory,
   buildCardGradedPriceHistory,
   buildCardPriceHistory,
+  normalizeCardMarketListingValue,
   type CardEbaySoldGradedPriceHistorySnapshot,
   type CardGradedPriceHistorySnapshot,
 } from "@/lib/price-history";
@@ -26,6 +30,35 @@ import { loadRelatedCardPrintings } from "@/lib/card-printings";
 import { getCardCharacters } from "@/lib/card-characters-core";
 import { selectCardDetailSealedProducts } from "@/lib/sealed-products";
 import { getSealedOriginMarketPrice } from "@/lib/collection-sealed-origin";
+
+type IndependentlyResolvedPriceField =
+  | "cm_de_lowest_nm"
+  | "cm_fr_lowest_nm"
+  | "cm_es_lowest_nm"
+  | "cm_it_lowest_nm"
+  | "cm_jp_lowest_nm"
+  | "cm_en_avg_7d"
+  | "cm_en_avg_30d"
+  | "tcp_market"
+  | "tcp_mid"
+  | "tcp_low";
+
+function latestUsablePriceField(
+  rows: readonly CardMarketHistoryPriceRow[],
+  field: IndependentlyResolvedPriceField,
+  options: { cardMarket?: boolean } = {}
+): number | null {
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    const value = rows[index]?.[field];
+    const normalized = options.cardMarket
+      ? normalizeCardMarketListingValue(value)
+      : value != null && Number.isFinite(value) && value > 0
+        ? value
+        : null;
+    if (normalized != null) return normalized;
+  }
+  return null;
+}
 
 type CardDetailCollectionItem = {
   id: string;
@@ -386,6 +419,39 @@ export async function getCardDetailPayload(id: string, userId: string) {
   const latestEnglishNmSnapshot = [...safePriceRows]
     .reverse()
     .find((price) => getCurrentRawCardmarketValue(price) != null) ?? null;
+  const latestTcpSnapshot = [...safePriceRows]
+    .reverse()
+    .find((price) =>
+      [price.tcp_market, price.tcp_mid, price.tcp_low].some(
+        (value) => value != null && value > 0 && value !== 9001
+      )
+    ) ?? null;
+  const independentlyResolvedPrice = {
+    cm_de_lowest_nm: latestUsablePriceField(safePriceRows, "cm_de_lowest_nm", {
+      cardMarket: true,
+    }),
+    cm_fr_lowest_nm: latestUsablePriceField(safePriceRows, "cm_fr_lowest_nm", {
+      cardMarket: true,
+    }),
+    cm_es_lowest_nm: latestUsablePriceField(safePriceRows, "cm_es_lowest_nm", {
+      cardMarket: true,
+    }),
+    cm_it_lowest_nm: latestUsablePriceField(safePriceRows, "cm_it_lowest_nm", {
+      cardMarket: true,
+    }),
+    cm_jp_lowest_nm: latestUsablePriceField(safePriceRows, "cm_jp_lowest_nm", {
+      cardMarket: true,
+    }),
+    cm_en_avg_7d: latestUsablePriceField(safePriceRows, "cm_en_avg_7d", {
+      cardMarket: true,
+    }),
+    cm_en_avg_30d: latestUsablePriceField(safePriceRows, "cm_en_avg_30d", {
+      cardMarket: true,
+    }),
+    tcp_market: latestUsablePriceField(safePriceRows, "tcp_market"),
+    tcp_mid: latestUsablePriceField(safePriceRows, "tcp_mid"),
+    tcp_low: latestUsablePriceField(safePriceRows, "tcp_low"),
+  };
   const priceHistory = buildCardPriceHistory(safePriceRows);
   const [dailyGradedHistory, pullRateInfo, ebayDemand] = await Promise.all([
     dailyGradedHistoryPromise,
@@ -413,9 +479,9 @@ export async function getCardDetailPayload(id: string, userId: string) {
     (price) => price.currency.toUpperCase() === "USD"
   ) || dailyGradedHistory.ebaySold.some((price) => price.currency.toUpperCase() === "USD");
   const hasTcgPlayerPrice = [
-    latestSourceSnapshot?.tcp_market,
-    latestSourceSnapshot?.tcp_mid,
-    latestSourceSnapshot?.tcp_low,
+    independentlyResolvedPrice.tcp_market,
+    independentlyResolvedPrice.tcp_mid,
+    independentlyResolvedPrice.tcp_low,
   ].some((value) => value != null && value > 0);
   const usdToEurRate = hasUsdEbaySoldGradedPrices || hasTcgPlayerPrice
     ? await getUsdToEurRate()
@@ -445,20 +511,19 @@ export async function getCardDetailPayload(id: string, userId: string) {
   });
   const latestPricePayload = latestSourceSnapshot || latestEnglishNmSnapshot
     ? {
-        // The main/default market is always the newest usable English Near
-        // Mint quote. Other language and TCG fields remain from the newest
-        // general source snapshot and are only shown after explicit selection.
+        // Every market series is independent. A source-pure CardMarket row
+        // must not hide an older TCGPlayer observation (or the inverse).
         cm_en_lowest_nm: latestEnglishNmSnapshot?.cm_en_lowest_nm ?? null,
-        cm_de_lowest_nm: latestSourceSnapshot?.cm_de_lowest_nm ?? null,
-        cm_fr_lowest_nm: latestSourceSnapshot?.cm_fr_lowest_nm ?? null,
-        cm_es_lowest_nm: latestSourceSnapshot?.cm_es_lowest_nm ?? null,
-        cm_it_lowest_nm: latestSourceSnapshot?.cm_it_lowest_nm ?? null,
-        cm_jp_lowest_nm: latestSourceSnapshot?.cm_jp_lowest_nm ?? null,
-        tcp_market: latestSourceSnapshot?.tcp_market ?? null,
-        tcp_mid: latestSourceSnapshot?.tcp_mid ?? null,
-        tcp_low: latestSourceSnapshot?.tcp_low ?? null,
-        cm_en_avg_7d: latestEnglishNmSnapshot?.cm_en_avg_7d ?? null,
-        cm_en_avg_30d: latestEnglishNmSnapshot?.cm_en_avg_30d ?? null,
+        cm_de_lowest_nm: independentlyResolvedPrice.cm_de_lowest_nm,
+        cm_fr_lowest_nm: independentlyResolvedPrice.cm_fr_lowest_nm,
+        cm_es_lowest_nm: independentlyResolvedPrice.cm_es_lowest_nm,
+        cm_it_lowest_nm: independentlyResolvedPrice.cm_it_lowest_nm,
+        cm_jp_lowest_nm: independentlyResolvedPrice.cm_jp_lowest_nm,
+        tcp_market: independentlyResolvedPrice.tcp_market,
+        tcp_mid: independentlyResolvedPrice.tcp_mid,
+        tcp_low: independentlyResolvedPrice.tcp_low,
+        cm_en_avg_7d: independentlyResolvedPrice.cm_en_avg_7d,
+        cm_en_avg_30d: independentlyResolvedPrice.cm_en_avg_30d,
       }
     : null;
   const marketStats = buildCardMarketStats({
@@ -578,6 +643,9 @@ export async function getCardDetailPayload(id: string, userId: string) {
       : null,
     price_fetched_at: latestEnglishNmSnapshot
       ? latestEnglishNmSnapshot.fetched_at.toISOString()
+      : null,
+    tcp_price_fetched_at: latestTcpSnapshot
+      ? latestTcpSnapshot.fetched_at.toISOString()
       : null,
     exchange_rate_usd_eur: usdToEurRate?.rate ?? null,
     exchange_rate_date: usdToEurRate?.date ?? null,

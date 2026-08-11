@@ -25,6 +25,10 @@ export interface CardMarketHistoryIdentity {
 export interface CardMarketHistoryPriceRow {
   card_id: string;
   fetched_at: Date;
+  cm_fetched_at?: Date | null;
+  tcp_fetched_at?: Date | null;
+  cm_en_avg_7d_fetched_at?: Date | null;
+  cm_en_avg_30d_fetched_at?: Date | null;
   source?: string | null;
   source_provider?: string | null;
   source_url?: string | null;
@@ -216,6 +220,150 @@ function isUsableEnglishNmValue(value: number | null): value is number {
   return value != null && Number.isFinite(value) && value > 0 && value !== 9001;
 }
 
+function sanitizeMarketHistoryRow(
+  row: CardMarketHistoryPriceRow
+): CardMarketHistoryPriceRow {
+  const usable = (value: number | null) =>
+    isUsableEnglishNmValue(value) ? value : null;
+  return {
+    ...row,
+    cm_en_lowest_nm: usable(row.cm_en_lowest_nm),
+    cm_de_lowest_nm: usable(row.cm_de_lowest_nm),
+    cm_fr_lowest_nm: usable(row.cm_fr_lowest_nm),
+    cm_es_lowest_nm: usable(row.cm_es_lowest_nm),
+    cm_it_lowest_nm: usable(row.cm_it_lowest_nm),
+    cm_jp_lowest_nm: usable(row.cm_jp_lowest_nm),
+    cm_en_avg_7d: usable(row.cm_en_avg_7d),
+    cm_en_avg_30d: usable(row.cm_en_avg_30d),
+    tcp_market: usable(row.tcp_market),
+    tcp_mid: usable(row.tcp_mid),
+    tcp_low: usable(row.tcp_low),
+  };
+}
+
+const CURRENT_MARKET_FIELDS = [
+  "cm_en_lowest_nm",
+  "cm_de_lowest_nm",
+  "cm_fr_lowest_nm",
+  "cm_es_lowest_nm",
+  "cm_it_lowest_nm",
+  "cm_jp_lowest_nm",
+  "cm_en_avg_7d",
+  "cm_en_avg_30d",
+  "tcp_market",
+  "tcp_mid",
+  "tcp_low",
+] as const;
+
+type CurrentMarketField = (typeof CURRENT_MARKET_FIELDS)[number];
+type CurrentMarketFetchedAtField = `${CurrentMarketField}_fetched_at`;
+type LatestCurrentMarketRow = {
+  card_id: string;
+  source: string | null;
+  source_provider: string | null;
+  source_url: string | null;
+} & Record<CurrentMarketField, number | null> &
+  Record<CurrentMarketFetchedAtField, Date | string | null>;
+
+type LatestFieldCandidate = {
+  cardId: string;
+  value: number;
+  fetchedAt: Date;
+  row: LatestCurrentMarketRow;
+};
+
+function latestCurrentFieldSql(field: CurrentMarketField, select: "value" | "fetched_at") {
+  const selectedColumn = select === "value" ? `p."${field}"` : `p."fetched_at"`;
+  const alias = select === "value" ? field : `${field}_fetched_at`;
+  return `(
+    SELECT ${selectedColumn}
+    FROM "Price" p
+    WHERE p."card_id" = requested."id"
+      AND p."${field}" > 0
+      AND p."${field}" <> 9001
+    ORDER BY p."fetched_at" DESC, p."id" DESC
+    LIMIT 1
+  ) AS "${alias}"`;
+}
+
+function latestEnglishNmMetadataSql(field: "source" | "source_provider" | "source_url") {
+  return `(
+    SELECT p."${field}"
+    FROM "Price" p
+    WHERE p."card_id" = requested."id"
+      AND p."cm_en_lowest_nm" > 0
+      AND p."cm_en_lowest_nm" <> 9001
+    ORDER BY p."fetched_at" DESC, p."id" DESC
+    LIMIT 1
+  ) AS "${field}"`;
+}
+
+function asValidDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+async function loadLatestCurrentMarketRows(
+  cardIds: readonly string[]
+): Promise<Map<string, LatestCurrentMarketRow>> {
+  const latestByCardId = new Map<string, LatestCurrentMarketRow>();
+
+  for (let index = 0; index < cardIds.length; index += SQLITE_SAFE_CHUNK_SIZE) {
+    const chunk = cardIds.slice(index, index + SQLITE_SAFE_CHUNK_SIZE);
+    const placeholders = chunk.map(() => "(?)").join(", ");
+    const fieldSelections = CURRENT_MARKET_FIELDS.flatMap((field) => [
+      latestCurrentFieldSql(field, "value"),
+      latestCurrentFieldSql(field, "fetched_at"),
+    ]);
+    const rows = await db.$queryRawUnsafe<LatestCurrentMarketRow[]>(
+      `
+      WITH requested("id") AS (VALUES ${placeholders})
+      SELECT
+        requested."id" AS "card_id",
+        ${latestEnglishNmMetadataSql("source")},
+        ${latestEnglishNmMetadataSql("source_provider")},
+        ${latestEnglishNmMetadataSql("source_url")},
+        ${fieldSelections.join(",\n        ")}
+      FROM requested
+      `,
+      ...chunk
+    );
+    for (const row of rows) latestByCardId.set(row.card_id, row);
+  }
+
+  return latestByCardId;
+}
+
+function getLatestFieldCandidate(input: {
+  field: CurrentMarketField;
+  cardIds: Iterable<string>;
+  exactCardId: string;
+  rowsByCardId: Map<string, LatestCurrentMarketRow>;
+}): LatestFieldCandidate | null {
+  let latest: LatestFieldCandidate | null = null;
+
+  for (const cardId of input.cardIds) {
+    const row = input.rowsByCardId.get(cardId);
+    const value = row?.[input.field] ?? null;
+    const fetchedAt = row
+      ? asValidDate(row[`${input.field}_fetched_at` as CurrentMarketFetchedAtField])
+      : null;
+    if (!row || !isUsableEnglishNmValue(value) || !fetchedAt) continue;
+
+    const candidate = { cardId, value, fetchedAt, row };
+    const isNewer = !latest || candidate.fetchedAt.getTime() > latest.fetchedAt.getTime();
+    const isExactTie =
+      latest &&
+      candidate.fetchedAt.getTime() === latest.fetchedAt.getTime() &&
+      candidate.cardId === input.exactCardId &&
+      latest.cardId !== input.exactCardId;
+    if (isNewer || isExactTie) latest = candidate;
+  }
+
+  return latest;
+}
+
 /** Returns the newest usable EN/NM row from an ascending safe history. */
 export function getLatestSafeEnglishNmPrice(
   rows: readonly CardMarketHistoryPriceRow[]
@@ -251,62 +399,69 @@ export async function loadLatestSafeEnglishNmPrices(
     ...new Set([...aliasIdsByIdentity.values()].flatMap((ids) => [...ids])),
   ];
 
-  const latestRowsByCardId = new Map<string, CardMarketHistoryPriceRow>();
-  for (let index = 0; index < allCardIds.length; index += SQLITE_SAFE_CHUNK_SIZE) {
-    const cards = await db.card.findMany({
-      where: { id: { in: allCardIds.slice(index, index + SQLITE_SAFE_CHUNK_SIZE) } },
-      select: {
-        id: true,
-        prices: {
-          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-          take: 1,
-          select: {
-            fetched_at: true,
-            source: true,
-            source_provider: true,
-            source_url: true,
-            cm_en_lowest_nm: true,
-            cm_de_lowest_nm: true,
-            cm_fr_lowest_nm: true,
-            cm_es_lowest_nm: true,
-            cm_it_lowest_nm: true,
-            cm_jp_lowest_nm: true,
-            cm_en_avg_7d: true,
-            cm_en_avg_30d: true,
-            tcp_market: true,
-            tcp_mid: true,
-            tcp_low: true,
-          },
-        },
-      },
-    });
-    for (const card of cards) {
-      const row = card.prices[0];
-      if (!row || !isUsableEnglishNmValue(row.cm_en_lowest_nm)) continue;
-      latestRowsByCardId.set(card.id, { card_id: card.id, ...row });
-    }
-  }
+  const latestRowsByCardId = await loadLatestCurrentMarketRows(allCardIds);
 
   for (const identity of uniqueIdentities) {
     const aliases = aliasIdsByIdentity.get(identity.id) ?? new Set([identity.id]);
-    let latest: CardMarketHistoryPriceRow | null = null;
-    for (const aliasId of aliases) {
-      const source = latestRowsByCardId.get(aliasId);
-      if (!source) continue;
-      const row =
-        aliasId === identity.id
-          ? source
-          : { ...source, tcp_market: null, tcp_mid: null, tcp_low: null };
-      const isNewer = !latest || row.fetched_at.getTime() > latest.fetched_at.getTime();
-      const isExactTie =
-        latest &&
-        row.fetched_at.getTime() === latest.fetched_at.getTime() &&
-        row.card_id === identity.id &&
-        latest.card_id !== identity.id;
-      if (isNewer || isExactTie) latest = row;
-    }
-    result.set(identity.id, latest ? getLatestSafeEnglishNmPrice([latest]) : null);
+    const latestEnglish = getLatestFieldCandidate({
+      field: "cm_en_lowest_nm",
+      cardIds: aliases,
+      exactCardId: identity.id,
+      rowsByCardId: latestRowsByCardId,
+    });
+    if (!latestEnglish) continue;
+
+    const latestAliasField = (field: CurrentMarketField) =>
+      getLatestFieldCandidate({
+        field,
+        cardIds: aliases,
+        exactCardId: identity.id,
+        rowsByCardId: latestRowsByCardId,
+      });
+    const latestExactField = (field: CurrentMarketField) =>
+      getLatestFieldCandidate({
+        field,
+        cardIds: [identity.id],
+        exactCardId: identity.id,
+        rowsByCardId: latestRowsByCardId,
+      });
+
+    const cmDe = latestAliasField("cm_de_lowest_nm");
+    const cmFr = latestAliasField("cm_fr_lowest_nm");
+    const cmEs = latestAliasField("cm_es_lowest_nm");
+    const cmIt = latestAliasField("cm_it_lowest_nm");
+    const cmJp = latestAliasField("cm_jp_lowest_nm");
+    const average7d = latestAliasField("cm_en_avg_7d");
+    const average30d = latestAliasField("cm_en_avg_30d");
+    const tcpMarket = latestExactField("tcp_market");
+    const tcpMid = latestExactField("tcp_mid");
+    const tcpLow = latestExactField("tcp_low");
+    const row: CardMarketHistoryPriceRow = {
+      card_id: latestEnglish.cardId,
+      fetched_at: latestEnglish.fetchedAt,
+      cm_fetched_at: latestEnglish.fetchedAt,
+      tcp_fetched_at:
+        tcpMarket?.fetchedAt ?? tcpMid?.fetchedAt ?? tcpLow?.fetchedAt ?? null,
+      cm_en_avg_7d_fetched_at: average7d?.fetchedAt ?? null,
+      cm_en_avg_30d_fetched_at: average30d?.fetchedAt ?? null,
+      source: latestEnglish.row.source,
+      source_provider: latestEnglish.row.source_provider,
+      source_url: latestEnglish.row.source_url,
+      cm_en_lowest_nm: latestEnglish.value,
+      cm_de_lowest_nm: cmDe?.value ?? null,
+      cm_fr_lowest_nm: cmFr?.value ?? null,
+      cm_es_lowest_nm: cmEs?.value ?? null,
+      cm_it_lowest_nm: cmIt?.value ?? null,
+      cm_jp_lowest_nm: cmJp?.value ?? null,
+      cm_en_avg_7d: average7d?.value ?? null,
+      cm_en_avg_30d: average30d?.value ?? null,
+      // TCGPlayer is exact-card only. A CardMarket alias may be a sibling
+      // rendering with a different TCGPlayer instrument.
+      tcp_market: tcpMarket?.value ?? null,
+      tcp_mid: tcpMid?.value ?? null,
+      tcp_low: tcpLow?.value ?? null,
+    };
+    result.set(identity.id, getLatestSafeEnglishNmPrice([row]));
   }
 
   return result;
@@ -372,8 +527,9 @@ export async function loadSafeCardMarketHistoryRows(
     const aliases = aliasIdsByIdentity.get(identity.id) ?? new Set([identity.id]);
     const rows = allRows
       .filter((row) => aliases.has(row.card_id))
-      .map((row) =>
-        row.card_id === identity.id
+      .map((rawRow) => {
+        const row = sanitizeMarketHistoryRow(rawRow);
+        return row.card_id === identity.id
           ? row
           : {
               ...row,
@@ -382,8 +538,8 @@ export async function loadSafeCardMarketHistoryRows(
               tcp_market: null,
               tcp_mid: null,
               tcp_low: null,
-            }
-      )
+            };
+      })
       .sort((left, right) => {
         const time = left.fetched_at.getTime() - right.fetched_at.getTime();
         if (time !== 0) return time;

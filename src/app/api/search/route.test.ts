@@ -111,7 +111,7 @@ describe("GET /api/search", () => {
     // Prices come from the dedicated latest-usable-price lookup, filtered on
     // the same usable EN/NM criteria as before.
     expect(dbMock.$queryRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining("cm_en_lowest_nm > 0"),
+      expect.stringMatching(/cm_en_lowest_nm > 0[\s\S]*latest_tcp/),
       "card-1"
     );
     expect(dbMock.card.findMany).toHaveBeenCalledWith(

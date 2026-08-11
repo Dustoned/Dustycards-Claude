@@ -21,6 +21,127 @@ import ExpansionCardsSection from "@/app/expansions/[id]/ExpansionCardsSection";
 
 export const dynamic = "force-dynamic";
 
+const ONE_PIECE_CURRENT_PRICE_FIELDS = [
+  "cm_en_lowest_nm",
+  "cm_de_lowest_nm",
+  "cm_fr_lowest_nm",
+  "cm_es_lowest_nm",
+  "cm_it_lowest_nm",
+  "cm_en_avg_7d",
+  "cm_en_avg_30d",
+  "tcp_market",
+  "tcp_mid",
+  "tcp_low",
+] as const;
+
+type OnePieceCurrentPriceField = (typeof ONE_PIECE_CURRENT_PRICE_FIELDS)[number];
+type OnePieceCurrentPriceRow = {
+  card_id: string;
+  cm_fetched_at: Date | string | null;
+  aux_fetched_at: Date | string | null;
+  tcp_fetched_at: Date | string | null;
+} & Record<OnePieceCurrentPriceField, number | null>;
+
+type OnePieceCurrentPrice = {
+  fetchedAt: Date | null;
+  price: NonNullable<CardData["price"]>;
+};
+
+function latestOnePiecePriceFieldSql(field: OnePieceCurrentPriceField): string {
+  return `(
+    SELECT p."${field}"
+    FROM "Price" p
+    WHERE p.card_id = cards.id
+      AND p."${field}" > 0
+      AND p."${field}" <> 9001
+    ORDER BY p.fetched_at DESC, p.id DESC
+    LIMIT 1
+  ) AS "${field}"`;
+}
+
+function latestOnePiecePriceTimestampSql(field: OnePieceCurrentPriceField, alias: string) {
+  return `(
+    SELECT p.fetched_at
+    FROM "Price" p
+    WHERE p.card_id = cards.id
+      AND p."${field}" > 0
+      AND p."${field}" <> 9001
+    ORDER BY p.fetched_at DESC, p.id DESC
+    LIMIT 1
+  ) AS "${alias}"`;
+}
+
+function toValidDate(value: Date | string | null | undefined): Date | null {
+  if (!value) return null;
+  const parsed = value instanceof Date ? value : new Date(value);
+  return Number.isFinite(parsed.getTime()) ? parsed : null;
+}
+
+async function getCurrentOnePiecePrices(
+  episodeId: string
+): Promise<Map<string, OnePieceCurrentPrice>> {
+  const rows = await db.$queryRawUnsafe<OnePieceCurrentPriceRow[]>(
+    `
+    WITH cards AS (
+      SELECT id
+      FROM "Card"
+      WHERE episode_id = ?
+        AND game = ?
+    )
+    SELECT
+      cards.id AS card_id,
+      ${latestOnePiecePriceTimestampSql("cm_en_lowest_nm", "cm_fetched_at")},
+      (
+        SELECT p.fetched_at
+        FROM "Price" p
+        WHERE p.card_id = cards.id
+          AND (
+            (p.cm_de_lowest_nm > 0 AND p.cm_de_lowest_nm <> 9001)
+            OR (p.cm_fr_lowest_nm > 0 AND p.cm_fr_lowest_nm <> 9001)
+            OR (p.cm_es_lowest_nm > 0 AND p.cm_es_lowest_nm <> 9001)
+            OR (p.cm_it_lowest_nm > 0 AND p.cm_it_lowest_nm <> 9001)
+            OR (p.cm_en_avg_7d > 0 AND p.cm_en_avg_7d <> 9001)
+            OR (p.cm_en_avg_30d > 0 AND p.cm_en_avg_30d <> 9001)
+          )
+        ORDER BY p.fetched_at DESC, p.id DESC
+        LIMIT 1
+      ) AS aux_fetched_at,
+      ${latestOnePiecePriceTimestampSql("tcp_market", "tcp_fetched_at")},
+      ${ONE_PIECE_CURRENT_PRICE_FIELDS.map(latestOnePiecePriceFieldSql).join(",\n      ")}
+    FROM cards
+    `,
+    episodeId,
+    ONE_PIECE_GAME
+  );
+
+  const pricesByCardId = new Map<string, OnePieceCurrentPrice>();
+  for (const row of rows) {
+    const hasPrice = ONE_PIECE_CURRENT_PRICE_FIELDS.some((field) => row[field] != null);
+    if (!hasPrice) continue;
+    pricesByCardId.set(row.card_id, {
+      // CardData exposes one timestamp and defaults to CM. Never let a newer
+      // TCP-only observation make the older CM quote appear freshly checked.
+      fetchedAt:
+        toValidDate(row.cm_fetched_at) ??
+        toValidDate(row.aux_fetched_at) ??
+        toValidDate(row.tcp_fetched_at),
+      price: {
+        cm_en_lowest_nm: row.cm_en_lowest_nm,
+        cm_de_lowest_nm: row.cm_de_lowest_nm,
+        cm_fr_lowest_nm: row.cm_fr_lowest_nm,
+        cm_es_lowest_nm: row.cm_es_lowest_nm,
+        cm_it_lowest_nm: row.cm_it_lowest_nm,
+        tcp_market: row.tcp_market,
+        tcp_mid: row.tcp_mid,
+        tcp_low: row.tcp_low,
+        cm_en_avg_7d: row.cm_en_avg_7d,
+        cm_en_avg_30d: row.cm_en_avg_30d,
+      },
+    });
+  }
+  return pricesByCardId;
+}
+
 function getKnownEpisodeCardCount(episode: {
   card_count: number | null;
   source_actual_card_count: number | null;
@@ -66,19 +187,13 @@ export default async function OnePieceExpansionDetailPage({
     formatReleaseLabel(episode.release_date, { includeDay: true }) ?? releaseLabel;
   const isUpcomingRelease = isFutureReleaseDate(episode.release_date);
 
-  const [rawSetPriceSnapshots, dbCards] = await Promise.all([
+  const [rawSetPriceSnapshots, dbCards, currentPricesByCardId] = await Promise.all([
     getEpisodeSetPriceSnapshotRows(id),
     db.card.findMany({
       where: { episode_id: id, game: ONE_PIECE_GAME },
       orderBy: [{ card_number: "asc" }, { name: "asc" }],
-      include: {
-        prices: {
-          where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
-          orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
-          take: 1,
-        },
-      },
     }),
+    getCurrentOnePiecePrices(id),
   ]);
 
   const setPriceHistory = buildEpisodeSetPriceHistory(rawSetPriceSnapshots);
@@ -98,7 +213,7 @@ export default async function OnePieceExpansionDetailPage({
       ? ((latestSetPricePoint?.priced_cards ?? 0) / cardCountDenominator) * 100
       : 0;
   const cards: CardData[] = dbCards.map((card) => {
-    const price = card.prices[0] ?? null;
+    const currentPrice = currentPricesByCardId.get(card.id) ?? null;
 
     return {
       id: card.id,
@@ -121,21 +236,8 @@ export default async function OnePieceExpansionDetailPage({
       price_source_checked_at: card.price_source_checked_at
         ? card.price_source_checked_at.toISOString()
         : null,
-      price_fetched_at: price ? price.fetched_at.toISOString() : null,
-      price: price
-        ? {
-            cm_en_lowest_nm: price.cm_en_lowest_nm,
-            cm_de_lowest_nm: price.cm_de_lowest_nm,
-            cm_fr_lowest_nm: price.cm_fr_lowest_nm,
-            cm_es_lowest_nm: price.cm_es_lowest_nm,
-            cm_it_lowest_nm: price.cm_it_lowest_nm,
-            tcp_market: price.tcp_market,
-            tcp_mid: price.tcp_mid,
-            tcp_low: price.tcp_low,
-            cm_en_avg_7d: price.cm_en_avg_7d,
-            cm_en_avg_30d: price.cm_en_avg_30d,
-          }
-        : null,
+      price_fetched_at: currentPrice?.fetchedAt?.toISOString() ?? null,
+      price: currentPrice?.price ?? null,
       pull_rate_info: null,
     };
   });

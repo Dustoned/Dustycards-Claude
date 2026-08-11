@@ -312,36 +312,23 @@ async function writeAcceptedPrice(
   sourceUrl: string
 ): Promise<void> {
   await db.$transaction(async (tx) => {
-    const latest = await tx.price.findFirst({
-      where: { card_id: candidate.cardId },
+    const latestDirect = await tx.price.findFirst({
+      where: {
+        card_id: candidate.cardId,
+        source: NEW_RELEASE_CHASE_WATCH_SOURCE,
+        source_provider: NEW_RELEASE_CHASE_WATCH_PROVIDER,
+      },
       orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
       select: {
         id: true,
-        fetched_at: true,
-        changed_at: true,
-        source: true,
-        source_provider: true,
-        source_url: true,
         cm_en_lowest_nm: true,
-        cm_de_lowest_nm: true,
-        cm_fr_lowest_nm: true,
-        cm_es_lowest_nm: true,
-        cm_it_lowest_nm: true,
-        cm_jp_lowest_nm: true,
-        cm_en_avg_30d: true,
-        cm_en_avg_7d: true,
-        tcp_market: true,
-        tcp_mid: true,
-        tcp_low: true,
       },
     });
-    if (latest?.cm_en_lowest_nm === priceEur) {
+    if (latestDirect?.cm_en_lowest_nm === priceEur) {
       await tx.price.update({
-        where: { id: latest.id },
+        where: { id: latestDirect.id },
         data: {
           fetched_at: fetchedAt,
-          source: NEW_RELEASE_CHASE_WATCH_SOURCE,
-          source_provider: NEW_RELEASE_CHASE_WATCH_PROVIDER,
           source_url: sourceUrl,
         },
       });
@@ -355,16 +342,6 @@ async function writeAcceptedPrice(
           source_provider: NEW_RELEASE_CHASE_WATCH_PROVIDER,
           source_url: sourceUrl,
           cm_en_lowest_nm: priceEur,
-          cm_de_lowest_nm: latest?.cm_de_lowest_nm ?? null,
-          cm_fr_lowest_nm: latest?.cm_fr_lowest_nm ?? null,
-          cm_es_lowest_nm: latest?.cm_es_lowest_nm ?? null,
-          cm_it_lowest_nm: latest?.cm_it_lowest_nm ?? null,
-          cm_jp_lowest_nm: latest?.cm_jp_lowest_nm ?? null,
-          cm_en_avg_30d: latest?.cm_en_avg_30d ?? null,
-          cm_en_avg_7d: latest?.cm_en_avg_7d ?? null,
-          tcp_market: latest?.tcp_market ?? null,
-          tcp_mid: latest?.tcp_mid ?? null,
-          tcp_low: latest?.tcp_low ?? null,
         },
       });
     }

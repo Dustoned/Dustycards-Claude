@@ -192,10 +192,9 @@ interface LatestUsablePriceRow {
   tcp_market: number | null;
 }
 
-// Prisma's nested `prices take: 1` fetches every matching price row for all
-// candidate cards before trimming in memory — hundreds of snapshots per card.
-// This resolves the same "latest usable EN/NM quote" with one indexed lookup
-// per card instead.
+// CardMarket and TCGPlayer are independent observations. Resolve each source
+// separately so a newer TCP-only row cannot hide the last real EN/NM quote
+// (and a CM-only backfill cannot freeze an older TCP value).
 async function fetchLatestUsablePriceByCardId(
   cardIds: string[]
 ): Promise<Map<string, SearchCardRecord["prices"]>> {
@@ -205,18 +204,60 @@ async function fetchLatestUsablePriceByCardId(
   const placeholders = cardIds.map(() => "?").join(", ");
   const rows = await db.$queryRawUnsafe<LatestUsablePriceRow[]>(
     `
-    SELECT p.card_id, p.cm_en_lowest_nm, p.cm_jp_lowest_nm, p.tcp_market
-    FROM "Price" p
-    WHERE p.card_id IN (${placeholders})
-      AND p.id = (
-        SELECT p2.id
-        FROM "Price" p2
-        WHERE p2.card_id = p.card_id
-          AND p2.cm_en_lowest_nm > 0
-          AND p2.cm_en_lowest_nm <> 9001
-        ORDER BY p2.fetched_at DESC, p2.id DESC
-        LIMIT 1
-      )
+    WITH requested AS (
+      SELECT id
+      FROM "Card"
+      WHERE id IN (${placeholders})
+    ),
+    latest_cm AS (
+      SELECT
+        p.card_id,
+        p.cm_en_lowest_nm,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.card_id
+          ORDER BY p.fetched_at DESC, p.id DESC
+        ) AS row_num
+      FROM "Price" p
+      JOIN requested r ON r.id = p.card_id
+      WHERE p.cm_en_lowest_nm > 0
+        AND p.cm_en_lowest_nm <> 9001
+    ),
+    latest_jp AS (
+      SELECT
+        p.card_id,
+        p.cm_jp_lowest_nm,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.card_id
+          ORDER BY p.fetched_at DESC, p.id DESC
+        ) AS row_num
+      FROM "Price" p
+      JOIN requested r ON r.id = p.card_id
+      WHERE p.cm_jp_lowest_nm > 0
+        AND p.cm_jp_lowest_nm <> 9001
+    ),
+    latest_tcp AS (
+      SELECT
+        p.card_id,
+        p.tcp_market,
+        ROW_NUMBER() OVER (
+          PARTITION BY p.card_id
+          ORDER BY p.fetched_at DESC, p.id DESC
+        ) AS row_num
+      FROM "Price" p
+      JOIN requested r ON r.id = p.card_id
+      WHERE p.tcp_market > 0
+        AND p.tcp_market <> 9001
+    )
+    SELECT
+      r.id AS card_id,
+      cm.cm_en_lowest_nm,
+      jp.cm_jp_lowest_nm,
+      tcp.tcp_market
+    FROM requested r
+    LEFT JOIN latest_cm cm ON cm.card_id = r.id AND cm.row_num = 1
+    LEFT JOIN latest_jp jp ON jp.card_id = r.id AND jp.row_num = 1
+    LEFT JOIN latest_tcp tcp ON tcp.card_id = r.id AND tcp.row_num = 1
+    WHERE cm.card_id IS NOT NULL OR jp.card_id IS NOT NULL OR tcp.card_id IS NOT NULL
     `,
     ...cardIds
   );

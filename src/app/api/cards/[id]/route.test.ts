@@ -230,6 +230,7 @@ const CARD_DETAIL_API_KEYS = [
   "subtypes",
   "supertype",
   "tcggo_url",
+  "tcp_price_fetched_at",
   "want_item",
 ] as const;
 
@@ -344,6 +345,64 @@ describe("GET /api/cards/[id]", () => {
     );
     expect(body.price_fetched_at).toBe("2026-05-22T10:00:00.000Z");
     expect(body.buy_signal.context).toBe("market");
+  });
+
+  it("keeps TCP and language quotes when a newer row contains only CardMarket EN/NM", async () => {
+    const card = makeCardRecord();
+    card.prices.push(
+      {
+        cm_en_lowest_nm: null,
+        cm_de_lowest_nm: 54,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+        cm_jp_lowest_nm: null,
+        tcp_market: 39.87,
+        tcp_mid: 41,
+        tcp_low: 37,
+        cm_en_avg_7d: 88,
+        cm_en_avg_30d: 100,
+        fetched_at: new Date("2026-05-24T10:00:00.000Z"),
+      } as unknown as (typeof card.prices)[number],
+      {
+        cm_en_lowest_nm: 84,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+        cm_jp_lowest_nm: null,
+        tcp_market: null,
+        tcp_mid: null,
+        tcp_low: null,
+        cm_en_avg_7d: null,
+        cm_en_avg_30d: null,
+        fetched_at: new Date("2026-05-25T10:00:00.000Z"),
+      } as unknown as (typeof card.prices)[number]
+    );
+    dbMock.card.findUnique.mockResolvedValue(card);
+    historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
+      new Map([[card.id, card.prices]])
+    );
+
+    const response = await GET(new NextRequest("http://localhost:3000/api/cards/card-1"), {
+      params: Promise.resolve({ id: "card-1" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body.price).toEqual(
+      expect.objectContaining({
+        cm_en_lowest_nm: 84,
+        cm_de_lowest_nm: 54,
+        tcp_market: 39.87,
+        tcp_mid: 41,
+        tcp_low: 37,
+        cm_en_avg_7d: 88,
+        cm_en_avg_30d: 100,
+      })
+    );
+    expect(body.price_fetched_at).toBe("2026-05-25T10:00:00.000Z");
+    expect(body.tcp_price_fetched_at).toBe("2026-05-24T10:00:00.000Z");
   });
 
   it("returns an API-ready serializable payload for server consumers", async () => {

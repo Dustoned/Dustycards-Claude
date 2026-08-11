@@ -85,6 +85,12 @@ describe("upcoming source reveals", () => {
           episodeName: "30th Celebration",
           status: "reveal",
         },
+        {
+          name: "Umbreon ex",
+          imageUrl: "https://cdn.example.com/umbreon.webp",
+          episodeName: "30th Celebration MEP Promos",
+          status: "confirmed",
+        },
       ],
     });
 

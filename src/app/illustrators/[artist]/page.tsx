@@ -121,6 +121,46 @@ async function getIllustratorCardsUncached(
           ON e.id = c.episode_id
         WHERE c.artist = ?
 ${visibleEpisodeWhereSql}
+      ),
+      latest_cm AS (
+        SELECT
+          p.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        JOIN artist_cards ac ON ac.id = p.card_id
+        WHERE p.cm_en_lowest_nm > 0
+          AND p.cm_en_lowest_nm <> 9001
+      ),
+      latest_aux AS (
+        SELECT
+          p.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        JOIN artist_cards ac ON ac.id = p.card_id
+        WHERE (p.cm_de_lowest_nm > 0 AND p.cm_de_lowest_nm <> 9001)
+           OR (p.cm_fr_lowest_nm > 0 AND p.cm_fr_lowest_nm <> 9001)
+           OR (p.cm_es_lowest_nm > 0 AND p.cm_es_lowest_nm <> 9001)
+           OR (p.cm_it_lowest_nm > 0 AND p.cm_it_lowest_nm <> 9001)
+           OR (p.cm_en_avg_7d > 0 AND p.cm_en_avg_7d <> 9001)
+           OR (p.cm_en_avg_30d > 0 AND p.cm_en_avg_30d <> 9001)
+      ),
+      latest_tcp AS (
+        SELECT
+          p.*,
+          ROW_NUMBER() OVER (
+            PARTITION BY p.card_id
+            ORDER BY p.fetched_at DESC, p.id DESC
+          ) AS row_num
+        FROM "Price" p
+        JOIN artist_cards ac ON ac.id = p.card_id
+        WHERE p.tcp_market > 0
+          AND p.tcp_market <> 9001
       )
       SELECT
         ac.id,
@@ -142,28 +182,33 @@ ${visibleEpisodeWhereSql}
         ac.episode_name,
         ac.episode_code,
         ac.release_date AS episode_release_date,
-        lp.fetched_at AS price_fetched_at,
-        lp.cm_en_lowest_nm,
-        lp.cm_de_lowest_nm,
-        lp.cm_fr_lowest_nm,
-        lp.cm_es_lowest_nm,
-        lp.cm_it_lowest_nm,
-        lp.tcp_market,
-        lp.tcp_mid,
-        lp.tcp_low,
-        lp.cm_en_avg_7d,
-        lp.cm_en_avg_30d
+        CASE
+          WHEN cm.fetched_at IS NOT NULL THEN cm.fetched_at
+          WHEN aux.fetched_at IS NOT NULL THEN aux.fetched_at
+          ELSE tcp.fetched_at
+        END AS price_fetched_at,
+        cm.cm_en_lowest_nm,
+        CASE WHEN aux.cm_de_lowest_nm > 0 AND aux.cm_de_lowest_nm <> 9001
+          THEN aux.cm_de_lowest_nm ELSE NULL END AS cm_de_lowest_nm,
+        CASE WHEN aux.cm_fr_lowest_nm > 0 AND aux.cm_fr_lowest_nm <> 9001
+          THEN aux.cm_fr_lowest_nm ELSE NULL END AS cm_fr_lowest_nm,
+        CASE WHEN aux.cm_es_lowest_nm > 0 AND aux.cm_es_lowest_nm <> 9001
+          THEN aux.cm_es_lowest_nm ELSE NULL END AS cm_es_lowest_nm,
+        CASE WHEN aux.cm_it_lowest_nm > 0 AND aux.cm_it_lowest_nm <> 9001
+          THEN aux.cm_it_lowest_nm ELSE NULL END AS cm_it_lowest_nm,
+        tcp.tcp_market,
+        CASE WHEN tcp.tcp_mid > 0 AND tcp.tcp_mid <> 9001
+          THEN tcp.tcp_mid ELSE NULL END AS tcp_mid,
+        CASE WHEN tcp.tcp_low > 0 AND tcp.tcp_low <> 9001
+          THEN tcp.tcp_low ELSE NULL END AS tcp_low,
+        CASE WHEN aux.cm_en_avg_7d > 0 AND aux.cm_en_avg_7d <> 9001
+          THEN aux.cm_en_avg_7d ELSE NULL END AS cm_en_avg_7d,
+        CASE WHEN aux.cm_en_avg_30d > 0 AND aux.cm_en_avg_30d <> 9001
+          THEN aux.cm_en_avg_30d ELSE NULL END AS cm_en_avg_30d
       FROM artist_cards ac
-      LEFT JOIN "Price" lp
-        ON lp.id = (
-          SELECT p2.id
-          FROM "Price" p2
-          WHERE p2.card_id = ac.id
-            AND p2.cm_en_lowest_nm > 0
-            AND p2.cm_en_lowest_nm <> 9001
-          ORDER BY p2.fetched_at DESC, p2.id DESC
-          LIMIT 1
-        )
+      LEFT JOIN latest_cm cm ON cm.card_id = ac.id AND cm.row_num = 1
+      LEFT JOIN latest_aux aux ON aux.card_id = ac.id AND aux.row_num = 1
+      LEFT JOIN latest_tcp tcp ON tcp.card_id = ac.id AND tcp.row_num = 1
       ORDER BY
         ac.release_date DESC,
         CASE

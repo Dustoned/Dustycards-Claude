@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  hasConclusiveCardMarketOfferState,
   cardNumberMatchesSubmittedBase,
   getCardMarketUrlGame,
   normalizeSubmissionText,
@@ -312,8 +313,7 @@ describe("card submission parsing", () => {
   });
 
   it("accepts only explicit ungraded English NM offer rows for automatic chase prices", () => {
-    const parsed = parseStrictCardMarketEnglishNmPrice(
-      makeScrape({
+    const renderedOfferScrape = makeScrape({
         markdown: "English Near Mint 1.00 EUR",
         html: [
           makeCardMarketArticleRow({ condition: "Near Mint", price: "140,00 EUR" }),
@@ -321,15 +321,28 @@ describe("card submission parsing", () => {
           makeCardMarketArticleRow({ condition: "Excellent", price: "90,00 EUR" }),
           makeCardMarketArticleRow({ condition: "Near Mint", price: "70,00 EUR", comment: "PSA 10" }),
         ].join(""),
-      })
-    );
+      });
+    const parsed = parseStrictCardMarketEnglishNmPrice(renderedOfferScrape);
 
     expect(parsed).toEqual({ priceEur: 140, offerCount: 1 });
+    expect(hasConclusiveCardMarketOfferState(renderedOfferScrape)).toBe(true);
     expect(
       parseStrictCardMarketEnglishNmPrice(
         makeScrape({ markdown: "English Near Mint 1.00 EUR", html: "" })
       )
     ).toBeNull();
+    expect(
+      hasConclusiveCardMarketOfferState(
+        makeScrape({ markdown: "English Near Mint 1.00 EUR", html: "" })
+      )
+    ).toBe(false);
+    expect(
+      hasConclusiveCardMarketOfferState(
+        makeScrape({
+          html: '<div class="table-body"><p class="noResults text-center">Currently there are no available offers for this article.</p></div>',
+        })
+      )
+    ).toBe(true);
   });
 
   it("extracts graded CardMarket prices from seller comments", () => {

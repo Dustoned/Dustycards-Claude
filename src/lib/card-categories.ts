@@ -21,6 +21,7 @@ import {
 } from "@/lib/games";
 import type { EpisodePriceHistorySnapshot } from "@/lib/price-history";
 import type { CollectionCardViewItem } from "@/types/collection-view";
+import { hydrateLatestCardMarketFields } from "@/lib/current-card-prices";
 
 export type CardCategoryGroup =
   | "Featured"
@@ -111,7 +112,12 @@ const CATEGORY_CARD_SELECT = {
   rarity: true,
   supertype: true,
   prices: {
-    where: { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+    where: {
+      OR: [
+        { cm_en_lowest_nm: { gt: 0, not: 9001 } },
+        { tcp_market: { gt: 0, not: 9001 } },
+      ],
+    },
     orderBy: [{ fetched_at: "desc" }, { id: "desc" }],
     take: 1,
     select: PRICE_SELECT,
@@ -1121,7 +1127,7 @@ async function getCategoryCards(where: Prisma.CardWhereInput): Promise<CategoryC
       take: SQLITE_SAFE_CHUNK_SIZE,
     });
 
-    cards.push(...page);
+    cards.push(...(await hydrateLatestCardMarketFields(page)));
 
     if (page.length < SQLITE_SAFE_CHUNK_SIZE) {
       break;

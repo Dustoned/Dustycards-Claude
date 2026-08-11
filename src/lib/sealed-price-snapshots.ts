@@ -46,7 +46,17 @@ export async function getSealedPriceSnapshotsByEpisode(
           cm_avg_30d,
           ROW_NUMBER() OVER (
             PARTITION BY product_id, DATE(fetched_at)
-            ORDER BY fetched_at DESC, id DESC
+            ORDER BY
+              CASE WHEN COALESCE(
+                CASE WHEN cm_lowest_eu > 0 AND cm_lowest_eu <> 9001 THEN cm_lowest_eu END,
+                CASE WHEN cm_lowest > 0 AND cm_lowest <> 9001 THEN cm_lowest END,
+                CASE WHEN cm_lowest_de > 0 AND cm_lowest_de <> 9001 THEN cm_lowest_de END,
+                CASE WHEN cm_lowest_fr > 0 AND cm_lowest_fr <> 9001 THEN cm_lowest_fr END,
+                CASE WHEN cm_lowest_es > 0 AND cm_lowest_es <> 9001 THEN cm_lowest_es END,
+                CASE WHEN cm_lowest_it > 0 AND cm_lowest_it <> 9001 THEN cm_lowest_it END
+              ) IS NOT NULL THEN 1 ELSE 0 END DESC,
+              fetched_at DESC,
+              id DESC
           ) AS row_num
         FROM "SealedPriceSnapshot"
         WHERE episode_id = ?
@@ -107,7 +117,17 @@ export async function getSealedPriceSnapshotsByProduct(
           cm_avg_30d,
           ROW_NUMBER() OVER (
             PARTITION BY DATE(fetched_at)
-            ORDER BY fetched_at DESC, id DESC
+            ORDER BY
+              CASE WHEN COALESCE(
+                CASE WHEN cm_lowest_eu > 0 AND cm_lowest_eu <> 9001 THEN cm_lowest_eu END,
+                CASE WHEN cm_lowest > 0 AND cm_lowest <> 9001 THEN cm_lowest END,
+                CASE WHEN cm_lowest_de > 0 AND cm_lowest_de <> 9001 THEN cm_lowest_de END,
+                CASE WHEN cm_lowest_fr > 0 AND cm_lowest_fr <> 9001 THEN cm_lowest_fr END,
+                CASE WHEN cm_lowest_es > 0 AND cm_lowest_es <> 9001 THEN cm_lowest_es END,
+                CASE WHEN cm_lowest_it > 0 AND cm_lowest_it <> 9001 THEN cm_lowest_it END
+              ) IS NOT NULL THEN 1 ELSE 0 END DESC,
+              fetched_at DESC,
+              id DESC
           ) AS row_num
         FROM "SealedPriceSnapshot"
         WHERE product_id = ?
