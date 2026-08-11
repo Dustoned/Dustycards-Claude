@@ -2881,6 +2881,7 @@ async function selectAutoRefreshBatch(
         OR (
           c.price_source_status <> 'unavailable'
           AND c.price_source_status <> ${UPCOMING_PRICE_SOURCE_STATUS}
+          AND c.price_source_status <> ${CARDMARKET_NO_EN_NM_PRICE_STATUS}
         )
       )
   `;
@@ -2891,6 +2892,7 @@ async function selectAutoRefreshBatch(
   for (const candidate of candidates) {
     if (options?.game && candidate.game !== options.game) continue;
     if (hiddenEpisodeIds.has(candidate.episode_id)) continue;
+    if (!isAutoRefreshPriceSourceStatusEligible(candidate.price_source_status)) continue;
     // A card can have an old snapshot but no current marketplace price. Do not spin on it.
     if (
       candidate.price_source_status === "unavailable" &&
@@ -2960,6 +2962,19 @@ async function selectAutoRefreshBatch(
   };
 }
 
+export function isAutoRefreshPriceSourceStatusEligible(
+  status: string | null | undefined
+): boolean {
+  return (
+    status == null ||
+    ![
+      "unavailable",
+      UPCOMING_PRICE_SOURCE_STATUS,
+      CARDMARKET_NO_EN_NM_PRICE_STATUS,
+    ].includes(status)
+  );
+}
+
 export function buildRetryableMissingPriceWhere(input: {
   hiddenEpisodeIds: string[];
   game?: TradingCardGame;
@@ -2976,13 +2991,19 @@ export function buildRetryableMissingPriceWhere(input: {
     tcggo_url: { not: null },
     prices: { none: {} },
     // Every released missing-price card gets another chance after the cooldown.
-    // Confirmed future cards stay out of the quota-consuming retry queue.
+    // Confirmed future cards and authoritative direct CardMarket no-listing
+    // observations stay out of the quota-consuming TCGGo retry queue.
     // `unavailable` is a temporary source observation, not a permanent ban.
     AND: [
       {
         OR: [
           { price_source_status: null },
-          { price_source_status: { not: UPCOMING_PRICE_SOURCE_STATUS } },
+          {
+            AND: [
+              { price_source_status: { not: UPCOMING_PRICE_SOURCE_STATUS } },
+              { price_source_status: { not: CARDMARKET_NO_EN_NM_PRICE_STATUS } },
+            ],
+          },
         ],
       },
       {
@@ -4952,6 +4973,21 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         gradedPricesUpdated += result.gradedPricesUpdated;
       }
 
+      const completedEpisodeIds = new Set(
+        priceResults.flatMap((result, index) =>
+          result ? [episodeEntries[index]?.[0]].filter((id): id is string => Boolean(id)) : []
+        )
+      );
+      const processedSelectedCards = priceResults.reduce(
+        (count, result) => count + (result?.selectedCards ?? 0),
+        0
+      );
+      const processedBackfillCards = [...backfillBatch.selectedByEpisode.entries()].reduce(
+        (count, [episodeId, cardIds]) =>
+          count + (completedEpisodeIds.has(episodeId) ? cardIds.length : 0),
+        0
+      );
+
       await progress.throwIfCancelled();
 
       let syncedCardHistoryItems = 0;
@@ -4978,16 +5014,19 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
         }
       }
 
-      const remainingDueCards = Math.max(dueBatch.dueCards - dueBatch.selectedCards, 0);
-      const remainingNonBaseDueCards = Math.max(
-        dueBatch.nonBaseDueCards - dueBatch.selectedNonBaseCards,
-        0
-      );
+      // Recount after the writes instead of subtracting the planned batch.
+      // When quota is exhausted partway through an episode batch, some planned
+      // episodes return no result and remain due. Subtracting every selected
+      // card made Settings briefly show false progress before the queue
+      // appeared to jump back on the next snapshot.
+      const remainingBatch = await selectAutoRefreshBatch(new Date());
+      const remainingDueCards = remainingBatch.dueCards;
+      const remainingNonBaseDueCards = remainingBatch.nonBaseDueCards;
       const nativeHistoryCount = syncedCardHistoryItems + syncedSealedHistoryItems;
       activeRemainingDueCards = remainingDueCards;
 
       const messageParts = [
-        `Checked ${selectedCards} cards across ${combinedBatch.size} sets`,
+        `Checked ${processedSelectedCards} cards across ${completedEpisodeIds.size} sets`,
       ];
       if (catalogSyncedEpisodes > 0 || newEpisodes > 0) {
         messageParts.push(
@@ -5004,13 +5043,13 @@ export async function runAutoPriceRefresh(): Promise<AutoPriceRefreshResult> {
       }
 
       return withAutoQuotaFields({
-        checkedEpisodes: combinedBatch.size,
+        checkedEpisodes: completedEpisodeIds.size,
         catalogSyncedEpisodes,
         newEpisodes,
         dueCards: dueBatch.dueCards,
         missingPriceCards: backfillBatch.missingPriceCards,
-        selectedCards,
-        backfillCards: backfillBatch.selectedCards,
+        selectedCards: processedSelectedCards,
+        backfillCards: processedBackfillCards,
         nativeHistoryItems: nativeHistoryCount,
         catalogPending: catalogGamesToSync.length > 0 && !shouldRunCatalogWithAutoBatch,
         submittedCardCandidates,

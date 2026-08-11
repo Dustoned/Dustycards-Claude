@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildRetryableMissingPriceWhere,
+  isAutoRefreshPriceSourceStatusEligible,
   rankAndSelectAutoRefreshCandidates,
   type DueCardCandidate,
 } from "@/lib/sync";
@@ -93,6 +94,15 @@ describe("rankAndSelectAutoRefreshCandidates", () => {
   });
 });
 
+describe("isAutoRefreshPriceSourceStatusEligible", () => {
+  it("keeps direct no-English/NM observations out of the TCGGo due queue", () => {
+    expect(isAutoRefreshPriceSourceStatusEligible(null)).toBe(true);
+    expect(isAutoRefreshPriceSourceStatusEligible("unavailable")).toBe(false);
+    expect(isAutoRefreshPriceSourceStatusEligible("upcoming")).toBe(false);
+    expect(isAutoRefreshPriceSourceStatusEligible("cardmarket-no-en-nm")).toBe(false);
+  });
+});
+
 describe("buildRetryableMissingPriceWhere", () => {
   it("retries cards previously marked unavailable after their cooldown", () => {
     const retryBefore = new Date("2026-08-03T00:00:00.000Z");
@@ -111,7 +121,12 @@ describe("buildRetryableMissingPriceWhere", () => {
         {
           OR: [
             { price_source_status: null },
-            { price_source_status: { not: "upcoming" } },
+            {
+              AND: [
+                { price_source_status: { not: "upcoming" } },
+                { price_source_status: { not: "cardmarket-no-en-nm" } },
+              ],
+            },
           ],
         },
         {

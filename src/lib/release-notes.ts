@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.63",
+    releasedAt: "August 11, 2026",
+    title: "Background refresh reports real progress",
+    summary: "Quota pauses no longer start empty workers or subtract cards that were only previewed.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Truthful queue and quota handling",
+        highlights: [
+          "An exhausted live TCGGo quota parks the worker until the recorded reset instead of retrying every minute.",
+          "Current batch and remaining counts now reflect work that actually ran; the next preview is labelled separately.",
+          "A partial quota-stop recounts the real due queue instead of claiming every planned card was checked.",
+          "Confirmed CardMarket no-English/NM results stay out of the unrelated TCGGo refresh queue.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.62",
     releasedAt: "August 11, 2026",
     title: "Upcoming prices stay future-safe",

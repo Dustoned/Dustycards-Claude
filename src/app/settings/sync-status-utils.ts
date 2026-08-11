@@ -66,6 +66,29 @@ export interface SyncStatusSectionProps {
   recentFailures: SyncStatusEntry[];
 }
 
+export interface AutoRefreshProgress {
+  batchCards: number | null;
+  batchSets: number | null;
+  dueBacklog: number | null;
+  currentSet: string | null;
+  currentSetIndex: number | null;
+  currentSetTotal: number | null;
+  currentSetCards: number | null;
+}
+
+export interface AutoRefreshDisplayMetrics {
+  queueCount: number;
+  hasRunningBatch: boolean;
+  currentBatchCards: number;
+  currentBatchSets: number;
+  currentBatchHint: string;
+  remainingCards: number;
+  remainingHint: string;
+  previewCards: number;
+  previewSets: number;
+  previewHint: string;
+}
+
 interface ActivityMetric {
   label: string;
   value: string;
@@ -200,15 +223,7 @@ export function compactMessage(message: string | null, maxLength = 220): string 
 export function parseAutoRefreshProgress(
   message: string | null,
   explicitDetails?: SyncLogDetails | null
-): {
-  batchCards: number | null;
-  batchSets: number | null;
-  dueBacklog: number | null;
-  currentSet: string | null;
-  currentSetIndex: number | null;
-  currentSetTotal: number | null;
-  currentSetCards: number | null;
-} {
+): AutoRefreshProgress {
   const decoded = decodeSyncLogMessage(message);
   const details =
     explicitDetails?.kind === "auto-price-refresh"
@@ -281,6 +296,53 @@ export function parseAutoRefreshProgress(
   }
 
   return result;
+}
+
+export function getAutoRefreshDisplayMetrics(
+  status: Pick<
+    AutoRefreshStatus,
+    | "active"
+    | "dueCards"
+    | "missingPriceCards"
+    | "submittedCardCandidates"
+    | "nextBatchCards"
+    | "nextBatchEpisodes"
+    | "quotaPaused"
+  >,
+  progress: Pick<AutoRefreshProgress, "batchCards" | "batchSets" | "dueBacklog">
+): AutoRefreshDisplayMetrics {
+  const queueCount =
+    status.dueCards + status.missingPriceCards + status.submittedCardCandidates;
+  const hasRunningBatch = Boolean(status.active);
+  const currentBatchCards = hasRunningBatch ? (progress.batchCards ?? 0) : 0;
+  const currentBatchSets = hasRunningBatch ? (progress.batchSets ?? 0) : 0;
+  const remainingCards = hasRunningBatch
+    ? (progress.dueBacklog ?? Math.max(queueCount - currentBatchCards, 0))
+    : queueCount;
+  const previewCards = status.nextBatchCards;
+  const previewSets = status.nextBatchEpisodes;
+
+  return {
+    queueCount,
+    hasRunningBatch,
+    currentBatchCards,
+    currentBatchSets,
+    currentBatchHint: hasRunningBatch
+      ? `${currentBatchSets.toLocaleString("en-US")} sets`
+      : "no batch running",
+    remainingCards,
+    remainingHint: hasRunningBatch
+      ? "after current batch"
+      : status.quotaPaused
+        ? "waiting for quota reset"
+        : "waiting for next run",
+    previewCards,
+    previewSets,
+    previewHint:
+      previewCards > 0
+        ? `${previewSets.toLocaleString("en-US")} sets / planning only`
+        : "no next-run preview",
+  };
 }
 
 function getAutoRefreshDetails(entry: SyncStatusEntry): AutoPriceRefreshLogDetails | null {

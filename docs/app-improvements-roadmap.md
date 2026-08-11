@@ -23,7 +23,6 @@ These are reliability tasks, not user-facing promises:
   backup copy is stored outside the primary application volume.
 - Finish graceful shutdown for in-flight sync work and SQLite WAL checkpointing
   (database disconnect and boot reconciliation are live).
-- Make quota-pause progress messages count only work actually completed.
 - Split very large modules only while a related feature or fix already touches them.
 
 ## Not on the active roadmap

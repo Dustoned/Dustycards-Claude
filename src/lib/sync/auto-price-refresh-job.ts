@@ -10,6 +10,7 @@ import {
 } from "@/lib/sync";
 import { resolveAutoPriceRefreshStartedAt } from "@/lib/sync/auto-price-refresh-window";
 import { createAutoPriceRefreshResultDetails } from "@/lib/sync/progress-details";
+import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
 import {
   decodeSyncLogDetailsJson,
   encodeSyncLogDetailsJson,
@@ -277,6 +278,11 @@ async function resumeRecoverableAutoPriceRefreshJob(): Promise<void> {
     return;
   }
 
+  const quota = await getTcggoUsageSnapshot();
+  if (isPersistedTcggoQuotaExhausted(quota)) {
+    return;
+  }
+
   await db.syncJob.update({
     where: { id: job.id },
     data: {
@@ -287,6 +293,12 @@ async function resumeRecoverableAutoPriceRefreshJob(): Promise<void> {
   });
 
   launchJob(job.id);
+}
+
+function isPersistedTcggoQuotaExhausted(
+  quota: Awaited<ReturnType<typeof getTcggoUsageSnapshot>>
+): boolean {
+  return quota.hasLiveWindow && quota.requestsRemaining === 0;
 }
 
 /**
@@ -305,9 +317,10 @@ export async function runExternalAutoPriceRefreshWorker(): Promise<{
   }
 
   const now = new Date();
-  const [existing, snapshot] = await Promise.all([
+  const [existing, snapshot, quota] = await Promise.all([
     db.syncJob.findUnique({ where: { type: AUTO_PRICE_REFRESH_SYNC_TYPE } }),
     getAutoPriceRefreshSnapshot(),
+    getTcggoUsageSnapshot(),
   ]);
   const pendingCards =
     snapshot.dueCards + snapshot.missingPriceCards + snapshot.submittedCardCandidates;
@@ -318,6 +331,15 @@ export async function runExternalAutoPriceRefreshWorker(): Promise<{
       running: true,
       pendingCards,
       status: existing?.status ?? "running",
+    };
+  }
+
+  if (isPersistedTcggoQuotaExhausted(quota)) {
+    return {
+      started: false,
+      running: false,
+      pendingCards,
+      status: "quota-paused",
     };
   }
 
@@ -384,11 +406,12 @@ export async function startAutoPriceRefreshJob(): Promise<{
   finishedAt: string | null;
 }> {
   const now = new Date();
-  const [existing, snapshot] = await Promise.all([
+  const [existing, snapshot, quota] = await Promise.all([
     db.syncJob.findUnique({
       where: { type: AUTO_PRICE_REFRESH_SYNC_TYPE },
     }),
     getAutoPriceRefreshSnapshot(),
+    getTcggoUsageSnapshot(),
   ]);
   const pendingCards =
     snapshot.dueCards + snapshot.missingPriceCards + snapshot.submittedCardCandidates;
@@ -404,6 +427,22 @@ export async function startAutoPriceRefreshJob(): Promise<{
       nextBatchCards: snapshot.nextBatchCards,
       nextBatchEpisodes: snapshot.nextBatchEpisodes,
       status: existing?.status ?? "running",
+      startedAt: existing?.started_at?.toISOString() ?? null,
+      finishedAt: existing?.finished_at?.toISOString() ?? null,
+    };
+  }
+
+  if (isPersistedTcggoQuotaExhausted(quota)) {
+    return {
+      started: false,
+      running: false,
+      pendingCards,
+      dueCards: snapshot.dueCards,
+      missingPriceCards: snapshot.missingPriceCards,
+      submittedCardCandidates: snapshot.submittedCardCandidates,
+      nextBatchCards: snapshot.nextBatchCards,
+      nextBatchEpisodes: snapshot.nextBatchEpisodes,
+      status: "quota-paused",
       startedAt: existing?.started_at?.toISOString() ?? null,
       finishedAt: existing?.finished_at?.toISOString() ?? null,
     };

@@ -5,6 +5,7 @@ import { MetricCell, StatusPill } from "./SyncStatusCards";
 import type { AutoRefreshStatus } from "./sync-status-utils";
 import {
   compactMessage,
+  getAutoRefreshDisplayMetrics,
   parseAutoRefreshProgress,
   visualStatus,
 } from "./sync-status-utils";
@@ -19,16 +20,17 @@ function formatCount(value: number | null | undefined): string {
   return value.toLocaleString("en-US");
 }
 
-function getQueueCount(status: AutoRefreshStatus): number {
-  return status.dueCards + status.missingPriceCards + status.submittedCardCandidates;
-}
-
 function getRefreshStatus(status: AutoRefreshStatus): string {
   if (status.active) return visualStatus(status.active);
   if (status.scraperDisabled) return "paused";
   if (status.quotaPaused) return "quota-paused";
   if (status.serverJobRunning) return "running";
-  if (getQueueCount(status) > 0 || status.nextBatchCards > 0) return "waiting";
+  if (
+    status.dueCards + status.missingPriceCards + status.submittedCardCandidates > 0 ||
+    status.nextBatchCards > 0
+  ) {
+    return "waiting";
+  }
   return "success";
 }
 
@@ -41,10 +43,13 @@ function getRefreshStateLabel(status: AutoRefreshStatus): string {
       ? `Waiting for scraper quota reset at ${status.quotaResetLabel}`
       : "Waiting for scraper quota reset";
   }
-  if (getQueueCount(status) > 0 || status.nextBatchCards > 0) {
+  if (
+    status.dueCards + status.missingPriceCards + status.submittedCardCandidates > 0 ||
+    status.nextBatchCards > 0
+  ) {
     return status.serverJobRunning
-      ? "Batch is ready and the server job is awake"
-      : "Batch is ready for the next run";
+      ? "Due work is waiting while the server job checks for a run"
+      : "Due work is waiting for the next run";
   }
   return "No due cards in this view right now";
 }
@@ -99,11 +104,7 @@ export default function SyncStatusTabs({
     );
   }
 
-  const queueCount = getQueueCount(selected);
-  const currentBatchCards = progress.batchCards ?? selected.nextBatchCards;
-  const currentBatchSets = progress.batchSets ?? selected.nextBatchEpisodes;
-  const remainingAfterBatch =
-    progress.dueBacklog ?? Math.max(queueCount - currentBatchCards, 0);
+  const metrics = getAutoRefreshDisplayMetrics(selected, progress);
   const latestPriceLabel = selected.latestPriceLabel ?? "--";
   const quotaHint = selected.quotaPaused
     ? selected.quotaResetLabel
@@ -111,11 +112,10 @@ export default function SyncStatusTabs({
       : "quota paused"
     : `${selected.requestConcurrency} parallel slots`;
   const activeSummary = compactMessage(selected.active?.message ?? null, 220);
-  const batchSummary =
-    activeSummary ??
-    (selected.nextBatchCards > 0
-      ? `${selected.nextBatchCards.toLocaleString("en-US")} cards queued for the next batch.`
-      : null);
+  const previewSummary =
+    selected.nextBatchCards > 0
+      ? `${selected.nextBatchCards.toLocaleString("en-US")} cards across ${selected.nextBatchEpisodes.toLocaleString("en-US")} sets are candidates for a future run; this is a planning preview only.`
+      : null;
   const setSummary = selected.nextBatchSetLabels.join(", ");
   const cardSummary = selected.nextBatchCardLabels.join(", ");
   const refreshStatus = getRefreshStatus(selected);
@@ -123,9 +123,9 @@ export default function SyncStatusTabs({
     Boolean(selected.active) ||
     selected.scraperDisabled ||
     selected.quotaPaused ||
-    queueCount > 0 ||
+    metrics.queueCount > 0 ||
     selected.nextBatchCards > 0;
-  const hasBatchDetails = Boolean(batchSummary || setSummary || cardSummary);
+  const hasBatchDetails = Boolean(activeSummary || previewSummary || setSummary || cardSummary);
   const quietSummary =
     !hasWorkSignal && selected.unavailableCooldownCards > 0
       ? `${formatCount(selected.unavailableCooldownCards)} unavailable cards are skipped until prices return.`
@@ -170,26 +170,31 @@ export default function SyncStatusTabs({
       </div>
 
       <div className="mt-3 overflow-hidden rounded-lg border border-black/6 dark:border-white/8">
-        <div className="grid grid-cols-2 bg-white/45 dark:bg-white/[0.03] md:grid-cols-5">
+        <div className="grid grid-cols-2 bg-white/45 dark:bg-white/[0.03] md:grid-cols-6">
           <MetricCell
             label="Queue"
-            value={formatCount(queueCount)}
+            value={formatCount(metrics.queueCount)}
             hint={`${formatCount(selected.dueCards)} due / ${formatCount(
               selected.missingPriceCards
             )} first-price / ${formatCount(selected.submittedCardCandidates)} submitted`}
-            tone={getTone(queueCount)}
+            tone={getTone(metrics.queueCount)}
           />
           <MetricCell
             label="Current batch"
-            value={formatCount(currentBatchCards)}
-            hint={`${formatCount(currentBatchSets)} sets`}
-            tone={selected.active ? "good" : "default"}
+            value={formatCount(metrics.currentBatchCards)}
+            hint={metrics.currentBatchHint}
+            tone={metrics.hasRunningBatch ? "good" : "default"}
           />
           <MetricCell
-            label="Remaining"
-            value={formatCount(remainingAfterBatch)}
-            hint={selected.active ? "after current batch" : "after preview"}
-            tone={getTone(remainingAfterBatch)}
+            label="Remaining due"
+            value={formatCount(metrics.remainingCards)}
+            hint={metrics.remainingHint}
+            tone={getTone(metrics.remainingCards)}
+          />
+          <MetricCell
+            label="Next preview"
+            value={formatCount(metrics.previewCards)}
+            hint={metrics.previewHint}
           />
           <MetricCell
             label="Quota"
@@ -222,8 +227,9 @@ export default function SyncStatusTabs({
           </div>
 
           {hasBatchDetails && (
-            <div className="mt-3 grid gap-3 border-t border-black/6 pt-3 dark:border-white/8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
-              <DetailRow label="Batch details" value={batchSummary} />
+            <div className="mt-3 grid gap-3 border-t border-black/6 pt-3 dark:border-white/8 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.3fr)_minmax(0,1fr)_minmax(0,1fr)]">
+              <DetailRow label="Current batch details" value={activeSummary} />
+              <DetailRow label="Next-run preview" value={previewSummary} />
               <DetailRow label="Preview sets" value={setSummary} />
               <DetailRow label="Preview cards" value={cardSummary} />
             </div>

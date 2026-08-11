@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.63",
+    releasedAt: "August 11, 2026",
+    title: "Background price progress stays exact",
+    summary: "The current-price queue now pauses cleanly at quota zero and only counts completed work as progress.",
+    tone: "fixed",
+    highlights: [
+      "Persisted TCGGo quota exhaustion blocks scheduler, worker and recovery launches until reset.",
+      "Inactive preview cards no longer reduce the displayed remaining queue.",
+      "Quota-stopped batches recount the database queue and report zero checked cards when nothing ran.",
+      "Direct CardMarket no-English/NM observations are excluded from normal TCGGo refreshes.",
+    ],
+  },
+  {
     version: "3.12.62",
     releasedAt: "August 11, 2026",
     title: "Future cards no longer enter price queues",
