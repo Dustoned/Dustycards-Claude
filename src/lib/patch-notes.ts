@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.67",
+    releasedAt: "August 12, 2026",
+    title: "Upcoming widgets no longer create a giant empty row",
+    summary: "Compact Upcoming modules now use a fixed dashboard viewport instead of stretching to the full height of every set gallery.",
+    tone: "improved",
+    highlights: [
+      "Upcoming Sealed and Upcoming Singles stay aligned at a compact 480-pixel desktop height.",
+      "The Upcoming Singles widget keeps all set rows accessible with its own vertical scroll area.",
+      "Upcoming Sealed product tiles are wider and pack the available space more evenly.",
+      "Wide widgets and mobile layouts keep their natural content height.",
+    ],
+  },
+  {
     version: "3.12.66",
     releasedAt: "August 12, 2026",
     title: "Home item clicks open exact details",

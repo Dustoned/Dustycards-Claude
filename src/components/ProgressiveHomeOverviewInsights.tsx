@@ -552,7 +552,12 @@ export default function ProgressiveHomeOverviewInsights({
       <InsightPanelSkeleton />
     ),
     upcoming: payload ? (
-      <HomeUpcomingWidget items={payload.upcoming ?? []} viewAllHref={upcomingHref} viewMode={viewModeFor("upcoming")} />
+      <HomeUpcomingWidget
+        items={payload.upcoming ?? []}
+        viewAllHref={upcomingHref}
+        viewMode={viewModeFor("upcoming")}
+        compact={compactModules.has("upcoming")}
+      />
     ) : (
       <InsightPanelSkeleton />
     ),
@@ -562,6 +567,7 @@ export default function ProgressiveHomeOverviewInsights({
         total={payload.upcomingSinglesTotal ?? payload.upcomingSingles?.length ?? 0}
         viewAllHref={upcomingHref}
         viewMode={viewModeFor("upcoming-singles")}
+        compact={compactModules.has("upcoming-singles")}
       />
     ) : (
       <InsightPanelSkeleton />

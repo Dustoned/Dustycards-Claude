@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.67",
+    releasedAt: "August 12, 2026",
+    title: "Compact Upcoming widgets stay compact",
+    summary: "Upcoming Sealed and Upcoming Singles now share a practical dashboard height without hiding release variety.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Less empty dashboard space",
+        highlights: [
+          "Compact Upcoming widgets stop at a lower, matching desktop height.",
+          "All Upcoming Singles set rows remain available inside a smooth vertical browser.",
+          "Upcoming Sealed uses broader product tiles and scrolls its own contents when needed.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.66",
     releasedAt: "August 12, 2026",
     title: "Home tiles open the item you clicked",

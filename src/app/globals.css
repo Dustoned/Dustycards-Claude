@@ -3706,6 +3706,16 @@ html[data-appearance-scheme="light"]
   grid-template-columns: repeat(auto-fill, minmax(9.5rem, 1fr));
 }
 
+.home-widget-tile-grid--releases {
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  align-content: start;
+}
+
+[data-home-widget-compact="true"] > [class*="overflow-y-auto"] {
+  scrollbar-width: thin;
+  scrollbar-color: rgb(var(--home-widget-accent-rgb) / 0.34) transparent;
+}
+
 .home-widget-lane-heading {
   min-height: 2.25rem;
   padding: 0.45rem 0.6rem;

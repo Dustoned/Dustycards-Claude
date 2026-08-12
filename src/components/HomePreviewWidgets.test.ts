@@ -111,4 +111,29 @@ describe("Home widget item click contract", () => {
     expect(markup).toContain("Mystery card");
     expect(markup).not.toContain('href="#"');
   });
+
+  it.each([
+    ["sealed", (compact?: boolean) => createElement(HomeUpcomingWidget, {
+      items: [], compact, viewAllHref: "/upcoming",
+    })],
+    ["singles", (compact?: boolean) => createElement(HomeUpcomingSinglesWidget, {
+      groups: [], total: 0, compact, viewAllHref: "/upcoming",
+    })],
+  ] as const)("caps compact upcoming %s without changing its wide layout", (_kind, renderWidget) => {
+    const compactMarkup = renderToStaticMarkup(createElement(
+      HomeItemDetailProvider,
+      null,
+      renderWidget(true)
+    ));
+    const wideMarkup = renderToStaticMarkup(createElement(
+      HomeItemDetailProvider,
+      null,
+      renderWidget()
+    ));
+
+    expect(compactMarkup).toContain('data-home-widget-compact="true"');
+    expect(compactMarkup).toContain("lg:h-[30rem]");
+    expect(wideMarkup).not.toContain('data-home-widget-compact="true"');
+    expect(wideMarkup).not.toContain("lg:h-[30rem]");
+  });
 });

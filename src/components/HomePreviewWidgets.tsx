@@ -650,22 +650,27 @@ export function HomeUpcomingWidget({
   items,
   viewAllHref,
   viewMode = "grid",
+  compact = false,
 }: {
   items: HomeUpcomingPreviewItem[];
   viewAllHref: string;
   viewMode?: HomeWidgetViewMode;
+  compact?: boolean;
 }) {
   const { openSealed } = useHomeItemDetails();
   const gridView = viewMode === "grid";
   const visibleItems = gridView ? items : items.slice(0, 6);
 
   return (
-    <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">
+    <section
+      data-home-widget-compact={compact ? "true" : undefined}
+      className={`binder-panel home-widget-panel home-widget-panel--upcoming flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 ${compact ? "lg:h-[30rem] lg:max-h-[30rem]" : ""}`}
+    >
       <WidgetHeader eyebrow="Release calendar" title="Upcoming Sealed" count={items.length} href={viewAllHref} icon={CalendarClock} tone="upcoming" />
       {items.length === 0 ? (
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
       ) : gridView ? (
-        <div className="home-widget-tile-grid mt-2 grid gap-2">
+        <div className={`home-widget-tile-grid home-widget-tile-grid--releases mt-2 grid gap-2 ${compact ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1" : ""}`}>
           {visibleItems.map((item) => {
             const product = buildHomeUpcomingSealedProduct(item);
             return <HomePreviewTile
@@ -686,7 +691,7 @@ export function HomeUpcomingWidget({
           })}
         </div>
       ) : (
-        <div className="mt-2 grid gap-1.5">
+        <div className={`mt-2 grid gap-1.5 ${compact ? "min-h-0 flex-1 content-start overflow-y-auto overscroll-contain pr-1" : ""}`}>
           {visibleItems.map((item) => {
             const product = buildHomeUpcomingSealedProduct(item);
             const content = <>
@@ -734,11 +739,13 @@ export function HomeUpcomingSinglesWidget({
   total,
   viewAllHref,
   viewMode = "grid",
+  compact = false,
 }: {
   groups: HomeUpcomingSinglePreviewGroup[];
   total: number;
   viewAllHref: string;
   viewMode?: HomeWidgetViewMode;
+  compact?: boolean;
 }) {
   const { openingCardId, openCard } = useHomeItemDetails();
   const [previewItem, setPreviewItem] = useState<UpcomingCardImageViewerItem | null>(null);
@@ -749,12 +756,15 @@ export function HomeUpcomingSinglesWidget({
     : "TBA";
 
   return (
-    <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">
+    <section
+      data-home-widget-compact={compact ? "true" : undefined}
+      className={`binder-panel home-widget-panel home-widget-panel--upcoming flex h-full min-h-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 ${compact ? "lg:h-[30rem] lg:max-h-[30rem]" : ""}`}
+    >
       <WidgetHeader eyebrow="Reveals & releases" title="Upcoming Singles" count={total} href={viewAllHref} icon={Sparkles} tone="upcoming" />
       {visibleGroups.length === 0 ? (
         <EmptyWidget>No upcoming singles or recent reveals are available.</EmptyWidget>
       ) : (
-        <div className="mt-2 grid gap-2.5">
+        <div className={`mt-2 grid gap-2.5 ${compact ? "min-h-0 flex-1 content-start overflow-y-auto overscroll-contain pr-1" : ""}`}>
           {visibleGroups.map((group) => {
             const setHref = `/upcoming/sets/${encodeURIComponent(group.key)}`;
             const statusLabel = group.statuses.confirmed
