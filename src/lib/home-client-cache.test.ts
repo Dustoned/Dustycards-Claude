@@ -40,4 +40,12 @@ describe("Home client cache", () => {
 
     expect(readHomeClientCache("collection-insights", "user-a", "/api/home")).toBeNull();
   });
+
+  it("keeps the cache schema versioned when Home payload shapes change", () => {
+    writeHomeClientCache("collection-insights", "user-a", "/api/home", { value: 1 });
+
+    expect(readHomeClientCache("collection-insights", "user-a", "/api/home")).toEqual({
+      value: 1,
+    });
+  });
 });

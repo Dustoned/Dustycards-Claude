@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import {
+  ArrowRight,
   ArrowDownRight,
   ArrowUpRight,
   BadgePercent,
@@ -24,7 +25,7 @@ import type {
   HomeMarketMoverPreviewItem,
   HomeSignalRadarPreviewItem,
   HomeUpcomingPreviewItem,
-  HomeUpcomingSinglePreviewItem,
+  HomeUpcomingSinglePreviewGroup,
 } from "@/lib/home-overview-insights";
 import type { HomeWidgetViewMode } from "@/lib/dashboard-module-preferences";
 
@@ -664,56 +665,101 @@ export function HomeUpcomingWidget({
 }
 
 export function HomeUpcomingSinglesWidget({
-  items,
+  groups,
+  total,
   viewAllHref,
   viewMode = "grid",
 }: {
-  items: HomeUpcomingSinglePreviewItem[];
+  groups: HomeUpcomingSinglePreviewGroup[];
+  total: number;
   viewAllHref: string;
   viewMode?: HomeWidgetViewMode;
 }) {
   const gridView = viewMode === "grid";
-  const visibleItems = gridView ? items : items.slice(0, 6);
+  const visibleGroups = groups.filter((group) => Array.isArray(group?.items));
   const dateLabel = (value: string | null) => value
     ? new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(value))
     : "TBA";
 
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--upcoming h-full rounded-[var(--ui-page-header-radius)] p-3">
-      <WidgetHeader eyebrow="Reveals & releases" title="Upcoming Singles" count={items.length} href={viewAllHref} icon={Sparkles} tone="upcoming" />
-      {items.length === 0 ? (
+      <WidgetHeader eyebrow="Reveals & releases" title="Upcoming Singles" count={total} href={viewAllHref} icon={Sparkles} tone="upcoming" />
+      {visibleGroups.length === 0 ? (
         <EmptyWidget>No upcoming singles or recent reveals are available.</EmptyWidget>
-      ) : gridView ? (
-        <div className="home-widget-tile-grid mt-2 grid gap-2">
-          {visibleItems.map((item) => (
-            <HomePreviewTile
-              key={item.id}
-              href={item.href}
-              imageUrl={item.imageUrl}
-              fallback={<Sparkles className="h-5 w-5 text-sky-300" aria-hidden="true" />}
-              title={item.name}
-              meta={`${item.episodeCode ?? item.episodeName}${item.cardNumber ? ` / #${item.cardNumber}` : ""}`}
-              metric={dateLabel(item.releaseDate)}
-              metricClassName="text-sky-300"
-              footer={item.rarity ?? item.status}
-              tone="upcoming"
-            />
-          ))}
-        </div>
       ) : (
-        <div className="mt-2 grid gap-1.5">
-          {visibleItems.map((item) => (
-            <Link key={item.id} href={item.href} prefetch={false} className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}>
-              <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
-                {item.imageUrl ? <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="36px" className="object-cover" /> : <Sparkles className="h-3.5 w-3.5 text-sky-300" />}
-              </span>
-              <span className="min-w-0">
-                <span className="block truncate text-[13px] font-black text-white/88 group-hover:text-white">{item.name}</span>
-                <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-white/40">{item.episodeCode ?? item.episodeName} / {item.status}</span>
-              </span>
-              <span className="text-right text-[12px] font-black tabular-nums text-sky-300">{dateLabel(item.releaseDate)}</span>
-            </Link>
-          ))}
+        <div className="mt-2 grid gap-2.5">
+          {visibleGroups.map((group) => {
+            const setHref = `/upcoming/sets/${encodeURIComponent(group.key)}`;
+            const statusLabel = group.statuses.confirmed
+              ? `${group.statuses.confirmed} confirmed`
+              : group.statuses.reveal
+                ? `${group.statuses.reveal} revealed`
+                : group.statuses.leak
+                  ? `${group.statuses.leak} early`
+                  : `${group.total} upcoming`;
+
+            return (
+              <article key={group.key} className="overflow-hidden rounded-2xl border border-sky-300/12 bg-[rgb(var(--dc-bg-main-rgb)/0.34)]">
+                <Link
+                  href={setHref}
+                  prefetch={false}
+                  className="group/set flex min-w-0 items-center justify-between gap-3 border-b border-sky-300/10 bg-sky-300/[0.035] px-3 py-2.5 transition-colors hover:bg-sky-300/[0.07]"
+                >
+                  <span className="min-w-0">
+                    <span className="flex items-center gap-1.5 truncate text-[13px] font-black text-white/92">
+                      {group.name}
+                      <ArrowRight className="h-3.5 w-3.5 shrink-0 text-sky-300/60 transition-transform group-hover/set:translate-x-0.5" aria-hidden="true" />
+                    </span>
+                    <span className="mt-0.5 block truncate text-[9.5px] font-semibold text-white/40">
+                      {group.total} {group.total === 1 ? "card" : "cards"} · {statusLabel}
+                    </span>
+                  </span>
+                  <span className="shrink-0 rounded-full border border-sky-300/14 bg-sky-300/[0.07] px-2 py-1 text-[9.5px] font-black tabular-nums text-sky-200">
+                    {dateLabel(group.releaseDate)}
+                  </span>
+                </Link>
+
+                {gridView ? (
+                  <div
+                    role="region"
+                    aria-label={`Browse ${group.name}`}
+                    className="grid snap-x snap-mandatory auto-cols-[minmax(7.75rem,9rem)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain p-2.5 [scrollbar-color:rgb(var(--dc-primary-rgb)/0.34)_transparent] [scrollbar-width:thin]"
+                  >
+                    {group.items.map((item) => (
+                      <div key={item.id} className="min-w-0 snap-start">
+                        <HomePreviewTile
+                          href={item.href}
+                          imageUrl={item.imageUrl}
+                          fallback={<Sparkles className="h-5 w-5 text-sky-300" aria-hidden="true" />}
+                          title={item.name}
+                          meta={`${item.episodeCode ?? item.episodeName}${item.cardNumber ? ` / #${item.cardNumber}` : ""}`}
+                          metric={dateLabel(item.releaseDate)}
+                          metricClassName="text-sky-300"
+                          footer={item.rarity ?? item.status}
+                          tone="upcoming"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="grid gap-1 p-2">
+                    {group.items.slice(0, 3).map((item) => (
+                      <Link key={item.id} href={item.href} prefetch={false} className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}>
+                        <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
+                          {item.imageUrl ? <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="36px" className="object-cover" /> : <Sparkles className="h-3.5 w-3.5 text-sky-300" />}
+                        </span>
+                        <span className="min-w-0">
+                          <span className="block truncate text-[13px] font-black text-white/88 group-hover:text-white">{item.name}</span>
+                          <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-white/40">#{item.cardNumber ?? "—"} / {item.status}</span>
+                        </span>
+                        <span className="text-right text-[11px] font-black tabular-nums text-sky-300">{item.rarity ?? dateLabel(item.releaseDate)}</span>
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </article>
+            );
+          })}
         </div>
       )}
     </section>

@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.64",
+    releasedAt: "August 12, 2026",
+    title: "Home widgets use their space better",
+    summary: "Collapsed modules stay small and Upcoming Singles now gives several sets their own card row.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Cleaner dashboard browsing",
+        highlights: [
+          "Collapsed compact widgets no longer stretch into a large empty panel beside taller modules.",
+          "Upcoming Singles groups cards per set before limiting the Home preview.",
+          "Four different set rows can now be browsed horizontally, just like on the full Upcoming page.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.63",
     releasedAt: "August 11, 2026",
     title: "Background refresh reports real progress",

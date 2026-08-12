@@ -115,7 +115,7 @@ async function getHomeUpcomingSingles(game: TradingCardGameFilter) {
   if (homeUpcomingSinglesCache && homeUpcomingSinglesCache.expiresAt > Date.now()) {
     return homeUpcomingSinglesCache.items;
   }
-  const items = (await getUpcomingReleaseFeed()).singles.slice(0, 24);
+  const items = (await getUpcomingReleaseFeed()).singles;
   homeUpcomingSinglesCache = { expiresAt: Date.now() + 5 * 60_000, items };
   return items;
 }

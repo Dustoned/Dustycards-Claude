@@ -237,7 +237,7 @@ function CollapsibleHomeModule({
         type="button"
         onClick={onToggle}
         aria-expanded={false}
-        className="binder-panel flex min-h-11 h-full w-full items-center justify-between gap-3 rounded-[var(--ui-page-header-radius)] border border-white/10 px-3 text-left text-white/72 transition-colors hover:border-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)]"
+        className="binder-panel flex min-h-11 w-full items-center justify-between gap-3 rounded-[var(--ui-page-header-radius)] border border-white/10 px-3 text-left text-white/72 transition-colors hover:border-white/16 hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--dc-primary)]"
       >
         <span className="truncate text-[11px] font-bold uppercase tracking-[0.11em]">
           {label}
@@ -373,6 +373,25 @@ export default function ProgressiveHomeOverviewInsights({
   const hiddenModules = new Set(settings.homeDashboardHiddenModules);
   const compactModules = new Set(settings.homeDashboardCompactModules);
   const collapsedModules = new Set(settings.homeDashboardCollapsedModules);
+  const legacyUpcomingSingleGroups = payload?.upcomingSingles?.length
+    ? [{
+        key: (payload.upcomingSingles[0]?.episodeName ?? "upcoming-card-reveals")
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, "-")
+          .replace(/^-|-$/g, "") || "other",
+        name: payload.upcomingSingles[0]?.episodeName ?? "Upcoming card reveals",
+        releaseDate: payload.upcomingSingles[0]?.releaseDate ?? null,
+        total: payload.upcomingSingles.length,
+        numberedCount: payload.upcomingSingles.filter((item) => item.cardNumber != null).length,
+        nearComplete: false,
+        sources: [],
+        statuses: payload.upcomingSingles.reduce(
+          (counts, item) => ({ ...counts, [item.status]: counts[item.status] + 1 }),
+          { confirmed: 0, reveal: 0, leak: 0, upcoming: 0 }
+        ),
+        items: payload.upcomingSingles,
+      }]
+    : [];
   const listModules = new Set(settings.homeDashboardListModules);
 
   function viewModeFor(moduleKey: HomeDashboardModuleKey): HomeWidgetViewMode {
@@ -537,7 +556,12 @@ export default function ProgressiveHomeOverviewInsights({
       <InsightPanelSkeleton />
     ),
     "upcoming-singles": payload ? (
-      <HomeUpcomingSinglesWidget items={payload.upcomingSingles ?? []} viewAllHref={upcomingHref} viewMode={viewModeFor("upcoming-singles")} />
+      <HomeUpcomingSinglesWidget
+        groups={payload.upcomingSingleGroups ?? legacyUpcomingSingleGroups}
+        total={payload.upcomingSinglesTotal ?? payload.upcomingSingles?.length ?? 0}
+        viewAllHref={upcomingHref}
+        viewMode={viewModeFor("upcoming-singles")}
+      />
     ) : (
       <InsightPanelSkeleton />
     ),

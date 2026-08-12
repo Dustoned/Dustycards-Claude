@@ -1,8 +1,10 @@
 const HOME_CLIENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const HOME_CLIENT_CACHE_VERSION = 2;
 
 type HomeCacheNamespace = "collection-insights" | "sudden-drops";
 
 interface HomeClientCacheEntry {
+  version: number;
   expiresAt: number;
   value: unknown;
 }
@@ -22,7 +24,7 @@ export function readHomeClientCache<T>(
   const entry = homeClientCache.get(key);
   if (!entry) return null;
 
-  if (entry.expiresAt <= Date.now()) {
+  if (entry.version !== HOME_CLIENT_CACHE_VERSION || entry.expiresAt <= Date.now()) {
     homeClientCache.delete(key);
     return null;
   }
@@ -37,6 +39,7 @@ export function writeHomeClientCache<T>(
   value: T
 ) {
   homeClientCache.set(buildCacheKey(namespace, accountId, endpoint), {
+    version: HOME_CLIENT_CACHE_VERSION,
     expiresAt: Date.now() + HOME_CLIENT_CACHE_TTL_MS,
     value,
   });

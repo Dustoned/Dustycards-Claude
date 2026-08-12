@@ -7,10 +7,13 @@ import { getHomeFeaturedCards, getHomeValueDriversPreview } from "@/lib/home-pag
 import type { CollectionMoverItem } from "@/lib/movers";
 import type { UpcomingSealedRelease } from "@/lib/sealed-movers";
 import type { UpcomingSingleItem } from "@/lib/upcoming-releases";
+import { groupUpcomingSingles } from "@/lib/upcoming-single-groups";
 import type { PriceSource } from "@/lib/user-settings";
 
 const HOME_WIDGET_PREVIEW_LIMIT = 24;
 const HOME_WIDGET_MOVER_TONE_LIMIT = HOME_WIDGET_PREVIEW_LIMIT / 2;
+const HOME_UPCOMING_SINGLE_GROUP_LIMIT = 4;
+const HOME_UPCOMING_SINGLE_CARDS_PER_GROUP = 6;
 
 export type HomeAllocationTone = "sky" | "emerald" | "amber" | "rose";
 
@@ -126,6 +129,18 @@ export interface HomeUpcomingSinglePreviewItem {
   href: string;
 }
 
+export interface HomeUpcomingSinglePreviewGroup {
+  key: string;
+  name: string;
+  releaseDate: string | null;
+  total: number;
+  numberedCount: number;
+  nearComplete: boolean;
+  sources: string[];
+  statuses: Record<UpcomingSingleItem["status"], number>;
+  items: HomeUpcomingSinglePreviewItem[];
+}
+
 export interface HomeOverviewInsightsPayload {
   featuredCards: CollectionOverviewData["cards"];
   valueDrivers: CollectionValueDriversData;
@@ -140,6 +155,8 @@ export interface HomeOverviewInsightsPayload {
   forSale: HomeCardListPreview;
   upcoming: HomeUpcomingPreviewItem[];
   upcomingSingles: HomeUpcomingSinglePreviewItem[];
+  upcomingSingleGroups: HomeUpcomingSinglePreviewGroup[];
+  upcomingSinglesTotal: number;
 }
 
 export interface HomeOverviewInsightsExtras {
@@ -307,6 +324,35 @@ export function buildHomeOverviewInsights(
       .toFixed(2)
   );
 
+  const upcomingSingleGroups = groupUpcomingSingles(extras.upcomingSingles ?? []);
+  const upcomingSinglePreviews = upcomingSingleGroups
+    .slice(0, HOME_UPCOMING_SINGLE_GROUP_LIMIT)
+    .map((group) => ({
+      key: group.key,
+      name: group.name,
+      releaseDate: group.releaseDate,
+      total: group.items.length,
+      numberedCount: group.numberedCount,
+      nearComplete: group.nearComplete,
+      sources: group.sources,
+      statuses: group.statuses,
+      items: group.items
+        .slice(0, HOME_UPCOMING_SINGLE_CARDS_PER_GROUP)
+        .map((item) => ({
+          id: item.id,
+          cardId: item.cardId,
+          name: item.name,
+          imageUrl: item.imageUrl,
+          cardNumber: item.cardNumber,
+          episodeName: item.episodeName,
+          episodeCode: item.episodeCode,
+          releaseDate: item.releaseDate,
+          rarity: item.rarity,
+          status: item.status,
+          href: item.libraryReference?.href ?? (item.cardId ? `/cards/${encodeURIComponent(item.cardId)}` : "/upcoming"),
+        })),
+    }));
+
   return {
     featuredCards: getHomeFeaturedCards(data.cards),
     valueDrivers: getHomeValueDriversPreview(data.valueDrivers),
@@ -327,19 +373,11 @@ export function buildHomeOverviewInsights(
       episodeName: item.episodeName,
       episodeCode: item.episodeCode,
     })),
-    upcomingSingles: (extras.upcomingSingles ?? []).slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => ({
-      id: item.id,
-      cardId: item.cardId,
-      name: item.name,
-      imageUrl: item.imageUrl,
-      cardNumber: item.cardNumber,
-      episodeName: item.episodeName,
-      episodeCode: item.episodeCode,
-      releaseDate: item.releaseDate,
-      rarity: item.rarity,
-      status: item.status,
-      href: item.libraryReference?.href ?? (item.cardId ? `/cards/${encodeURIComponent(item.cardId)}` : "/upcoming"),
-    })),
+    // Keep the original flat field deploy-compatible for clients that loaded
+    // the previous bundle, while new clients render the grouped set rows.
+    upcomingSingles: upcomingSinglePreviews.flatMap((group) => group.items),
+    upcomingSingleGroups: upcomingSinglePreviews,
+    upcomingSinglesTotal: upcomingSingleGroups.reduce((total, group) => total + group.items.length, 0),
     allocation: [
       {
         key: "loose-raw",

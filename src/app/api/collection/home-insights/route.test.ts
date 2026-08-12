@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   count: vi.fn(),
   findMany: vi.fn(),
   settings: vi.fn(),
+  upcomingFeed: vi.fn().mockResolvedValue({ singles: [] }),
 }));
 
 vi.mock("@/lib/auth", () => ({
@@ -46,7 +47,7 @@ vi.mock("@/lib/signal-radar-snapshot-store", () => ({
   readSignalRadarSnapshot: vi.fn().mockResolvedValue(null),
 }));
 vi.mock("@/lib/upcoming-releases", () => ({
-  getUpcomingReleaseFeed: vi.fn().mockResolvedValue({ singles: [] }),
+  getUpcomingReleaseFeed: mocks.upcomingFeed,
 }));
 vi.mock("@/lib/user-settings-server", () => ({
   getServerUserSettings: mocks.settings,
@@ -124,5 +125,35 @@ describe("GET /api/collection/home-insights wants prices", () => {
     expect(mocks.findMany.mock.calls[0]?.[0]?.select.card.select.prices.where).toEqual({
       cm_en_lowest_nm: { gt: 0, not: 9001 },
     });
+  });
+});
+
+describe("GET /api/collection/home-insights upcoming singles", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.count.mockResolvedValue(0);
+    mocks.findMany.mockResolvedValue([]);
+    mocks.settings.mockResolvedValue({
+      primaryPriceSource: "cm_en",
+      onePieceLibraryEnabled: false,
+    });
+  });
+
+  it("passes the full feed to grouping instead of discarding every set after card 24", async () => {
+    const singles = Array.from({ length: 30 }, (_, index) => ({ id: `single-${index}` }));
+    mocks.upcomingFeed.mockResolvedValueOnce({ singles });
+    const dateSpy = vi.spyOn(Date, "now").mockReturnValue(Date.now() + 10 * 60_000);
+
+    try {
+      const response = await GET(
+        new NextRequest("http://localhost/api/collection/home-insights")
+      );
+      const body = await response.json();
+
+      expect(body.upcomingSingles).toHaveLength(30);
+      expect(body.upcomingSingles.at(-1)).toEqual({ id: "single-29" });
+    } finally {
+      dateSpy.mockRestore();
+    }
   });
 });

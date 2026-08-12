@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.64",
+    releasedAt: "August 12, 2026",
+    title: "Cleaner collapsed widgets and varied Upcoming rows",
+    summary: "Home keeps collapsed modules compact and shows Upcoming Singles as distinct set galleries.",
+    tone: "improved",
+    highlights: [
+      "A collapsed compact widget stays header-height even when the expanded widget beside it is much taller.",
+      "Upcoming Singles groups cards before applying preview limits, so one large set cannot hide every other release.",
+      "The first four upcoming sets each receive their own horizontally browsable card row, matching the Upcoming page structure.",
+      "Home keeps its previous API payload deploy-compatible for browsers that were already open during the update.",
+    ],
+  },
+  {
     version: "3.12.63",
     releasedAt: "August 11, 2026",
     title: "Background price progress stays exact",
