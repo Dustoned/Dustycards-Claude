@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
 import {
   ArrowRight,
   ArrowDownRight,
@@ -16,6 +16,10 @@ import {
   Sparkles,
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
+import UpcomingCardImageViewer from "@/components/UpcomingCardImageViewer";
+import type { UpcomingCardImageViewerItem } from "@/components/UpcomingCardImageViewer";
+import { useHomeItemDetails } from "@/components/HomeItemDetailProvider";
+import { buildHomeUpcomingSealedProduct } from "@/components/home-item-details";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { formatCurrency } from "@/lib/format";
 import type {
@@ -36,6 +40,8 @@ type HomePreviewTone = "gain" | "drop" | "radar" | "wants" | "sale" | "upcoming"
 
 function HomePreviewTile({
   href,
+  onOpen,
+  loading = false,
   imageUrl,
   imageFit = "object-cover",
   fallback,
@@ -47,7 +53,9 @@ function HomePreviewTile({
   tone,
   mediaKind = "card",
 }: {
-  href: string;
+  href?: string;
+  onOpen?: () => void;
+  loading?: boolean;
   imageUrl: string | null;
   imageFit?: "object-cover" | "object-contain";
   fallback: ReactNode;
@@ -59,14 +67,8 @@ function HomePreviewTile({
   tone: HomePreviewTone;
   mediaKind?: "card" | "product";
 }) {
-  return (
-    <Link
-      href={href}
-      prefetch={false}
-      data-home-preview-tile
-      data-preview-tone={tone}
-      className={`home-preview-tile home-preview-tile--${tone} group flex min-w-0 flex-col rounded-xl border p-2 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5`}
-    >
+  const content = (
+    <>
       <span className={`home-preview-tile__media home-preview-tile__media--${mediaKind}`}>
         <span className={`home-preview-tile__art home-preview-tile__art--${mediaKind}`}>
           {imageUrl ? (
@@ -98,8 +100,54 @@ function HomePreviewTile({
           {metric}
         </span>
       </span>
+    </>
+  );
+  const className = `home-preview-tile home-preview-tile--${tone} group flex min-w-0 flex-col rounded-xl border p-2 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5`;
+
+  if (onOpen) {
+    return (
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-busy={loading}
+        data-home-preview-tile
+        data-preview-tone={tone}
+        className={className}
+      >
+        {content}
+      </button>
+    );
+  }
+
+  if (!href) {
+    return (
+      <div data-home-preview-tile data-preview-tone={tone} className={className}>
+        {content}
+      </div>
+    );
+  }
+
+  return (
+    <Link
+      href={href}
+      prefetch={false}
+      data-home-preview-tile
+      data-preview-tone={tone}
+      className={className}
+    >
+      {content}
     </Link>
   );
+}
+
+function HomePreviewStaticTile({
+  children,
+  className,
+}: {
+  children: ReactNode;
+  className: string;
+}) {
+  return <div className={className}>{children}</div>;
 }
 
 function WidgetHeader({
@@ -166,6 +214,7 @@ export function HomeMarketMoversWidget({
   viewAllHref: string;
   viewMode?: HomeWidgetViewMode;
 }) {
+  const { openingCardId, openCard } = useHomeItemDetails();
   const gridView = viewMode === "grid";
   const visibleItems = gridView ? items : items.slice(0, 6);
 
@@ -180,11 +229,11 @@ export function HomeMarketMoversWidget({
             const gain = item.change > 0;
             const Icon = gain ? ArrowUpRight : ArrowDownRight;
             const tone = gain ? "text-emerald-300" : "text-rose-300";
-            const href = `${viewAllHref}${viewAllHref.includes("?") ? "&" : "?"}highlight=${encodeURIComponent(item.cardId)}`;
             return (
               <HomePreviewTile
                 key={`${item.cardId}:${item.windowDays}:${item.change}`}
-                href={href}
+                onOpen={() => void openCard(item.cardId)}
+                loading={openingCardId === item.cardId}
                 imageUrl={item.imageUrl}
                 fallback={<Icon className={`h-5 w-5 ${tone}`} aria-hidden="true" />}
                 title={item.name}
@@ -203,12 +252,12 @@ export function HomeMarketMoversWidget({
             const gain = item.change > 0;
             const Icon = gain ? ArrowUpRight : ArrowDownRight;
             const tone = gain ? "text-emerald-300" : "text-rose-300";
-            const href = `${viewAllHref}${viewAllHref.includes("?") ? "&" : "?"}highlight=${encodeURIComponent(item.cardId)}`;
             return (
-              <Link
+              <button
+                type="button"
                 key={`${item.cardId}:${item.windowDays}:${item.change}`}
-                href={href}
-                prefetch={false}
+                onClick={() => void openCard(item.cardId)}
+                aria-busy={openingCardId === item.cardId}
                 className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2`}
               >
                 <span className={`flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.035] ${tone}`}>
@@ -230,7 +279,7 @@ export function HomeMarketMoversWidget({
                     {signedPercent(item.changePct) ?? formatCurrency(item.currentPrice, item.currency)}
                   </span>
                 </span>
-              </Link>
+              </button>
             );
           })}
         </div>
@@ -250,6 +299,7 @@ function HomeGradedWidget({
   viewMode: HomeWidgetViewMode;
   kind: "movers" | "targets";
 }) {
+  const { openingCardId, openCard } = useHomeItemDetails();
   const targets = kind === "targets";
   const Icon = targets ? Sparkles : Gem;
   const gridView = viewMode === "grid";
@@ -278,7 +328,8 @@ function HomeGradedWidget({
           {visibleItems.map((item, index) => (
             <HomePreviewTile
               key={`${item.cardId}:${item.gradedLabel ?? index}`}
-              href={`/cards/${encodeURIComponent(item.cardId)}`}
+              onOpen={() => void openCard(item.cardId)}
+              loading={openingCardId === item.cardId}
               imageUrl={item.imageUrl}
               fallback={<Icon className="h-5 w-5 text-amber-200" aria-hidden="true" />}
               title={item.name}
@@ -297,10 +348,11 @@ function HomeGradedWidget({
       ) : (
         <div className="mt-2 grid gap-1.5">
           {visibleItems.map((item, index) => (
-            <Link
+            <button
+              type="button"
               key={`${item.cardId}:${item.gradedLabel ?? index}`}
-              href={`/cards/${encodeURIComponent(item.cardId)}`}
-              prefetch={false}
+              onClick={() => void openCard(item.cardId)}
+              aria-busy={openingCardId === item.cardId}
               className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}
             >
               <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
@@ -313,7 +365,7 @@ function HomeGradedWidget({
                 </span>
               </span>
               <span className={`text-right text-[12px] font-black tabular-nums ${metricTone(item)}`}>{metricFor(item)}</span>
-            </Link>
+            </button>
           ))}
         </div>
       )}
@@ -340,6 +392,7 @@ function HomeMarketPocketWidget({
   viewMode: HomeWidgetViewMode;
   kind: "cheap" | "discount";
 }) {
+  const { openingCardId, openCard } = useHomeItemDetails();
   const cheap = kind === "cheap";
   const Icon = cheap ? Gem : BadgePercent;
   const title = cheap ? "Cheap Rarity" : "Discount Watch";
@@ -357,7 +410,8 @@ function HomeMarketPocketWidget({
           {visibleItems.map((item) => (
             <HomePreviewTile
               key={item.cardId}
-              href={`/cards/${encodeURIComponent(item.cardId)}`}
+              onOpen={() => void openCard(item.cardId)}
+              loading={openingCardId === item.cardId}
               imageUrl={item.imageUrl}
               fallback={<Icon className="h-5 w-5 text-emerald-300" aria-hidden="true" />}
               title={item.name}
@@ -372,10 +426,11 @@ function HomeMarketPocketWidget({
       ) : (
         <div className="mt-2 grid gap-1.5">
           {visibleItems.map((item) => (
-            <Link
+            <button
+              type="button"
               key={item.cardId}
-              href={`/cards/${encodeURIComponent(item.cardId)}`}
-              prefetch={false}
+              onClick={() => void openCard(item.cardId)}
+              aria-busy={openingCardId === item.cardId}
               className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}
             >
               <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
@@ -386,7 +441,7 @@ function HomeMarketPocketWidget({
                 <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-white/40">{item.episodeCode ?? item.episodeName} / {item.rarity ?? "High rarity"}</span>
               </span>
               <span className={`text-right text-[12px] font-black tabular-nums ${cheap ? "text-emerald-300" : "text-rose-300"}`}>{formatCurrency(item.currentPrice, item.currency)}</span>
-            </Link>
+            </button>
           ))}
         </div>
       )}
@@ -489,6 +544,7 @@ function HomeCardListWidget({
   kind: "wants" | "sale";
   viewMode: HomeWidgetViewMode;
 }) {
+  const { openingCardId, openCard } = useHomeItemDetails();
   const Icon = kind === "wants" ? Heart : ShoppingBag;
   const gridView = viewMode === "grid";
   const visibleItems = gridView ? data.items : data.items.slice(0, 6);
@@ -508,7 +564,8 @@ function HomeCardListWidget({
           {visibleItems.map((item, index) => (
             <HomePreviewTile
               key={`${item.cardId}:${index}`}
-              href={`/cards/${encodeURIComponent(item.cardId)}`}
+              onOpen={() => void openCard(item.cardId)}
+              loading={openingCardId === item.cardId}
               imageUrl={item.imageUrl}
               fallback={<Icon className="h-5 w-5 text-white/45" aria-hidden="true" />}
               title={item.name}
@@ -522,10 +579,11 @@ function HomeCardListWidget({
       ) : (
         <div className="mt-2 grid gap-1.5">
           {visibleItems.map((item, index) => (
-            <Link
+            <button
+              type="button"
               key={`${item.cardId}:${index}`}
-              href={`/cards/${encodeURIComponent(item.cardId)}`}
-              prefetch={false}
+              onClick={() => void openCard(item.cardId)}
+              aria-busy={openingCardId === item.cardId}
               className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}
             >
               <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
@@ -546,7 +604,7 @@ function HomeCardListWidget({
               <span className="min-w-[4.5rem] text-right text-[12px] font-black tabular-nums text-white/74">
                 {item.price == null ? "--" : formatCurrency(item.price, item.currency)}
               </span>
-            </Link>
+            </button>
           ))}
         </div>
       )}
@@ -597,6 +655,7 @@ export function HomeUpcomingWidget({
   viewAllHref: string;
   viewMode?: HomeWidgetViewMode;
 }) {
+  const { openSealed } = useHomeItemDetails();
   const gridView = viewMode === "grid";
   const visibleItems = gridView ? items : items.slice(0, 6);
 
@@ -607,10 +666,12 @@ export function HomeUpcomingWidget({
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
       ) : gridView ? (
         <div className="home-widget-tile-grid mt-2 grid gap-2">
-          {visibleItems.map((item) => (
-            <HomePreviewTile
+          {visibleItems.map((item) => {
+            const product = buildHomeUpcomingSealedProduct(item);
+            return <HomePreviewTile
               key={item.id}
-              href={viewAllHref}
+              href={product ? undefined : item.sourceUrl ?? undefined}
+              onOpen={product ? () => openSealed(product) : undefined}
               imageUrl={item.imageUrl}
               imageFit="object-contain"
               fallback={<CalendarClock className="h-5 w-5 text-white/45" aria-hidden="true" />}
@@ -621,18 +682,14 @@ export function HomeUpcomingWidget({
               footer={new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(item.releaseDate))}
               tone="upcoming"
               mediaKind="product"
-            />
-          ))}
+            />;
+          })}
         </div>
       ) : (
         <div className="mt-2 grid gap-1.5">
-          {visibleItems.map((item) => (
-            <Link
-              key={item.id}
-              href={viewAllHref}
-              prefetch={false}
-              className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}
-            >
+          {visibleItems.map((item) => {
+            const product = buildHomeUpcomingSealedProduct(item);
+            const content = <>
               <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
                 {item.imageUrl ? (
                   <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="36px" className="object-contain p-0.5" />
@@ -656,8 +713,16 @@ export function HomeUpcomingWidget({
                   {new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(new Date(item.releaseDate))}
                 </span>
               </span>
-            </Link>
-          ))}
+            </>;
+            const className = `${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`;
+            return product ? (
+              <button key={item.id} type="button" onClick={() => openSealed(product)} className={className}>{content}</button>
+            ) : item.sourceUrl ? (
+              <Link key={item.id} href={item.sourceUrl} prefetch={false} className={className}>{content}</Link>
+            ) : (
+              <HomePreviewStaticTile key={item.id} className={className}>{content}</HomePreviewStaticTile>
+            );
+          })}
         </div>
       )}
     </section>
@@ -675,6 +740,8 @@ export function HomeUpcomingSinglesWidget({
   viewAllHref: string;
   viewMode?: HomeWidgetViewMode;
 }) {
+  const { openingCardId, openCard } = useHomeItemDetails();
+  const [previewItem, setPreviewItem] = useState<UpcomingCardImageViewerItem | null>(null);
   const gridView = viewMode === "grid";
   const visibleGroups = groups.filter((group) => Array.isArray(group?.items));
   const dateLabel = (value: string | null) => value
@@ -728,7 +795,10 @@ export function HomeUpcomingSinglesWidget({
                     {group.items.map((item) => (
                       <div key={item.id} className="min-w-0 snap-start">
                         <HomePreviewTile
-                          href={item.href}
+                          onOpen={item.cardId
+                            ? () => void openCard(item.cardId as string)
+                            : item.imageUrl ? () => setPreviewItem(item) : undefined}
+                          loading={item.cardId != null && openingCardId === item.cardId}
                           imageUrl={item.imageUrl}
                           fallback={<Sparkles className="h-5 w-5 text-sky-300" aria-hidden="true" />}
                           title={item.name}
@@ -743,8 +813,8 @@ export function HomeUpcomingSinglesWidget({
                   </div>
                 ) : (
                   <div className="grid gap-1 p-2">
-                    {group.items.slice(0, 3).map((item) => (
-                      <Link key={item.id} href={item.href} prefetch={false} className={`${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`}>
+                    {group.items.slice(0, 3).map((item) => {
+                      const content = <>
                         <span className="relative flex h-9 w-9 items-center justify-center overflow-hidden rounded-lg border border-white/8 bg-white/[0.035]">
                           {item.imageUrl ? <CachedImage sourceUrl={item.imageUrl} alt="" fill sizes="36px" className="object-cover" /> : <Sparkles className="h-3.5 w-3.5 text-sky-300" />}
                         </span>
@@ -753,8 +823,22 @@ export function HomeUpcomingSinglesWidget({
                           <span className="mt-0.5 block truncate text-[10.5px] font-semibold text-white/40">#{item.cardNumber ?? "—"} / {item.status}</span>
                         </span>
                         <span className="text-right text-[11px] font-black tabular-nums text-sky-300">{item.rarity ?? dateLabel(item.releaseDate)}</span>
-                      </Link>
-                    ))}
+                      </>;
+                      const className = `${HOME_PREVIEW_TILE_CLASS} grid min-w-0 grid-cols-[2.25rem_minmax(0,1fr)_auto] items-center gap-2`;
+                      return item.cardId || item.imageUrl ? (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={item.cardId
+                            ? () => void openCard(item.cardId as string)
+                            : () => setPreviewItem(item)}
+                          aria-busy={item.cardId != null && openingCardId === item.cardId}
+                          className={className}
+                        >{content}</button>
+                      ) : (
+                        <HomePreviewStaticTile key={item.id} className={className}>{content}</HomePreviewStaticTile>
+                      );
+                    })}
                   </div>
                 )}
               </article>
@@ -762,6 +846,9 @@ export function HomeUpcomingSinglesWidget({
           })}
         </div>
       )}
+      {previewItem ? (
+        <UpcomingCardImageViewer item={previewItem} onClose={() => setPreviewItem(null)} />
+      ) : null}
     </section>
   );
 }

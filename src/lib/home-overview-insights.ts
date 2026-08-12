@@ -107,12 +107,16 @@ export interface HomeGradedPreviewItem {
 
 export interface HomeUpcomingPreviewItem {
   id: string;
+  productId: string | null;
   name: string;
   imageUrl: string | null;
   releaseDate: string;
   daysUntil: number;
+  episodeId: string | null;
   episodeName: string | null;
   episodeCode: string | null;
+  sourceName: string;
+  sourceUrl: string | null;
 }
 
 export interface HomeUpcomingSinglePreviewItem {
@@ -126,7 +130,7 @@ export interface HomeUpcomingSinglePreviewItem {
   releaseDate: string | null;
   rarity: string | null;
   status: UpcomingSingleItem["status"];
-  href: string;
+  episodeId: string | null;
 }
 
 export interface HomeUpcomingSinglePreviewGroup {
@@ -349,7 +353,7 @@ export function buildHomeOverviewInsights(
           releaseDate: item.releaseDate,
           rarity: item.rarity,
           status: item.status,
-          href: item.libraryReference?.href ?? (item.cardId ? `/cards/${encodeURIComponent(item.cardId)}` : "/upcoming"),
+          episodeId: item.episodeId,
         })),
     }));
 
@@ -366,12 +370,16 @@ export function buildHomeOverviewInsights(
     forSale: extras.forSale ?? buildForSalePreview(data),
     upcoming: (extras.upcoming ?? []).slice(0, HOME_WIDGET_PREVIEW_LIMIT).map((item) => ({
       id: item.id,
+      productId: item.productId,
       name: item.name,
       imageUrl: item.imageUrl,
       releaseDate: item.releaseDate,
       daysUntil: item.daysUntil,
+      episodeId: item.episodeId,
       episodeName: item.episodeName,
       episodeCode: item.episodeCode,
+      sourceName: item.sourceName,
+      sourceUrl: item.sourceUrl,
     })),
     // Keep the original flat field deploy-compatible for clients that loaded
     // the previous bundle, while new clients render the grouped set rows.

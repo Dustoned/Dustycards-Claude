@@ -17,6 +17,7 @@ import {
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useState } from "react";
 import DashboardCustomizerDialog from "@/components/DashboardCustomizerDialog";
+import HomeItemDetailProvider from "@/components/HomeItemDetailProvider";
 import {
   HomeCheapRarityWidget,
   HomeDiscountWatchWidget,
@@ -569,7 +570,8 @@ export default function ProgressiveHomeOverviewInsights({
   };
 
   return (
-    <div className="space-y-2.5 sm:space-y-3">
+    <HomeItemDetailProvider>
+      <div className="space-y-2.5 sm:space-y-3">
       <div className={`flex items-center gap-2 ${mobileToolbarLeading ? "justify-between" : "justify-end"}`}>
         {mobileToolbarLeading}
         <button
@@ -741,6 +743,7 @@ export default function ProgressiveHomeOverviewInsights({
           </button>
         </div>
       ) : null}
-    </div>
+      </div>
+    </HomeItemDetailProvider>
   );
 }

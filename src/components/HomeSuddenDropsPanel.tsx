@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowDownRight, ArrowUpRight, Package, Sparkles } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
+import { useHomeItemDetails } from "@/components/HomeItemDetailProvider";
+import { buildHomeSuddenDropSealedProduct } from "@/components/home-item-details";
 import type { HomeWidgetViewMode } from "@/lib/dashboard-module-preferences";
 import { formatCurrency } from "@/lib/format";
 import type {
@@ -34,27 +36,23 @@ const EMPTY_DATA: HomeSuddenDropsResponse = {
   refreshStatus: null,
 };
 
-function buildHighlightedHref(baseHref: string, cardId: string): string {
-  const [pathname, query = ""] = baseHref.split("?");
-  const params = new URLSearchParams(query);
-  params.set("highlight", cardId);
-  return `${pathname}?${params.toString()}`;
-}
-
 function HomeSuddenDropRow({
   item,
-  href,
+  onOpen,
+  loading,
   gridView,
 }: {
   item: HomeSuddenDropPreviewItem;
-  href: string;
+  onOpen: () => void;
+  loading: boolean;
   gridView: boolean;
 }) {
   if (gridView) {
     return (
-      <Link
-        href={href}
-        prefetch={false}
+      <button
+        type="button"
+        onClick={onOpen}
+        aria-busy={loading}
         data-home-preview-tile
         data-preview-tone="drop"
         className="home-preview-tile home-preview-tile--drop group flex min-w-0 flex-col rounded-xl border p-2 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5"
@@ -82,14 +80,15 @@ function HomeSuddenDropRow({
             -{formatCurrency(item.dropAmount, item.currency)}
           </span>
         </span>
-      </Link>
+      </button>
     );
   }
 
   return (
-    <Link
-      href={href}
-      prefetch={false}
+    <button
+      type="button"
+      onClick={onOpen}
+      aria-busy={loading}
       className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]"
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-rose-400/14 bg-rose-400/[0.07] text-rose-300">
@@ -121,24 +120,24 @@ function HomeSuddenDropRow({
           Now {formatCurrency(item.currentPrice, item.currency)}
         </span>
       </span>
-    </Link>
+    </button>
   );
 }
 
 function HomeSealedDropRow({
   item,
-  href,
+  onOpen,
   gridView,
 }: {
   item: HomeSuddenDropSealedPreviewItem;
-  href: string;
+  onOpen: () => void;
   gridView: boolean;
 }) {
   if (gridView) {
     return (
-      <Link
-        href={href}
-        prefetch={false}
+      <button
+        type="button"
+        onClick={onOpen}
         data-home-preview-tile
         data-preview-tone="sealed"
         className="home-preview-tile home-preview-tile--sealed group flex min-w-0 flex-col rounded-xl border p-2 text-left transition-[border-color,box-shadow,transform] hover:-translate-y-0.5"
@@ -166,14 +165,14 @@ function HomeSealedDropRow({
             -{formatCurrency(item.dropAmount, item.currency)}
           </span>
         </span>
-      </Link>
+      </button>
     );
   }
 
   return (
-    <Link
-      href={href}
-      prefetch={false}
+    <button
+      type="button"
+      onClick={onOpen}
       className="group grid min-w-0 grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.82)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-hover-rgb)/0.58),rgb(var(--dc-surface-primary-rgb)/0.72))] px-2.5 py-2 text-left shadow-[0_8px_20px_rgba(0,0,0,0.12)] transition-[border-color,background-color,transform] hover:-translate-y-px hover:border-[rgb(var(--dc-border-hover-rgb)/0.95)]"
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl border border-amber-400/14 bg-amber-400/[0.07] text-amber-300">
@@ -202,7 +201,7 @@ function HomeSealedDropRow({
           Now {formatCurrency(item.currentPrice, item.currency)}
         </span>
       </span>
-    </Link>
+    </button>
   );
 }
 
@@ -235,13 +234,15 @@ function HomeSuddenDropLane({
   title,
   items,
   total,
-  viewAllHref,
+  openingCardId,
+  onOpenCard,
   gridView,
 }: {
   title: string;
   items: HomeSuddenDropPreviewItem[];
   total: number;
-  viewAllHref: string;
+  openingCardId: string | null;
+  onOpenCard: (cardId: string) => void;
   gridView: boolean;
 }) {
   return (
@@ -263,7 +264,8 @@ function HomeSuddenDropLane({
             <HomeSuddenDropRow
               key={`${item.cardId}:${item.source}`}
               item={item}
-              href={buildHighlightedHref(viewAllHref, item.cardId)}
+              onOpen={() => onOpenCard(item.cardId)}
+              loading={openingCardId === item.cardId}
               gridView={gridView}
             />
           ))
@@ -280,12 +282,12 @@ function HomeSuddenDropLane({
 function HomeSealedDropLane({
   items,
   total,
-  viewAllHref,
+  onOpenSealed,
   gridView,
 }: {
   items: HomeSuddenDropSealedPreviewItem[];
   total: number;
-  viewAllHref: string;
+  onOpenSealed: (item: HomeSuddenDropSealedPreviewItem) => void;
   gridView: boolean;
 }) {
   return (
@@ -307,7 +309,7 @@ function HomeSealedDropLane({
             <HomeSealedDropRow
               key={item.productId}
               item={item}
-              href={viewAllHref}
+              onOpen={() => onOpenSealed(item)}
               gridView={gridView}
             />
           ))
@@ -332,6 +334,7 @@ export default function HomeSuddenDropsPanel({
   viewAllHref: string;
   viewMode?: HomeWidgetViewMode;
 }) {
+  const { openingCardId, openCard, openSealed } = useHomeItemDetails();
   const [state, setState] = useState<LoadState>(() => {
     const cached = readHomeClientCache<HomeSuddenDropsResponse>(
       "sudden-drops",
@@ -387,7 +390,6 @@ export default function HomeSuddenDropsPanel({
   const laneLimit = gridView ? HOME_SUDDEN_DROP_LANE_SIZE : 6;
   const cardDrops = previewItems.slice(0, laneLimit);
   const sealedDrops = sealedItems.slice(0, laneLimit);
-  const sealedViewAllHref = `${viewAllHref}${viewAllHref.includes("#") ? "" : "#sealed"}`;
   return (
     <section className="binder-panel home-widget-panel home-widget-panel--drops overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
       <div className="flex min-w-0 flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
@@ -434,13 +436,14 @@ export default function HomeSuddenDropsPanel({
               title="Card drops"
               items={cardDrops}
               total={data.total}
-              viewAllHref={viewAllHref}
+              openingCardId={openingCardId}
+              onOpenCard={(cardId) => void openCard(cardId)}
               gridView={gridView}
             />
             <HomeSealedDropLane
               items={sealedDrops}
               total={data.sealedTotal ?? sealedItems.length}
-              viewAllHref={sealedViewAllHref}
+              onOpenSealed={(item) => openSealed(buildHomeSuddenDropSealedProduct(item))}
               gridView={gridView}
             />
           </div>

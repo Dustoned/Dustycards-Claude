@@ -17,6 +17,20 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.66",
+    releasedAt: "August 12, 2026",
+    title: "Home item clicks open exact details",
+    summary: "Widget tiles no longer misuse their overview link when an exact card or sealed product is available.",
+    tone: "fixed",
+    highlights: [
+      "Sealed Drops opens the selected sealed-product detail instead of the Sudden Drops overview.",
+      "Card Drops and Market Movers open the clicked card detail without changing the Home URL.",
+      "Broken /cards links in graded, rarity, Wants and For Sale widgets are replaced by the shared card detail modal.",
+      "Upcoming Sealed and database-linked Upcoming Singles open exact item details; unmatched source-only items retain their source link.",
+      "Explicit Open, More and View all controls remain the only links to full overview pages.",
+    ],
+  },
+  {
     version: "3.12.65",
     releasedAt: "August 12, 2026",
     title: "Released sets leave Upcoming Singles",

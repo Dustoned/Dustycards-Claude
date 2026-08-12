@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { CollectionOverviewData } from "@/lib/collection-data";
 import { buildForSalePreview, buildHomeOverviewInsights } from "@/lib/home-overview-insights";
 import type { UpcomingSingleItem } from "@/lib/upcoming-releases";
+import type { UpcomingSealedRelease } from "@/lib/sealed-movers";
 
 const EMPTY_DRIVERS: CollectionOverviewData["valueDrivers"] = {
   latestDate: null,
@@ -122,7 +123,49 @@ describe("buildHomeOverviewInsights", () => {
     expect(result.upcomingSingleGroups[0]).toMatchObject({ total: 30 });
     expect(result.upcomingSingleGroups[0].items).toHaveLength(6);
     expect(result.upcomingSingles).toHaveLength(9);
-    expect(result.upcomingSingles.every((item) => typeof item.href === "string")).toBe(true);
     expect(result.upcomingSinglesTotal).toBe(34);
+  });
+
+  it("keeps exact sealed product identity for Home detail opening", () => {
+    const data = {
+      cards: [], looseSingles: [], binderCards: [], sealed: [], valueDrivers: EMPTY_DRIVERS,
+    } as unknown as CollectionOverviewData;
+    const upcoming = {
+      id: "release-1",
+      kind: "product",
+      name: "Future Booster Box",
+      imageUrl: "https://example.com/box.webp",
+      releaseDate: "2026-11-20T00:00:00.000Z",
+      daysUntil: 100,
+      daysSinceRelease: null,
+      sourceName: "Pokemon",
+      sourceUrl: "https://example.com/release",
+      confidence: 1,
+      productId: "sealed-product-1",
+      episodeId: "episode-1",
+      episodeName: "Future Set",
+      episodeCode: "FUT",
+    } satisfies UpcomingSealedRelease;
+
+    expect(buildHomeOverviewInsights(data, { upcoming: [upcoming] }).upcoming[0]).toMatchObject({
+      productId: "sealed-product-1",
+      episodeId: "episode-1",
+      sourceName: "Pokemon",
+      sourceUrl: "https://example.com/release",
+    });
+  });
+
+  it("does not invent an overview or non-existent card route for an unresolved single", () => {
+    const data = {
+      cards: [], looseSingles: [], binderCards: [], sealed: [], valueDrivers: EMPTY_DRIVERS,
+    } as unknown as CollectionOverviewData;
+    const unresolved = upcomingSingle("Unresolved Set", 1, "2026-12-01");
+    unresolved.cardId = null;
+    unresolved.episodeId = null;
+    unresolved.sourceUrl = null;
+
+    const item = buildHomeOverviewInsights(data, { upcomingSingles: [unresolved] }).upcomingSingles[0];
+    expect(item.cardId).toBeNull();
+    expect(item.imageUrl).toContain("Unresolved Set");
   });
 });

@@ -1,5 +1,5 @@
 const HOME_CLIENT_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
-const HOME_CLIENT_CACHE_VERSION = 2;
+const HOME_CLIENT_CACHE_VERSION = 3;
 
 type HomeCacheNamespace = "collection-insights" | "sudden-drops";
 

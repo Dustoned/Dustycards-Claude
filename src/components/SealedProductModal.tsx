@@ -65,6 +65,7 @@ export type { SealedModalProductData } from "./sealed-modal/types";
 interface Props {
   product: SealedModalProductData;
   onClose: () => void;
+  backLabel?: string;
 }
 
 const RELEASE_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -236,7 +237,7 @@ function SealedDetailActionGroup({
   );
 }
 
-export default function SealedProductModal({ product, onClose }: Props) {
+export default function SealedProductModal({ product, onClose, backLabel = "Back to Collection" }: Props) {
   useBodyScrollLock(true, "overflow");
   const router = useRouter();
   const modalFrameRef = useRef<HTMLDivElement | null>(null);
@@ -793,7 +794,7 @@ export default function SealedProductModal({ product, onClose }: Props) {
               mode="standard"
               detailSize={displaySettings.modalSize}
               className="sealed-detail-experience"
-              navigation={{ label: "Back to Collection", onBack: onClose }}
+              navigation={{ label: backLabel, onBack: onClose }}
               eyebrow="Sealed product"
               title={modalProduct.name}
               subtitle={

@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.66",
+    releasedAt: "August 12, 2026",
+    title: "Home tiles open the item you clicked",
+    summary: "Card and sealed-product tiles now open their exact details instead of redirecting to a broad overview.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Predictable widget navigation",
+        highlights: [
+          "Sealed Drops opens the selected product detail directly in both Grid and List view.",
+          "Card Drops, Market Movers, graded cards, Wants, For Sale and the other card widgets open the selected card detail.",
+          "Only explicit widget actions such as Open movers or View all navigate to the full overview page.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.65",
     releasedAt: "August 12, 2026",
     title: "Leaks only shows unreleased singles",
