@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.68",
+    releasedAt: "August 12, 2026",
+    title: "Upcoming tiles stay inside their rows",
+    summary: "Responsive Home breakpoints and fixed grid-row sizing prevent release images from overlapping at uncommon resolutions.",
+    tone: "fixed",
+    highlights: [
+      "The two-column compact dashboard starts only at the 1536-pixel breakpoint.",
+      "Narrow desktop viewports now receive one full-width widget per row.",
+      "Upcoming Sealed and Singles use max-content rows instead of shrinking every gallery into the fixed viewport.",
+      "Internal scrolling preserves the compact height without clipping product or card artwork.",
+    ],
+  },
+  {
     version: "3.12.67",
     releasedAt: "August 12, 2026",
     title: "Upcoming widgets no longer create a giant empty row",

@@ -670,7 +670,7 @@ export function HomeUpcomingWidget({
       {items.length === 0 ? (
         <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
       ) : gridView ? (
-        <div className={`home-widget-tile-grid home-widget-tile-grid--releases mt-2 grid gap-2 ${compact ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1" : ""}`}>
+        <div className={`home-widget-tile-grid home-widget-tile-grid--releases mt-2 grid auto-rows-max gap-2 ${compact ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1" : ""}`}>
           {visibleItems.map((item) => {
             const product = buildHomeUpcomingSealedProduct(item);
             return <HomePreviewTile
@@ -691,7 +691,7 @@ export function HomeUpcomingWidget({
           })}
         </div>
       ) : (
-        <div className={`mt-2 grid gap-1.5 ${compact ? "min-h-0 flex-1 content-start overflow-y-auto overscroll-contain pr-1" : ""}`}>
+        <div className={`mt-2 grid auto-rows-max gap-1.5 ${compact ? "min-h-0 flex-1 content-start overflow-y-auto overscroll-contain pr-1" : ""}`}>
           {visibleItems.map((item) => {
             const product = buildHomeUpcomingSealedProduct(item);
             const content = <>
@@ -764,7 +764,7 @@ export function HomeUpcomingSinglesWidget({
       {visibleGroups.length === 0 ? (
         <EmptyWidget>No upcoming singles or recent reveals are available.</EmptyWidget>
       ) : (
-        <div className={`mt-2 grid gap-2.5 ${compact ? "min-h-0 flex-1 content-start overflow-y-auto overscroll-contain pr-1" : ""}`}>
+        <div className={`mt-2 grid auto-rows-max gap-2.5 ${compact ? "min-h-0 flex-1 content-start overflow-y-auto overscroll-contain pr-1" : ""}`}>
           {visibleGroups.map((group) => {
             const setHref = `/upcoming/sets/${encodeURIComponent(group.key)}`;
             const statusLabel = group.statuses.confirmed

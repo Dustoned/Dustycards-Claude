@@ -717,14 +717,14 @@ export default function ProgressiveHomeOverviewInsights({
         </DashboardCustomizerDialog>
       ) : null}
 
-      <div className="grid gap-2.5 sm:gap-3 lg:grid-cols-2">
+      <div className="grid gap-2.5 sm:gap-3 2xl:grid-cols-2">
         {moduleOrder
           .filter((moduleKey) => !hiddenModules.has(moduleKey) && modules[moduleKey] != null)
           .map((moduleKey) => {
             const compact =
               COMPACTABLE_HOME_MODULES.has(moduleKey) && compactModules.has(moduleKey);
             return (
-              <div key={moduleKey} className={`${compact ? "lg:col-span-1" : "lg:col-span-2"} h-full`}>
+              <div key={moduleKey} className={`${compact ? "2xl:col-span-1" : "2xl:col-span-2"} h-full`}>
                 <CollapsibleHomeModule
                   collapsed={collapsedModules.has(moduleKey)}
                   label={HOME_MODULE_LABELS[moduleKey].label}

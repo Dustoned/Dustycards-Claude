@@ -63,6 +63,7 @@ describe("Home widget item click contract", () => {
     expect(markup.match(/href="\/upcoming"/g)).toHaveLength(1);
     expect(markup).toContain('<button type="button"');
     expect(markup).not.toContain('href="https://example.com/release"');
+    expect(markup).toContain("auto-rows-max");
   });
 
   it("does not turn an unlinked source-less Upcoming item into a second overview link", () => {
@@ -110,6 +111,7 @@ describe("Home widget item click contract", () => {
     expect(markup.match(/href="\/upcoming"/g)).toHaveLength(1);
     expect(markup).toContain("Mystery card");
     expect(markup).not.toContain('href="#"');
+    expect(markup).toContain("auto-rows-max");
   });
 
   it.each([

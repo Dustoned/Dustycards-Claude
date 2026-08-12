@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.68",
+    releasedAt: "August 12, 2026",
+    title: "Upcoming adapts cleanly to every desktop width",
+    summary: "Compact release widgets no longer squash images or force two columns into a narrow browser viewport.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Responsive without overlap",
+        highlights: [
+          "Compact widgets stack into one wide column on smaller desktop and laptop resolutions.",
+          "Card and product rows retain their natural height inside the scrollable widget viewport.",
+          "Large desktop layouts keep the aligned two-column presentation.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.67",
     releasedAt: "August 12, 2026",
     title: "Compact Upcoming widgets stay compact",
