@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.65",
+    releasedAt: "August 12, 2026",
+    title: "Leaks only shows unreleased singles",
+    summary: "Released sets can no longer return to Upcoming Singles through newer card-source signals.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "A strict release handoff",
+        highlights: [
+          "Pitch Black is removed from Leaks because its July 17 release date has already passed.",
+          "Known release dates are enforced across catalyst, database and stored-source cards.",
+          "Unknown-date leaks remain visible, while future sets regain the feed space previously occupied by released cards.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.64",
     releasedAt: "August 12, 2026",
     title: "Home widgets use their space better",

@@ -17,3 +17,13 @@ export function isRelevantUpcomingReleaseDate(
   const key = value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
   return key != null && key >= floor;
 }
+
+export function isUnreleasedUpcomingSingleDate(
+  value: string | null | undefined,
+  today: string
+): boolean {
+  const key = value?.match(/^\d{4}-\d{2}-\d{2}/)?.[0] ?? null;
+  // Source-only leaks do not always have a confirmed release date yet. Keep
+  // those visible, but remove every item whose known release date has arrived.
+  return key == null || key > today;
+}

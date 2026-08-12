@@ -1,7 +1,6 @@
 import { db } from "@/lib/db";
 import {
-  isRelevantUpcomingReleaseDate,
-  upcomingRecentReleaseFloor,
+  isUnreleasedUpcomingSingleDate,
 } from "@/lib/upcoming-release-policy";
 import { readStoredUpcomingReveals } from "@/lib/upcoming-source-reveals";
 import { groupUpcomingSingles } from "@/lib/upcoming-single-groups";
@@ -150,14 +149,13 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
       return parts;
     }, {});
   const releaseCutoff = `${todayKey.year}-${todayKey.month}-${todayKey.day}`;
-  const recentReleaseFloor = upcomingRecentReleaseFloor(now);
   const sourceCutoff = new Date(now.getTime() - 180 * 24 * 60 * 60_000);
 
   const [upcomingEpisodes, eligibleCatalystCards, sourceRows] = await Promise.all([
     db.episode.findMany({
       where: {
         game: "pokemon",
-        release_date: { not: null, gte: releaseCutoff },
+        release_date: { not: null, gt: releaseCutoff },
       },
       orderBy: [{ release_date: "asc" }, { name: "asc" }],
       take: 16,
@@ -186,7 +184,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
         game: "pokemon",
         image_url: { not: null },
         episode: {
-          release_date: { not: null, gte: recentReleaseFloor },
+          release_date: { not: null, gt: releaseCutoff },
         },
       },
       select: {
@@ -301,6 +299,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
     if (!catalyst.card_id || singlesByCard.has(catalyst.card_id)) continue;
     const card = cardsById.get(catalyst.card_id);
     if (!card) continue;
+    if (!isUnreleasedUpcomingSingleDate(card.episode.release_date, releaseCutoff)) continue;
     const text = [
       catalyst.headline,
       catalyst.evidence_excerpt,
@@ -364,10 +363,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
       .filter(Boolean)
       .join(" ");
     for (const [index, reveal] of reveals.entries()) {
-      if (
-        reveal.releaseDate
-        && !isRelevantUpcomingReleaseDate(reveal.releaseDate, recentReleaseFloor)
-      ) {
+      if (!isUnreleasedUpcomingSingleDate(reveal.releaseDate, releaseCutoff)) {
         continue;
       }
       const revealKey = `${reveal.name.trim().toLowerCase()}\u0000${reveal.cardNumber?.trim().toLowerCase() ?? ""}`;
@@ -386,7 +382,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
               .includes(revealNumber)
           );
       const futureNameMatches = localNameMatches.filter((card) =>
-        Boolean(card.episode.release_date && card.episode.release_date >= releaseCutoff)
+        Boolean(card.episode.release_date && card.episode.release_date > releaseCutoff)
       );
       const megaPromoNameMatches = localNameMatches.filter((card) =>
         card.episode.code?.trim().toUpperCase() === "MEP"
@@ -404,7 +400,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
         resolvedCard?.episode.release_date && resolvedCard.episode.release_date <= releaseCutoff
       );
       const revealBelongsToUpcomingRelease = Boolean(
-        reveal.releaseDate && reveal.releaseDate >= releaseCutoff
+        reveal.releaseDate && reveal.releaseDate > releaseCutoff
       );
       if (!shouldShowUpcomingSourceReveal({
         hasExactLibraryMatch: Boolean(storedMatch),
@@ -487,7 +483,9 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
     })
     .slice(0, 18);
 
-  const groupedSingles = groupUpcomingSingles([...singlesByCard.values(), ...sourceSingles])
+  const unreleasedSingles = [...singlesByCard.values(), ...sourceSingles]
+    .filter((item) => isUnreleasedUpcomingSingleDate(item.releaseDate, releaseCutoff));
+  const groupedSingles = groupUpcomingSingles(unreleasedSingles)
     .flatMap((group) => group.items);
 
   return {

@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.65",
+    releasedAt: "August 12, 2026",
+    title: "Released sets leave Upcoming Singles",
+    summary: "Known release dates now remove card signals from Leaks as soon as their set launches.",
+    tone: "fixed",
+    highlights: [
+      "Pitch Black no longer returns as a leak when newer source signals are attached to its released cards.",
+      "Catalyst queries now load only genuinely future sets instead of retaining singles for 45 days after release.",
+      "A final release-date guard covers catalyst, database and stored-source rows so another input path cannot reintroduce released singles.",
+      "Sealed products keep their separate seven-day Just Released section.",
+    ],
+  },
+  {
     version: "3.12.64",
     releasedAt: "August 12, 2026",
     title: "Cleaner collapsed widgets and varied Upcoming rows",
