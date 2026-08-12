@@ -3781,7 +3781,10 @@ html[data-appearance-scheme="light"]
 
 .home-preview-tile {
   --home-tile-accent-rgb: var(--dc-primary-rgb);
+  width: 100%;
+  max-width: 100%;
   min-height: 0;
+  overflow: hidden;
   border-color: rgb(var(--home-tile-accent-rgb) / 0.14);
   background: linear-gradient(165deg, rgb(var(--dc-surface-hover-rgb) / 0.56), rgb(var(--dc-bg-main-rgb) / 0.58));
   box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.035);

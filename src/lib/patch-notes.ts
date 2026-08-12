@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.69",
+    releasedAt: "August 12, 2026",
+    title: "Preview tiles no longer cross rail boundaries",
+    summary: "Home tiles now have an explicit full-column width and hide intrinsic content overflow.",
+    tone: "fixed",
+    highlights: [
+      "Long card metadata cannot widen an Upcoming Singles tile beyond its snap column.",
+      "Tile artwork and badges remain inside their own rounded surface at intermediate resolutions.",
+      "The change applies consistently to every grid-based Home card widget.",
+    ],
+  },
+  {
     version: "3.12.68",
     releasedAt: "August 12, 2026",
     title: "Upcoming tiles stay inside their rows",

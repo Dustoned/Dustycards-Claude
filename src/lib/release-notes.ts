@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.69",
+    releasedAt: "August 12, 2026",
+    title: "Home card rails respect their columns",
+    summary: "Long card content can no longer push a preview tile across the next card in an Upcoming rail.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Strict tile boundaries",
+        highlights: [
+          "Every Home preview tile is capped to the width of its grid or rail column.",
+          "Artwork, titles and price badges stay clipped inside the rounded tile boundary.",
+          "Upcoming Singles remains horizontally browsable without neighboring cards overlapping.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.68",
     releasedAt: "August 12, 2026",
     title: "Upcoming adapts cleanly to every desktop width",
