@@ -29,6 +29,7 @@ export const patchNotes: PatchNoteEntry[] = [
       "The UPC metal Mew ex is now grouped with SV-era promos instead of duplicating 151 #205/165.",
       "Released sealed tiles now open the exact DustyCards product when the catalogue contains it.",
       "Sealed sync automatically links unambiguous publisher and marketplace product-name variants.",
+      "Newly linked products inherit missing official release metadata instead of falling back to a generic set date.",
     ],
   },
   {

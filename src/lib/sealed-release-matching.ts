@@ -50,7 +50,14 @@ export async function reconcileSealedReleaseWatchMatches(game: string): Promise<
   const [unmatchedWatches, products] = await Promise.all([
     db.sealedReleaseWatch.findMany({
       where: { game, matched_product_id: null },
-      select: { id: true, name: true },
+      select: {
+        id: true,
+        name: true,
+        release_date: true,
+        source_name: true,
+        source_url: true,
+        confidence: true,
+      },
     }),
     db.sealedProduct.findMany({
       where: { game },
@@ -64,17 +71,27 @@ export async function reconcileSealedReleaseWatchMatches(game: string): Promise<
   const productsByName = buildUniqueSealedProductNameIndex(products);
   const matches = unmatchedWatches.flatMap((watch) => {
     const product = productsByName.get(normalizeSealedReleaseProductName(watch.name));
-    return product ? [{ watchId: watch.id, productId: product.id }] : [];
+    return product ? [{ watch, productId: product.id }] : [];
   });
 
   if (matches.length === 0) return 0;
   await db.$transaction(
-    matches.map((match) =>
+    matches.flatMap((match) => [
       db.sealedReleaseWatch.updateMany({
-        where: { id: match.watchId, matched_product_id: null },
+        where: { id: match.watch.id, matched_product_id: null },
         data: { matched_product_id: match.productId },
-      })
-    )
+      }),
+      db.sealedProduct.updateMany({
+        where: { id: match.productId, release_date: null },
+        data: {
+          release_date: match.watch.release_date,
+          release_date_source: match.watch.source_name,
+          release_date_source_url: match.watch.source_url,
+          release_date_confidence: match.watch.confidence,
+          release_date_checked_at: new Date(),
+        },
+      }),
+    ])
   );
   return matches.length;
 }

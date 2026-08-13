@@ -47,6 +47,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "Just Released and Upcoming sealed tiles open the exact DustyCards sealed-product modal as soon as a catalogue match exists.",
           "Publisher and marketplace names are normalized and linked automatically after every sealed catalogue sync.",
+          "The official product release date is copied into newly linked catalogue products when it was still missing.",
           "First Partner Illustration Collection Series 3 is linked to sealed product 50639 instead of returning to Pokemon.com.",
         ],
       },
