@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.71",
+    releasedAt: "August 13, 2026",
+    title: "Upcoming Singles tiles match the rest of Home",
+    summary: "Upcoming Singles now uses the regular Home tile size, released sealed products open their local detail, and the metal 151 Mew is kept out of the paper-card checklist.",
+    tone: "improved",
+    highlights: [
+      "Upcoming card tiles now use the standard 11-rem Home release-card width.",
+      "Card names, artwork and release badges are easier to scan.",
+      "Horizontal scrolling still keeps every set row usable on smaller viewports.",
+      "The UPC metal Mew ex is now grouped with SV-era promos instead of duplicating 151 #205/165.",
+      "Released sealed tiles now open the exact DustyCards product when the catalogue contains it.",
+      "Sealed sync automatically links unambiguous publisher and marketplace product-name variants.",
+    ],
+  },
+  {
     version: "3.12.70",
     releasedAt: "August 13, 2026",
     title: "Upcoming Singles rows show more of their set",

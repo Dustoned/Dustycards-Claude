@@ -114,6 +114,31 @@ describe("Home widget item click contract", () => {
     expect(markup).toContain("auto-rows-max");
   });
 
+  it("uses the standard Home release-tile width for Upcoming Singles", () => {
+    const markup = renderToStaticMarkup(createElement(
+      HomeItemDetailProvider,
+      null,
+      createElement(HomeUpcomingSinglesWidget, {
+        viewAllHref: "/upcoming",
+        viewMode: "grid",
+        total: 1,
+        groups: [{
+          key: "future-set", name: "Future Set", releaseDate: null, total: 1,
+          numberedCount: 1, nearComplete: false, sources: [],
+          statuses: { confirmed: 1, reveal: 0, leak: 0, upcoming: 0 },
+          items: [{
+            id: "card-1", cardId: "card-1", name: "Future card", imageUrl: null,
+            cardNumber: "1", episodeName: "Future Set", episodeCode: "FUT",
+            releaseDate: null, rarity: null, status: "confirmed", episodeId: "set-1",
+          }],
+        }],
+      })
+    ));
+
+    expect(markup).toContain("auto-cols-[11rem]");
+    expect(markup).not.toContain("auto-cols-[minmax(7.75rem,9rem)]");
+  });
+
   it.each([
     ["sealed", (compact?: boolean) => createElement(HomeUpcomingWidget, {
       items: [], compact, viewAllHref: "/upcoming",

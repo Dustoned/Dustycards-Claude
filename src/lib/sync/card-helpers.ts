@@ -108,6 +108,7 @@ const latestPriceSnapshotSelect = {
 
 export const syncCardBaseSelect = {
   id: true,
+  episode_id: true,
   game: true,
   name: true,
   card_number: true,

@@ -800,7 +800,7 @@ export function HomeUpcomingSinglesWidget({
                   <div
                     role="region"
                     aria-label={`Browse ${group.name}`}
-                    className="grid snap-x snap-mandatory auto-cols-[minmax(7.75rem,9rem)] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain p-2.5 [scrollbar-color:rgb(var(--dc-primary-rgb)/0.34)_transparent] [scrollbar-width:thin]"
+                    className="grid snap-x snap-mandatory auto-cols-[11rem] grid-flow-col gap-2 overflow-x-auto overscroll-x-contain p-2.5 [scrollbar-color:rgb(var(--dc-primary-rgb)/0.34)_transparent] [scrollbar-width:thin]"
                   >
                     {group.items.map((item) => (
                       <div key={item.id} className="min-w-0 snap-start">

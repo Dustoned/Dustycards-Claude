@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   useDeferredValue,
@@ -26,6 +27,7 @@ import {
 } from "lucide-react";
 import CachedImage from "@/components/CachedImage";
 import UpcomingCardImageViewer from "@/components/UpcomingCardImageViewer";
+import type { SealedModalProductData } from "@/components/sealed-modal/types";
 import { useSettings } from "@/components/SettingsProvider";
 import {
   getCardGridImageSizes,
@@ -48,6 +50,11 @@ import {
   getUpcomingCardHref,
   isExactUpcomingLibraryReference,
 } from "@/lib/upcoming-card-links";
+import { buildUpcomingSealedDetailProduct } from "@/lib/upcoming-sealed-detail";
+
+const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
+  ssr: false,
+});
 
 type ReleaseView = "all" | "sealed" | "singles" | "sources";
 
@@ -130,9 +137,11 @@ function SectionTitle({
 function SealedReleaseTile({
   release,
   imageSizes,
+  onOpen,
 }: {
   release: UpcomingSealedRelease;
   imageSizes: string;
+  onOpen?: () => void;
 }) {
   const mainHref = release.episodeId ? `/expansions/${release.episodeId}` : release.sourceUrl;
   const justReleased = release.daysSinceRelease != null;
@@ -179,7 +188,9 @@ function SealedReleaseTile({
   );
 
   const classes = "group overflow-hidden rounded-2xl border border-white/8 bg-white/[0.032] transition hover:border-violet-400/22 hover:bg-violet-400/[0.04]";
-  return mainHref ? (
+  return onOpen ? (
+    <button type="button" onClick={onOpen} className={`${classes} text-left`}>{content}</button>
+  ) : mainHref ? (
     external ? (
       <a href={mainHref} target="_blank" rel="noreferrer" className={classes}>{content}</a>
     ) : (
@@ -490,6 +501,7 @@ export default function UpcomingReleasesClient({
   const [search, setSearch] = useState("");
   const [visibleSingleGroupCount, setVisibleSingleGroupCount] = useState(4);
   const [previewItem, setPreviewItem] = useState<UpcomingSingleItem | null>(null);
+  const [selectedSealed, setSelectedSealed] = useState<SealedModalProductData | null>(null);
   const query = useDeferredValue(search).trim().toLowerCase();
   const filtered = useMemo(() => ({
     sealed: sealed.filter((item) => matchesQuery(query, [item.name, item.episodeName, item.episodeCode, item.sourceName])),
@@ -571,7 +583,12 @@ export default function UpcomingReleasesClient({
               <SectionTitle Icon={Sparkles} eyebrow="Released this week" title="Just Released" description="New sealed products stay visible here for seven days after release." count={justReleased.length} />
               <div className="grid gap-3" style={{ gridTemplateColumns: sealedGridTemplateColumns }}>
                 {justReleased.map((release) => (
-                  <SealedReleaseTile key={release.id} release={release} imageSizes={sealedImageSizes} />
+                  <SealedReleaseTile
+                    key={release.id}
+                    release={release}
+                    imageSizes={sealedImageSizes}
+                    onOpen={release.productId ? () => setSelectedSealed(buildUpcomingSealedDetailProduct(release)) : undefined}
+                  />
                 ))}
               </div>
             </section>
@@ -581,7 +598,12 @@ export default function UpcomingReleasesClient({
           {upcomingSealed.length ? (
             <div className="grid gap-3" style={{ gridTemplateColumns: sealedGridTemplateColumns }}>
               {visibleSealed.map((release) => (
-                <SealedReleaseTile key={release.id} release={release} imageSizes={sealedImageSizes} />
+                <SealedReleaseTile
+                  key={release.id}
+                  release={release}
+                  imageSizes={sealedImageSizes}
+                  onOpen={release.productId ? () => setSelectedSealed(buildUpcomingSealedDetailProduct(release)) : undefined}
+                />
               ))}
             </div>
           ) : <EmptyState>No sealed releases match this search.</EmptyState>}
@@ -632,6 +654,13 @@ export default function UpcomingReleasesClient({
 
       {previewItem ? (
         <UpcomingCardImageViewer item={previewItem} onClose={() => setPreviewItem(null)} />
+      ) : null}
+      {selectedSealed ? (
+        <SealedProductModal
+          product={selectedSealed}
+          onClose={() => setSelectedSealed(null)}
+          backLabel="Back to Upcoming"
+        />
       ) : null}
     </div>
   );

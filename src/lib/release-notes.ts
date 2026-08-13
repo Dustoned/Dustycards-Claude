@@ -20,6 +20,39 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.71",
+    releasedAt: "August 13, 2026",
+    title: "Upcoming Singles uses the standard Home tile size",
+    summary: "Upcoming card previews now match the visual scale of the other Home widgets, released sealed products open their DustyCards detail, and the metal 151 Mew is filed with Scarlet & Violet promos.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Consistent Home layout",
+        highlights: [
+          "Upcoming Singles cards now use the same 11-rem release-tile width as the rest of Home.",
+          "Artwork, titles and badges receive more breathing room at desktop resolutions.",
+          "Overflow remains a horizontal rail, so narrower screens stay responsive.",
+        ],
+      },
+      {
+        title: "Correct promo placement",
+        highlights: [
+          "The UPC metal Mew ex no longer appears as a duplicate card in the Pokémon 151 checklist.",
+          "Its separate market history remains available under SV Black Star Promos.",
+          "Automatic linked-binder wants no longer treat the metal product as a missing 151 card.",
+        ],
+      },
+      {
+        title: "Released sealed products open their detail",
+        highlights: [
+          "Just Released and Upcoming sealed tiles open the exact DustyCards sealed-product modal as soon as a catalogue match exists.",
+          "Publisher and marketplace names are normalized and linked automatically after every sealed catalogue sync.",
+          "First Partner Illustration Collection Series 3 is linked to sealed product 50639 instead of returning to Pokemon.com.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.70",
     releasedAt: "August 13, 2026",
     title: "Upcoming set rows fill wide screens",

@@ -50,6 +50,8 @@ import {
   type GradedCreateRow,
   type PriceSnapshotData,
 } from "@/lib/sync/card-helpers";
+import { buildCardEpisodeAssignment } from "@/lib/card-episode-overrides";
+import { reconcileSealedReleaseWatchMatches } from "@/lib/sealed-release-matching";
 import {
   AUTHORITATIVE_DIRECT_CARDMARKET_SOURCES,
   hasPriceSourceProvenanceChanged,
@@ -2585,13 +2587,14 @@ async function syncEpisodeCards(
         await tx.card.create({
           data: {
             id: card.id,
-            episode_id: episodeId,
+            ...buildCardEpisodeAssignment(card.id, episodeId),
             ...nextCardData,
             game,
           },
         });
         existingCardMap.set(card.id, {
           id: card.id,
+          ...buildCardEpisodeAssignment(card.id, episodeId),
           ...nextCardData,
           game,
           price_source_status: null,
@@ -2604,13 +2607,30 @@ async function syncEpisodeCards(
       } else if (hasCardChanges(existingCard, nextCardData)) {
         await tx.card.update({
           where: { id: card.id },
-          data: nextCardData,
+          data: {
+            ...nextCardData,
+            ...buildCardEpisodeAssignment(card.id, episodeId),
+          },
         });
         existingCardMap.set(card.id, {
           ...existingCard,
           ...nextCardData,
+          ...buildCardEpisodeAssignment(card.id, episodeId),
         });
         updatedCards += 1;
+      } else {
+        const episodeAssignment = buildCardEpisodeAssignment(card.id, episodeId);
+        if (existingCard.episode_id !== episodeAssignment.episode_id) {
+          await tx.card.update({
+            where: { id: card.id },
+            data: episodeAssignment,
+          });
+          existingCardMap.set(card.id, {
+            ...existingCard,
+            ...episodeAssignment,
+          });
+          updatedCards += 1;
+        }
       }
 
       const nextGradedPrices = extractGradedPrices(card.prices);
@@ -5377,6 +5397,12 @@ export async function runSealedSync(options?: {
           // Skip failed episodes silently, matching the previous sealed sync behavior.
         }
       });
+
+      // Release-watch names come from publishers while the sealed catalogue
+      // uses marketplace names. Once a newly released product arrives in the
+      // catalogue, link unambiguous normalized identities automatically so
+      // Upcoming/Just Released opens the exact DustyCards detail modal.
+      await reconcileSealedReleaseWatchMatches(POKEMON_GAME);
 
       return {
         synced,
