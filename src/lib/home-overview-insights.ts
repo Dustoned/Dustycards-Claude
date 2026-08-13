@@ -13,7 +13,7 @@ import type { PriceSource } from "@/lib/user-settings";
 const HOME_WIDGET_PREVIEW_LIMIT = 24;
 const HOME_WIDGET_MOVER_TONE_LIMIT = HOME_WIDGET_PREVIEW_LIMIT / 2;
 const HOME_UPCOMING_SINGLE_GROUP_LIMIT = 4;
-const HOME_UPCOMING_SINGLE_CARDS_PER_GROUP = 6;
+const HOME_UPCOMING_SINGLE_CARDS_PER_GROUP = HOME_WIDGET_PREVIEW_LIMIT;
 
 export type HomeAllocationTone = "sky" | "emerald" | "amber" | "rose";
 

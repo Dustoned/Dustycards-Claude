@@ -121,8 +121,8 @@ describe("buildHomeOverviewInsights", () => {
       "Set Delta",
     ]);
     expect(result.upcomingSingleGroups[0]).toMatchObject({ total: 30 });
-    expect(result.upcomingSingleGroups[0].items).toHaveLength(6);
-    expect(result.upcomingSingles).toHaveLength(9);
+    expect(result.upcomingSingleGroups[0].items).toHaveLength(24);
+    expect(result.upcomingSingles).toHaveLength(27);
     expect(result.upcomingSinglesTotal).toBe(34);
   });
 

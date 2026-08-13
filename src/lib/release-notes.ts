@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.70",
+    releasedAt: "August 13, 2026",
+    title: "Upcoming set rows fill wide screens",
+    summary: "Home now loads enough singles from each set to fill an entire release row instead of stopping after six cards.",
+    tone: "improved",
+    sections: [
+      {
+        title: "More cards per set",
+        highlights: [
+          "Each Upcoming Singles set preview can show up to 24 different cards.",
+          "Ultrawide rows stay visually filled while smaller screens keep horizontal scrolling.",
+          "The cap avoids rendering all 113 cards from a large set and keeps Home responsive.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.69",
     releasedAt: "August 12, 2026",
     title: "Home card rails respect their columns",

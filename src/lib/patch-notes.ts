@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.70",
+    releasedAt: "August 13, 2026",
+    title: "Upcoming Singles rows show more of their set",
+    summary: "The per-set Home preview limit has increased from six to 24 cards so wide release rails no longer end in empty space.",
+    tone: "improved",
+    highlights: [
+      "Large upcoming sets can fill a complete ultrawide row with distinct card tiles.",
+      "Each of the four previewed sets keeps its own independent 24-card cap.",
+      "Horizontal scrolling remains available wherever the cards exceed the viewport width.",
+      "A bounded preview protects Home performance instead of rendering every card in the set.",
+    ],
+  },
+  {
     version: "3.12.69",
     releasedAt: "August 12, 2026",
     title: "Preview tiles no longer cross rail boundaries",
