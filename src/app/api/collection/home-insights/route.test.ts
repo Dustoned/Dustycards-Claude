@@ -5,6 +5,8 @@ const mocks = vi.hoisted(() => ({
   count: vi.fn(),
   findMany: vi.fn(),
   settings: vi.fn(),
+  moversSnapshot: vi.fn(),
+  radarSnapshot: vi.fn(),
   upcomingFeed: vi.fn().mockResolvedValue({ singles: [] }),
 }));
 
@@ -37,14 +39,14 @@ vi.mock("@/lib/home-overview-insights", () => ({
   buildForSalePreview: vi.fn(() => ({ total: 0, totalValue: null, items: [] })),
 }));
 vi.mock("@/lib/movers-snapshot-store", () => ({
-  readMoversSnapshot: vi.fn().mockResolvedValue(null),
+  readMoversSnapshot: mocks.moversSnapshot,
   SHARED_MOVERS_SNAPSHOT_USER_ID: "shared",
 }));
 vi.mock("@/lib/sealed-movers", () => ({
   getUpcomingSealedReleases: vi.fn().mockResolvedValue([]),
 }));
 vi.mock("@/lib/signal-radar-snapshot-store", () => ({
-  readSignalRadarSnapshot: vi.fn().mockResolvedValue(null),
+  readSignalRadarSnapshot: mocks.radarSnapshot,
 }));
 vi.mock("@/lib/upcoming-releases", () => ({
   getUpcomingReleaseFeed: mocks.upcomingFeed,
@@ -97,6 +99,8 @@ describe("GET /api/collection/home-insights wants prices", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.count.mockResolvedValue(1);
+    mocks.moversSnapshot.mockResolvedValue(null);
+    mocks.radarSnapshot.mockResolvedValue(null);
   });
 
   it("keeps an older TCP quote visible behind a newer CM-only row", async () => {
@@ -133,6 +137,8 @@ describe("GET /api/collection/home-insights upcoming singles", () => {
     vi.clearAllMocks();
     mocks.count.mockResolvedValue(0);
     mocks.findMany.mockResolvedValue([]);
+    mocks.moversSnapshot.mockResolvedValue(null);
+    mocks.radarSnapshot.mockResolvedValue(null);
     mocks.settings.mockResolvedValue({
       primaryPriceSource: "cm_en",
       onePieceLibraryEnabled: false,
@@ -155,5 +161,56 @@ describe("GET /api/collection/home-insights upcoming singles", () => {
     } finally {
       dateSpy.mockRestore();
     }
+  });
+});
+
+describe("GET /api/collection/home-insights library scope", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.count.mockResolvedValue(0);
+    mocks.findMany.mockResolvedValue([]);
+    mocks.upcomingFeed.mockResolvedValue({ singles: [] });
+    mocks.settings.mockResolvedValue({
+      primaryPriceSource: "cm_en",
+      onePieceLibraryEnabled: false,
+    });
+    mocks.moversSnapshot.mockResolvedValue({
+      data: {
+        movers: [
+          { cardId: "pokemon-card" },
+          { cardId: "one-piece:one-piece-card" },
+        ],
+        cheapestHighRarityMovers: [
+          { cardId: "pokemon-cheap" },
+          { cardId: "one-piece:one-piece-cheap" },
+        ],
+        discountedHighRarity: [
+          { cardId: "pokemon-discount" },
+          { cardId: "one-piece:one-piece-discount" },
+        ],
+      },
+    });
+    mocks.radarSnapshot.mockResolvedValue({
+      data: {
+        signals: [
+          { cardId: "pokemon-radar", game: "pokemon" },
+          { cardId: "one-piece:one-piece-radar", game: "one-piece" },
+        ],
+      },
+    });
+  });
+
+  it("removes One Piece rows from every snapshot-backed Home widget", async () => {
+    const response = await GET(
+      new NextRequest("http://localhost/api/collection/home-insights")
+    );
+    const body = await response.json();
+
+    expect(body.movers).toEqual([{ cardId: "pokemon-card" }]);
+    expect(body.gradedMovers).toEqual([{ cardId: "pokemon-card" }]);
+    expect(body.gradingTargets).toEqual([{ cardId: "pokemon-card" }]);
+    expect(body.cheapRarity).toEqual([{ cardId: "pokemon-cheap" }]);
+    expect(body.discountWatch).toEqual([{ cardId: "pokemon-discount" }]);
+    expect(body.radarSignals).toEqual([{ cardId: "pokemon-radar", game: "pokemon" }]);
   });
 });

@@ -547,7 +547,9 @@ function HomeCardListWidget({
   const { openingCardId, openCard } = useHomeItemDetails();
   const Icon = kind === "wants" ? Heart : ShoppingBag;
   const gridView = viewMode === "grid";
-  const visibleItems = gridView ? data.items : data.items.slice(0, 6);
+  const visibleItems = gridView
+    ? data.items
+    : data.items.slice(0, kind === "wants" ? 4 : 6);
   return (
     <section className={`binder-panel home-widget-panel home-widget-panel--${kind} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
       <WidgetHeader eyebrow={eyebrow} title={title} count={data.total} href={viewAllHref} icon={Icon} tone={kind} />
@@ -560,7 +562,7 @@ function HomeCardListWidget({
       {data.items.length === 0 ? (
         <EmptyWidget>{emptyLabel}</EmptyWidget>
       ) : gridView ? (
-        <div className="home-widget-tile-grid mt-2 grid gap-2">
+        <div className={`home-widget-tile-grid mt-2 grid gap-2 ${kind === "wants" ? "home-widget-tile-grid--mobile-preview" : ""}`}>
           {visibleItems.map((item, index) => (
             <HomePreviewTile
               key={`${item.cardId}:${index}`}

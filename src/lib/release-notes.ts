@@ -20,6 +20,30 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.72",
+    releasedAt: "August 14, 2026",
+    title: "Home respects the visible card libraries",
+    summary: "Disabling the One Piece library now removes One Piece cards from every Home market widget immediately, while Wants stays compact on phones.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Strict library filtering",
+        highlights: [
+          "Home immediately requests Pokémon-only insights when the One Piece library is switched off.",
+          "Snapshot-backed Movers, Grading, Cheap Rarity, Discount Watch and Signal Radar widgets receive a final game-scope check.",
+          "Old combined Home cache entries can no longer keep One Piece cards visible after the setting changes.",
+        ],
+      },
+      {
+        title: "Compact mobile Wants",
+        highlights: [
+          "The mobile Wants grid previews four cards instead of expanding through the full list.",
+          "The full Wants count and View all link remain available in the widget header.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.71",
     releasedAt: "August 13, 2026",
     title: "Upcoming Singles uses the standard Home tile size",

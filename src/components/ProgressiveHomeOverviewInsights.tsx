@@ -45,6 +45,7 @@ import type {
   HomeAllocationTone,
   HomeOverviewInsightsPayload,
 } from "@/lib/home-overview-insights";
+import { scopeHomeApiEndpointToVisibleLibraries } from "@/lib/home-library-scope";
 import {
   readHomeClientCache,
   writeHomeClientCache,
@@ -302,27 +303,35 @@ export default function ProgressiveHomeOverviewInsights({
   mobileToolbarLeading?: ReactNode;
 }) {
   const { settings, set } = useSettings();
+  const visibleEndpoint = scopeHomeApiEndpointToVisibleLibraries(
+    endpoint,
+    settings.onePieceLibraryEnabled
+  );
+  const visibleSuddenDropsApiHref = scopeHomeApiEndpointToVisibleLibraries(
+    suddenDropsApiHref,
+    settings.onePieceLibraryEnabled
+  );
   const [showCustomizer, setShowCustomizer] = useState(false);
   const [payloadState, setPayloadState] = useState<{
     endpoint: string;
     payload: HomeOverviewInsightsPayload | null;
   }>(() => ({
-    endpoint,
+    endpoint: visibleEndpoint,
     payload: readHomeClientCache<HomeOverviewInsightsPayload>(
       "collection-insights",
       cacheScope,
-      endpoint
+      visibleEndpoint
     ),
   }));
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const payload =
-    payloadState.endpoint === endpoint
+    payloadState.endpoint === visibleEndpoint
       ? payloadState.payload
       : readHomeClientCache<HomeOverviewInsightsPayload>(
           "collection-insights",
           cacheScope,
-          endpoint
+          visibleEndpoint
         );
 
   const retry = useCallback(() => {
@@ -335,10 +344,10 @@ export default function ProgressiveHomeOverviewInsights({
     const cachedPayload = readHomeClientCache<HomeOverviewInsightsPayload>(
       "collection-insights",
       cacheScope,
-      endpoint
+      visibleEndpoint
     );
 
-    void fetch(endpoint, {
+    void fetch(visibleEndpoint, {
       cache: "no-store",
       credentials: "same-origin",
       signal: controller.signal,
@@ -349,8 +358,8 @@ export default function ProgressiveHomeOverviewInsights({
       })
       .then((nextPayload) => {
         if (!controller.signal.aborted) {
-          writeHomeClientCache("collection-insights", cacheScope, endpoint, nextPayload);
-          setPayloadState({ endpoint, payload: nextPayload });
+          writeHomeClientCache("collection-insights", cacheScope, visibleEndpoint, nextPayload);
+          setPayloadState({ endpoint: visibleEndpoint, payload: nextPayload });
         }
       })
       .catch(() => {
@@ -358,7 +367,7 @@ export default function ProgressiveHomeOverviewInsights({
       });
 
     return () => controller.abort();
-  }, [attempt, cacheScope, endpoint]);
+  }, [attempt, cacheScope, visibleEndpoint]);
 
   useEffect(() => {
     const refreshAfterCollectionChange = () => {
@@ -468,7 +477,7 @@ export default function ProgressiveHomeOverviewInsights({
     ),
     "sudden-drops": (
       <HomeSuddenDropsPanel
-        apiHref={suddenDropsApiHref}
+        apiHref={visibleSuddenDropsApiHref}
         cacheScope={cacheScope}
         viewAllHref={suddenDropsHref}
         viewMode={viewModeFor("sudden-drops")}

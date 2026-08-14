@@ -6,6 +6,7 @@ import { compressedJsonResponse } from "@/lib/compressed-json-response";
 import { db } from "@/lib/db";
 import {
   isSpecificTradingCardGame,
+  getGameFromScopedId,
   ONE_PIECE_GAME,
   parseVisibleGameFilter,
   POKEMON_GAME,
@@ -26,6 +27,15 @@ import { readSignalRadarSnapshot } from "@/lib/signal-radar-snapshot-store";
 import { getUpcomingReleaseFeed, type UpcomingSingleItem } from "@/lib/upcoming-releases";
 import type { PriceSource } from "@/lib/user-settings";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+
+function scopeCardRows<T extends { cardId: string }>(
+  items: T[],
+  game: TradingCardGameFilter
+): T[] {
+  return isSpecificTradingCardGame(game)
+    ? items.filter((item) => getGameFromScopedId(item.cardId) === game)
+    : items;
+}
 
 function validPrice(value: number | null | undefined): number | null {
   return value != null && Number.isFinite(value) && value > 0 && value !== 9001
@@ -170,12 +180,14 @@ export async function GET(request: NextRequest) {
     ]);
 
     return compressedJsonResponse(request, buildHomeOverviewInsights(data, {
-      movers: moversSnapshot?.data.movers ?? [],
-      gradedMovers: gradedSnapshot?.data.movers ?? [],
-      gradingTargets: gradingSnapshot?.data.movers ?? [],
-      cheapRarity: moversSnapshot?.data.cheapestHighRarityMovers ?? [],
-      discountWatch: moversSnapshot?.data.discountedHighRarity ?? [],
-      radarSignals: radarSnapshot?.data.signals ?? [],
+      movers: scopeCardRows(moversSnapshot?.data.movers ?? [], game),
+      gradedMovers: scopeCardRows(gradedSnapshot?.data.movers ?? [], game),
+      gradingTargets: scopeCardRows(gradingSnapshot?.data.movers ?? [], game),
+      cheapRarity: scopeCardRows(moversSnapshot?.data.cheapestHighRarityMovers ?? [], game),
+      discountWatch: scopeCardRows(moversSnapshot?.data.discountedHighRarity ?? [], game),
+      radarSignals: isSpecificTradingCardGame(game)
+        ? (radarSnapshot?.data.signals ?? []).filter((signal) => signal.game === game)
+        : radarSnapshot?.data.signals ?? [],
       wants,
       forSale: buildForSalePreview(sellingData, settings.primaryPriceSource),
       upcoming,

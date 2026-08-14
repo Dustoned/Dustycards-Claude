@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.72",
+    releasedAt: "August 14, 2026",
+    title: "Disabled libraries stay out of Home",
+    summary: "Home now enforces the account's visible-library setting across cached and snapshot-backed widgets, and Wants uses a shorter mobile preview.",
+    tone: "fixed",
+    highlights: [
+      "Turning off One Piece immediately changes Home's insight and sudden-drop requests to Pokémon only.",
+      "Market Movers, Graded Movers, Grading Targets, Cheap Rarity, Discount Watch and Signal Radar are defensively filtered by game.",
+      "Cached combined-library results are separated from the Pokémon-only Home cache.",
+      "Wants shows four preview items on mobile instead of growing far taller than neighboring widgets.",
+    ],
+  },
+  {
     version: "3.12.71",
     releasedAt: "August 13, 2026",
     title: "Upcoming Singles tiles match the rest of Home",

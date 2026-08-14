@@ -6,6 +6,7 @@ import {
   HomeMarketMoversWidget,
   HomeUpcomingSinglesWidget,
   HomeUpcomingWidget,
+  HomeWantsWidget,
 } from "@/components/HomePreviewWidgets";
 
 describe("Home widget item click contract", () => {
@@ -162,5 +163,41 @@ describe("Home widget item click contract", () => {
     expect(compactMarkup).toContain("lg:h-[30rem]");
     expect(wideMarkup).not.toContain('data-home-widget-compact="true"');
     expect(wideMarkup).not.toContain("lg:h-[30rem]");
+  });
+
+  it("keeps Wants compact on mobile while its header still shows the full count", () => {
+    const items = Array.from({ length: 8 }, (_, index) => ({
+      cardId: `card-${index + 1}`,
+      name: `Wanted card ${index + 1}`,
+      cardNumber: String(index + 1),
+      episodeName: "Test Set",
+      episodeCode: "TST",
+      imageUrl: null,
+      price: index + 1,
+      currency: "EUR" as const,
+    }));
+    const gridMarkup = renderToStaticMarkup(createElement(
+      HomeItemDetailProvider,
+      null,
+      createElement(HomeWantsWidget, {
+        data: { total: 8, totalValue: 36, items },
+        viewAllHref: "/wants",
+        viewMode: "grid",
+      })
+    ));
+    const listMarkup = renderToStaticMarkup(createElement(
+      HomeItemDetailProvider,
+      null,
+      createElement(HomeWantsWidget, {
+        data: { total: 8, totalValue: 36, items },
+        viewAllHref: "/wants",
+        viewMode: "list",
+      })
+    ));
+
+    expect(gridMarkup).toContain("home-widget-tile-grid--mobile-preview");
+    expect(gridMarkup).toContain("Wanted card 8");
+    expect(listMarkup).toContain("Wanted card 4");
+    expect(listMarkup).not.toContain("Wanted card 5");
   });
 });

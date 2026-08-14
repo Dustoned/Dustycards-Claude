@@ -3712,6 +3712,12 @@ html[data-appearance-scheme="light"]
   align-content: start;
 }
 
+@media (max-width: 767px) {
+  .home-widget-tile-grid--mobile-preview > :nth-child(n + 5) {
+    display: none;
+  }
+}
+
 [data-home-widget-compact="true"] > [class*="overflow-y-auto"] {
   scrollbar-width: thin;
   scrollbar-color: rgb(var(--home-widget-accent-rgb) / 0.34) transparent;
