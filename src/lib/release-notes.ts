@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.76",
+    releasedAt: "August 16, 2026",
+    title: "Choose how old old high-rarity cards should be",
+    summary: "The Old high-rarity value lane now has a clear minimum-age selector directly above its results.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Instant age filtering",
+        highlights: [
+          "Choose 5+, 7+, 10+, 15+ or 20+ years without leaving Signal Radar.",
+          "The full eligible cohort stays loaded, so changing age is immediate and does not trigger another slow discovery request.",
+          "The matching result count, search, sorting, release-year filter and Show more update together.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.75",
     releasedAt: "August 16, 2026",
     title: "The complete older high-rarity discovery lane",

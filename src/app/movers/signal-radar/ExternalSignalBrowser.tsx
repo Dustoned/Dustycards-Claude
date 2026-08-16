@@ -63,7 +63,10 @@ import type {
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
-import { isOlderHighRarityValueSignal } from "@/lib/older-high-rarity-value";
+import {
+  isOlderHighRarityValueSignal,
+  isOlderHighRarityValueSignalAtLeastAge,
+} from "@/lib/older-high-rarity-value";
 import type {
   SealedSignalRadarData,
   SealedSignalRadarItem,
@@ -142,6 +145,7 @@ const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
 
 const INITIAL_VISIBLE_SIGNALS = 12;
 const VISIBLE_SIGNAL_STEP = 12;
+const OLDER_HIGH_RARITY_AGE_OPTIONS = [5, 7, 10, 15, 20] as const;
 const SINGLES_EXPANDED_STORAGE_KEY = "dustycards:signal-radar:singles-expanded";
 const SEALED_EXPANDED_STORAGE_KEY = "dustycards:signal-radar:sealed-expanded";
 
@@ -1471,6 +1475,7 @@ export default function ExternalSignalBrowser({
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
   const [sortKey, setSortKey] = useState<SortKey>("opportunity");
   const [releaseYear, setReleaseYear] = useState("all");
+  const [minimumOlderAgeYears, setMinimumOlderAgeYears] = useState(5);
   const [visibleLimit, setVisibleLimit] = useState(INITIAL_VISIBLE_SIGNALS);
   const [singlesExpanded, setSinglesExpanded] = useState(true);
   const [sealedExpanded, setSealedExpanded] = useState(true);
@@ -1721,6 +1726,10 @@ export default function ExternalSignalBrowser({
               ? signal.sourceMode !== "event" && signal.sourceMode !== "hybrid"
               : signal.sourceMode !== origin)
         ) return false;
+        if (
+          origin === "older-high-rarity" &&
+          !isOlderHighRarityValueSignalAtLeastAge(signal, minimumOlderAgeYears)
+        ) return false;
         if (marketMode === "graded" && !signal.marketIntelligence?.graded.available) return false;
         if (
           activeReleaseYear !== "all" &&
@@ -1820,6 +1829,7 @@ export default function ExternalSignalBrowser({
     activeReleaseYear,
     deferredSearch,
     marketMode,
+    minimumOlderAgeYears,
     newReleaseCardIds,
     origin,
     progressiveState,
@@ -1962,6 +1972,48 @@ export default function ExternalSignalBrowser({
                 : olderHighRarityCount}
           </span>
         </button>
+        {origin === "older-high-rarity" ? (
+          <div className="mb-2.5 flex flex-col gap-2 rounded-xl border border-amber-300/16 bg-amber-300/[0.035] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+            <div className="min-w-0">
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/62">
+                Minimum card age
+              </p>
+              <p className="mt-0.5 text-[10px] text-white/38">
+                Show cards released at least this many years ago.
+              </p>
+            </div>
+            <div className="flex min-w-0 items-center gap-2">
+              <div
+                role="group"
+                aria-label="Minimum card age"
+                className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-none"
+              >
+                {OLDER_HIGH_RARITY_AGE_OPTIONS.map((ageYears) => (
+                  <button
+                    key={ageYears}
+                    type="button"
+                    onClick={() => {
+                      setMinimumOlderAgeYears(ageYears);
+                      setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+                    }}
+                    aria-pressed={minimumOlderAgeYears === ageYears}
+                    className={cx(
+                      "min-h-9 shrink-0 rounded-md px-2.5 text-[11px] font-black tabular-nums transition sm:px-3",
+                      minimumOlderAgeYears === ageYears
+                        ? "bg-amber-300 text-amber-950 shadow-sm"
+                        : "text-white/48 hover:bg-white/[0.06] hover:text-white"
+                    )}
+                  >
+                    {ageYears}+ years
+                  </button>
+                ))}
+              </div>
+              <span className="hidden shrink-0 rounded-full border border-amber-300/14 bg-black/20 px-2.5 py-1 text-[10px] font-bold tabular-nums text-amber-100/60 md:inline-flex">
+                {visibleSignals.length} matches
+              </span>
+            </div>
+          </div>
+        ) : null}
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto_auto] lg:items-center">
           <label className="relative col-span-2 block min-w-0 lg:col-span-1">
             <span className="sr-only">Search signal cards</span>

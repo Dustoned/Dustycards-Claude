@@ -89,3 +89,17 @@ export function isOlderHighRarityValueSignal(signal: {
 }): boolean {
   return signal.olderHighRarityValue?.kind === OLDER_HIGH_RARITY_VALUE_KIND;
 }
+
+export function isOlderHighRarityValueSignalAtLeastAge(
+  signal: {
+    olderHighRarityValue?: OlderHighRarityValueProfile | null;
+  },
+  minimumAgeYears: number,
+): boolean {
+  return (
+    isOlderHighRarityValueSignal(signal) &&
+    Number.isFinite(minimumAgeYears) &&
+    (signal.olderHighRarityValue?.ageYears ?? 0) >=
+      Math.max(OLDER_HIGH_RARITY_MIN_AGE_YEARS, minimumAgeYears)
+  );
+}

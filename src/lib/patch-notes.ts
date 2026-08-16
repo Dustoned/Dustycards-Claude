@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.76",
+    releasedAt: "August 16, 2026",
+    title: "Minimum-age controls for old high-rarity value",
+    summary: "Signal Radar can now narrow its complete older high-rarity cohort by card age.",
+    tone: "improved",
+    highlights: [
+      "The filter offers 5+, 7+, 10+, 15+ and 20+ year choices at the top of the lane.",
+      "Age changes apply instantly to the already loaded cohort.",
+      "The live match count and the rest of the Radar controls stay synchronized.",
+    ],
+  },
+  {
     version: "3.12.75",
     releasedAt: "August 16, 2026",
     title: "Complete old high-rarity discovery",

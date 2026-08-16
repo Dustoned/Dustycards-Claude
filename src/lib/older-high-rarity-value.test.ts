@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getOlderHighRarityValueProfile,
   isOlderHighRarityValueSignal,
+  isOlderHighRarityValueSignalAtLeastAge,
   isStrictOlderHighRarity,
 } from "@/lib/older-high-rarity-value";
 
@@ -69,5 +70,20 @@ describe("older high-rarity value discovery", () => {
     expect(isOlderHighRarityValueSignal({ olderHighRarityValue: null })).toBe(
       false,
     );
+  });
+
+  it("filters the tagged cohort by a selectable minimum age", () => {
+    const profile = getOlderHighRarityValueProfile(eligible);
+    const signal = { olderHighRarityValue: profile };
+
+    expect(isOlderHighRarityValueSignalAtLeastAge(signal, 5)).toBe(true);
+    expect(isOlderHighRarityValueSignalAtLeastAge(signal, 7)).toBe(true);
+    expect(isOlderHighRarityValueSignalAtLeastAge(signal, 10)).toBe(false);
+    expect(
+      isOlderHighRarityValueSignalAtLeastAge(
+        { olderHighRarityValue: null },
+        5,
+      ),
+    ).toBe(false);
   });
 });
