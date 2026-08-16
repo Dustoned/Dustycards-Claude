@@ -99,6 +99,27 @@ describe("normalizeMarktplaatsReport", () => {
     ).toThrow(/explicitly English/i);
   });
 
+  it("accepts an exact English collection with a representative card", () => {
+    const normalized = normalizeMarktplaatsReport(
+      report(
+        reportDeal({
+          kind: "collection",
+          title: "English Pokémon binder collection",
+          cardId: "highest-value-card",
+          listingPriceEur: 200,
+          marketValueEur: 300,
+          offerContents: "Umbreon VMAX 215/203 plus five exact English cards",
+        })
+      )
+    );
+    expect(normalized.deals[0]).toMatchObject({
+      kind: "collection",
+      cardId: "highest-value-card",
+      language: "English",
+      savingsEur: 100,
+    });
+  });
+
   it("derives a stable external id from the listing path", () => {
     const first = buildMarktplaatsExternalId(
       "https://www.marktplaats.nl/v/verzamelen/pokemon/a123?utm_source=x"

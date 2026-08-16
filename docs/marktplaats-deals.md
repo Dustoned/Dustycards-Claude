@@ -33,14 +33,18 @@ The generated reference is ignored by Git and contains:
 - all cards with the current CardMarket English/NM value;
 - the existing DustyCards expansion total;
 - CardMarket graded values and eBay sold graded medians with their source currency.
-- a bounded daily search plan with broad discovery queries, exact high-value card queries,
-  rotating catalogue coverage, graded targets and complete-expansion targets.
+- a bounded daily search plan with broad discovery queries, current Signal Radar priorities,
+  exact high-value card queries, rotating catalogue coverage, graded targets and
+  complete-expansion targets.
 
 The search plan only targets raw and graded cards with at least €5 current market value. It always
 checks the highest-value targets and rotates a second catalogue slice each day, so coverage expands
 over time without firing thousands of searches in one run. Broad searches are sorted newest-first;
 targeted searches use exact card names and numbers with a set-code fallback. Candidate URLs are
 deduplicated by their Marktplaats advert id before any full descriptions are opened.
+Up to 24 current Pokémon Signal Radar cards are searched first. Their Radar rank, pressure label,
+score and first reason travel with the search target so matched Marktplaats offers can be labelled
+against the same saved Radar snapshot that powers the app.
 
 ## Report contract
 
@@ -87,6 +91,12 @@ Savings and discount are always recomputed by the importer from
 never part of that calculation. A matched graded listing needs an exact grading
 company and grade. A matched raw listing must be explicitly English. Missing or
 ambiguous description evidence must use `matchStatus: "review"`.
+
+Collections are imported with `kind: "collection"`. The representative `cardId` is the
+highest-value exactly identified card in the lot, or the highest-priority Signal Radar card when
+one is present. `marketValueEur` is the conservative sum of only the exact English printings that
+the full description identifies; unknown bulk contributes €0. Complete mastersets use
+`kind: "expansion"` and the existing DustyCards expansion total instead.
 
 `completeCoverage` should remain false unless the run actually revisited the full
 tracked result set. Individual adverts confirmed as unavailable can always be

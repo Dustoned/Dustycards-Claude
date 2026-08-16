@@ -3,6 +3,7 @@ import {
   ExternalLink,
   ImageOff,
   PackageSearch,
+  Radar,
   ScanSearch,
   ShieldCheck,
   TriangleAlert,
@@ -11,8 +12,9 @@ import { db } from "@/lib/db";
 import CachedImage from "@/components/CachedImage";
 import HomeItemDetailProvider from "@/components/HomeItemDetailProvider";
 import MarktplaatsCardDetailButton from "@/components/MarktplaatsCardDetailButton";
+import { readSignalRadarSnapshot } from "@/lib/signal-radar-snapshot-store";
 
-type DealKind = "raw" | "graded" | "expansion";
+type DealKind = "raw" | "graded" | "expansion" | "collection";
 type SelectionFilter = "daily" | "deals" | "review";
 const MIN_CARD_MARKET_VALUE_EUR = 5;
 const eligibleValueWhere = {
@@ -29,7 +31,9 @@ export interface MarktplaatsDealSearchParams {
 }
 
 function parseKind(value: string | undefined): DealKind | null {
-  return value === "raw" || value === "graded" || value === "expansion" ? value : null;
+  return value === "raw" || value === "graded" || value === "expansion" || value === "collection"
+    ? value
+    : null;
 }
 
 function parseSelection(value: string | undefined): SelectionFilter {
@@ -56,6 +60,7 @@ function dateTime(value: Date | null): string {
 function kindLabel(kind: string): string {
   if (kind === "graded") return "Graded kaart";
   if (kind === "expansion") return "Complete expansion";
+  if (kind === "collection") return "Kaartcollectie";
   return "Raw ENG kaart";
 }
 
@@ -184,6 +189,10 @@ export default async function MarktplaatsDealsPanel({
       : 0,
   ]);
   const counts = new Map(activeCounts.map((entry) => [entry.kind, entry._count._all]));
+  const radarSnapshot = await readSignalRadarSnapshot("pokemon");
+  const radarSignalsByCardId = new Map(
+    (radarSnapshot?.data.signals ?? []).map((signal) => [signal.cardId, signal])
+  );
 
   return (
     <HomeItemDetailProvider>
@@ -239,6 +248,7 @@ export default async function MarktplaatsDealsPanel({
             ["raw", `Raw (${counts.get("raw") ?? 0})`],
             ["graded", `Graded (${counts.get("graded") ?? 0})`],
             ["expansion", `Expansions (${counts.get("expansion") ?? 0})`],
+            ["collection", `Collecties (${counts.get("collection") ?? 0})`],
           ].map(([filterKind, label]) => (
             <Link
               key={filterKind ?? "all"}
@@ -314,6 +324,9 @@ export default async function MarktplaatsDealsPanel({
             const detailLabel = deal.card
               ? `Bekijk ${referenceName} in DustyCards`
               : `Bekijk expansion ${referenceName}`;
+            const radarSignal = deal.card
+              ? radarSignalsByCardId.get(deal.card.id) ?? null
+              : null;
             return (
               <article key={deal.id} className="binder-subpanel overflow-hidden rounded-2xl p-3 sm:p-4">
                 <div className="grid min-w-0 grid-cols-[5.6rem_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-4">
@@ -372,8 +385,16 @@ export default async function MarktplaatsDealsPanel({
                           ? "Controleren"
                           : belowMarket
                             ? `${Math.round(deal.match_confidence * 100)}% match · onder markt`
-                            : "Dagselectie · rond markt"}
+                          : "Dagselectie · rond markt"}
                       </span>
+                      {radarSignal ? (
+                        <Link
+                          href={`/movers/signal-radar/${encodeURIComponent(radarSignal.cardId)}?game=pokemon`}
+                          className="inline-flex items-center gap-1 rounded-full border border-violet-300/25 bg-violet-300/10 px-2 py-1 text-[10px] font-black text-violet-100 transition hover:border-violet-300/45 hover:bg-violet-300/15"
+                        >
+                          <Radar className="h-3 w-3" /> Signal Radar #{radarSignal.rank} · {radarSignal.pressureLabel}
+                        </Link>
+                      ) : null}
                     </div>
                     <h3 className="mt-2 line-clamp-2 text-base font-black text-[var(--dc-text-primary)]">
                       {deal.title}
@@ -417,6 +438,20 @@ export default async function MarktplaatsDealsPanel({
                         <strong className="text-[var(--dc-text-secondary)]">Aanbod:</strong> {deal.offer_contents}
                       </p>
                     ) : null}
+                  </div>
+                ) : null}
+
+                {radarSignal ? (
+                  <div className="mt-3 rounded-xl border border-violet-300/20 bg-violet-300/[0.07] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2 text-[9px] font-black uppercase tracking-[0.12em] text-violet-200">
+                      <span className="inline-flex items-center gap-1.5">
+                        <Radar className="h-3.5 w-3.5" /> Signal Radar-prioriteit
+                      </span>
+                      <span>Score {radarSignal.externalScore} · {radarSignal.confidence}</span>
+                    </div>
+                    <p className="mt-1.5 text-[11px] leading-4 text-violet-100/75">
+                      {radarSignal.reasons[0] ?? radarSignal.pressureExplanation}
+                    </p>
                   </div>
                 ) : null}
 

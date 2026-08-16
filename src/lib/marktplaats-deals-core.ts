@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 
 export const MARKTPLAATS_REPORT_SCHEMA_VERSION = 1 as const;
-export const MARKTPLAATS_DEAL_KINDS = ["raw", "graded", "expansion"] as const;
+export const MARKTPLAATS_DEAL_KINDS = ["raw", "graded", "expansion", "collection"] as const;
 export const MARKTPLAATS_MATCH_STATUSES = ["matched", "shortlist", "review"] as const;
 
 export type MarktplaatsDealKind = (typeof MARKTPLAATS_DEAL_KINDS)[number];
@@ -128,7 +128,7 @@ function normalizeKind(value: unknown): MarktplaatsDealKind {
   if (MARKTPLAATS_DEAL_KINDS.includes(value as MarktplaatsDealKind)) {
     return value as MarktplaatsDealKind;
   }
-  throw new MarktplaatsReportError("deal.kind must be raw, graded, or expansion.");
+  throw new MarktplaatsReportError("deal.kind must be raw, graded, expansion, or collection.");
 }
 
 function normalizeMatchStatus(value: unknown): MarktplaatsMatchStatus {
@@ -168,7 +168,7 @@ function normalizeDeal(value: unknown, index: number): MarktplaatsReportDeal {
   const gradingCompany = optionalString(value.gradingCompany, 40)?.toUpperCase() ?? null;
   const gradingGrade = optionalString(value.gradingGrade, 40);
 
-  if ((kind === "raw" || kind === "graded") && !cardId) {
+  if ((kind === "raw" || kind === "graded" || kind === "collection") && !cardId) {
     throw new MarktplaatsReportError(`deals[${index}].cardId is required for ${kind}.`);
   }
   if (kind === "expansion" && !episodeId) {
@@ -180,7 +180,7 @@ function normalizeDeal(value: unknown, index: number): MarktplaatsReportDeal {
       `deals[${index}] needs an exact gradingCompany and gradingGrade match.`
     );
   }
-  if (kind === "raw" && isVerifiedSelection && language !== "English") {
+  if ((kind === "raw" || kind === "collection") && isVerifiedSelection && language !== "English") {
     throw new MarktplaatsReportError(
       `deals[${index}] must be explicitly English or marked for review.`
     );

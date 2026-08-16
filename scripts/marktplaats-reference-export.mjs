@@ -33,6 +33,27 @@ function finitePrice(value) {
     : null;
 }
 
+function loadSignalRadarSnapshot() {
+  const snapshotPath = path.join(
+    projectRoot,
+    "data",
+    "signal-radar-snapshots",
+    "pokemon.json"
+  );
+  try {
+    const parsed = JSON.parse(fs.readFileSync(snapshotPath, "utf8"));
+    const signals = Array.isArray(parsed?.data?.signals) ? parsed.data.signals : [];
+    return {
+      writtenAt: typeof parsed?.writtenAt === "string" ? parsed.writtenAt : null,
+      generatedAt:
+        typeof parsed?.data?.generatedAt === "string" ? parsed.data.generatedAt : null,
+      signals,
+    };
+  } catch {
+    return { writtenAt: null, generatedAt: null, signals: [] };
+  }
+}
+
 function parseGradeLabel(label, explicitCompany = null, explicitGrade = null) {
   const normalized = String(label ?? "").trim().toUpperCase();
   const company = explicitCompany?.trim().toUpperCase() ||
@@ -93,7 +114,7 @@ function takeDistinct(items, predicatesWithLimits) {
   return selected;
 }
 
-function buildSearchPlan({ cards, expansions, gradedPrices, exportedAt }) {
+function buildSearchPlan({ cards, expansions, gradedPrices, radarSnapshot, exportedAt }) {
   const eligibleCards = cards
     .filter((card) =>
       normalizedGame(card.game) === "pokemon" &&
@@ -102,7 +123,7 @@ function buildSearchPlan({ cards, expansions, gradedPrices, exportedAt }) {
     .sort((left, right) =>
       right.marketValueEur - left.marketValueEur || left.id.localeCompare(right.id)
     );
-  const cardEntry = (card, priority) => {
+  const cardEntry = (card, priority, radarSignal = null) => {
     const number = normalizedQueryPart(card.printedCardNumber ?? card.cardNumber);
     const name = normalizedQueryPart(card.name);
     const setCode = normalizedQueryPart(card.expansionCode);
@@ -119,9 +140,33 @@ function buildSearchPlan({ cards, expansions, gradedPrices, exportedAt }) {
         expansionName: card.expansionName,
         expansionCode: card.expansionCode,
       },
+      signalRadar: radarSignal
+        ? {
+            rank: radarSignal.rank,
+            pressureLabel: radarSignal.pressureLabel,
+            externalScore: radarSignal.externalScore,
+            confidence: radarSignal.confidence,
+            reason:
+              Array.isArray(radarSignal.reasons) && radarSignal.reasons.length
+                ? radarSignal.reasons[0]
+                : radarSignal.pressureExplanation ?? null,
+          }
+        : null,
     };
   };
-  const alwaysCardRows = takeDistinct(eligibleCards, [
+  const eligibleCardsById = new Map(eligibleCards.map((card) => [card.id, card]));
+  const radarCardRows = radarSnapshot.signals
+    .filter((signal) => normalizedGame(signal.game) === "pokemon")
+    .sort((left, right) => Number(left.rank ?? 999) - Number(right.rank ?? 999))
+    .map((signal) => ({ signal, card: eligibleCardsById.get(String(signal.cardId)) ?? null }))
+    .filter((entry) => entry.card)
+    .slice(0, 24);
+  const radarCardIds = new Set(radarCardRows.map((entry) => entry.card.id));
+  const signalRadarCards = radarCardRows.map(({ signal, card }) =>
+    cardEntry(card, "signal-radar", signal)
+  );
+  const nonRadarEligibleCards = eligibleCards.filter((card) => !radarCardIds.has(card.id));
+  const alwaysCardRows = takeDistinct(nonRadarEligibleCards, [
     [(card) => card.marketValueEur >= 500 && card.marketValueEur <= 10_000, 4],
     [(card) => card.marketValueEur >= 50 && card.marketValueEur < 500, 4],
     [(card) => card.marketValueEur >= 5 && card.marketValueEur < 50, 4],
@@ -129,7 +174,7 @@ function buildSearchPlan({ cards, expansions, gradedPrices, exportedAt }) {
   const alwaysCardIds = new Set(alwaysCardRows.map((card) => card.id));
   const alwaysCards = alwaysCardRows.map((card) => cardEntry(card, "daily-value-tier"));
   const rotatingCards = dailyRotation(
-    eligibleCards.filter((card) => !alwaysCardIds.has(card.id)),
+    nonRadarEligibleCards.filter((card) => !alwaysCardIds.has(card.id)),
     14,
     exportedAt,
     "raw-card-rotation"
@@ -216,6 +261,9 @@ function buildSearchPlan({ cards, expansions, gradedPrices, exportedAt }) {
     "pokemon kaarten engels",
     "pokemon kaart english",
     "pokemon collectie engels",
+    "pokemon verzameling engels",
+    "pokemon binder engels",
+    "pokemon map kaarten engels",
     "pokemon complete set engels",
     "pokemon master set engels",
     "pokemon PSA 10 engels",
@@ -223,12 +271,22 @@ function buildSearchPlan({ cards, expansions, gradedPrices, exportedAt }) {
     "pokemon BGS 10 engels",
   ].map((query) => ({ query, purpose: "new-listing-discovery", sort: "DATE_DESC" }));
 
+  const exactCards = uniqueQueries([...alwaysCards, ...rotatingCards]);
+  const gradedCards = uniqueQueries([...alwaysGraded, ...rotatingGraded]);
+  const completeExpansions = uniqueQueries([...alwaysExpansions, ...rotatingExpansions]);
+  const primaryQueryCount =
+    discovery.length +
+    signalRadarCards.length +
+    exactCards.length +
+    gradedCards.length +
+    completeExpansions.length;
+
   return {
     generatedFor: exportedAt.slice(0, 10),
     minimumCardMarketValueEur: MIN_CARD_MARKET_VALUE_EUR,
     strategy: "layered-daily-rotation-v1",
     limits: {
-      maxQueries: 54,
+      maxPrimaryQueries: primaryQueryCount,
       discoveryPagesPerQuery: 3,
       targetedPagesPerQuery: 1,
       maxDescriptionsToOpen: 180,
@@ -242,9 +300,12 @@ function buildSearchPlan({ cards, expansions, gradedPrices, exportedAt }) {
       "Recheck every priorActiveDeals URL and record unavailable IDs in removedExternalIds.",
     ],
     discovery,
-    exactCards: uniqueQueries([...alwaysCards, ...rotatingCards]),
-    gradedCards: uniqueQueries([...alwaysGraded, ...rotatingGraded]),
-    completeExpansions: uniqueQueries([...alwaysExpansions, ...rotatingExpansions]),
+    signalRadarSnapshotAt: radarSnapshot.writtenAt,
+    signalRadarGeneratedAt: radarSnapshot.generatedAt,
+    signalRadarCards: uniqueQueries(signalRadarCards),
+    exactCards,
+    gradedCards,
+    completeExpansions,
     eligibleCatalogCounts: {
       rawCards: eligibleCards.length,
       gradedPrices: eligibleGraded.length,
@@ -416,10 +477,12 @@ function main() {
       : [];
 
     const gradedPrices = [...cardMarketGraded, ...ebaySoldGraded];
+    const radarSnapshot = loadSignalRadarSnapshot();
     const searchPlan = buildSearchPlan({
       cards,
       expansions: expansionTotals,
       gradedPrices,
+      radarSnapshot,
       exportedAt,
     });
     const output = {
@@ -441,7 +504,7 @@ function main() {
         path: "data/marktplaats/report-latest.json",
         command: "npm run marktplaats:import -- --in data/marktplaats/report-latest.json",
         schemaVersion: 1,
-        dealKinds: ["raw", "graded", "expansion"],
+        dealKinds: ["raw", "graded", "expansion", "collection"],
         note: "Open every candidate and read its full description. Every definitive match requires descriptionChecked=true plus a descriptionSummary and offerContents. Every matched raw deal must be explicitly English. Every matched graded deal needs an exact company and grade. Use matchStatus=review when uncertain. Recheck prior active URLs and put unavailable listing IDs in scan.removedExternalIds.",
       },
     };
@@ -459,9 +522,11 @@ function main() {
       gradedPrices: output.gradedPrices.length,
       searchQueries:
         searchPlan.discovery.length +
+        searchPlan.signalRadarCards.length +
         searchPlan.exactCards.length +
         searchPlan.gradedCards.length +
         searchPlan.completeExpansions.length,
+      signalRadarQueries: searchPlan.signalRadarCards.length,
       priorActiveDeals: priorActiveDeals.length,
     }));
   } finally {
