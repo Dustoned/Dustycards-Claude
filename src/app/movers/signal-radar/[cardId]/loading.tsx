@@ -15,11 +15,11 @@ export default function SignalRadarDetailLoading() {
     <div
       className="card-detail-experience"
       data-card-detail-shell
-      data-card-detail-mode="radar"
+      data-card-detail-mode="standard"
       data-detail-loading
       data-has-actions="true"
       role="status"
-      aria-label="Loading card analysis"
+      aria-label="Loading card details"
     >
       <div className="card-detail-ambient" aria-hidden="true" />
       <div className="card-detail-query-container">

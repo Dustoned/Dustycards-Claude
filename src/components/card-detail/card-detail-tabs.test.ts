@@ -5,7 +5,7 @@ import {
 } from "@/components/card-detail/card-detail-tabs";
 
 describe("card detail tab order", () => {
-  it("keeps every detail mode in the same canonical order", () => {
+  it("keeps card detail in the canonical order", () => {
     expect(getCardDetailTabOrder("standard")).toEqual([
       "overview",
       "market",
@@ -14,10 +14,9 @@ describe("card detail tab order", () => {
       "analysis",
       "evidence",
     ]);
-    expect(getCardDetailTabOrder("radar")).toEqual(getCardDetailTabOrder("standard"));
   });
 
-  it("orders every available tab identically in both modes", () => {
+  it("orders every available tab through the shared detail mode", () => {
     const tabs = [
       { id: "evidence" as const, label: "Evidence" },
       { id: "collection" as const, label: "Collection" },
@@ -32,6 +31,5 @@ describe("card detail tab order", () => {
       "evidence",
     ];
     expect(orderCardDetailTabs("standard", tabs).map((tab) => tab.id)).toEqual(expected);
-    expect(orderCardDetailTabs("radar", tabs).map((tab) => tab.id)).toEqual(expected);
   });
 });

@@ -11,7 +11,6 @@ const CARD_DETAIL_TAB_ORDER = [
 
 const CARD_DETAIL_TAB_ORDERS: Record<CardDetailMode, readonly CardDetailTabId[]> = {
   standard: CARD_DETAIL_TAB_ORDER,
-  radar: CARD_DETAIL_TAB_ORDER,
 };
 
 export function getCardDetailTabOrder(mode: CardDetailMode): readonly CardDetailTabId[] {

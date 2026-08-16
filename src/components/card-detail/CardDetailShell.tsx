@@ -67,7 +67,7 @@ function centerTabInRail(tabList: HTMLElement, tab: HTMLElement) {
   tabList.scrollTo({ left: targetLeft, top: tabList.scrollTop, behavior: "auto" });
 }
 
-export type CardDetailMode = "standard" | "radar";
+export type CardDetailMode = "standard";
 export type CardDetailSize = "small" | "medium" | "large";
 export type CardDetailTabId =
   | "overview"

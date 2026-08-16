@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.77",
+    releasedAt: "August 16, 2026",
+    title: "Signal Radar uses the shared card detail",
+    summary: "The separate Radar-only card page has been retired in favor of the app-wide Card Detail module.",
+    tone: "fixed",
+    highlights: [
+      "Check CardMarket now and all other standard card actions are available on Radar cards.",
+      "Card UI, tabs, prices, reprints, sealed links and collection context now have one implementation.",
+      "The existing Signal Radar URLs and back navigation continue to work.",
+    ],
+  },
+  {
     version: "3.12.76",
     releasedAt: "August 16, 2026",
     title: "Minimum-age controls for old high-rarity value",

@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.77",
+    releasedAt: "August 16, 2026",
+    title: "One card detail everywhere",
+    summary: "Signal Radar now opens the same central Card Detail module as collection, search, expansions, movers and Home.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "No more separate Radar detail",
+        highlights: [
+          "The old Signal Radar-only detail client and its separate layout mode have been removed.",
+          "Radar cards now include every standard action, including Check CardMarket now, price refresh, history sync, sharing, collection actions and alerts.",
+          "Market sources, charts, reprints, sealed products, collection context and Radar analysis now evolve through one shared module.",
+          "Current stored Radar signals are reused by that shared detail instead of rebuilding ranked analysis unnecessarily.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.76",
     releasedAt: "August 16, 2026",
     title: "Choose how old old high-rarity cards should be",

@@ -1894,19 +1894,6 @@ html.widescreen .settings-page {
     radial-gradient(circle at 82% 18%, rgb(var(--dc-secondary-rgb) / 0.055), transparent 34rem);
 }
 
-.card-detail-experience[data-card-detail-mode="radar"] .card-detail-ambient {
-  background:
-    radial-gradient(circle at 20% 8%, rgb(var(--dc-primary-rgb) / 0.14), transparent 28rem),
-    radial-gradient(circle at 82% 18%, rgb(var(--dc-cyan-rgb) / 0.055), transparent 30rem);
-}
-
-.card-detail-experience[data-card-detail-mode="radar"] {
-  /* The route already starts below the fixed app header. Keep this internal
-     canvas relative to that content area instead of reserving the header a
-     second time. */
-  --card-detail-route-header-offset: 0rem;
-}
-
 .card-modal-frame:has(> [data-card-detail-shell]) {
   scroll-padding-block: 0.75rem calc(5.5rem + env(safe-area-inset-bottom));
 }
@@ -1939,16 +1926,6 @@ html.widescreen .settings-page {
     overscroll-behavior-y: contain;
     scroll-padding-block-end: var(--card-detail-mobile-action-reserve);
     -webkit-overflow-scrolling: touch;
-  }
-
-  [data-card-detail-shell][data-card-detail-mode="radar"][data-has-actions="true"]
-    .card-detail-scroll-viewport {
-    height: calc(
-      100vh - var(--ui-app-header-height) - env(safe-area-inset-top, 0px)
-    );
-    height: calc(
-      100dvh - var(--ui-app-header-height) - env(safe-area-inset-top, 0px)
-    );
   }
 
   [data-card-detail-shell][data-has-actions="true"] .card-detail-layout {
@@ -3143,26 +3120,7 @@ html.widescreen .settings-page {
   }
 }
 
-.card-detail-experience[data-card-detail-mode="radar"] .card-detail-tabs-shell {
-  top: calc(var(--card-detail-route-header-offset) + 0.65rem);
-}
-
-@container card-detail (max-width: 39.99rem) {
-  [data-card-detail-shell][data-card-detail-mode="radar"] .card-detail-tabs-shell {
-    /* The compact internal scroll viewport already starts below the route header. */
-    top: 0.65rem;
-  }
-}
-
 @media (max-width: 767px) {
-  html:has(.card-detail-experience[data-card-detail-mode="radar"]),
-  body:has(.card-detail-experience[data-card-detail-mode="radar"]) {
-    /* `overflow-x: hidden` promotes the root/body to vertical scroll containers,
-       which prevents the route-level sticky tab rail from tracking viewport scroll. */
-    overflow-x: clip;
-    overflow-y: visible;
-  }
-
   .has-mobile-bottom-nav:has(.card-detail-experience) [data-mobile-bottom-nav] {
     display: none;
   }
@@ -3179,9 +3137,6 @@ html.widescreen .settings-page {
     min-height: 0;
   }
 
-  [data-card-detail-shell][data-card-detail-mode="radar"] .card-detail-panel {
-    min-height: 0;
-  }
 }
 
 @container card-detail (min-width: 78rem) {

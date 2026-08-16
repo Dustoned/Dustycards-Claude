@@ -4,6 +4,7 @@ import { loadLatestSafeEnglishNmPrices } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import { buildOnDemandExternalCardSignal } from "@/lib/external-signal-intelligence";
 import { normalizeTradingCardGame, ONE_PIECE_GAME } from "@/lib/games";
+import { readSignalRadarSnapshot } from "@/lib/signal-radar-snapshot-store";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export const dynamic = "force-dynamic";
@@ -40,6 +41,16 @@ export async function GET(
         return NextResponse.json({ ok: false, error: "Card not found." }, { status: 404 });
       }
     }
+    const game = normalizeTradingCardGame(card.game);
+    const storedRadar = await readSignalRadarSnapshot(game);
+    const storedSignal =
+      storedRadar?.data.signals.find((signal) => signal.cardId === card.id) ?? null;
+    if (storedSignal) {
+      return NextResponse.json(
+        { ok: true, signal: storedSignal },
+        { headers: { "Cache-Control": "private, no-store" } },
+      );
+    }
     const latestSafePrice = (
       await loadLatestSafeEnglishNmPrices([
         {
@@ -57,7 +68,7 @@ export async function GET(
 
     const signal = await buildOnDemandExternalCardSignal({
       id: card.id,
-      game: normalizeTradingCardGame(card.game),
+      game,
       name: card.name,
       imageUrl: card.image_url,
       cardNumber: card.printed_card_number ?? card.card_number,

@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { authMock, dbMock, historyMock, signalMock, settingsMock } = vi.hoisted(() => ({
+const { authMock, dbMock, historyMock, signalMock, snapshotMock, settingsMock } = vi.hoisted(() => ({
   authMock: {
     requireUser: vi.fn(),
     authErrorResponse: vi.fn(),
@@ -13,6 +13,9 @@ const { authMock, dbMock, historyMock, signalMock, settingsMock } = vi.hoisted((
   },
   signalMock: {
     buildOnDemandExternalCardSignal: vi.fn(),
+  },
+  snapshotMock: {
+    readSignalRadarSnapshot: vi.fn(),
   },
   settingsMock: {
     getServerUserSettings: vi.fn(),
@@ -32,6 +35,10 @@ vi.mock("@/lib/card-market-history", () => ({
 
 vi.mock("@/lib/external-signal-intelligence", () => ({
   buildOnDemandExternalCardSignal: signalMock.buildOnDemandExternalCardSignal,
+}));
+
+vi.mock("@/lib/signal-radar-snapshot-store", () => ({
+  readSignalRadarSnapshot: snapshotMock.readSignalRadarSnapshot,
 }));
 
 vi.mock("@/lib/user-settings-server", () => ({
@@ -66,6 +73,24 @@ describe("GET /api/cards/[id]/signal-preview", () => {
       cardId: "card-1",
       externalScore: 60,
     });
+    snapshotMock.readSignalRadarSnapshot.mockResolvedValue(null);
+  });
+
+  it("reuses the current Radar signal inside the shared card detail", async () => {
+    const storedSignal = { cardId: "card-1", rank: 4, externalScore: 91 };
+    snapshotMock.readSignalRadarSnapshot.mockResolvedValue({
+      data: { signals: [storedSignal] },
+    });
+
+    const response = await GET(new Request("http://localhost/api/cards/card-1/signal-preview"), {
+      params: Promise.resolve({ id: "card-1" }),
+    });
+    const body = await response.json();
+
+    expect(response.status).toBe(200);
+    expect(body).toEqual({ ok: true, signal: storedSignal });
+    expect(historyMock.loadLatestSafeEnglishNmPrices).not.toHaveBeenCalled();
+    expect(signalMock.buildOnDemandExternalCardSignal).not.toHaveBeenCalled();
   });
 
   it("uses the shared safe English NM quote for the local preview", async () => {

@@ -86,6 +86,7 @@ interface Props {
   backLabel?: string;
   initialMarketSource?: "cardmarket" | "tcgplayer";
   onClose: () => void;
+  onNavigate?: () => void;
   onCollectionItemSaved?: (detail: CollectionCardSavedDetail) => void | Promise<void>;
 }
 
@@ -232,6 +233,7 @@ export default function CardModal({
   backLabel = "Back",
   initialMarketSource,
   onClose,
+  onNavigate = onClose,
   onCollectionItemSaved,
 }: Props) {
   // The fullscreen detail owns its own scroll surface. Keeping the document
@@ -924,7 +926,7 @@ export default function CardModal({
       <Link
         key="expansion"
         href={getExpansionHref(modalCard.episode_id)}
-        onClick={onClose}
+        onClick={onNavigate}
         className="text-[var(--dc-primary)] transition-colors hover:text-[var(--dc-primary-hover)] hover:underline focus-visible:underline"
       >
         {modalCard.episode_name}
@@ -940,7 +942,7 @@ export default function CardModal({
         <Link
           key="artist"
           href={`/illustrators/${encodeURIComponent(modalCard.artist)}`}
-          onClick={onClose}
+          onClick={onNavigate}
           className="text-[var(--dc-primary)] transition-colors hover:text-[var(--dc-primary-hover)] hover:underline focus-visible:underline"
         >
           {modalCard.artist}
@@ -956,7 +958,7 @@ export default function CardModal({
         key="characters"
         characters={modalCard.characters}
         hpFallback={modalCard.hp}
-        onNavigate={onClose}
+        onNavigate={onNavigate}
       />,
     ],
     [
@@ -1049,7 +1051,7 @@ export default function CardModal({
         signal={signalSummary}
         card={modalCard}
         loading={signalSummaryLoading}
-        onNavigate={onClose}
+        onNavigate={onNavigate}
         showFullAnalysisLink={false}
       />
       <div className="card-detail-section-grid">
@@ -1075,7 +1077,7 @@ export default function CardModal({
         onAddedToCollection={refreshModalCardFromServer}
         showActions={false}
       />
-      <CardModalRelatedPrintingsPanel card={modalCard} onNavigate={onClose} />
+      <CardModalRelatedPrintingsPanel card={modalCard} onNavigate={onNavigate} />
     </div>
   );
 
@@ -1136,7 +1138,7 @@ export default function CardModal({
                 <span className="inline-flex max-w-full items-center gap-1.5">
                   <Link
                     href={getExpansionHref(modalCard.episode_id)}
-                    onClick={onClose}
+                    onClick={onNavigate}
                     className="min-w-0 truncate text-inherit transition-colors hover:text-[var(--dc-primary)] hover:underline focus-visible:text-[var(--dc-primary)] focus-visible:underline"
                   >
                     {modalCard.episode_name}
@@ -1279,7 +1281,7 @@ export default function CardModal({
                   <CardModalActiveListingsPanel
                     card={modalCard}
                     onOpenSealedProduct={setSelectedSealedProduct}
-                    onClose={onClose}
+                    onClose={onNavigate}
                     compact
                   />
                 ) : null
