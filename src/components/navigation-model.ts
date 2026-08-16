@@ -101,7 +101,7 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
   {
     label: "Market",
     items: [
-      { href: "/movers", label: "Raw", icon: BarChart3, badge: null, key: "market-raw", marketMode: "raw" },
+      { href: "/movers", label: "Cards", icon: BarChart3, badge: null, key: "market-raw", marketMode: "raw" },
       { href: "/movers?scope=graded", label: "Grading", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
       { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
       { href: "/movers/signal-radar", label: "Signal Radar", icon: Radar, badge: null, key: "market-radar" },
@@ -146,7 +146,7 @@ const NAVIGATION_CUSTOM_LABELS: Partial<Record<NavigationShortcutKey, string>> =
   graded: "Graded collection",
   search: "Search cards",
   expansions: "Pokémon sets",
-  "market-raw": "Raw market",
+  "market-raw": "Card market",
   "market-graded": "Grading market",
   "market-sealed": "Sealed market",
   "market-radar": "Signal Radar",

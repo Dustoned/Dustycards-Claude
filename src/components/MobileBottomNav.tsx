@@ -74,7 +74,7 @@ const MOBILE_NAV_DESCRIPTIONS: Record<string, string> = {
   illustrators: "Discover artists",
   scan: "Identify a card with your camera",
   "submit-card": "Add a missing card",
-  "market-raw": "Raw card movers and history",
+  "market-raw": "Raw card prices, movers and history",
   "market-graded": "Slab prices and cards worth grading",
   "market-sealed": "Sealed products and movers",
   "market-radar": "Evidence-backed opportunities",

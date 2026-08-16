@@ -182,6 +182,7 @@ describe("navigation customization", () => {
 
     expect(labels.search).toBe("Search cards");
     expect(labels.sealed).toBe("Sealed collection");
+    expect(labels["market-raw"]).toBe("Card market");
     expect(labels["market-sealed"]).toBe("Sealed market");
     expect(labels["market-graded"]).toBe("Grading market");
     expect(labels["market-targets"]).toBeUndefined();
