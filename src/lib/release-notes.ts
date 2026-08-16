@@ -20,6 +20,33 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.73",
+    releasedAt: "August 16, 2026",
+    title: "A clearer Market and older high-rarity discovery",
+    summary: "Market now groups slab prices and grading candidates under one clear Grading destination, while Signal Radar gains a dedicated lane for established older high-rarity cards that remain relatively affordable.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Simpler Market navigation",
+        highlights: [
+          "The main Market switch now has four destinations: Cards, Grading, Sealed and Radar.",
+          "Graded and Targets no longer look like duplicate market tabs.",
+          "Inside Grading, Slab prices tracks already graded cards while Grade candidates estimates whether a raw card may be worth grading after cost and risk.",
+          "Desktop, mobile and customizable navigation use the same grouped Grading destination.",
+        ],
+      },
+      {
+        title: "Older high-rarity value",
+        highlights: [
+          "Signal Radar now exposes a prominent Old high-rarity value filter.",
+          "Candidates must be at least five years old, cost between EUR 15 and EUR 250 and belong to a strict chase rarity.",
+          "Common, Uncommon, ordinary Rare, broad Holo, Double Rare and Promo tiers are excluded.",
+          "A card's matching rarity tier must contain no more than 20 cards in its set and have enough stored price history.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.72",
     releasedAt: "August 14, 2026",
     title: "Home respects the visible card libraries",

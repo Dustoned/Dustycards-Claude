@@ -268,7 +268,6 @@ function getDesktopMenuGroups(
   const marketKeys = new Set([
     "market-raw",
     "market-graded",
-    "market-targets",
     "market-sealed",
     "selling",
   ]);

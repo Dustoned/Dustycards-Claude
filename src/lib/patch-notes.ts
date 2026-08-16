@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.73",
+    releasedAt: "August 16, 2026",
+    title: "Market navigation and old high-rarity value",
+    summary: "Market has fewer top-level destinations and Signal Radar adds a strict discovery lane for older affordable chase cards.",
+    tone: "improved",
+    highlights: [
+      "Cards, Grading, Sealed and Radar are the four main Market destinations.",
+      "Slab prices and Grade candidates are clearly explained inside Grading instead of appearing as duplicate tabs.",
+      "Signal Radar's Old high-rarity value filter focuses on five-year-old or older Pokémon chase cards between EUR 15 and EUR 250.",
+      "Ordinary rarities and oversized set rarity cohorts are excluded from this discovery lane.",
+    ],
+  },
+  {
     version: "3.12.72",
     releasedAt: "August 14, 2026",
     title: "Disabled libraries stay out of Home",

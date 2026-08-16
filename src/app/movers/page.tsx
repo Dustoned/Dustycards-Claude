@@ -88,6 +88,45 @@ function CompactFilterGroup({
   );
 }
 
+function GradingViewSwitch({
+  items,
+}: {
+  items: readonly {
+    href: string;
+    active: boolean;
+    label: string;
+    description: string;
+  }[];
+}) {
+  return (
+    <nav
+      aria-label="Grading market view"
+      className="grid min-w-0 gap-1.5 rounded-[1.15rem] border border-violet-300/10 bg-violet-400/[0.035] p-1.5 sm:grid-cols-2"
+    >
+      {items.map((item) => (
+        <Link
+          key={item.href}
+          href={item.href}
+          prefetch={false}
+          aria-current={item.active ? "page" : undefined}
+          className={`min-w-0 rounded-xl border px-3 py-2.5 transition-colors ${
+            item.active
+              ? "border-violet-300/30 bg-violet-500/16 text-white"
+              : "border-transparent bg-black/10 text-white/62 hover:border-white/10 hover:bg-white/[0.055] hover:text-white"
+          }`}
+        >
+          <span className="block text-[11px] font-black uppercase tracking-[0.08em] sm:text-xs">
+            {item.label}
+          </span>
+          <span className="mt-1 block text-[10px] leading-4 text-white/42 sm:text-[11px]">
+            {item.description}
+          </span>
+        </Link>
+      ))}
+    </nav>
+  );
+}
+
 function formatShortDate(value: string): string {
   return new Intl.DateTimeFormat("en-US", {
     day: "numeric",
@@ -132,21 +171,21 @@ function getModeCopy(
 
   if (activeScope === "graded") {
     return {
-      eyebrow: activeItemScope === "collection" ? "Graded Market / Collection" : "Graded Market / All Cards",
+      eyebrow: activeItemScope === "collection" ? "Grading / Slab Prices / Collection" : "Grading / Slab Prices / All Cards",
       title: "Market",
       description:
-        "Track every current slab label as its own market item, with recent movement and lifetime context tucked into details.",
-      ranking: "Graded prices",
+        "Follow the market prices and movement of cards that are already graded. Each grading company and label remains its own slab market item.",
+      ranking: "Slab price movement",
     };
   }
 
   if (activeScope === "grading") {
     return {
-      eyebrow: activeItemScope === "collection" ? "Grade Targets / Collection" : "Grade Targets / All Cards",
+      eyebrow: activeItemScope === "collection" ? "Grading / Grade Candidates / Collection" : "Grading / Grade Candidates / All Cards",
       title: "Market",
       description:
-        "Find cards where conservative graded value still beats raw price after grading cost, grade odds, and lower-grade fallback.",
-      ranking: "Risk-adjusted grade upside",
+        "Find raw cards that may be worth grading after grading cost, grade odds, and the value of a lower-grade result are included.",
+      ranking: "Grade candidates",
     };
   }
 
@@ -308,6 +347,7 @@ export default async function MoversPage({
   const isSealedScope = activeScope === "sealed";
   const isGradedScope = activeScope === "graded";
   const isGradingScope = activeScope === "grading";
+  const isGradingMarket = isGradedScope || isGradingScope;
   const isRawScope = !isValueScope && !isSealedScope && !isGradedScope && !isGradingScope;
   const activeMode = getMoversMode(activeScope);
   const hasExplicitSource = source === "cm_en" || source === "tcp";
@@ -368,11 +408,24 @@ export default async function MoversPage({
     ? `/movers/signal-radar?${GAME_SEARCH_PARAM}=${radarGameValue}`
     : "/movers/signal-radar";
   const marketSwitchItems = [
-    { href: buildMoversHref({ mode: "raw" }), active: activeMode === "raw", label: "Raw" },
-    { href: buildMoversHref({ mode: "graded" }), active: activeMode === "graded", label: "Graded" },
-    { href: buildMoversHref({ mode: "targets" }), active: activeMode === "targets", label: "Targets" },
+    { href: buildMoversHref({ mode: "raw" }), active: activeMode === "raw", label: "Cards" },
+    { href: buildMoversHref({ mode: "graded" }), active: isGradingMarket, label: "Grading" },
     { href: buildMoversHref({ mode: "sealed" }), active: activeMode === "sealed", label: "Sealed" },
     { href: signalRadarHref, active: false, label: "Radar" },
+  ];
+  const gradingSwitchItems = [
+    {
+      href: buildMoversHref({ mode: "graded" }),
+      active: isGradedScope,
+      label: "Slab prices",
+      description: "Already graded cards: follow slab prices and recent market movement.",
+    },
+    {
+      href: buildMoversHref({ mode: "targets" }),
+      active: isGradingScope,
+      label: "Grade candidates",
+      description: "Raw cards: estimate whether grading still has worthwhile upside after risk and cost.",
+    },
   ];
   const movementSwitchItems = [
     { href: buildMoversHref({ trend: "all" }), active: activeTrend === "all", label: "All" },
@@ -783,6 +836,11 @@ export default async function MoversPage({
 
           <div className="hidden min-w-0 flex-col gap-2 md:flex">
             <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <SegmentedNavLinks
+                items={marketSwitchItems}
+                ariaLabel="Market category"
+                className="w-full max-w-[22rem] sm:w-fit"
+              />
               {settings.onePieceLibraryEnabled ? (
                 <GameFilterSwitch
                   items={gameSwitchItems}
@@ -827,6 +885,15 @@ export default async function MoversPage({
             </details>
             ) : null}
           </div>
+
+          {isGradingMarket ? (
+            <div className="mt-2">
+              <p className="mb-1.5 px-1 text-[9px] font-black uppercase tracking-[0.12em] text-violet-100/48">
+                Choose what you want to analyse
+              </p>
+              <GradingViewSwitch items={gradingSwitchItems} />
+            </div>
+          ) : null}
         </section>
 
         {isValueScope && valueData ? (
@@ -863,16 +930,16 @@ export default async function MoversPage({
                   : "There is not enough recent movement for this filter combination yet."
             }
             eyebrow={
-              isGradingScope ? "Grade Targets" : isGradedScope ? "Graded Market" : "Raw Market"
+              isGradingScope ? "Grading · Grade candidates" : isGradedScope ? "Grading · Slab prices" : "Raw Market"
             }
             title={
-              isGradingScope ? "Best cards to grade" : isGradedScope ? "Slab market" : trendCopy.title
+              isGradingScope ? "Cards worth considering for grading" : isGradedScope ? "Graded slab market" : trendCopy.title
             }
             description={
               isGradingScope
-                ? "Sorted by risk-adjusted grade upside using company-equivalent grades and the lower-grade fallback."
+                ? "Raw cards ranked by estimated grade upside after grading cost, grade odds, and a lower-grade fallback."
                 : isGradedScope
-                  ? "Every graded label is listed separately, with movement filters nearby."
+                  ? "Already graded cards only. Every company and grade label is listed separately with its own slab price movement."
                   : "Raw cards grouped around risers, drops, and market pockets with the relevant switches nearby."
             }
           />

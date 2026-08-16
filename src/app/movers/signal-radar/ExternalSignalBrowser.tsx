@@ -18,6 +18,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronRight,
+  Gem,
   Newspaper,
   PackageSearch,
   Radar,
@@ -62,6 +63,7 @@ import type {
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
+import { isOlderHighRarityValueSignal } from "@/lib/older-high-rarity-value";
 import type {
   SealedSignalRadarData,
   SealedSignalRadarItem,
@@ -79,7 +81,13 @@ import {
 } from "@/lib/signal-radar-progressive";
 
 type ConfidenceFilter = "all" | Lowercase<ExternalSignalConfidence>;
-type OriginFilter = "all" | "event" | "competitive" | "hybrid" | "structural";
+type OriginFilter =
+  | "all"
+  | "event"
+  | "competitive"
+  | "hybrid"
+  | "structural"
+  | "older-high-rarity";
 type SealedHistoryFilter = "all" | "established" | "building";
 type SortKey = "opportunity" | "price_asc" | "price_desc" | "release_newest" | "release_oldest" | "confluence" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
 
@@ -127,6 +135,7 @@ const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
   { value: "competitive", label: "Tournament" },
   { value: "hybrid", label: "Hybrid" },
   { value: "structural", label: "Scarcity & value" },
+  { value: "older-high-rarity", label: "Old high-rarity value" },
 ];
 
 const INITIAL_VISIBLE_SIGNALS = 12;
@@ -250,7 +259,9 @@ export function getSignalExplanations(signal: ExternalCardSignal) {
     const market = signal.marketIntelligence;
     return [
       {
-        label: "Structural setup",
+        label: isOlderHighRarityValueSignal(signal)
+          ? "Old high-rarity value"
+          : "Structural setup",
         text: signal.reasons[0] ?? "Older, harder-to-replace supply is priced below its structural profile.",
       },
       {
@@ -777,7 +788,17 @@ function CompactSignalCard({
                 {signal.confidence}
               </span>
               <span className="rounded-full border border-white/8 bg-white/[0.04] px-2 py-1 text-[8px] font-semibold uppercase tracking-[0.1em] text-white/45">
-                {signal.marketIntelligence?.hypeReset ? "Hype reset" : signal.sourceMode === "structural" ? "Scarcity" : signal.sourceMode === "event" ? "Event" : signal.sourceMode === "hybrid" ? "Hybrid" : "Tournament"}
+                {signal.marketIntelligence?.hypeReset
+                  ? "Hype reset"
+                  : isOlderHighRarityValueSignal(signal)
+                    ? "Old high-rarity"
+                    : signal.sourceMode === "structural"
+                      ? "Scarcity"
+                      : signal.sourceMode === "event"
+                        ? "Event"
+                        : signal.sourceMode === "hybrid"
+                          ? "Hybrid"
+                          : "Tournament"}
               </span>
               {outlookBadge ? (
                 <span className={cx("hidden rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em] sm:inline-flex", outlookBadge.classes)}>
@@ -1252,8 +1273,10 @@ export function ExternalSignalDetailCard({
                 <span className="rounded-full border border-violet-300/12 bg-violet-400/[0.06] px-2 py-1 text-[9px] font-semibold uppercase tracking-[0.1em] text-violet-100/62">
                   {signal.sourceMode === "event"
                     ? "Set & reveal"
-                    : signal.sourceMode === "structural"
-                      ? "Scarcity & value"
+                    : isOlderHighRarityValueSignal(signal)
+                      ? "Old high-rarity value"
+                      : signal.sourceMode === "structural"
+                        ? "Scarcity & value"
                     : signal.sourceMode === "hybrid"
                       ? "Hybrid"
                       : "Tournament"}
@@ -1626,6 +1649,10 @@ export default function ExternalSignalBrowser({
     [signals]
   );
   const activeReleaseYear = releaseYears.includes(releaseYear) ? releaseYear : "all";
+  const olderHighRarityCount = useMemo(
+    () => signals.filter(isOlderHighRarityValueSignal).length,
+    [signals]
+  );
 
   const visibleSignals = useMemo(() => {
     const query = deferredSearch.trim();
@@ -1635,9 +1662,11 @@ export default function ExternalSignalBrowser({
         if (confidence !== "all" && signal.confidence.toLowerCase() !== confidence) return false;
         if (
           origin !== "all" &&
-          (origin === "event"
-            ? signal.sourceMode !== "event" && signal.sourceMode !== "hybrid"
-            : signal.sourceMode !== origin)
+          (origin === "older-high-rarity"
+            ? !isOlderHighRarityValueSignal(signal)
+            : origin === "event"
+              ? signal.sourceMode !== "event" && signal.sourceMode !== "hybrid"
+              : signal.sourceMode !== origin)
         ) return false;
         if (marketMode === "graded" && !signal.marketIntelligence?.graded.available) return false;
         if (
@@ -1662,6 +1691,7 @@ export default function ExternalSignalBrowser({
         // scenario gate to the fully enriched/ranked cohort.
         if (
           progressiveState === "ready" &&
+          !isOlderHighRarityValueSignal(signal) &&
           !eventLinked &&
           !isWatchablePriceScenario(selectedScenario, selectedScore)
         ) return false;
@@ -1842,6 +1872,37 @@ export default function ExternalSignalBrowser({
 
         <div className={singlesExpanded ? "contents" : "hidden"}>
       <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3">
+        <button
+          type="button"
+          onClick={() => {
+            setOrigin(origin === "older-high-rarity" ? "all" : "older-high-rarity");
+            setMarketMode("raw");
+            setReleaseYear("all");
+            setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+          }}
+          aria-pressed={origin === "older-high-rarity"}
+          className={cx(
+            "mb-2.5 flex min-h-14 w-full items-center gap-3 rounded-xl border px-3 py-2.5 text-left transition sm:px-4",
+            origin === "older-high-rarity"
+              ? "border-amber-300/35 bg-amber-300/[0.11] shadow-[0_12px_36px_rgba(251,191,36,0.08)]"
+              : "border-amber-300/14 bg-amber-300/[0.045] hover:border-amber-300/25 hover:bg-amber-300/[0.075]"
+          )}
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-amber-300/20 bg-amber-300/[0.09] text-amber-200">
+            <Gem className="h-4.5 w-4.5" />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="block text-xs font-bold text-amber-50 sm:text-sm">
+              Old high-rarity value
+            </span>
+            <span className="mt-0.5 block text-[10px] leading-4 text-white/42 sm:text-[11px]">
+              5+ years old, strict chase rarities, EUR 15-250 and a small rarity tier inside the set.
+            </span>
+          </span>
+          <span className="shrink-0 rounded-full border border-amber-300/18 bg-black/20 px-2.5 py-1 text-[10px] font-black tabular-nums text-amber-100/78">
+            {olderHighRarityCount}
+          </span>
+        </button>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto_auto] lg:items-center">
           <label className="relative col-span-2 block min-w-0 lg:col-span-1">
             <span className="sr-only">Search signal cards</span>

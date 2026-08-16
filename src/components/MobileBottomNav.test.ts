@@ -54,14 +54,13 @@ describe("mobile navigation model", () => {
     ]);
   });
 
-  it("makes every market mode directly discoverable in More", () => {
+  it("keeps the grouped market destinations directly discoverable in More", () => {
     const inventory = getMobileMoreRouteInventory(true);
     const market = inventory.sections.find((section) => section.label === "Market");
 
     expect(market?.routes).toEqual([
       "/movers",
       "/movers?scope=graded",
-      "/movers?scope=grading",
       "/movers?scope=sealed",
       "/movers/signal-radar",
       "/?tab=selling",
@@ -86,7 +85,6 @@ describe("mobile navigation model", () => {
         routes: [
           "/movers",
           "/movers?scope=graded",
-          "/movers?scope=grading",
           "/movers?scope=sealed",
           "/movers/signal-radar",
           "/?tab=selling",

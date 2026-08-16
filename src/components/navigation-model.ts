@@ -102,8 +102,7 @@ export const NAVIGATION_SECTIONS: readonly NavigationSection[] = [
     label: "Market",
     items: [
       { href: "/movers", label: "Raw", icon: BarChart3, badge: null, key: "market-raw", marketMode: "raw" },
-      { href: "/movers?scope=graded", label: "Graded", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
-      { href: "/movers?scope=grading", label: "Targets", icon: Sparkles, badge: null, key: "market-targets", marketMode: "targets" },
+      { href: "/movers?scope=graded", label: "Grading", icon: LibraryBig, badge: null, key: "market-graded", marketMode: "graded" },
       { href: "/movers?scope=sealed", label: "Sealed", icon: PackageOpen, badge: null, key: "market-sealed", marketMode: "sealed" },
       { href: "/movers/signal-radar", label: "Signal Radar", icon: Radar, badge: null, key: "market-radar" },
       { href: "/?tab=selling", label: "For Sale", icon: ShoppingBag, badge: "forSale", key: "selling" },
@@ -148,8 +147,7 @@ const NAVIGATION_CUSTOM_LABELS: Partial<Record<NavigationShortcutKey, string>> =
   search: "Search cards",
   expansions: "Pokémon sets",
   "market-raw": "Raw market",
-  "market-graded": "Graded market",
-  "market-targets": "Grading targets",
+  "market-graded": "Grading market",
   "market-sealed": "Sealed market",
   "market-radar": "Signal Radar",
 };
@@ -236,8 +234,12 @@ export function isNavigationItemActive(
       !["graded", "grading", "sealed", "value"].includes(moverScope ?? "")
     );
   }
-  if (key === "market-graded") return pathname.startsWith("/movers") && moverScope === "graded";
-  if (key === "market-targets") return pathname.startsWith("/movers") && moverScope === "grading";
+  if (key === "market-graded") {
+    return pathname.startsWith("/movers") && (moverScope === "graded" || moverScope === "grading");
+  }
+  // Kept as a harmless legacy key for previously saved navigation preferences.
+  // Grade candidates now live inside the single Grading market destination.
+  if (key === "market-targets") return false;
   if (key === "market-sealed") return pathname.startsWith("/movers") && moverScope === "sealed";
   if (key === "market-radar") return pathname.startsWith("/movers/signal-radar");
   if (key === "expansions") return pathname.startsWith("/expansions");

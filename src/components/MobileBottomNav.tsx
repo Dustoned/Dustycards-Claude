@@ -75,8 +75,7 @@ const MOBILE_NAV_DESCRIPTIONS: Record<string, string> = {
   scan: "Identify a card with your camera",
   "submit-card": "Add a missing card",
   "market-raw": "Raw card movers and history",
-  "market-graded": "Graded market movement",
-  "market-targets": "Cards worth grading",
+  "market-graded": "Slab prices and cards worth grading",
   "market-sealed": "Sealed products and movers",
   "market-radar": "Evidence-backed opportunities",
   selling: "Sales, trades and ledger",
@@ -85,8 +84,7 @@ const MOBILE_NAV_DESCRIPTIONS: Record<string, string> = {
 const MOBILE_SHORT_LABELS: Partial<Record<string, string>> = {
   complete: "Collection",
   "market-raw": "Market",
-  "market-graded": "Graded",
-  "market-targets": "Targets",
+  "market-graded": "Grading",
   "market-sealed": "Sealed",
   "market-radar": "Radar",
   "submit-card": "Submit",
@@ -169,7 +167,6 @@ export function getMoreMenuSections(onePieceEnabled: boolean): readonly MobileNa
       items: mobileMoreItems([
         "market-raw",
         "market-graded",
-        "market-targets",
         "market-sealed",
         "market-radar",
         "selling",

@@ -53,19 +53,19 @@ describe("navigation-model active state", () => {
   );
 
   it.each([
-    [null, true, false, false, false],
-    ["collection", true, false, false, false],
-    ["all", true, false, false, false],
-    ["value", false, false, false, false],
-    ["graded", false, true, false, false],
-    ["grading", false, false, true, false],
-    ["sealed", false, false, false, true],
+    [null, true, false, false],
+    ["collection", true, false, false],
+    ["all", true, false, false],
+    ["value", false, false, false],
+    ["graded", false, true, false],
+    ["grading", false, true, false],
+    ["sealed", false, false, true],
   ] as const)(
-    "selects one market mode for scope=%s",
-    (scope, raw, graded, targets, sealed) => {
+    "groups both grading views into one market destination for scope=%s",
+    (scope, raw, grading, sealed) => {
       expect(isNavigationItemActive("/movers", null, "market-raw", scope)).toBe(raw);
-      expect(isNavigationItemActive("/movers", null, "market-graded", scope)).toBe(graded);
-      expect(isNavigationItemActive("/movers", null, "market-targets", scope)).toBe(targets);
+      expect(isNavigationItemActive("/movers", null, "market-graded", scope)).toBe(grading);
+      expect(isNavigationItemActive("/movers", null, "market-targets", scope)).toBe(false);
       expect(isNavigationItemActive("/movers", null, "market-sealed", scope)).toBe(sealed);
     }
   );
@@ -183,6 +183,8 @@ describe("navigation customization", () => {
     expect(labels.search).toBe("Search cards");
     expect(labels.sealed).toBe("Sealed collection");
     expect(labels["market-sealed"]).toBe("Sealed market");
+    expect(labels["market-graded"]).toBe("Grading market");
+    expect(labels["market-targets"]).toBeUndefined();
   });
 
   it("filters disabled libraries and fills fixed shortcut rows from fallbacks", () => {

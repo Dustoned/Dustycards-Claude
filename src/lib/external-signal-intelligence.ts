@@ -23,6 +23,10 @@ import {
 import { loadRadarStreakStarts } from "@/lib/external-signal-persisted";
 import type { TradingCardGame } from "@/lib/games";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
+import {
+  getOlderHighRarityValueProfile,
+  isOlderHighRarityValueSignal,
+} from "@/lib/older-high-rarity-value";
 import { formatPostLaunchReratingReason } from "@/lib/post-launch-rerating";
 import { loadPostLaunchReratingMetrics } from "@/lib/post-launch-rerating-server";
 import { createSwrCache } from "@/lib/server-swr-cache";
@@ -469,6 +473,9 @@ export function isRestingRadarSignal(
   streakStartAt: Date | null | undefined,
   now: Date
 ): boolean {
+  // This lane is a discovery catalogue for stable older chases. A quiet price
+  // is useful evidence here, not a reason to make the card disappear.
+  if (isOlderHighRarityValueSignal(signal)) return false;
   if (!streakStartAt) return false;
   const onRadarDays = (now.getTime() - streakStartAt.getTime()) / ROTATION_DAY_MS;
   if (onRadarDays < RADAR_ROTATION_QUIET_DAYS) return false;
@@ -550,7 +557,7 @@ async function loadStructuralSignalSeeds(
   games: TradingCardGame[],
   now: Date
 ): Promise<ExternalCardSignal[]> {
-  const cacheKey = `structural-v10-affordable-rarity:${[...games].sort().join(",")}`;
+  const cacheKey = `structural-v11-older-high-rarity:${[...games].sort().join(",")}`;
   return structuralSignalCache.get(cacheKey, () => loadStructuralSignalSeedsUncached(games, now));
 }
 
@@ -572,7 +579,21 @@ async function loadStructuralSignalSeedsUncached(
                 { cardmarket_id: { not: null } },
               ],
               episode: { release_date: { gte: era.gte, lte: era.lte } },
-              NOT: { rarity: { in: ["Common", "Uncommon", "Rare", "C", "UC", "R"] } },
+              NOT: {
+                rarity: {
+                  in: [
+                    "Common",
+                    "Uncommon",
+                    "Rare",
+                    "common",
+                    "uncommon",
+                    "rare",
+                    "C",
+                    "UC",
+                    "R",
+                  ],
+                },
+              },
             },
             orderBy: [{ episode: { release_date: "desc" } }, { id: "asc" }],
             // Nested relation queries use the parent ids as parameters. Keeping
@@ -606,6 +627,27 @@ async function loadStructuralSignalSeedsUncached(
     loadCollectorDemandScores(games),
   ]);
   const candidates = candidateBatches.flat();
+  const candidateEpisodeIds = [...new Set(candidates.map((card) => card.episode_id))];
+  const rarityCohorts = candidateEpisodeIds.length
+    ? await db.card.groupBy({
+        by: ["episode_id", "rarity"],
+        where: {
+          episode_id: { in: candidateEpisodeIds },
+          rarity: { not: null },
+        },
+        _count: { _all: true },
+      })
+    : [];
+  const rarityCohortByEpisode = new Map<string, number>();
+  for (const row of rarityCohorts) {
+    const normalizedRarity = normalizeRarityLabel(row.rarity);
+    if (!normalizedRarity) continue;
+    const key = `${row.episode_id}:${normalizedRarity}`;
+    rarityCohortByEpisode.set(
+      key,
+      (rarityCohortByEpisode.get(key) ?? 0) + row._count._all
+    );
+  }
   const latestPrices = await loadLatestSafeEnglishNmPrices(
     candidates.map((card) => ({
       id: card.id,
@@ -634,6 +676,17 @@ async function loadStructuralSignalSeedsUncached(
       ? KNOWN_RARITY_ORDER.indexOf(normalizedRarity as (typeof KNOWN_RARITY_ORDER)[number])
       : -1;
     const rarityStrength = structuralRarityStrength(normalizedRarity, rarityIndex);
+    const rarityCohortSize = normalizedRarity
+      ? rarityCohortByEpisode.get(`${card.episode_id}:${normalizedRarity}`) ?? 0
+      : 0;
+    const olderHighRarityValue = getOlderHighRarityValueProfile({
+      game: card.game,
+      rarity: card.rarity,
+      ageYears,
+      currentPrice,
+      rarityCohortSize,
+      historyPoints: card._count.prices,
+    });
     const psa10 = card.ebaySoldGradedPrices[0];
     const comparablePsa10 = psa10?.currency === "EUR" ? psa10.median_price : null;
     const gradeMultiple = comparablePsa10 == null ? null : comparablePsa10 / currentPrice;
@@ -663,7 +716,11 @@ async function loadStructuralSignalSeedsUncached(
     );
     const postLaunch = postLaunchByCard.get(card.id) ?? null;
     const selectionScore = Math.round(
-      clamp(score + (postLaunch?.rankingBoost ?? 0), 40, 100)
+      clamp(
+        score + (postLaunch?.rankingBoost ?? 0) + (olderHighRarityValue ? 10 : 0),
+        40,
+        100
+      )
     );
     const releaseDate = card.episode.release_date ?? "";
     const eraKey =
@@ -679,6 +736,7 @@ async function loadStructuralSignalSeedsUncached(
       eraKey,
       collectorDemand,
       affordableRarityBonus,
+      olderHighRarityValue,
       postLaunch,
     }];
   });
@@ -718,6 +776,7 @@ async function loadStructuralSignalSeedsUncached(
       score,
       collectorDemand,
       affordableRarityBonus,
+      olderHighRarityValue,
       postLaunch,
     }) => {
       const game: TradingCardGame = card.game === "one-piece" ? "one-piece" : "pokemon";
@@ -728,12 +787,14 @@ async function loadStructuralSignalSeedsUncached(
         cardId: card.id,
         entityKey: getExternalEntityKey(game, card.name),
         sourceMode: "structural",
+        olderHighRarityValue,
         game,
         name: card.name,
         imageUrl: card.image_url,
         cardNumber: card.printed_card_number ?? card.card_number,
         episodeName: card.episode.name,
         episodeCode: card.episode.code,
+        episodeReleaseDate: card.episode.release_date,
         rarity: card.rarity,
         currentPrice,
         currency,
@@ -746,6 +807,9 @@ async function loadStructuralSignalSeedsUncached(
         reasons: [
           postLaunch ? formatPostLaunchReratingReason(postLaunch) : null,
           `${card.rarity ?? "Higher rarity"} from a ${ageYears.toFixed(1)}-year-old set`,
+          olderHighRarityValue
+            ? `Only ${olderHighRarityValue.rarityCohortSize} ${card.rarity ?? "high-rarity"} cards sit in this set tier`
+            : null,
           affordableRarityBonus >= 4
             ? `Older high-rarity card remains accessible at ${currency} ${currentPrice.toFixed(2)}`
             : currentPrice <= 100
@@ -1159,6 +1223,7 @@ export async function enrichExternalSignalRadarData(
           (signal.sourceMode === "event" || signal.sourceMode === "hybrid") &&
           (signal.catalysts?.length ?? 0) > 0;
         return (
+          isOlderHighRarityValueSignal(signal) ||
           eventLinked ||
           isWatchablePriceScenario(
             signal.marketIntelligence?.rawScenario,
