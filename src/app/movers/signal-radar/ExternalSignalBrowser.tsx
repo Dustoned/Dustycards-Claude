@@ -15,6 +15,7 @@ import {
   BarChart3,
   Boxes,
   BrainCircuit,
+  CalendarDays,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
@@ -67,6 +68,16 @@ import {
   isOlderHighRarityValueSignal,
   isOlderHighRarityValueSignalAtLeastAge,
 } from "@/lib/older-high-rarity-value";
+import {
+  matchesPopularPokemonFilter,
+  POPULAR_POKEMON_FILTER_OPTIONS,
+  type PopularPokemonFilter,
+} from "@/lib/popular-pokemon";
+import {
+  getSignalRadarSortOptions,
+  resolveSignalRadarSortKey,
+  type SignalRadarSortKey,
+} from "@/lib/signal-radar-sort-options";
 import type {
   SealedSignalRadarData,
   SealedSignalRadarItem,
@@ -93,8 +104,6 @@ type OriginFilter =
   | "structural"
   | "older-high-rarity";
 type SealedHistoryFilter = "all" | "established" | "building";
-type SortKey = "opportunity" | "price_asc" | "price_desc" | "release_newest" | "release_oldest" | "confluence" | "signal" | "sealed" | "scarcity" | "meta" | "reach";
-
 const SealedProductModal = dynamic(() => import("@/components/SealedProductModal"), {
   ssr: false,
   loading: () => null,
@@ -118,20 +127,6 @@ const CONFIDENCE_OPTIONS: Array<{ value: ConfidenceFilter; label: string }> = [
   { value: "high", label: "High" },
   { value: "medium", label: "Medium" },
   { value: "emerging", label: "Emerging" },
-];
-
-const SORT_OPTIONS: Array<{ value: SortKey; label: string }> = [
-  { value: "opportunity", label: "Best match" },
-  { value: "price_asc", label: "Price: low to high" },
-  { value: "price_desc", label: "Price: high to low" },
-  { value: "release_newest", label: "Newest release" },
-  { value: "release_oldest", label: "Oldest release" },
-  { value: "confluence", label: "Setup" },
-  { value: "signal", label: "Signal" },
-  { value: "sealed", label: "Sealed pressure" },
-  { value: "scarcity", label: "Scarcity" },
-  { value: "meta", label: "Meta share" },
-  { value: "reach", label: "Archetype reach" },
 ];
 
 const ORIGIN_OPTIONS: Array<{ value: OriginFilter; label: string }> = [
@@ -1473,9 +1468,11 @@ export default function ExternalSignalBrowser({
   const [confidence, setConfidence] = useState<ConfidenceFilter>("all");
   const [origin, setOrigin] = useState<OriginFilter>("all");
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
-  const [sortKey, setSortKey] = useState<SortKey>("opportunity");
+  const [sortKey, setSortKey] = useState<SignalRadarSortKey>("opportunity");
   const [releaseYear, setReleaseYear] = useState("all");
   const [minimumOlderAgeYears, setMinimumOlderAgeYears] = useState(5);
+  const [popularPokemonFilter, setPopularPokemonFilter] =
+    useState<PopularPokemonFilter>("all");
   const [visibleLimit, setVisibleLimit] = useState(INITIAL_VISIBLE_SIGNALS);
   const [singlesExpanded, setSinglesExpanded] = useState(true);
   const [sealedExpanded, setSealedExpanded] = useState(true);
@@ -1704,6 +1701,9 @@ export default function ExternalSignalBrowser({
     [activeSignalCohort]
   );
   const activeReleaseYear = releaseYears.includes(releaseYear) ? releaseYear : "all";
+  const olderHighRarityActive = origin === "older-high-rarity";
+  const activeSortOptions = getSignalRadarSortOptions(olderHighRarityActive);
+  const activeSortKey = resolveSignalRadarSortKey(sortKey, olderHighRarityActive);
   const olderHighRarityCount = useMemo(
     () =>
       olderHighRarityTotal ??
@@ -1729,6 +1729,10 @@ export default function ExternalSignalBrowser({
         if (
           origin === "older-high-rarity" &&
           !isOlderHighRarityValueSignalAtLeastAge(signal, minimumOlderAgeYears)
+        ) return false;
+        if (
+          origin === "older-high-rarity" &&
+          !matchesPopularPokemonFilter(signal.name, popularPokemonFilter)
         ) return false;
         if (marketMode === "graded" && !signal.marketIntelligence?.graded.available) return false;
         if (
@@ -1764,7 +1768,7 @@ export default function ExternalSignalBrowser({
         );
       })
       .sort((left, right) => {
-        if (sortKey === "price_asc" || sortKey === "price_desc") {
+        if (activeSortKey === "price_asc" || activeSortKey === "price_desc") {
           const leftPrice =
             (marketMode === "graded"
               ? left.marketIntelligence?.gradedScenario?.currentPrice
@@ -1776,18 +1780,33 @@ export default function ExternalSignalBrowser({
           if (leftPrice == null && rightPrice == null) return left.rank - right.rank;
           if (leftPrice == null) return 1;
           if (rightPrice == null) return -1;
-          return sortKey === "price_asc" ? leftPrice - rightPrice : rightPrice - leftPrice;
+          return activeSortKey === "price_asc" ? leftPrice - rightPrice : rightPrice - leftPrice;
         }
-        if (sortKey === "release_newest" || sortKey === "release_oldest") {
+        if (activeSortKey === "release_newest" || activeSortKey === "release_oldest") {
           const leftDate = left.episodeReleaseDate ?? "";
           const rightDate = right.episodeReleaseDate ?? "";
           if (!leftDate && !rightDate) return left.rank - right.rank;
           if (!leftDate) return 1;
           if (!rightDate) return -1;
           const difference = leftDate.localeCompare(rightDate);
-          return sortKey === "release_oldest" ? difference : -difference;
+          return activeSortKey === "release_oldest" ? difference : -difference;
         }
-        if (sortKey === "opportunity") {
+        if (activeSortKey === "rarity_cohort") {
+          return (
+            (left.olderHighRarityValue?.rarityCohortSize ?? Number.POSITIVE_INFINITY) -
+              (right.olderHighRarityValue?.rarityCohortSize ?? Number.POSITIVE_INFINITY) ||
+            left.rank - right.rank
+          );
+        }
+        if (activeSortKey === "history") {
+          return (
+            (right.olderHighRarityValue?.historyPoints ?? 0) -
+              (left.olderHighRarityValue?.historyPoints ?? 0) ||
+            left.rank - right.rank
+          );
+        }
+        if (activeSortKey === "opportunity") {
+          if (origin === "older-high-rarity") return left.rank - right.rank;
           const leftScore =
             marketMode === "graded"
               ? left.marketIntelligence?.gradedOpportunityScore
@@ -1798,28 +1817,28 @@ export default function ExternalSignalBrowser({
               : right.marketIntelligence?.rawOpportunityScore;
           return (rightScore ?? right.externalScore) - (leftScore ?? left.externalScore);
         }
-        if (sortKey === "sealed") {
+        if (activeSortKey === "sealed") {
           return (
             (right.marketIntelligence?.sealed.pressureScore ?? 0) -
             (left.marketIntelligence?.sealed.pressureScore ?? 0)
           );
         }
-        if (sortKey === "confluence") {
+        if (activeSortKey === "confluence") {
           return (
             (right.marketIntelligence?.confluence.score ?? 0) -
             (left.marketIntelligence?.confluence.score ?? 0)
           );
         }
-        if (sortKey === "scarcity") {
+        if (activeSortKey === "scarcity") {
           return (
             (right.marketIntelligence?.scarcity.score ?? 0) -
             (left.marketIntelligence?.scarcity.score ?? 0)
           );
         }
-        if (sortKey === "meta") {
+        if (activeSortKey === "meta") {
           return right.maxDeckSharePercent - left.maxDeckSharePercent;
         }
-        if (sortKey === "reach") {
+        if (activeSortKey === "reach") {
           return right.archetypeCount - left.archetypeCount || right.externalScore - left.externalScore;
         }
         return right.externalScore - left.externalScore || left.rank - right.rank;
@@ -1832,9 +1851,10 @@ export default function ExternalSignalBrowser({
     minimumOlderAgeYears,
     newReleaseCardIds,
     origin,
+    popularPokemonFilter,
     progressiveState,
     activeSignalCohort,
-    sortKey,
+    activeSortKey,
   ]);
   const chaseSectionOwnsEverySignal =
     signals.length > 0 && signals.every((signal) => newReleaseCardIds.has(signal.cardId));
@@ -1943,6 +1963,7 @@ export default function ExternalSignalBrowser({
             if (nextOrigin === "older-high-rarity") loadOlderHighRaritySignals();
             setMarketMode("raw");
             setReleaseYear("all");
+            setSortKey("opportunity");
             setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
           }}
           aria-pressed={origin === "older-high-rarity"}
@@ -1973,7 +1994,7 @@ export default function ExternalSignalBrowser({
           </span>
         </button>
         {origin === "older-high-rarity" ? (
-          <div className="mb-2.5 flex flex-col gap-2 rounded-xl border border-amber-300/16 bg-amber-300/[0.035] px-3 py-2.5 sm:flex-row sm:items-center sm:justify-between sm:px-4">
+          <div className="mb-2.5 grid gap-2 rounded-xl border border-amber-300/16 bg-amber-300/[0.035] px-3 py-2.5 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/62">
                 Minimum card age
@@ -1982,7 +2003,7 @@ export default function ExternalSignalBrowser({
                 Show cards released at least this many years ago.
               </p>
             </div>
-            <div className="flex min-w-0 items-center gap-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
               <div
                 role="group"
                 aria-label="Minimum card age"
@@ -2008,7 +2029,26 @@ export default function ExternalSignalBrowser({
                   </button>
                 ))}
               </div>
-              <span className="hidden shrink-0 rounded-full border border-amber-300/14 bg-black/20 px-2.5 py-1 text-[10px] font-bold tabular-nums text-amber-100/60 md:inline-flex">
+              <label className="relative flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-amber-300/14 bg-black/20 pl-3 pr-9 transition hover:border-amber-300/24 hover:bg-black/28 sm:min-w-[13rem] sm:flex-none">
+                <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-200/65" />
+                <span className="sr-only">Filter by popular Pokémon</span>
+                <select
+                  value={popularPokemonFilter}
+                  onChange={(event) => {
+                    setPopularPokemonFilter(event.target.value as PopularPokemonFilter);
+                    setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+                  }}
+                  className="h-10 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-[11px] font-bold text-amber-50/76 outline-none [color-scheme:dark]"
+                >
+                  {POPULAR_POKEMON_FILTER_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-amber-100/40" />
+              </label>
+              <span className="shrink-0 rounded-full border border-amber-300/14 bg-black/20 px-2.5 py-1 text-[10px] font-bold tabular-nums text-amber-100/60">
                 {visibleSignals.length} matches
               </span>
             </div>
@@ -2084,7 +2124,7 @@ export default function ExternalSignalBrowser({
             ))}
           </div>
 
-          <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
+          <label className="relative flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 pl-3 pr-9 transition hover:border-violet-300/22 hover:bg-white/[0.035] focus-within:border-violet-400/35 focus-within:ring-2 focus-within:ring-violet-500/10">
             <Newspaper className="h-4 w-4 text-white/32" />
             <span className="sr-only">Filter signal origin</span>
             <select
@@ -2093,9 +2133,10 @@ export default function ExternalSignalBrowser({
                 const nextOrigin = event.target.value as OriginFilter;
                 setOrigin(nextOrigin);
                 if (nextOrigin === "older-high-rarity") loadOlderHighRaritySignals();
+                setSortKey("opportunity");
                 setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
               }}
-              className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"
+              className="h-11 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-xs font-semibold text-white/68 outline-none [color-scheme:dark]"
             >
               {ORIGIN_OPTIONS.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -2103,10 +2144,12 @@ export default function ExternalSignalBrowser({
                 </option>
               ))}
             </select>
+            <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-white/32" />
           </label>
 
           {releaseYears.length > 1 ? (
-            <label className="flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3">
+            <label className="relative flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 pl-3 pr-9 transition hover:border-violet-300/22 hover:bg-white/[0.035] focus-within:border-violet-400/35 focus-within:ring-2 focus-within:ring-violet-500/10">
+              <CalendarDays className="h-4 w-4 text-white/32" />
               <span className="sr-only">Filter signals by release year</span>
               <select
                 value={activeReleaseYear}
@@ -2114,33 +2157,35 @@ export default function ExternalSignalBrowser({
                   setReleaseYear(event.target.value);
                   setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
                 }}
-                className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"
+                className="h-11 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-xs font-semibold text-white/68 outline-none [color-scheme:dark]"
               >
                 <option value="all">All years</option>
                 {releaseYears.map((year) => (
                   <option key={year} value={year}>{year}</option>
                 ))}
               </select>
+              <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-white/32" />
             </label>
           ) : null}
 
-          <label className="col-span-2 flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 px-3 lg:col-span-1">
+          <label className="relative col-span-2 flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 pl-3 pr-9 transition hover:border-violet-300/22 hover:bg-white/[0.035] focus-within:border-violet-400/35 focus-within:ring-2 focus-within:ring-violet-500/10 lg:col-span-1">
             <BarChart3 className="h-4 w-4 text-white/32" />
             <span className="sr-only">Sort signals</span>
             <select
-              value={sortKey}
+              value={activeSortKey}
               onChange={(event) => {
-                setSortKey(event.target.value as SortKey);
+                setSortKey(event.target.value as SignalRadarSortKey);
                 setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
               }}
-              className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"
+              className="h-11 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-xs font-semibold text-white/68 outline-none [color-scheme:dark]"
             >
-              {SORT_OPTIONS.map((option) => (
+              {activeSortOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
               ))}
             </select>
+            <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-white/32" />
           </label>
         </div>
       </section>

@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.78",
+    releasedAt: "August 16, 2026",
+    title: "Useful old-card filters and truthful Cardmarket checks",
+    summary: "Old high-rarity value now has cohort-specific sorting and researched popular-Pokémon filters, while partial Cardmarket renders can no longer masquerade as no listings.",
+    tone: "fixed",
+    highlights: [
+      "Popular only and focused Pokémon-family filters combine official fan favorites with recurring collector-market demand.",
+      "Old-card sorting now focuses on value fit, price, age, rarity-tier size and price evidence instead of zero-value Radar metrics.",
+      "Radar dropdowns use one clean themed control without the browser's inset select borders.",
+      "Check Cardmarket now retries an unreadable offer table and distinguishes that from a conclusive no-English-NM result.",
+    ],
+  },
+  {
     version: "3.12.77",
     releasedAt: "August 16, 2026",
     title: "Signal Radar uses the shared card detail",

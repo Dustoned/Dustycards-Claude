@@ -20,6 +20,32 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.78",
+    releasedAt: "August 16, 2026",
+    title: "Old high-rarity filters that actually change the results",
+    summary: "Signal Radar now gives its older chase-card lane meaningful sorting, researched Pokémon-demand filters and cleaner controls, while Cardmarket live checks stop confusing unreadable pages with missing offers.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Better old-card discovery",
+        highlights: [
+          "Choose Popular Pokémon only or focus on collector favorites such as Charizard, Pikachu, Eeveelutions, Gengar, Mew and Mewtwo, Rayquaza, Lugia and more.",
+          "Setup, sealed pressure, meta share and archetype reach no longer appear in this lane when those values cannot meaningfully separate its cards.",
+          "Best value fit, price, oldest/newest, smallest set rarity tier and most price evidence now produce visibly different orderings.",
+          "Source, year, sort and popularity selects have a single clean themed outline and consistent chevrons.",
+        ],
+      },
+      {
+        title: "Cardmarket check correction",
+        highlights: [
+          "The live check keeps Cardmarket's English and Near Mint filters on the product request.",
+          "A partial or blocked offer table is retried through the fallback provider instead of being labeled as no English NM listings.",
+          "Blissey HS 106 now resolves its actual raw English NM offers; graded seller comments remain excluded from the raw price.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.77",
     releasedAt: "August 16, 2026",
     title: "One card detail everywhere",

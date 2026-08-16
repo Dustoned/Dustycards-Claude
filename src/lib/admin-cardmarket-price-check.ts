@@ -1,15 +1,21 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import { db } from "@/lib/db";
 import {
+  hasConclusiveCardMarketOfferState,
   parseCardMarketScrape,
   parseStrictCardMarketEnglishNmPrice,
+  type StrictCardMarketEnglishNmPrice,
 } from "@/lib/card-submissions";
 import {
   buildCardMarketProductUrl,
   getSafeDirectCardMarketCardUrl,
 } from "@/lib/cardmarket";
 import { normalizeTradingCardGame } from "@/lib/games";
-import { scrapePageWithFallback } from "@/lib/scrape-provider";
+import {
+  scrapePageWithFallback,
+  type ProviderPageScrapeResult,
+  type ScrapePageWithFallbackOptions,
+} from "@/lib/scrape-provider";
 
 const CHECK_TOKEN_VERSION = 1;
 const CHECK_TOKEN_TTL_MS = 10 * 60_000;
@@ -49,6 +55,65 @@ export class AdminCardMarketPriceCheckError extends Error {
     this.name = "AdminCardMarketPriceCheckError";
     this.status = status;
   }
+}
+
+type AdminCardMarketScraper = (
+  url: string,
+  options?: ScrapePageWithFallbackOptions,
+) => Promise<ProviderPageScrapeResult>;
+
+export async function loadAdminCardMarketEnglishNmPrice(
+  sourceUrl: string,
+  scraper: AdminCardMarketScraper = scrapePageWithFallback,
+): Promise<{
+  scrape: ProviderPageScrapeResult;
+  strictPrice: StrictCardMarketEnglishNmPrice;
+}> {
+  let primaryScrape: ProviderPageScrapeResult;
+  try {
+    primaryScrape = await scraper(sourceUrl);
+  } catch (error) {
+    throw new AdminCardMarketPriceCheckError(
+      `CardMarket could not be checked: ${error instanceof Error ? error.message : String(error)}`,
+      502,
+    );
+  }
+
+  const primaryPrice = parseStrictCardMarketEnglishNmPrice(primaryScrape);
+  if (primaryPrice) return { scrape: primaryScrape, strictPrice: primaryPrice };
+  if (hasConclusiveCardMarketOfferState(primaryScrape)) {
+    throw new AdminCardMarketPriceCheckError(
+      "CardMarket returned no explicit English Near Mint offers for this card.",
+      422,
+    );
+  }
+
+  // A rendered CardMarket shell without its offer table is not evidence that
+  // offers do not exist. Retry through the alternate provider/profile before
+  // reporting anything to the admin; this is especially important for older
+  // cards whose English NM offers sit behind the filtered result page.
+  let fallbackScrape: ProviderPageScrapeResult;
+  try {
+    fallbackScrape = await scraper(sourceUrl, { skipFirecrawl: true });
+  } catch (error) {
+    throw new AdminCardMarketPriceCheckError(
+      `CardMarket's English NM offer table could not be read: ${error instanceof Error ? error.message : String(error)}`,
+      502,
+    );
+  }
+
+  const fallbackPrice = parseStrictCardMarketEnglishNmPrice(fallbackScrape);
+  if (fallbackPrice) return { scrape: fallbackScrape, strictPrice: fallbackPrice };
+  if (!hasConclusiveCardMarketOfferState(fallbackScrape)) {
+    throw new AdminCardMarketPriceCheckError(
+      "CardMarket's English NM offer table could not be read. Retry the live check.",
+      502,
+    );
+  }
+  throw new AdminCardMarketPriceCheckError(
+    "CardMarket returned no explicit English Near Mint offers for this card.",
+    422,
+  );
 }
 
 function getTokenSecret(): string {
@@ -148,23 +213,7 @@ export async function runAdminCardMarketPriceCheck(
     );
   }
 
-  let scrape;
-  try {
-    scrape = await scrapePageWithFallback(sourceUrl);
-  } catch (error) {
-    throw new AdminCardMarketPriceCheckError(
-      `CardMarket could not be checked: ${error instanceof Error ? error.message : String(error)}`,
-      502
-    );
-  }
-
-  const strictPrice = parseStrictCardMarketEnglishNmPrice(scrape);
-  if (!strictPrice) {
-    throw new AdminCardMarketPriceCheckError(
-      "CardMarket returned no explicit English Near Mint offers for this card.",
-      422
-    );
-  }
+  const { scrape, strictPrice } = await loadAdminCardMarketEnglishNmPrice(sourceUrl);
 
   const parsed = parseCardMarketScrape(scrape, "Near Mint");
   const observedAt = new Date();
