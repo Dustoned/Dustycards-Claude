@@ -31,6 +31,7 @@ model Episode {
   sealedProductContents SealedProductContentSet[]
   lifecycleObservations SetLifecycleObservation[]
   cardSubmissions       CardSubmission[]
+  marktplaatsDeals      MarktplaatsDeal[]
 
   @@index([source_status, source_checked_at])
   @@index([game, release_date])
@@ -451,6 +452,7 @@ model Card {
   ebayWatchedListings          EbayWatchedListing[]
   priceAlerts                  CardPriceAlert[]
   newReleaseChasePriceWatch    NewReleaseChasePriceWatch?
+  marktplaatsDeals              MarktplaatsDeal[]
   prices                       Price[]
   sealedProducts               CardSealedProduct[]
   cardSubmissions              CardSubmission[]                  @relation("SubmissionCreatedCard")
@@ -770,6 +772,74 @@ model EbayWatchedListing {
   @@unique([user_id, marketplace_id, item_id])
   @@index([user_id, created_at])
   @@index([card_id])
+}
+
+model MarktplaatsScanRun {
+  id                  String    @id
+  status              String
+  source              String    @default("codex")
+  reference_exported_at DateTime?
+  started_at          DateTime
+  finished_at         DateTime?
+  listings_checked    Int       @default(0)
+  deals_found         Int       @default(0)
+  new_deals_found     Int       @default(0)
+  warning             String?
+  details_json        String?
+  created_at          DateTime  @default(now())
+  updated_at          DateTime  @updatedAt
+
+  deals MarktplaatsDeal[]
+
+  @@index([status, started_at])
+  @@index([finished_at])
+}
+
+model MarktplaatsDeal {
+  id                 String    @id @default(cuid())
+  external_id        String    @unique
+  scan_run_id        String
+  kind               String
+  title              String
+  listing_url        String
+  image_url          String?
+  seller_name        String?
+  location           String?
+  card_id            String?
+  episode_id         String?
+  listing_price_eur  Float
+  shipping_eur       Float?
+  market_value_eur   Float
+  savings_eur        Float
+  discount_percent   Float
+  condition          String?
+  language           String?
+  grading_company    String?
+  grading_grade      String?
+  match_confidence   Float
+  match_status       String    @default("matched")
+  match_notes        String?
+  description_checked Boolean  @default(false)
+  description_summary String?
+  offer_contents      String?
+  source_published_at DateTime?
+  first_seen_at      DateTime
+  last_seen_at       DateTime
+  last_changed_at    DateTime
+  removed_at         DateTime?
+  created_at         DateTime  @default(now())
+  updated_at         DateTime  @updatedAt
+
+  scanRun MarktplaatsScanRun @relation(fields: [scan_run_id], references: [id], onDelete: Cascade)
+  card    Card?               @relation(fields: [card_id], references: [id], onDelete: SetNull)
+  episode Episode?            @relation(fields: [episode_id], references: [id], onDelete: SetNull)
+
+  @@index([removed_at, discount_percent])
+  @@index([kind, removed_at, discount_percent])
+  @@index([scan_run_id])
+  @@index([card_id])
+  @@index([episode_id])
+  @@index([last_seen_at])
 }
 
 model CardPriceAlert {

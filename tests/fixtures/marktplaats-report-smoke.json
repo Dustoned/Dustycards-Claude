@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "scan": {
+    "id": "marktplaats-smoke-2026-08-16",
+    "startedAt": "2026-08-16T19:30:00.000Z",
+    "finishedAt": "2026-08-16T19:31:00.000Z",
+    "referenceExportedAt": "2026-08-16T19:29:00.000Z",
+    "listingsChecked": 1,
+    "completeCoverage": false,
+    "removedExternalIds": [],
+    "warning": null
+  },
+  "deals": [
+    {
+      "externalId": "marktplaats-smoke-listing",
+      "kind": "raw",
+      "title": "Basic Fire Energy 10 Scarlet & Violet English",
+      "listingUrl": "https://www.marktplaats.nl/v/verzamelen/pokemon-kaarten/m-smoke-test",
+      "cardId": "3595",
+      "episodeId": null,
+      "listingPriceEur": 1,
+      "shippingEur": 2.49,
+      "marketValueEur": 2,
+      "language": "English",
+      "condition": "Near Mint",
+      "gradingCompany": null,
+      "gradingGrade": null,
+      "matchConfidence": 0.99,
+      "matchStatus": "matched",
+      "descriptionChecked": true,
+      "descriptionSummary": "Smoke-test listing for one exact English card at a fixed asking price.",
+      "offerContents": "1x Basic Fire Energy 10",
+      "matchNotes": "Fixture used only against a temporary database copy."
+    }
+  ]
+}

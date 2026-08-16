@@ -41,10 +41,12 @@ import {
 import { requirePageUser } from "@/lib/page-auth";
 import { FAST_SUDDEN_DROP_MIN_AMOUNT } from "@/lib/home-sudden-drops-server";
 import CollectionValueHistoryPanel from "@/components/CollectionValueHistoryPanel";
-import EmptyState from "@/components/EmptyState";
 import HomePageLoading from "@/components/HomePageLoading";
 import ProgressiveTradeOpportunitiesPanel from "@/components/ProgressiveTradeOpportunitiesPanel";
 import SellingValueSummary from "@/components/SellingValueSummary";
+import MarktplaatsDealsPanel, {
+  getLatestMarktplaatsSelectionCount,
+} from "@/components/MarktplaatsDealsPanel";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
@@ -279,14 +281,22 @@ function FirstRunCollectionPanel({
 async function HomePageContent({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; graded?: string; game?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    graded?: string;
+    game?: string;
+    sellingView?: string;
+    dealKind?: string;
+    dealMatch?: string;
+    dealQ?: string;
+  }>;
 }) {
   const user = await requirePageUser("/");
   const [settings, params] = await Promise.all([
     getServerUserSettings(user.id),
     searchParams,
   ]);
-  const { tab, graded, game: gameParam } = params;
+  const { tab, graded, game: gameParam, sellingView } = params;
   const activeGame = parseVisibleGameFilter(gameParam, {
     onePieceEnabled: settings.onePieceLibraryEnabled,
   });
@@ -309,6 +319,8 @@ async function HomePageContent({
     game: activeGame,
     deferDetailedRows: activeTab === "complete" || activeTab === "overview",
   });
+  const marktplaatsDealCount =
+    activeTab === "selling" ? await getLatestMarktplaatsSelectionCount() : 0;
   const totalTrackedItems = data.overview.totalCards + data.overview.totalSealedUnits;
   const collectionRoi =
     data.overview.investment > 0 ? (data.overview.pnl / data.overview.investment) * 100 : null;
@@ -778,26 +790,14 @@ async function HomePageContent({
       }
       sellingSlot={
         activeTab === "selling" ? (
-        data.forSaleCards.length === 0 && data.soldCards.length === 0 ? (
-          <div className="space-y-3">
-            <ProgressiveTradeOpportunitiesPanel
-              endpoint={buildTradeOpportunitiesApiHref()}
-              game={activeGame}
-            />
-            <EmptyState
-              title="Nothing marked for sale yet"
-              description="Open a saved card, choose Edit, and enable For Sale. It will appear here with its estimated value and sale tracking."
-              actionHref="/search"
-              actionLabel="Find cards"
-            />
-          </div>
-        ) : (
         <div className="space-y-3">
           <ProgressiveTradeOpportunitiesPanel
             endpoint={buildTradeOpportunitiesApiHref()}
             game={activeGame}
           />
-          <SellingValueSummary items={data.forSaleCards} investment={forSaleInvestment} pricedCards={forSalePricedCards} soldNet={soldNet} soldCount={soldCount} soldTotal={soldTotal} soldFees={soldFees} soldPnl={soldPnl} />
+          {data.forSaleCards.length > 0 || data.soldCards.length > 0 ? (
+            <SellingValueSummary items={data.forSaleCards} investment={forSaleInvestment} pricedCards={forSalePricedCards} soldNet={soldNet} soldCount={soldCount} soldTotal={soldTotal} soldFees={soldFees} soldPnl={soldPnl} />
+          ) : null}
           {false ? <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
             <div className="min-w-0">
               <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">
@@ -840,9 +840,20 @@ async function HomePageContent({
             </div>
           </section> : null}
           <SellingInventoryTabs
+            key={`selling-${sellingView ?? "default"}`}
             activeCount={data.forSaleCards.length}
             soldCount={data.soldCards.length}
+            marktplaatsCount={marktplaatsDealCount}
             repeatedSoldPrice={repeatedSoldPrice}
+            initialView={
+              sellingView === "marktplaats"
+                ? "marktplaats"
+                : sellingView === "sold"
+                  ? "sold"
+                  : sellingView === "active"
+                    ? "active"
+                    : undefined
+            }
             activeContent={
               <CollectionCardsView
                 items={data.forSaleCards}
@@ -869,9 +880,9 @@ async function HomePageContent({
                 emptyText="Cards only move here after you explicitly mark them sold."
               />
             }
+            marktplaatsContent={<MarktplaatsDealsPanel searchParams={params} />}
           />
         </div>
-        )
         ) : null
       }
     />
@@ -881,7 +892,15 @@ async function HomePageContent({
 export default function HomePage({
   searchParams,
 }: {
-  searchParams: Promise<{ tab?: string; graded?: string; game?: string }>;
+  searchParams: Promise<{
+    tab?: string;
+    graded?: string;
+    game?: string;
+    sellingView?: string;
+    dealKind?: string;
+    dealMatch?: string;
+    dealQ?: string;
+  }>;
 }) {
   return (
     <Suspense fallback={<HomePageLoading />}>

@@ -39,6 +39,7 @@ dustycards.db-shm
 /data/official-product-releases.json
 /data/signal-radar-snapshots/
 /data/movers-snapshots/
+/data/marktplaats/
 
 # misc
 .DS_Store

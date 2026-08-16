@@ -16,6 +16,8 @@ export const PRIVATE_SNAPSHOT_TABLES = [
   "CardPriceAlert",
   "EbayListingCardOverride",
   "EbayWatchedListing",
+  "MarktplaatsDeal",
+  "MarktplaatsScanRun",
   "CollectionWant",
   "CollectionCard",
   "CollectionSealed",

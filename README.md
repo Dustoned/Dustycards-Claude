@@ -9,6 +9,7 @@ movers, eBay deals and a 3D card viewer.
 - Next.js 16 (App Router) + React 19 + Tailwind 4
 - Prisma 7 with the better-sqlite3 adapter (single SQLite database)
 - Background sync engine (scheduler + jobs) for catalog, prices, card history and eBay sold data
+- External Codex-driven Marktplaats deal reports for raw ENG, graded and complete expansions
 - Session-cookie auth with `user`/`admin` roles; mail via nodemailer
 - three.js for the 3D card viewer; Firecrawl for card submissions
 
