@@ -14,6 +14,13 @@ import MarktplaatsCardDetailButton from "@/components/MarktplaatsCardDetailButto
 
 type DealKind = "raw" | "graded" | "expansion";
 type SelectionFilter = "daily" | "deals" | "review";
+const MIN_CARD_MARKET_VALUE_EUR = 5;
+const eligibleValueWhere = {
+  OR: [
+    { kind: "expansion" },
+    { market_value_eur: { gte: MIN_CARD_MARKET_VALUE_EUR } },
+  ],
+};
 
 export interface MarktplaatsDealSearchParams {
   dealKind?: string;
@@ -78,6 +85,7 @@ export async function getLatestMarktplaatsSelectionCount(): Promise<number> {
     where: {
       scan_run_id: run.id,
       removed_at: null,
+      AND: [eligibleValueWhere],
       match_status: { in: ["matched", "shortlist"] },
     },
   });
@@ -102,6 +110,7 @@ export default async function MarktplaatsDealsPanel({
   const where = {
     scan_run_id: run?.id ?? "__no_scan__",
     removed_at: null,
+    AND: [eligibleValueWhere],
     match_status: statusWhere,
     ...(kind ? { kind } : {}),
     ...(query
@@ -138,6 +147,7 @@ export default async function MarktplaatsDealsPanel({
       where: {
         scan_run_id: run?.id ?? "__no_scan__",
         removed_at: null,
+        AND: [eligibleValueWhere],
         match_status: { in: ["matched", "shortlist"] },
       },
       _count: { _all: true },
@@ -147,18 +157,29 @@ export default async function MarktplaatsDealsPanel({
           where: {
             scan_run_id: run.id,
             removed_at: null,
+            AND: [eligibleValueWhere],
             match_status: { in: ["matched", "shortlist"] },
           },
         })
       : 0,
     run
       ? db.marktplaatsDeal.count({
-          where: { scan_run_id: run.id, removed_at: null, match_status: "matched" },
+          where: {
+            scan_run_id: run.id,
+            removed_at: null,
+            AND: [eligibleValueWhere],
+            match_status: "matched",
+          },
         })
       : 0,
     run
       ? db.marktplaatsDeal.count({
-          where: { scan_run_id: run.id, removed_at: null, match_status: "review" },
+          where: {
+            scan_run_id: run.id,
+            removed_at: null,
+            AND: [eligibleValueWhere],
+            match_status: "review",
+          },
         })
       : 0,
   ]);
@@ -179,6 +200,7 @@ export default async function MarktplaatsDealsPanel({
             <p className="mt-2 text-xs leading-5 text-[var(--dc-text-muted)] sm:text-sm">
               Elke advertentie is op titel én beschrijving gecontroleerd. Echte deals staan bovenaan;
               de dagselectie wordt tot minimaal 10 aangevuld met de beste aanbiedingen rond marktwaarde.
+              Losse en graded kaarten met een marktwaarde onder €5 worden niet getoond.
             </p>
           </div>
           <div className="grid min-w-[280px] grid-cols-3 gap-2 text-xs">
