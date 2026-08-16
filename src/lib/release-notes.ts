@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.74",
+    releasedAt: "August 16, 2026",
+    title: "Older high-rarity value reaches the premium tier",
+    summary: "Signal Radar's older high-rarity discovery lane now includes qualifying cards up to EUR 600.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Wider value range",
+        highlights: [
+          "The upper price limit increases from EUR 250 to EUR 600.",
+          "The five-year age requirement, strict chase-rarity allowlist, small set rarity cohort and price-history requirements remain unchanged.",
+          "Common, Uncommon and broad ordinary rarity tiers remain excluded.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.73",
     releasedAt: "August 16, 2026",
     title: "A clearer Market and older high-rarity discovery",

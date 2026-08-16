@@ -1896,7 +1896,7 @@ export default function ExternalSignalBrowser({
               Old high-rarity value
             </span>
             <span className="mt-0.5 block text-[10px] leading-4 text-white/42 sm:text-[11px]">
-              5+ years old, strict chase rarities, EUR 15-250 and a small rarity tier inside the set.
+              5+ years old, strict chase rarities, EUR 15-600 and a small rarity tier inside the set.
             </span>
           </span>
           <span className="shrink-0 rounded-full border border-amber-300/18 bg-black/20 px-2.5 py-1 text-[10px] font-black tabular-nums text-amber-100/78">

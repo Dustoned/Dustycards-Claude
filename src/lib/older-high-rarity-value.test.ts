@@ -54,8 +54,11 @@ describe("older high-rarity value discovery", () => {
       getOlderHighRarityValueProfile({ ...eligible, game: "one-piece" }),
     ).toBeNull();
     expect(
-      getOlderHighRarityValueProfile({ ...eligible, currentPrice: 251 }),
+      getOlderHighRarityValueProfile({ ...eligible, currentPrice: 601 }),
     ).toBeNull();
+    expect(
+      getOlderHighRarityValueProfile({ ...eligible, currentPrice: 600 }),
+    ).not.toBeNull();
   });
 
   it("recognizes tagged signals without re-deriving mutable market criteria", () => {

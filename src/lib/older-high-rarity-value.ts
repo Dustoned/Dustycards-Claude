@@ -3,7 +3,7 @@ import { normalizeRarityLabel } from "@/lib/rarity";
 export const OLDER_HIGH_RARITY_VALUE_KIND = "older-high-rarity-value" as const;
 export const OLDER_HIGH_RARITY_MIN_AGE_YEARS = 5;
 export const OLDER_HIGH_RARITY_MIN_PRICE_EUR = 15;
-export const OLDER_HIGH_RARITY_MAX_PRICE_EUR = 250;
+export const OLDER_HIGH_RARITY_MAX_PRICE_EUR = 600;
 export const OLDER_HIGH_RARITY_MAX_SET_COHORT = 20;
 export const OLDER_HIGH_RARITY_MIN_HISTORY_POINTS = 5;
 

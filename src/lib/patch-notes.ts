@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.74",
+    releasedAt: "August 16, 2026",
+    title: "Older high-rarity cards up to EUR 600",
+    summary: "Signal Radar's strict older high-rarity lane now includes more premium chase cards.",
+    tone: "improved",
+    highlights: [
+      "The maximum qualifying raw price rises from EUR 250 to EUR 600.",
+      "Age, rarity, set-cohort and history quality requirements remain unchanged.",
+    ],
+  },
+  {
     version: "3.12.73",
     releasedAt: "August 16, 2026",
     title: "Market navigation and old high-rarity value",
