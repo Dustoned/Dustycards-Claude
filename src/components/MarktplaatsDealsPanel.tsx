@@ -1,6 +1,16 @@
 import Link from "next/link";
-import { ExternalLink, PackageSearch, ShieldCheck, TriangleAlert } from "lucide-react";
+import {
+  ExternalLink,
+  ImageOff,
+  PackageSearch,
+  ScanSearch,
+  ShieldCheck,
+  TriangleAlert,
+} from "lucide-react";
 import { db } from "@/lib/db";
+import CachedImage from "@/components/CachedImage";
+import HomeItemDetailProvider from "@/components/HomeItemDetailProvider";
+import MarktplaatsCardDetailButton from "@/components/MarktplaatsCardDetailButton";
 
 type DealKind = "raw" | "graded" | "expansion";
 type SelectionFilter = "daily" | "deals" | "review";
@@ -112,13 +122,15 @@ export default async function MarktplaatsDealsPanel({
       include: {
         card: {
           select: {
+            id: true,
             name: true,
             card_number: true,
             printed_card_number: true,
+            image_url: true,
             episode: { select: { name: true, code: true } },
           },
         },
-        episode: { select: { name: true, code: true } },
+        episode: { select: { id: true, name: true, code: true, logo_url: true } },
       },
     }),
     db.marktplaatsDeal.groupBy({
@@ -153,6 +165,7 @@ export default async function MarktplaatsDealsPanel({
   const counts = new Map(activeCounts.map((entry) => [entry.kind, entry._count._all]));
 
   return (
+    <HomeItemDetailProvider>
     <div className="space-y-3">
       <section className="binder-subpanel overflow-hidden rounded-2xl p-4 sm:rounded-3xl sm:p-5">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -168,19 +181,27 @@ export default async function MarktplaatsDealsPanel({
               de dagselectie wordt tot minimaal 10 aangevuld met de beste aanbiedingen rond marktwaarde.
             </p>
           </div>
-          <div className="grid min-w-[260px] grid-cols-2 gap-2 text-xs">
+          <div className="grid min-w-[280px] grid-cols-3 gap-2 text-xs">
             <div className="rounded-xl border border-[rgb(var(--dc-border-rgb)/0.7)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.65)] p-3">
-              <div className="text-[var(--dc-text-muted)]">Dagselectie</div>
+              <div className="text-[var(--dc-text-muted)]">Gecontroleerd</div>
+              <div className="mt-1 text-xl font-black text-[var(--dc-text-primary)]">
+                {run?.listings_checked ?? 0}
+              </div>
+            </div>
+            <div className="rounded-xl border border-[rgb(var(--dc-border-rgb)/0.7)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.65)] p-3">
+              <div className="text-[var(--dc-text-muted)]">Geselecteerd</div>
               <div className="mt-1 text-xl font-black text-[var(--dc-text-primary)]">{selectionCount}</div>
             </div>
             <div className="rounded-xl border border-[rgb(var(--dc-border-rgb)/0.7)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.65)] p-3">
-              <div className="text-[var(--dc-text-muted)]">Laatste scan</div>
-              <div className="mt-1 font-bold text-[var(--dc-text-primary)]">
-                {dateTime(run?.finished_at ?? null)}
-              </div>
+              <div className="text-[var(--dc-text-muted)]">Onder markt</div>
+              <div className="mt-1 text-xl font-black text-emerald-200">{dealCount}</div>
             </div>
           </div>
         </div>
+        <p className="mt-3 text-[10px] font-semibold text-[var(--dc-text-muted)]">
+          Laatste scan: {dateTime(run?.finished_at ?? null)} · Niet iedere gecontroleerde advertentie
+          haalt de dagselectie.
+        </p>
         {run?.warning ? (
           <div className="mt-4 flex gap-2 rounded-xl border border-amber-400/25 bg-amber-400/10 p-3 text-xs text-amber-100">
             <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0" />
@@ -267,8 +288,51 @@ export default async function MarktplaatsDealsPanel({
                   .join(" · ")
               : deal.episode?.code ?? null;
             const belowMarket = deal.listing_price_eur < deal.market_value_eur;
+            const referenceImageUrl = deal.card?.image_url ?? deal.episode?.logo_url ?? null;
+            const detailLabel = deal.card
+              ? `Bekijk ${referenceName} in DustyCards`
+              : `Bekijk expansion ${referenceName}`;
             return (
-              <article key={deal.id} className="binder-subpanel rounded-2xl p-4 sm:p-5">
+              <article key={deal.id} className="binder-subpanel overflow-hidden rounded-2xl p-3 sm:p-4">
+                <div className="grid min-w-0 grid-cols-[5.6rem_minmax(0,1fr)] items-start gap-3 sm:grid-cols-[7.5rem_minmax(0,1fr)] sm:gap-4">
+                  <div className="min-w-0">
+                    {deal.card ? (
+                      <MarktplaatsCardDetailButton
+                        cardId={deal.card.id}
+                        label={detailLabel}
+                        className="group/reference relative block w-full rounded-xl text-left outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
+                      >
+                        <ReferenceImage
+                          imageUrl={referenceImageUrl}
+                          alt={referenceName}
+                          kind="card"
+                        />
+                        <span className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-violet-300/20 bg-violet-300/10 px-2 py-2 text-[9px] font-black text-violet-100 transition group-hover/reference:border-violet-300/40 group-hover/reference:bg-violet-300/15 sm:text-[10px]">
+                          <ScanSearch className="h-3.5 w-3.5 shrink-0" /> Kaartdetails
+                        </span>
+                      </MarktplaatsCardDetailButton>
+                    ) : (
+                      <Link
+                        href={deal.episode ? `/expansions/${encodeURIComponent(deal.episode.id)}` : buildFilterHref({ kind, selection, q: query })}
+                        aria-label={detailLabel}
+                        className="group/reference block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
+                      >
+                        <ReferenceImage
+                          imageUrl={referenceImageUrl}
+                          alt={referenceName}
+                          kind="expansion"
+                        />
+                        <span className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-lg border border-violet-300/20 bg-violet-300/10 px-2 py-2 text-[9px] font-black text-violet-100 transition group-hover/reference:border-violet-300/40 group-hover/reference:bg-violet-300/15 sm:text-[10px]">
+                          <ScanSearch className="h-3.5 w-3.5 shrink-0" /> Setdetails
+                        </span>
+                      </Link>
+                    )}
+                    <p className="mt-2 text-center text-[8px] font-black uppercase tracking-[0.12em] text-[var(--dc-text-muted)] sm:text-[9px]">
+                      DustyCards match
+                    </p>
+                  </div>
+
+                  <div className="min-w-0">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-1.5">
@@ -303,7 +367,7 @@ export default async function MarktplaatsDealsPanel({
                   )}
                 </div>
 
-                <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <div className="mt-3 grid grid-cols-2 gap-2 lg:grid-cols-4">
                   <PriceStat label="Advertentie" value={money(deal.listing_price_eur)} />
                   <PriceStat label="Marktwaarde" value={money(deal.market_value_eur)} />
                   <PriceStat
@@ -334,8 +398,8 @@ export default async function MarktplaatsDealsPanel({
                   </div>
                 ) : null}
 
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-[10px] text-[var(--dc-text-muted)]">
-                  <span>
+                <div className="mt-3 flex flex-col gap-2 border-t border-[rgb(var(--dc-border-rgb)/0.6)] pt-3 text-[10px] text-[var(--dc-text-muted)] sm:flex-row sm:items-center sm:justify-between">
+                  <span className="min-w-0">
                     {[deal.condition, deal.language, deal.grading_company, deal.grading_grade]
                       .filter(Boolean)
                       .join(" · ") || "Geen extra kenmerken"}
@@ -344,10 +408,12 @@ export default async function MarktplaatsDealsPanel({
                     href={deal.listing_url}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-xl bg-amber-300 px-3 py-2 font-bold text-slate-950 hover:bg-amber-200"
+                    className="inline-flex min-h-10 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-amber-300 px-3 py-2 font-bold text-slate-950 hover:bg-amber-200"
                   >
                     Bekijk advertentie <ExternalLink className="h-3.5 w-3.5" />
                   </a>
+                </div>
+                  </div>
                 </div>
               </article>
             );
@@ -355,6 +421,41 @@ export default async function MarktplaatsDealsPanel({
         </section>
       )}
     </div>
+    </HomeItemDetailProvider>
+  );
+}
+
+function ReferenceImage({
+  imageUrl,
+  alt,
+  kind,
+}: {
+  imageUrl: string | null;
+  alt: string;
+  kind: "card" | "expansion";
+}) {
+  return (
+    <span
+      className={`relative block w-full overflow-hidden border border-[rgb(var(--dc-border-rgb)/0.85)] bg-[rgb(var(--dc-surface-primary-rgb)/0.72)] shadow-[0_12px_28px_rgba(0,0,0,0.28)] ${
+        kind === "card" ? "aspect-[63/88] rounded-[0.8rem]" : "aspect-square rounded-xl"
+      }`}
+    >
+      {imageUrl ? (
+        <CachedImage
+          sourceUrl={imageUrl}
+          alt={alt}
+          fill
+          sizes="(max-width: 640px) 90px, 120px"
+          className="object-contain transition-transform duration-200 group-hover/reference:scale-[1.025]"
+          revealImmediately
+        />
+      ) : (
+        <span className="absolute inset-0 flex flex-col items-center justify-center gap-2 p-2 text-center text-[var(--dc-text-muted)]">
+          <ImageOff className="h-6 w-6" />
+          <span className="text-[8px] font-bold uppercase tracking-[0.1em]">Geen afbeelding</span>
+        </span>
+      )}
+    </span>
   );
 }
 
