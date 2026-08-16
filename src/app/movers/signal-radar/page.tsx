@@ -26,13 +26,14 @@ export const dynamic = "force-dynamic";
 export default async function SignalRadarPage({
   searchParams,
 }: {
-  searchParams: Promise<{ game?: string; set?: string }>;
+  searchParams: Promise<{ game?: string; set?: string; view?: string }>;
 }) {
   const pageTimer = startPerformanceTimer("signal-radar.page");
-  const { game, set } = await searchParams;
+  const { game, set, view } = await searchParams;
   const requestedQuery = new URLSearchParams();
   if (game) requestedQuery.set(GAME_SEARCH_PARAM, game);
   if (set) requestedQuery.set("set", set);
+  if (view) requestedQuery.set("view", view);
   const requestedPath = requestedQuery.size
     ? `/movers/signal-radar?${requestedQuery.toString()}`
     : "/movers/signal-radar";
@@ -140,6 +141,7 @@ export default async function SignalRadarPage({
           chaseWatchHref={chaseWatchHref}
           manualChaseRefreshHref={user.role === "admin" ? chaseWatchHref : null}
           totalSignalCount={radarData.signals.length}
+          initialOrigin={view === "old-high-rarity" ? "older-high-rarity" : "all"}
         />
       </div>
     </div>

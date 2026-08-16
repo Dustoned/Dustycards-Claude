@@ -120,6 +120,7 @@ interface Props {
   chaseWatchHref?: string | null;
   manualChaseRefreshHref?: string | null;
   totalSignalCount?: number;
+  initialOrigin?: OriginFilter;
 }
 
 const CONFIDENCE_OPTIONS: Array<{ value: ConfidenceFilter; label: string }> = [
@@ -1443,6 +1444,7 @@ export default function ExternalSignalBrowser({
   chaseWatchHref = null,
   manualChaseRefreshHref = null,
   totalSignalCount = initialSignals.length,
+  initialOrigin = "all",
 }: Props) {
   const [signals, setSignals] = useState(initialSignals);
   const [sealedRadar, setSealedRadar] = useState<SealedSignalRadarData | null>(null);
@@ -1462,11 +1464,13 @@ export default function ExternalSignalBrowser({
   const [olderHighRarityTotal, setOlderHighRarityTotal] = useState<number | null>(null);
   const [olderHighRarityState, setOlderHighRarityState] = useState<
     "idle" | "loading" | "ready" | "error"
-  >("idle");
-  const [olderHighRarityAttempt, setOlderHighRarityAttempt] = useState(0);
+  >(initialOrigin === "older-high-rarity" ? "loading" : "idle");
+  const [olderHighRarityAttempt, setOlderHighRarityAttempt] = useState(
+    initialOrigin === "older-high-rarity" ? 1 : 0
+  );
   const [search, setSearch] = useState("");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("all");
-  const [origin, setOrigin] = useState<OriginFilter>("all");
+  const [origin, setOrigin] = useState<OriginFilter>(initialOrigin);
   const [marketMode, setMarketMode] = useState<ExternalMarketMode>("raw");
   const [sortKey, setSortKey] = useState<SignalRadarSortKey>("opportunity");
   const [releaseYear, setReleaseYear] = useState("all");

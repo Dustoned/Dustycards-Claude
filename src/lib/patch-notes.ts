@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.79",
+    releasedAt: "August 17, 2026",
+    title: "Old High-Rarity Home widget",
+    summary: "Older premium chase-card discoveries are now available as their own customizable Home module.",
+    tone: "improved",
+    highlights: [
+      "The widget shows price, age, strict rarity and the number of cards sharing that rarity inside the set.",
+      "It supports Grid/List, Compact/Wide, collapse, hide and ordering without slowing the initial Home payload.",
+      "A card opens the shared Card Detail popup; the header opens the complete Old high-rarity Radar lane.",
+    ],
+  },
+  {
     version: "3.12.78",
     releasedAt: "August 16, 2026",
     title: "Useful old-card filters and truthful Cardmarket checks",

@@ -3710,6 +3710,7 @@ html[data-appearance-scheme="light"]
 .home-widget-panel--drivers { --home-widget-accent-rgb: 74 222 128; }
 .home-widget-panel--drops { --home-widget-accent-rgb: 251 113 133; }
 .home-widget-panel--radar { --home-widget-accent-rgb: 129 140 248; }
+.home-widget-panel--heritage { --home-widget-accent-rgb: 245 158 11; }
 .home-widget-panel--wants { --home-widget-accent-rgb: 244 114 182; }
 .home-widget-panel--sale { --home-widget-accent-rgb: 45 212 191; }
 .home-widget-panel--upcoming { --home-widget-accent-rgb: 56 189 248; }
@@ -3732,6 +3733,8 @@ html[data-appearance-scheme="light"]
 .home-widget-eyebrow--market { --home-widget-accent-rgb: 52 211 153; }
 .home-widget-heading-icon--radar,
 .home-widget-eyebrow--radar { --home-widget-accent-rgb: 129 140 248; }
+.home-widget-heading-icon--heritage,
+.home-widget-eyebrow--heritage { --home-widget-accent-rgb: 245 158 11; }
 .home-widget-heading-icon--wants,
 .home-widget-eyebrow--wants { --home-widget-accent-rgb: 244 114 182; }
 .home-widget-heading-icon--sale,
@@ -3759,6 +3762,7 @@ html[data-appearance-scheme="light"]
 .home-preview-tile--gain { --home-tile-accent-rgb: 52 211 153; }
 .home-preview-tile--drop { --home-tile-accent-rgb: 251 113 133; }
 .home-preview-tile--radar { --home-tile-accent-rgb: 129 140 248; }
+.home-preview-tile--heritage { --home-tile-accent-rgb: 245 158 11; }
 .home-preview-tile--wants { --home-tile-accent-rgb: 244 114 182; }
 .home-preview-tile--sale { --home-tile-accent-rgb: 45 212 191; }
 .home-preview-tile--upcoming { --home-tile-accent-rgb: 56 189 248; }

@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.79",
+    releasedAt: "August 17, 2026",
+    title: "Old High-Rarity on Home",
+    summary: "The new older chase-card discovery lane now has its own fast, customizable Home widget.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Collector value watch",
+        highlights: [
+          "A dedicated gold-accented widget shows older strict-rarity chase cards with current price, card age and rarity-tier size.",
+          "Grid and List layouts, Compact sizing, collapsing, hiding and ordering are all available from Customize Home.",
+          "Card tiles open the shared Card Detail popup, while the header opens Signal Radar directly on Old high-rarity value.",
+          "The full old-card cohort loads separately after Home, so it cannot delay the portfolio and other widgets.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.78",
     releasedAt: "August 16, 2026",
     title: "Old high-rarity filters that actually change the results",

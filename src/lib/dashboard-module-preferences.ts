@@ -8,6 +8,7 @@ export type HomeDashboardModuleKey =
   | "cheap-rarity"
   | "discount-watch"
   | "signal-radar"
+  | "old-high-rarity"
   | "featured"
   | "allocation"
   | "top-sets"
@@ -28,6 +29,7 @@ export const HOME_DASHBOARD_VIEW_MODULES = new Set<HomeDashboardModuleKey>([
   "cheap-rarity",
   "discount-watch",
   "signal-radar",
+  "old-high-rarity",
   "featured",
   "wants",
   "for-sale",
@@ -45,6 +47,7 @@ export const DEFAULT_HOME_DASHBOARD_MODULE_ORDER: HomeDashboardModuleKey[] = [
   "cheap-rarity",
   "discount-watch",
   "signal-radar",
+  "old-high-rarity",
   "featured",
   "allocation",
   "top-sets",

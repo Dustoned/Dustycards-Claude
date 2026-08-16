@@ -64,6 +64,10 @@ const HomeFeaturedCardsPanel = dynamic(() => import("@/components/HomeFeaturedCa
   ssr: false,
   loading: () => <FeaturedCardsSkeleton />,
 });
+const HomeOldHighRarityWidget = dynamic(() => import("@/components/HomeOldHighRarityWidget"), {
+  ssr: false,
+  loading: () => <InsightPanelSkeleton />,
+});
 
 const TONE_CLASSES: Record<
   HomeAllocationTone,
@@ -88,6 +92,7 @@ const HOME_MODULE_LABELS: Record<
   "cheap-rarity": { label: "Cheap Rarity", description: "Affordable high-rarity market cards" },
   "discount-watch": { label: "Discount Watch", description: "High-rarity cards below an earlier peak" },
   "signal-radar": { label: "Signal Radar", description: "Highest-scoring current opportunities" },
+  "old-high-rarity": { label: "Old High-Rarity", description: "Older premium chase cards at relative-value prices" },
   featured: { label: "Featured cards", description: "Collection highlights" },
   allocation: { label: "Collection allocation", description: "Value by collection type" },
   "top-sets": { label: "Top sets", description: "Your strongest sets and binders" },
@@ -107,6 +112,7 @@ const COMPACTABLE_HOME_MODULES = new Set<HomeDashboardModuleKey>([
   "cheap-rarity",
   "discount-watch",
   "signal-radar",
+  "old-high-rarity",
   "featured",
   "allocation",
   "top-sets",
@@ -220,6 +226,18 @@ function buildHomeMoversScopeHref(href: string, scope: "graded" | "grading"): st
   params.set("scope", scope);
   params.delete("view");
   return `/movers?${params.toString()}`;
+}
+
+function buildOldHighRarityHref(href: string): string {
+  const query = href.includes("?") ? href.slice(href.indexOf("?") + 1) : "";
+  const params = new URLSearchParams(query);
+  params.set("view", "old-high-rarity");
+  return `/movers/signal-radar?${params.toString()}`;
+}
+
+function isOnePieceOnlyHref(href: string): boolean {
+  const query = href.includes("?") ? href.slice(href.indexOf("?") + 1) : "";
+  return new URLSearchParams(query).get("game") === "one-piece";
 }
 
 function CollapsibleHomeModule({
@@ -403,6 +421,8 @@ export default function ProgressiveHomeOverviewInsights({
       }]
     : [];
   const listModules = new Set(settings.homeDashboardListModules);
+  const oldHighRarityHref = buildOldHighRarityHref(signalRadarHref);
+  const showOldHighRarity = !isOnePieceOnlyHref(signalRadarHref);
 
   function viewModeFor(moduleKey: HomeDashboardModuleKey): HomeWidgetViewMode {
     return listModules.has(moduleKey) ? "list" : "grid";
@@ -529,6 +549,14 @@ export default function ProgressiveHomeOverviewInsights({
     ) : (
       <InsightPanelSkeleton />
     ),
+    "old-high-rarity": showOldHighRarity ? (
+      <HomeOldHighRarityWidget
+        endpoint="/api/movers/signal-radar/older-high-rarity"
+        viewAllHref={oldHighRarityHref}
+        viewMode={viewModeFor("old-high-rarity")}
+        compact={compactModules.has("old-high-rarity")}
+      />
+    ) : null,
     featured: payload ? (
       payload.featuredCards.length > 0 ? (
         <HomeFeaturedCardsPanel cards={payload.featuredCards} viewAllHref={collectionHref} viewMode={viewModeFor("featured")} />
