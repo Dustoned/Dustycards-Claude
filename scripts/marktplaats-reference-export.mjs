@@ -42,6 +42,217 @@ function parseGradeLabel(label, explicitCompany = null, explicitGrade = null) {
   return { company, grade };
 }
 
+const MIN_CARD_MARKET_VALUE_EUR = 5;
+
+function normalizedGame(value) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+function normalizedQueryPart(value) {
+  return String(value ?? "")
+    .replace(/[\u2018\u2019]/g, "'")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function dailyRotation(items, count, exportedAt, salt) {
+  if (items.length <= count) return items;
+  const dayNumber = Math.floor(new Date(exportedAt).getTime() / 86_400_000);
+  let saltHash = 0;
+  for (const character of salt) {
+    saltHash = ((saltHash * 31) + character.charCodeAt(0)) >>> 0;
+  }
+  const start = ((dayNumber * count) + saltHash) % items.length;
+  return Array.from({ length: count }, (_, index) => items[(start + index) % items.length]);
+}
+
+function uniqueQueries(entries) {
+  const seen = new Set();
+  return entries.filter((entry) => {
+    const key = entry.query.toLowerCase();
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function takeDistinct(items, predicatesWithLimits) {
+  const selected = [];
+  const selectedKeys = new Set();
+  for (const [predicate, limit] of predicatesWithLimits) {
+    let taken = 0;
+    for (const item of items) {
+      const key = String(item.id ?? `${item.cardId}:${item.company}:${item.grade}`);
+      if (taken >= limit) break;
+      if (selectedKeys.has(key) || !predicate(item)) continue;
+      selectedKeys.add(key);
+      selected.push(item);
+      taken += 1;
+    }
+  }
+  return selected;
+}
+
+function buildSearchPlan({ cards, expansions, gradedPrices, exportedAt }) {
+  const eligibleCards = cards
+    .filter((card) =>
+      normalizedGame(card.game) === "pokemon" &&
+      card.marketValueEur >= MIN_CARD_MARKET_VALUE_EUR
+    )
+    .sort((left, right) =>
+      right.marketValueEur - left.marketValueEur || left.id.localeCompare(right.id)
+    );
+  const cardEntry = (card, priority) => {
+    const number = normalizedQueryPart(card.printedCardNumber ?? card.cardNumber);
+    const name = normalizedQueryPart(card.name);
+    const setCode = normalizedQueryPart(card.expansionCode);
+    return {
+      query: [name, number].filter(Boolean).join(" "),
+      fallbackQuery: [name, setCode, "engels"].filter(Boolean).join(" "),
+      purpose: "exact-card",
+      priority,
+      cardId: card.id,
+      marketValueEur: card.marketValueEur,
+      expected: {
+        name: card.name,
+        cardNumber: card.printedCardNumber ?? card.cardNumber,
+        expansionName: card.expansionName,
+        expansionCode: card.expansionCode,
+      },
+    };
+  };
+  const alwaysCardRows = takeDistinct(eligibleCards, [
+    [(card) => card.marketValueEur >= 500 && card.marketValueEur <= 10_000, 4],
+    [(card) => card.marketValueEur >= 50 && card.marketValueEur < 500, 4],
+    [(card) => card.marketValueEur >= 5 && card.marketValueEur < 50, 4],
+  ]);
+  const alwaysCardIds = new Set(alwaysCardRows.map((card) => card.id));
+  const alwaysCards = alwaysCardRows.map((card) => cardEntry(card, "daily-value-tier"));
+  const rotatingCards = dailyRotation(
+    eligibleCards.filter((card) => !alwaysCardIds.has(card.id)),
+    14,
+    exportedAt,
+    "raw-card-rotation"
+  ).map((card) => cardEntry(card, "rotating-catalog"));
+
+  const eligibleGraded = gradedPrices
+    .filter((price) =>
+      normalizedGame(price.game) === "pokemon" &&
+      price.company &&
+      price.grade &&
+      price.marketValueEur >= MIN_CARD_MARKET_VALUE_EUR
+    )
+    .sort((left, right) =>
+      right.marketValueEur - left.marketValueEur ||
+      `${left.cardId}:${left.company}:${left.grade}`.localeCompare(
+        `${right.cardId}:${right.company}:${right.grade}`
+      )
+    );
+  const gradedEntry = (price, priority) => ({
+    query: [
+      normalizedQueryPart(price.cardName),
+      normalizedQueryPart(price.printedCardNumber ?? price.cardNumber),
+      price.company,
+      price.grade,
+    ].filter(Boolean).join(" "),
+    fallbackQuery: [
+      normalizedQueryPart(price.cardName),
+      normalizedQueryPart(price.expansionCode),
+      price.company,
+      price.grade,
+    ].filter(Boolean).join(" "),
+    purpose: "exact-graded-card",
+    priority,
+    cardId: price.cardId,
+    company: price.company,
+    grade: price.grade,
+    marketValueEur: price.marketValueEur,
+    source: price.source,
+  });
+  const gradedKey = (price) => `${price.cardId}:${price.company}:${price.grade}`;
+  const alwaysGradedRows = takeDistinct(eligibleGraded, [
+    [(price) => price.marketValueEur >= 500 && price.marketValueEur <= 25_000, 2],
+    [(price) => price.marketValueEur >= 100 && price.marketValueEur < 500, 2],
+    [(price) => price.marketValueEur >= 5 && price.marketValueEur < 100, 2],
+  ]);
+  const alwaysGradedKeys = new Set(alwaysGradedRows.map(gradedKey));
+  const alwaysGraded = alwaysGradedRows.map((price) => gradedEntry(price, "daily-value-tier"));
+  const rotatingGraded = dailyRotation(
+    eligibleGraded.filter((price) => !alwaysGradedKeys.has(gradedKey(price))),
+    6,
+    exportedAt,
+    "graded-card-rotation"
+  ).map((price) => gradedEntry(price, "rotating-catalog"));
+
+  const eligibleExpansions = expansions
+    .filter((expansion) => normalizedGame(expansion.game) === "pokemon")
+    .sort((left, right) =>
+      right.marketValueEur - left.marketValueEur || left.id.localeCompare(right.id)
+    );
+  const expansionEntry = (expansion, priority) => ({
+    query: `${normalizedQueryPart(expansion.name)} complete set engels`,
+    fallbackQuery: `${normalizedQueryPart(expansion.name)} master set engels`,
+    purpose: "complete-expansion",
+    priority,
+    episodeId: expansion.id,
+    marketValueEur: expansion.marketValueEur,
+    expected: {
+      expansionName: expansion.name,
+      expansionCode: expansion.code,
+      totalCards: expansion.totalCards,
+    },
+  });
+  const alwaysExpansions = eligibleExpansions
+    .slice(0, 4)
+    .map((expansion) => expansionEntry(expansion, "daily-high-value"));
+  const rotatingExpansions = dailyRotation(
+    eligibleExpansions.slice(4),
+    4,
+    exportedAt,
+    "expansion-rotation"
+  ).map((expansion) => expansionEntry(expansion, "rotating-catalog"));
+
+  const discovery = [
+    "pokemon kaarten engels",
+    "pokemon kaart english",
+    "pokemon collectie engels",
+    "pokemon complete set engels",
+    "pokemon master set engels",
+    "pokemon PSA 10 engels",
+    "pokemon CGC 10 engels",
+    "pokemon BGS 10 engels",
+  ].map((query) => ({ query, purpose: "new-listing-discovery", sort: "DATE_DESC" }));
+
+  return {
+    generatedFor: exportedAt.slice(0, 10),
+    minimumCardMarketValueEur: MIN_CARD_MARKET_VALUE_EUR,
+    strategy: "layered-daily-rotation-v1",
+    limits: {
+      maxQueries: 54,
+      discoveryPagesPerQuery: 3,
+      targetedPagesPerQuery: 1,
+      maxDescriptionsToOpen: 180,
+      minimumDelayMsBetweenSearches: 1_500,
+    },
+    instructions: [
+      "Run every discovery query sorted newest-first and deduplicate candidates by Marktplaats m-id.",
+      "Run each primary targeted query once. Use fallbackQuery only when the primary returns no plausible result.",
+      "Open the full advert for every candidate before matching; title snippets never qualify as final evidence.",
+      "Reject Catawiki, sponsored external links, auctions without a fixed price, lots with unclear contents, and cards below the minimum market value.",
+      "Recheck every priorActiveDeals URL and record unavailable IDs in removedExternalIds.",
+    ],
+    discovery,
+    exactCards: uniqueQueries([...alwaysCards, ...rotatingCards]),
+    gradedCards: uniqueQueries([...alwaysGraded, ...rotatingGraded]),
+    completeExpansions: uniqueQueries([...alwaysExpansions, ...rotatingExpansions]),
+    eligibleCatalogCounts: {
+      rawCards: eligibleCards.length,
+      gradedPrices: eligibleGraded.length,
+      expansions: eligibleExpansions.length,
+    },
+  };
+}
+
 function main() {
   const options = parseArgs(process.argv);
   if (!fs.existsSync(options.database)) {
@@ -138,6 +349,7 @@ function main() {
         gp.label,
         gp.price,
         gp.fetched_at AS fetchedAt,
+        c.game,
         c.name AS cardName,
         c.card_number AS cardNumber,
         c.printed_card_number AS printedCardNumber,
@@ -166,6 +378,7 @@ function main() {
         gp.currency,
         gp.sample_size AS sampleSize,
         gp.fetched_at AS fetchedAt,
+        c.game,
         c.name AS cardName,
         c.card_number AS cardNumber,
         c.printed_card_number AS printedCardNumber,
@@ -202,6 +415,13 @@ function main() {
         `).all()
       : [];
 
+    const gradedPrices = [...cardMarketGraded, ...ebaySoldGraded];
+    const searchPlan = buildSearchPlan({
+      cards,
+      expansions: expansionTotals,
+      gradedPrices,
+      exportedAt,
+    });
     const output = {
       schemaVersion: 1,
       exportedAt,
@@ -214,7 +434,8 @@ function main() {
       },
       cards,
       expansions: expansionTotals,
-      gradedPrices: [...cardMarketGraded, ...ebaySoldGraded],
+      gradedPrices,
+      searchPlan,
       priorActiveDeals,
       reportContract: {
         path: "data/marktplaats/report-latest.json",
@@ -236,6 +457,11 @@ function main() {
       cards: cards.length,
       expansions: expansionTotals.length,
       gradedPrices: output.gradedPrices.length,
+      searchQueries:
+        searchPlan.discovery.length +
+        searchPlan.exactCards.length +
+        searchPlan.gradedCards.length +
+        searchPlan.completeExpansions.length,
       priorActiveDeals: priorActiveDeals.length,
     }));
   } finally {

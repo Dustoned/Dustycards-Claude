@@ -33,6 +33,14 @@ The generated reference is ignored by Git and contains:
 - all cards with the current CardMarket English/NM value;
 - the existing DustyCards expansion total;
 - CardMarket graded values and eBay sold graded medians with their source currency.
+- a bounded daily search plan with broad discovery queries, exact high-value card queries,
+  rotating catalogue coverage, graded targets and complete-expansion targets.
+
+The search plan only targets raw and graded cards with at least €5 current market value. It always
+checks the highest-value targets and rotates a second catalogue slice each day, so coverage expands
+over time without firing thousands of searches in one run. Broad searches are sorted newest-first;
+targeted searches use exact card names and numbers with a set-code fallback. Candidate URLs are
+deduplicated by their Marktplaats advert id before any full descriptions are opened.
 
 ## Report contract
 
