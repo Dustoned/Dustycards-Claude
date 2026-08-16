@@ -115,6 +115,13 @@ export interface SignalRadarProgressivePayload {
   newReleaseChases: ExpansionChaseRadarData | null;
 }
 
+export interface OlderHighRarityValuePayload {
+  signals: ExternalCardSignal[];
+  cardQuickActions: CardQuickActionMap;
+  total: number;
+  generatedAt: string;
+}
+
 export function selectInitialSignalRadarCards(
   signals: readonly ExternalCardSignal[],
   excludedCardIds: ReadonlySet<string>,

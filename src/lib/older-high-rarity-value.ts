@@ -7,7 +7,7 @@ export const OLDER_HIGH_RARITY_MAX_PRICE_EUR = 600;
 export const OLDER_HIGH_RARITY_MAX_SET_COHORT = 20;
 export const OLDER_HIGH_RARITY_MIN_HISTORY_POINTS = 5;
 
-const STRICT_OLDER_HIGH_RARITIES = new Set([
+export const STRICT_OLDER_HIGH_RARITIES = [
   "Rare Ultra",
   "Ultra Rare",
   "Secret Rare",
@@ -30,7 +30,9 @@ const STRICT_OLDER_HIGH_RARITIES = new Set([
   "Black White Rare",
   "Mega Hyper Rare",
   "Treasure Rare",
-]);
+] as const;
+
+const STRICT_OLDER_HIGH_RARITY_SET = new Set<string>(STRICT_OLDER_HIGH_RARITIES);
 
 export interface OlderHighRarityValueInput {
   game: string;
@@ -52,7 +54,7 @@ export function isStrictOlderHighRarity(
   rarity: string | null | undefined,
 ): boolean {
   const normalized = normalizeRarityLabel(rarity);
-  return normalized != null && STRICT_OLDER_HIGH_RARITIES.has(normalized);
+  return normalized != null && STRICT_OLDER_HIGH_RARITY_SET.has(normalized);
 }
 
 export function getOlderHighRarityValueProfile(

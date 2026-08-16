@@ -80,6 +80,7 @@ export default async function SignalRadarPage({
   const progressiveHref = `/api/movers/signal-radar/feed${
     progressiveQuery.size ? `?${progressiveQuery.toString()}` : ""
   }`;
+  const olderHighRarityHref = "/api/movers/signal-radar/older-high-rarity";
   const chaseQuery = new URLSearchParams(progressiveQuery);
   if (set) chaseQuery.set("set", set);
   const chaseWatchHref = `/api/movers/signal-radar/chase-watch${
@@ -135,6 +136,7 @@ export default async function SignalRadarPage({
           newReleaseChases={null}
           cardQuickActions={{}}
           progressiveHref={progressiveHref}
+          olderHighRarityHref={olderHighRarityHref}
           chaseWatchHref={chaseWatchHref}
           manualChaseRefreshHref={user.role === "admin" ? chaseWatchHref : null}
           totalSignalCount={radarData.signals.length}

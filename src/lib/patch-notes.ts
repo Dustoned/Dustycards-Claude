@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.75",
+    releasedAt: "August 16, 2026",
+    title: "Complete old high-rarity discovery",
+    summary: "The dedicated Signal Radar lane no longer inherits the small general Radar cap.",
+    tone: "fixed",
+    highlights: [
+      "Opening Old high-rarity value now lazily loads every currently qualifying card.",
+      "The normal Radar feed stays compact and fast because the larger cohort is requested only on demand.",
+      "The count updates to the complete live cohort after loading.",
+    ],
+  },
+  {
     version: "3.12.74",
     releasedAt: "August 16, 2026",
     title: "Older high-rarity cards up to EUR 600",

@@ -76,6 +76,7 @@ import {
   getChaseWatchRevalidateDelayMs,
   MIN_CHASE_WATCH_REVALIDATE_DELAY_MS,
   scheduleSignalRadarFeedStart,
+  type OlderHighRarityValuePayload,
   type SignalRadarChaseWatchPayload,
   type SignalRadarProgressivePayload,
 } from "@/lib/signal-radar-progressive";
@@ -103,6 +104,7 @@ interface Props {
   newReleaseChases?: ExpansionChaseRadarData | null;
   cardQuickActions: CardQuickActionMap;
   progressiveHref?: string | null;
+  olderHighRarityHref?: string | null;
   chaseWatchHref?: string | null;
   manualChaseRefreshHref?: string | null;
   totalSignalCount?: number;
@@ -1438,6 +1440,7 @@ export default function ExternalSignalBrowser({
   newReleaseChases: initialNewReleaseChases,
   cardQuickActions: initialCardQuickActions,
   progressiveHref = null,
+  olderHighRarityHref = null,
   chaseWatchHref = null,
   manualChaseRefreshHref = null,
   totalSignalCount = initialSignals.length,
@@ -1454,6 +1457,14 @@ export default function ExternalSignalBrowser({
     progressiveHref ? "loading" : "ready"
   );
   const [progressiveAttempt, setProgressiveAttempt] = useState(0);
+  const [olderHighRaritySignals, setOlderHighRaritySignals] = useState<
+    ExternalCardSignal[] | null
+  >(null);
+  const [olderHighRarityTotal, setOlderHighRarityTotal] = useState<number | null>(null);
+  const [olderHighRarityState, setOlderHighRarityState] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [olderHighRarityAttempt, setOlderHighRarityAttempt] = useState(0);
   const [search, setSearch] = useState("");
   const [confidence, setConfidence] = useState<ConfidenceFilter>("all");
   const [origin, setOrigin] = useState<OriginFilter>("all");
@@ -1472,6 +1483,11 @@ export default function ExternalSignalBrowser({
     setChaseState("loading");
     setChaseAttempt((current) => current + 1);
   }, []);
+  const loadOlderHighRaritySignals = useCallback(() => {
+    if (!olderHighRarityHref || olderHighRaritySignals) return;
+    setOlderHighRarityState("loading");
+    setOlderHighRarityAttempt((current) => current + 1);
+  }, [olderHighRarityHref, olderHighRaritySignals]);
 
   useEffect(() => {
     const storedSingles = readStoredExpandedState(SINGLES_EXPANDED_STORAGE_KEY);
@@ -1550,6 +1566,36 @@ export default function ExternalSignalBrowser({
       cancelLoad();
     };
   }, [progressiveAttempt, progressiveHref]);
+  useEffect(() => {
+    if (!olderHighRarityHref || olderHighRarityAttempt === 0) return;
+    const href = olderHighRarityHref;
+    const controller = new AbortController();
+
+    async function loadFullOlderHighRarityCohort() {
+      try {
+        const response = await fetch(href, {
+          cache: "default",
+          credentials: "same-origin",
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error(`Request failed (${response.status})`);
+        const payload = (await response.json()) as OlderHighRarityValuePayload;
+        if (controller.signal.aborted) return;
+        setOlderHighRaritySignals(payload.signals);
+        setOlderHighRarityTotal(payload.total);
+        setCardQuickActions((current) => ({
+          ...payload.cardQuickActions,
+          ...current,
+        }));
+        setOlderHighRarityState("ready");
+      } catch {
+        if (!controller.signal.aborted) setOlderHighRarityState("error");
+      }
+    }
+
+    void loadFullOlderHighRarityCohort();
+    return () => controller.abort();
+  }, [olderHighRarityAttempt, olderHighRarityHref]);
   useEffect(() => {
     if (!chaseWatchHref || newReleaseChases) return;
     const href = chaseWatchHref;
@@ -1637,26 +1683,33 @@ export default function ExternalSignalBrowser({
     () => new Set(newReleaseChases?.cards.map((card) => card.cardId) ?? []),
     [newReleaseChases]
   );
+  const activeSignalCohort =
+    origin === "older-high-rarity" && olderHighRaritySignals
+      ? olderHighRaritySignals
+      : signals;
   const releaseYears = useMemo(
     () =>
       Array.from(
         new Set(
-          signals
+          activeSignalCohort
             .map((signal) => getReleaseYear(signal.episodeReleaseDate))
             .filter((year): year is string => Boolean(year))
         )
       ).sort((left, right) => right.localeCompare(left)),
-    [signals]
+    [activeSignalCohort]
   );
   const activeReleaseYear = releaseYears.includes(releaseYear) ? releaseYear : "all";
   const olderHighRarityCount = useMemo(
-    () => signals.filter(isOlderHighRarityValueSignal).length,
-    [signals]
+    () =>
+      olderHighRarityTotal ??
+      olderHighRaritySignals?.length ??
+      signals.filter(isOlderHighRarityValueSignal).length,
+    [olderHighRaritySignals, olderHighRarityTotal, signals]
   );
 
   const visibleSignals = useMemo(() => {
     const query = deferredSearch.trim();
-    return signals
+    return activeSignalCohort
       .filter((signal) => {
         if (newReleaseCardIds.has(signal.cardId)) return false;
         if (confidence !== "all" && signal.confidence.toLowerCase() !== confidence) return false;
@@ -1770,7 +1823,7 @@ export default function ExternalSignalBrowser({
     newReleaseCardIds,
     origin,
     progressiveState,
-    signals,
+    activeSignalCohort,
     sortKey,
   ]);
   const chaseSectionOwnsEverySignal =
@@ -1875,7 +1928,9 @@ export default function ExternalSignalBrowser({
         <button
           type="button"
           onClick={() => {
-            setOrigin(origin === "older-high-rarity" ? "all" : "older-high-rarity");
+            const nextOrigin = origin === "older-high-rarity" ? "all" : "older-high-rarity";
+            setOrigin(nextOrigin);
+            if (nextOrigin === "older-high-rarity") loadOlderHighRaritySignals();
             setMarketMode("raw");
             setReleaseYear("all");
             setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
@@ -1900,7 +1955,11 @@ export default function ExternalSignalBrowser({
             </span>
           </span>
           <span className="shrink-0 rounded-full border border-amber-300/18 bg-black/20 px-2.5 py-1 text-[10px] font-black tabular-nums text-amber-100/78">
-            {olderHighRarityCount}
+            {olderHighRarityState === "loading" && olderHighRarityTotal == null
+              ? "Loading"
+              : olderHighRarityState === "error" && olderHighRarityTotal == null
+                ? "Retry"
+                : olderHighRarityCount}
           </span>
         </button>
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto_auto] lg:items-center">
@@ -1979,7 +2038,9 @@ export default function ExternalSignalBrowser({
             <select
               value={origin}
               onChange={(event) => {
-                setOrigin(event.target.value as OriginFilter);
+                const nextOrigin = event.target.value as OriginFilter;
+                setOrigin(nextOrigin);
+                if (nextOrigin === "older-high-rarity") loadOlderHighRaritySignals();
                 setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
               }}
               className="h-11 min-w-0 bg-transparent pr-2 text-xs font-semibold text-white/62 outline-none [color-scheme:dark]"

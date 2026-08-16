@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.75",
+    releasedAt: "August 16, 2026",
+    title: "The complete older high-rarity discovery lane",
+    summary: "Signal Radar now loads the full qualifying old high-rarity cohort instead of only the cards that survived the capped general Radar ranking.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "No more hidden candidates",
+        highlights: [
+          "The dedicated filter performs its own complete database discovery when opened.",
+          "General Radar limits no longer reduce this lane to a small incidental subset.",
+          "The lane remains lazy-loaded so normal Signal Radar and Home performance stay fast.",
+          "Search, release-year filters, sorting, card actions and Show more work across the complete loaded cohort.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.74",
     releasedAt: "August 16, 2026",
     title: "Older high-rarity value reaches the premium tier",
