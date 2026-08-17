@@ -91,6 +91,23 @@ describe("normalizeMarktplaatsReport", () => {
     });
   });
 
+  it("accepts an uncertain review above market without presenting it as a deal", () => {
+    const normalized = normalizeMarktplaatsReport(
+      report(
+        reportDeal({
+          listingPriceEur: 160,
+          language: null,
+          matchStatus: "review",
+        })
+      )
+    );
+    expect(normalized.deals[0]).toMatchObject({
+      matchStatus: "review",
+      savingsEur: -10,
+      discountPercent: -6.7,
+    });
+  });
+
   it("applies exact-match safeguards to shortlist entries too", () => {
     expect(() =>
       normalizeMarktplaatsReport(

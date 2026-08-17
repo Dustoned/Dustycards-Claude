@@ -193,7 +193,7 @@ function normalizeDeal(value: unknown, index: number): MarktplaatsReportDeal {
 
   const listingPriceEur = Number(finiteNumber(value.listingPriceEur, "deal.listingPriceEur", 0.01).toFixed(2));
   const marketValueEur = Number(finiteNumber(value.marketValueEur, "deal.marketValueEur", 0.01).toFixed(2));
-  if (matchStatus !== "shortlist" && listingPriceEur >= marketValueEur) {
+  if (matchStatus === "matched" && listingPriceEur >= marketValueEur) {
     throw new MarktplaatsReportError(`deals[${index}] is not below market value.`);
   }
   const savingsEur = Number((marketValueEur - listingPriceEur).toFixed(2));
