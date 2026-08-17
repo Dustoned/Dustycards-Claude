@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const { dbMock, priceMock } = vi.hoisted(() => ({
+const { dbMock, exchangeMock, priceMock } = vi.hoisted(() => ({
   dbMock: {
     card: {
       findMany: vi.fn(),
@@ -10,10 +10,20 @@ const { dbMock, priceMock } = vi.hoisted(() => ({
   priceMock: {
     loadLatestSafeEnglishNmPrices: vi.fn(),
   },
+  exchangeMock: {
+    getUsdToEurRate: vi.fn(),
+  },
 }));
 
 vi.mock("@/lib/db", () => ({ db: dbMock }));
 vi.mock("@/lib/card-market-history", () => priceMock);
+vi.mock("@/lib/exchange-rates", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/exchange-rates")>();
+  return {
+    ...actual,
+    getUsdToEurRate: exchangeMock.getUsdToEurRate,
+  };
+});
 
 import {
   clearOlderHighRarityValueSignalCache,
@@ -24,6 +34,13 @@ describe("complete old high-rarity value discovery", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     clearOlderHighRarityValueSignalCache();
+    exchangeMock.getUsdToEurRate.mockResolvedValue({
+      from: "USD",
+      to: "EUR",
+      rate: 0.86,
+      date: "2026-08-16",
+      source: "frankfurter",
+    });
   });
 
   it("returns the complete eligible cohort without the general Radar cap", async () => {
@@ -54,7 +71,15 @@ describe("complete old high-rarity value discovery", () => {
       }))
     );
     priceMock.loadLatestSafeEnglishNmPrices.mockResolvedValue(
-      new Map(cards.map((card, index) => [card.id, { value: 20 + index }]))
+      new Map(
+        cards.map((card, index) => [
+          card.id,
+          {
+            value: 20 + index,
+            row: { tcp_market: 30 + index },
+          },
+        ])
+      )
     );
 
     const result = await getOlderHighRarityValueSignals(
@@ -66,5 +91,12 @@ describe("complete old high-rarity value discovery", () => {
     expect(result.map((signal) => signal.rank)).toEqual(
       Array.from({ length: 120 }, (_, index) => index + 1)
     );
+    expect(result[0]?.olderHighRarityPrices).toEqual({
+      cardmarketEur: 20,
+      tcgplayerUsd: 30,
+      tcgplayerEur: 25.8,
+      usdToEurRate: 0.86,
+      usdToEurRateDate: "2026-08-16",
+    });
   });
 });

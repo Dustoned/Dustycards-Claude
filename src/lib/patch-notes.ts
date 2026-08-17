@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.81",
+    releasedAt: "August 17, 2026",
+    title: "CardMarket and TCGPlayer switch for Old High-Rarity",
+    summary: "Old High-Rarity has a page-local pricing switch and a rebuilt responsive filter panel.",
+    tone: "improved",
+    highlights: [
+      "CardMarket uses the English-NM euro quote; TCGPlayer uses the USD market quote with an approximate euro reference.",
+      "Cards without a usable quote in the selected market are left out instead of showing a misleading value.",
+      "The market, minimum-age and popular-Pokémon controls stay readable and tappable on mobile, tablet and desktop.",
+    ],
+  },
+  {
     version: "3.12.80",
     releasedAt: "August 17, 2026",
     title: "Action Center opens real card details",

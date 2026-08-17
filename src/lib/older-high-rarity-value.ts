@@ -50,6 +50,59 @@ export interface OlderHighRarityValueProfile {
   historyPoints: number;
 }
 
+export type OlderHighRarityPriceSource = "cardmarket" | "tcgplayer";
+
+export interface OlderHighRarityMarketPrices {
+  cardmarketEur: number | null;
+  tcgplayerUsd: number | null;
+  tcgplayerEur: number | null;
+  usdToEurRate: number | null;
+  usdToEurRateDate: string | null;
+}
+
+export interface OlderHighRarityDisplayPrice {
+  value: number;
+  currency: "EUR" | "USD";
+  convertedEur: number | null;
+}
+
+export function getOlderHighRarityDisplayPrice(
+  prices: OlderHighRarityMarketPrices | null | undefined,
+  source: OlderHighRarityPriceSource,
+): OlderHighRarityDisplayPrice | null {
+  if (source === "tcgplayer") {
+    if (
+      prices?.tcgplayerUsd == null ||
+      !Number.isFinite(prices.tcgplayerUsd) ||
+      prices.tcgplayerUsd <= 0 ||
+      prices.tcgplayerUsd === 9001
+    ) {
+      return null;
+    }
+
+    return {
+      value: prices.tcgplayerUsd,
+      currency: "USD",
+      convertedEur: prices.tcgplayerEur,
+    };
+  }
+
+  if (
+    prices?.cardmarketEur == null ||
+    !Number.isFinite(prices.cardmarketEur) ||
+    prices.cardmarketEur <= 0 ||
+    prices.cardmarketEur === 9001
+  ) {
+    return null;
+  }
+
+  return {
+    value: prices.cardmarketEur,
+    currency: "EUR",
+    convertedEur: prices.cardmarketEur,
+  };
+}
+
 export function isStrictOlderHighRarity(
   rarity: string | null | undefined,
 ): boolean {

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getOlderHighRarityDisplayPrice,
   getOlderHighRarityValueProfile,
   isOlderHighRarityValueSignal,
   isOlderHighRarityValueSignalAtLeastAge,
@@ -85,5 +86,41 @@ describe("older high-rarity value discovery", () => {
         5,
       ),
     ).toBe(false);
+  });
+
+  it("switches between CardMarket EUR and TCGPlayer USD without losing the conversion", () => {
+    const prices = {
+      cardmarketEur: 85,
+      tcgplayerUsd: 92,
+      tcgplayerEur: 79.12,
+      usdToEurRate: 0.86,
+      usdToEurRateDate: "2026-08-17",
+    };
+
+    expect(getOlderHighRarityDisplayPrice(prices, "cardmarket")).toEqual({
+      value: 85,
+      currency: "EUR",
+      convertedEur: 85,
+    });
+    expect(getOlderHighRarityDisplayPrice(prices, "tcgplayer")).toEqual({
+      value: 92,
+      currency: "USD",
+      convertedEur: 79.12,
+    });
+  });
+
+  it("does not show invalid or missing TCGPlayer quotes", () => {
+    expect(
+      getOlderHighRarityDisplayPrice(
+        {
+          cardmarketEur: 85,
+          tcgplayerUsd: 9001,
+          tcgplayerEur: null,
+          usdToEurRate: 0.86,
+          usdToEurRateDate: "2026-08-17",
+        },
+        "tcgplayer",
+      ),
+    ).toBeNull();
   });
 });

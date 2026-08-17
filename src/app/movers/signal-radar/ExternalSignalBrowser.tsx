@@ -65,8 +65,10 @@ import type {
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
 import {
+  getOlderHighRarityDisplayPrice,
   isOlderHighRarityValueSignal,
   isOlderHighRarityValueSignalAtLeastAge,
+  type OlderHighRarityPriceSource,
 } from "@/lib/older-high-rarity-value";
 import {
   matchesPopularPokemonFilter,
@@ -719,6 +721,13 @@ function CompactSignalCard({
   const releaseStabilization = scenario?.drivers.includes("post-release stabilization") ?? false;
   const primaryCatalyst = signal.catalysts?.[0];
   const eventLinked = signal.sourceMode === "event" || signal.sourceMode === "hybrid";
+  const olderHighRarityPriceLabel = isOlderHighRarityValueSignal(signal)
+    ? signal.currency === "USD"
+      ? signal.olderHighRarityPrices?.tcgplayerEur != null
+        ? `TCGPlayer · ≈ ${formatCurrency(signal.olderHighRarityPrices.tcgplayerEur, "EUR")}`
+        : "TCGPlayer · USD"
+      : "CardMarket · EN NM"
+    : null;
   const primaryReason = [
     ...(eventLinked && primaryCatalyst ? [primaryCatalyst.headline] : []),
     ...(ebayDemand?.status === "ready" && ebayDemand.scoreAdjustment !== 0 && ebayDemand.reason
@@ -814,8 +823,14 @@ function CompactSignalCard({
               ) : null}
             </>
           }
-          priceLabel={marketMode}
-          priceValue={scenario ? formatCurrency(scenario.currentPrice, scenario.currency) : formatCurrency(signal.currentPrice, signal.currency)}
+          priceLabel={olderHighRarityPriceLabel ?? marketMode}
+          priceValue={
+            isOlderHighRarityValueSignal(signal)
+              ? formatCurrency(signal.currentPrice, signal.currency)
+              : scenario
+                ? formatCurrency(scenario.currentPrice, scenario.currency)
+                : formatCurrency(signal.currentPrice, signal.currency)
+          }
           title={signal.name}
           meta={
             <span className="truncate">
@@ -834,7 +849,10 @@ function CompactSignalCard({
               Score {effectiveScore}
             </strong>
             <span className="hidden sm:inline">
-              {scenario && base180 != null && scenarioChangePercent != null
+              {!isOlderHighRarityValueSignal(signal) &&
+              scenario &&
+              base180 != null &&
+              scenarioChangePercent != null
                 ? ` · ${formatCurrency(scenario.currentPrice, scenario.currency)} → ${formatCurrency(base180, scenario.currency)} (${scenarioChangePercent >= 0 ? "+" : ""}${scenarioChangePercent.toFixed(0)}%)`
                 : ""}
             </span>
@@ -1475,6 +1493,8 @@ export default function ExternalSignalBrowser({
   const [sortKey, setSortKey] = useState<SignalRadarSortKey>("opportunity");
   const [releaseYear, setReleaseYear] = useState("all");
   const [minimumOlderAgeYears, setMinimumOlderAgeYears] = useState(5);
+  const [olderHighRarityPriceSource, setOlderHighRarityPriceSource] =
+    useState<OlderHighRarityPriceSource>("cardmarket");
   const [popularPokemonFilter, setPopularPokemonFilter] =
     useState<PopularPokemonFilter>("all");
   const [visibleLimit, setVisibleLimit] = useState(INITIAL_VISIBLE_SIGNALS);
@@ -1719,6 +1739,32 @@ export default function ExternalSignalBrowser({
   const visibleSignals = useMemo(() => {
     const query = deferredSearch.trim();
     return activeSignalCohort
+      .flatMap((signal) => {
+        if (origin !== "older-high-rarity") return [signal];
+        const displayPrice =
+          getOlderHighRarityDisplayPrice(
+            signal.olderHighRarityPrices,
+            olderHighRarityPriceSource,
+          ) ??
+          (olderHighRarityPriceSource === "cardmarket" &&
+          signal.currentPrice != null &&
+          signal.currentPrice > 0
+            ? {
+                value: signal.currentPrice,
+                currency: signal.currency,
+                convertedEur:
+                  signal.currency === "EUR" ? signal.currentPrice : null,
+              }
+            : null);
+        if (!displayPrice) return [];
+        return [
+          {
+            ...signal,
+            currentPrice: displayPrice.value,
+            currency: displayPrice.currency,
+          },
+        ];
+      })
       .filter((signal) => {
         if (newReleaseCardIds.has(signal.cardId)) return false;
         if (confidence !== "all" && signal.confidence.toLowerCase() !== confidence) return false;
@@ -1774,13 +1820,17 @@ export default function ExternalSignalBrowser({
       .sort((left, right) => {
         if (activeSortKey === "price_asc" || activeSortKey === "price_desc") {
           const leftPrice =
-            (marketMode === "graded"
-              ? left.marketIntelligence?.gradedScenario?.currentPrice
-              : left.marketIntelligence?.rawScenario?.currentPrice) ?? left.currentPrice;
+            origin === "older-high-rarity"
+              ? left.currentPrice
+              : (marketMode === "graded"
+                  ? left.marketIntelligence?.gradedScenario?.currentPrice
+                  : left.marketIntelligence?.rawScenario?.currentPrice) ?? left.currentPrice;
           const rightPrice =
-            (marketMode === "graded"
-              ? right.marketIntelligence?.gradedScenario?.currentPrice
-              : right.marketIntelligence?.rawScenario?.currentPrice) ?? right.currentPrice;
+            origin === "older-high-rarity"
+              ? right.currentPrice
+              : (marketMode === "graded"
+                  ? right.marketIntelligence?.gradedScenario?.currentPrice
+                  : right.marketIntelligence?.rawScenario?.currentPrice) ?? right.currentPrice;
           if (leftPrice == null && rightPrice == null) return left.rank - right.rank;
           if (leftPrice == null) return 1;
           if (rightPrice == null) return -1;
@@ -1854,6 +1904,7 @@ export default function ExternalSignalBrowser({
     marketMode,
     minimumOlderAgeYears,
     newReleaseCardIds,
+    olderHighRarityPriceSource,
     origin,
     popularPokemonFilter,
     progressiveState,
@@ -1998,64 +2049,106 @@ export default function ExternalSignalBrowser({
           </span>
         </button>
         {origin === "older-high-rarity" ? (
-          <div className="mb-2.5 grid gap-2 rounded-xl border border-amber-300/16 bg-amber-300/[0.035] px-3 py-2.5 sm:px-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-amber-100/62">
-                Minimum card age
-              </p>
-              <p className="mt-0.5 text-[10px] text-white/38">
-                Show cards released at least this many years ago.
-              </p>
-            </div>
-            <div className="flex min-w-0 flex-wrap items-center gap-2 lg:justify-end">
-              <div
-                role="group"
-                aria-label="Minimum card age"
-                className="flex min-w-0 flex-1 gap-1 overflow-x-auto rounded-lg border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:flex-none"
-              >
-                {OLDER_HIGH_RARITY_AGE_OPTIONS.map((ageYears) => (
-                  <button
-                    key={ageYears}
-                    type="button"
-                    onClick={() => {
-                      setMinimumOlderAgeYears(ageYears);
+          <div className="mb-2.5 rounded-xl border border-amber-300/16 bg-amber-300/[0.035] p-2.5 sm:p-3">
+            <div className="grid min-w-0 gap-2.5 lg:grid-cols-[auto_minmax(21rem,1fr)_minmax(12rem,15rem)_auto] lg:items-end">
+              <fieldset className="min-w-0">
+                <legend className="mb-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100/58">
+                  Pricing
+                </legend>
+                <div
+                  role="group"
+                  aria-label="Old high-rarity price source"
+                  className="grid min-w-0 grid-cols-2 rounded-lg border border-amber-300/14 bg-black/24 p-1"
+                >
+                  {([
+                    ["cardmarket", "CM Europe"],
+                    ["tcgplayer", "TCP US"],
+                  ] as const).map(([source, label]) => (
+                    <button
+                      key={source}
+                      type="button"
+                      onClick={() => {
+                        setOlderHighRarityPriceSource(source);
+                        setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+                      }}
+                      aria-pressed={olderHighRarityPriceSource === source}
+                      className={cx(
+                        "min-h-9 rounded-md px-3 text-[11px] font-black transition",
+                        olderHighRarityPriceSource === source
+                          ? "bg-amber-300 text-amber-950 shadow-sm"
+                          : "text-white/48 hover:bg-white/[0.06] hover:text-white",
+                      )}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <fieldset className="min-w-0">
+                <legend className="mb-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100/58">
+                  Minimum age
+                </legend>
+                <div
+                  role="group"
+                  aria-label="Minimum card age"
+                  className="grid min-w-0 grid-cols-5 gap-1 rounded-lg border border-amber-300/14 bg-black/24 p-1"
+                >
+                  {OLDER_HIGH_RARITY_AGE_OPTIONS.map((ageYears) => (
+                    <button
+                      key={ageYears}
+                      type="button"
+                      onClick={() => {
+                        setMinimumOlderAgeYears(ageYears);
+                        setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+                      }}
+                      aria-pressed={minimumOlderAgeYears === ageYears}
+                      className={cx(
+                        "min-h-9 min-w-0 rounded-md px-1 text-[11px] font-black tabular-nums transition sm:px-2",
+                        minimumOlderAgeYears === ageYears
+                          ? "bg-amber-300 text-amber-950 shadow-sm"
+                          : "text-white/48 hover:bg-white/[0.06] hover:text-white"
+                      )}
+                    >
+                      <span>{ageYears}+</span>
+                      <span className="hidden xl:inline"> years</span>
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
+              <label className="min-w-0">
+                <span className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.14em] text-amber-100/58">
+                  Pokémon
+                </span>
+                <span className="relative flex min-h-11 min-w-0 items-center gap-2 rounded-lg border border-amber-300/14 bg-black/24 pl-3 pr-9 transition hover:border-amber-300/24 hover:bg-black/32 focus-within:border-amber-300/30 focus-within:ring-2 focus-within:ring-amber-300/10">
+                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-200/65" />
+                  <span className="sr-only">Filter by popular Pokémon</span>
+                  <select
+                    value={popularPokemonFilter}
+                    onChange={(event) => {
+                      setPopularPokemonFilter(event.target.value as PopularPokemonFilter);
                       setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
                     }}
-                    aria-pressed={minimumOlderAgeYears === ageYears}
-                    className={cx(
-                      "min-h-9 shrink-0 rounded-md px-2.5 text-[11px] font-black tabular-nums transition sm:px-3",
-                      minimumOlderAgeYears === ageYears
-                        ? "bg-amber-300 text-amber-950 shadow-sm"
-                        : "text-white/48 hover:bg-white/[0.06] hover:text-white"
-                    )}
+                    className="h-10 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-[11px] font-bold text-amber-50/76 outline-none [color-scheme:dark]"
                   >
-                    {ageYears}+ years
-                  </button>
-                ))}
-              </div>
-              <label className="relative flex min-h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-amber-300/14 bg-black/20 pl-3 pr-9 transition hover:border-amber-300/24 hover:bg-black/28 sm:min-w-[13rem] sm:flex-none">
-                <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-200/65" />
-                <span className="sr-only">Filter by popular Pokémon</span>
-                <select
-                  value={popularPokemonFilter}
-                  onChange={(event) => {
-                    setPopularPokemonFilter(event.target.value as PopularPokemonFilter);
-                    setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
-                  }}
-                  className="h-10 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-[11px] font-bold text-amber-50/76 outline-none [color-scheme:dark]"
-                >
-                  {POPULAR_POKEMON_FILTER_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-amber-100/40" />
+                    {POPULAR_POKEMON_FILTER_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-amber-100/40" />
+                </span>
               </label>
-              <span className="shrink-0 rounded-full border border-amber-300/14 bg-black/20 px-2.5 py-1 text-[10px] font-bold tabular-nums text-amber-100/60">
+
+              <span className="inline-flex min-h-11 items-center justify-center self-end rounded-lg border border-amber-300/14 bg-black/24 px-3 text-[10px] font-bold tabular-nums text-amber-100/60">
                 {visibleSignals.length} matches
               </span>
             </div>
+            <p className="mt-2 text-[9px] leading-4 text-white/34 sm:text-[10px]">
+              TCGPlayer stays in USD; its converted euro reference is shown on each card. This switch only affects this Radar view.
+            </p>
           </div>
         ) : null}
         <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto_auto] lg:items-center">

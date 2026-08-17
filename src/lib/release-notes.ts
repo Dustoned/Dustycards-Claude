@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.81",
+    releasedAt: "August 17, 2026",
+    title: "Old High-Rarity pricing that fits every screen",
+    summary: "The older chase-card lane can now switch between CardMarket and TCGPlayer without its controls falling apart on mobile.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Two useful market views",
+        highlights: [
+          "Switch this Radar view between CardMarket English-NM prices in euros and TCGPlayer market prices in dollars.",
+          "TCGPlayer cards also show an approximate euro conversion, while the setting remains local to this Radar page.",
+          "Pricing, age and popular-Pokémon filters now form one responsive control panel with larger touch targets and no overflowing select boxes.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.80",
     releasedAt: "August 17, 2026",
     title: "Action Center links that go somewhere",

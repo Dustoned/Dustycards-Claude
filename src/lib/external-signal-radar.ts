@@ -4,7 +4,10 @@ import type { ExternalCardForecastSummary } from "@/lib/external-signal-forecast
 import type { ExternalEbayDemandIntelligence } from "@/lib/ebay-demand-signal";
 import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 import type { PostLaunchReratingMetrics } from "@/lib/post-launch-rerating";
-import type { OlderHighRarityValueProfile } from "@/lib/older-high-rarity-value";
+import type {
+  OlderHighRarityMarketPrices,
+  OlderHighRarityValueProfile,
+} from "@/lib/older-high-rarity-value";
 import { db } from "@/lib/db";
 import {
   ALL_GAMES,
@@ -223,6 +226,7 @@ export interface ExternalCardSignal {
   hypeScore?: number;
   riskScore?: number;
   olderHighRarityValue?: OlderHighRarityValueProfile | null;
+  olderHighRarityPrices?: OlderHighRarityMarketPrices | null;
   marketIntelligence?: ExternalMarketIntelligence;
 }
 

@@ -2,6 +2,7 @@ import "server-only";
 
 import { loadLatestSafeEnglishNmPrices } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
+import { convertUsdToEur, getUsdToEurRate } from "@/lib/exchange-rates";
 import { getExternalEntityKey } from "@/lib/external-event-candidates";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
 import { getPressureTierForScore } from "@/lib/external-signal-radar";
@@ -118,21 +119,28 @@ async function loadOlderHighRarityValueSignalsUncached(
     );
   }
 
-  const latestPrices = await loadLatestSafeEnglishNmPrices(
-    cards.map((card) => ({
-      id: card.id,
-      game: card.game,
-      episodeId: card.episode_id,
-      name: card.name,
-      cardNumber: card.card_number,
-      printedCardNumber: card.printed_card_number,
-      cardmarketId: card.cardmarket_id,
-      cardmarketUrl: card.cardmarket_url,
-    }))
-  );
+  const [latestPrices, usdToEurRate] = await Promise.all([
+    loadLatestSafeEnglishNmPrices(
+      cards.map((card) => ({
+        id: card.id,
+        game: card.game,
+        episodeId: card.episode_id,
+        name: card.name,
+        cardNumber: card.card_number,
+        printedCardNumber: card.printed_card_number,
+        cardmarketId: card.cardmarket_id,
+        cardmarketUrl: card.cardmarket_url,
+      }))
+    ),
+    getUsdToEurRate().catch(() => null),
+  ]);
 
   const candidates = cards.flatMap((card) => {
-    const currentPrice = latestPrices.get(card.id)?.value ?? null;
+    const latestPrice = latestPrices.get(card.id) ?? null;
+    const currentPrice = latestPrice?.value ?? null;
+    const tcgplayerUsd = latestPrice?.row?.tcp_market ?? null;
+    const tcgplayerEur =
+      tcgplayerUsd == null ? null : convertUsdToEur(tcgplayerUsd, usdToEurRate);
     const releaseDate = card.episode.release_date;
     const normalizedRarity = normalizeRarityLabel(card.rarity);
     if (currentPrice == null || !releaseDate || !normalizedRarity) return [];
@@ -163,6 +171,13 @@ async function loadOlderHighRarityValueSignalsUncached(
         entityKey: getExternalEntityKey("pokemon", card.name),
         sourceMode: "structural" as const,
         olderHighRarityValue: profile,
+        olderHighRarityPrices: {
+          cardmarketEur: currentPrice,
+          tcgplayerUsd,
+          tcgplayerEur,
+          usdToEurRate: usdToEurRate?.rate ?? null,
+          usdToEurRateDate: usdToEurRate?.date ?? null,
+        },
         game: "pokemon" as const,
         name: card.name,
         imageUrl: card.image_url,
