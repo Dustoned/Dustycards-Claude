@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useMemo, useState } from "react";
 import {
   ExternalLink,
   ImageOff,
@@ -8,26 +11,72 @@ import {
   ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
-import { db } from "@/lib/db";
 import CachedImage from "@/components/CachedImage";
 import HomeItemDetailProvider from "@/components/HomeItemDetailProvider";
 import MarktplaatsCardDetailButton from "@/components/MarktplaatsCardDetailButton";
-import { readSignalRadarSnapshot } from "@/lib/signal-radar-snapshot-store";
+import {
+  matchesMarktplaatsSelection,
+  summarizeMarktplaatsFilterCounts,
+  type MarktplaatsDealFilterKind,
+  type MarktplaatsSelectionFilter,
+} from "@/lib/marktplaats-filter-navigation";
 
-type DealKind = "raw" | "graded" | "expansion" | "collection";
-type SelectionFilter = "daily" | "deals" | "review";
-const MIN_CARD_MARKET_VALUE_EUR = 5;
-const eligibleValueWhere = {
-  OR: [
-    { kind: "expansion" },
-    { market_value_eur: { gte: MIN_CARD_MARKET_VALUE_EUR } },
-  ],
-};
-
+type DealKind = MarktplaatsDealFilterKind;
+type SelectionFilter = MarktplaatsSelectionFilter;
 export interface MarktplaatsDealSearchParams {
   dealKind?: string;
   dealMatch?: string;
   dealQ?: string;
+}
+
+export interface MarktplaatsDealPanelRun {
+  finishedAt: string | null;
+  listingsChecked: number;
+  warning: string | null;
+}
+
+export interface MarktplaatsDealPanelItem {
+  id: string;
+  kind: string;
+  title: string;
+  listing_url: string;
+  listing_price_eur: number;
+  shipping_eur: number | null;
+  market_value_eur: number;
+  savings_eur: number;
+  discount_percent: number;
+  condition: string | null;
+  language: string | null;
+  grading_company: string | null;
+  grading_grade: string | null;
+  match_confidence: number;
+  match_status: string;
+  description_summary: string | null;
+  offer_contents: string | null;
+  card: {
+    id: string;
+    name: string;
+    card_number: string | null;
+    printed_card_number: string | null;
+    image_url: string | null;
+    episode: { name: string; code: string | null };
+  } | null;
+  episode: {
+    id: string;
+    name: string;
+    code: string | null;
+    logo_url: string | null;
+  } | null;
+}
+
+export interface MarktplaatsRadarSignalPreview {
+  cardId: string;
+  rank: number;
+  pressureLabel: string;
+  externalScore: number;
+  confidence: string;
+  reasons: string[];
+  pressureExplanation: string;
 }
 
 function parseKind(value: string | undefined): DealKind | null {
@@ -51,13 +100,13 @@ function money(value: number): string {
   }).format(value);
 }
 
-function dateTime(value: Date | null): string {
+function dateTime(value: string | null): string {
   if (!value) return "Nog niet uitgevoerd";
   return new Intl.DateTimeFormat("nl-NL", {
     dateStyle: "medium",
     timeStyle: "short",
     timeZone: "Europe/Amsterdam",
-  }).format(value);
+  }).format(new Date(value));
 }
 
 function kindLabel(kind: string): string {
@@ -106,182 +155,82 @@ const DEAL_GROUPS: Array<{
   },
 ];
 
-function buildFilterHref(input: {
-  kind?: DealKind | null;
-  selection?: SelectionFilter;
-  q?: string;
-}): string {
-  const params = new URLSearchParams({
-    tab: "selling",
-    sellingView: "marktplaats",
-  });
-  if (input.kind) params.set("dealKind", input.kind);
-  if (input.selection && input.selection !== "daily")
-    params.set("dealMatch", input.selection);
-  if (input.q?.trim()) params.set("dealQ", input.q.trim());
-  return `/?${params.toString()}`;
-}
-
-function MarktplaatsFilterSubmit({
-  kind,
-  selection,
-  query,
+function MarktplaatsFilterButton({
+  onClick,
   active,
   label,
   activeClassName,
   inactiveClassName,
 }: {
-  kind: DealKind | null;
-  selection: SelectionFilter;
-  query: string;
+  onClick: () => void;
   active: boolean;
   label: string;
   activeClassName: string;
   inactiveClassName: string;
 }) {
   return (
-    <form action="/#marktplaats-filters" method="get">
-      <input type="hidden" name="tab" value="selling" />
-      <input type="hidden" name="sellingView" value="marktplaats" />
-      {kind ? <input type="hidden" name="dealKind" value={kind} /> : null}
-      {selection !== "daily" ? (
-        <input type="hidden" name="dealMatch" value={selection} />
-      ) : null}
-      {query ? <input type="hidden" name="dealQ" value={query} /> : null}
-      <button
-        type="submit"
-        aria-pressed={active}
-        className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-          active ? activeClassName : inactiveClassName
-        }`}
-      >
-        {label}
-      </button>
-    </form>
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+        active ? activeClassName : inactiveClassName
+      }`}
+    >
+      {label}
+    </button>
   );
 }
 
-async function latestRun() {
-  return db.marktplaatsScanRun.findFirst({
-    where: { finished_at: { not: null } },
-    orderBy: { started_at: "desc" },
-  });
-}
-
-export async function getLatestMarktplaatsSelectionCount(): Promise<number> {
-  const run = await latestRun();
-  if (!run) return 0;
-  return db.marktplaatsDeal.count({
-    where: {
-      scan_run_id: run.id,
-      removed_at: null,
-      AND: [eligibleValueWhere],
-      match_status: { in: ["matched", "shortlist"] },
-    },
-  });
-}
-
-export default async function MarktplaatsDealsPanel({
-  searchParams,
+export default function MarktplaatsDealsPanel({
+  initialSearchParams,
+  run,
+  allDeals,
+  radarSignals,
 }: {
-  searchParams: MarktplaatsDealSearchParams;
+  initialSearchParams: MarktplaatsDealSearchParams;
+  run: MarktplaatsDealPanelRun | null;
+  allDeals: MarktplaatsDealPanelItem[];
+  radarSignals: MarktplaatsRadarSignalPreview[];
 }) {
-  const kind = parseKind(searchParams.dealKind);
-  const selection = parseSelection(searchParams.dealMatch);
-  const query = searchParams.dealQ?.trim().slice(0, 100) ?? "";
-  const run = await latestRun();
-
-  const statusWhere =
-    selection === "review"
-      ? "review"
-      : selection === "deals"
-        ? "matched"
-        : { in: ["matched", "shortlist"] };
-  const where = {
-    scan_run_id: run?.id ?? "__no_scan__",
-    removed_at: null,
-    AND: [eligibleValueWhere],
-    match_status: statusWhere,
-    ...(kind ? { kind } : {}),
-    ...(query
-      ? {
-          OR: [
-            { title: { contains: query } },
-            { description_summary: { contains: query } },
-            { offer_contents: { contains: query } },
-          ],
-        }
-      : {}),
-  };
-  const [deals, activeCounts, selectionCount, dealCount, reviewCount] =
-    await Promise.all([
-      db.marktplaatsDeal.findMany({
-        where,
-        orderBy: [{ discount_percent: "desc" }, { savings_eur: "desc" }],
-        take: 200,
-        include: {
-          card: {
-            select: {
-              id: true,
-              name: true,
-              card_number: true,
-              printed_card_number: true,
-              image_url: true,
-              episode: { select: { name: true, code: true } },
-            },
-          },
-          episode: {
-            select: { id: true, name: true, code: true, logo_url: true },
-          },
-        },
-      }),
-      db.marktplaatsDeal.groupBy({
-        by: ["kind"],
-        where: {
-          scan_run_id: run?.id ?? "__no_scan__",
-          removed_at: null,
-          AND: [eligibleValueWhere],
-          match_status: { in: ["matched", "shortlist"] },
-        },
-        _count: { _all: true },
-      }),
-      run
-        ? db.marktplaatsDeal.count({
-            where: {
-              scan_run_id: run.id,
-              removed_at: null,
-              AND: [eligibleValueWhere],
-              match_status: { in: ["matched", "shortlist"] },
-            },
-          })
-        : 0,
-      run
-        ? db.marktplaatsDeal.count({
-            where: {
-              scan_run_id: run.id,
-              removed_at: null,
-              AND: [eligibleValueWhere],
-              match_status: "matched",
-            },
-          })
-        : 0,
-      run
-        ? db.marktplaatsDeal.count({
-            where: {
-              scan_run_id: run.id,
-              removed_at: null,
-              AND: [eligibleValueWhere],
-              match_status: "review",
-            },
-          })
-        : 0,
-    ]);
-  const counts = new Map(
-    activeCounts.map((entry) => [entry.kind, entry._count._all]),
+  const [kind, setKind] = useState<DealKind | null>(() =>
+    parseKind(initialSearchParams.dealKind),
   );
-  const radarSnapshot = await readSignalRadarSnapshot("pokemon");
+  const [selection, setSelection] = useState<SelectionFilter>(() =>
+    parseSelection(initialSearchParams.dealMatch),
+  );
+  const [query, setQuery] = useState(
+    () => initialSearchParams.dealQ?.trim().slice(0, 100) ?? "",
+  );
+  const normalizedQuery = query.toLocaleLowerCase("nl-NL");
+  const searchedDeals = useMemo(
+    () =>
+      normalizedQuery
+        ? allDeals.filter((deal) =>
+            [deal.title, deal.description_summary, deal.offer_contents]
+              .filter((value): value is string => Boolean(value))
+              .some((value) =>
+                value.toLocaleLowerCase("nl-NL").includes(normalizedQuery),
+              ),
+          )
+        : allDeals,
+    [allDeals, normalizedQuery],
+  );
+  const counts = useMemo(
+    () => summarizeMarktplaatsFilterCounts(searchedDeals, kind, selection),
+    [kind, searchedDeals, selection],
+  );
+  const deals = useMemo(
+    () =>
+      searchedDeals.filter(
+        (deal) =>
+          matchesMarktplaatsSelection(deal.match_status, selection) &&
+          (!kind || deal.kind === kind),
+      ),
+    [kind, searchedDeals, selection],
+  );
   const radarSignalsByCardId = new Map(
-    (radarSnapshot?.data.signals ?? []).map((signal) => [
+    radarSignals.map((signal) => [
       signal.cardId,
       signal,
     ]),
@@ -317,25 +266,25 @@ export default async function MarktplaatsDealsPanel({
               <div className="rounded-xl border border-[rgb(var(--dc-border-rgb)/0.7)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.65)] p-3">
                 <div className="text-[var(--dc-text-muted)]">Gecontroleerd</div>
                 <div className="mt-1 text-xl font-black text-[var(--dc-text-primary)]">
-                  {run?.listings_checked ?? 0}
+                  {run?.listingsChecked ?? 0}
                 </div>
               </div>
               <div className="rounded-xl border border-[rgb(var(--dc-border-rgb)/0.7)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.65)] p-3">
                 <div className="text-[var(--dc-text-muted)]">Geselecteerd</div>
                 <div className="mt-1 text-xl font-black text-[var(--dc-text-primary)]">
-                  {selectionCount}
+                  {counts.currentResultCount}
                 </div>
               </div>
               <div className="rounded-xl border border-[rgb(var(--dc-border-rgb)/0.7)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.65)] p-3">
                 <div className="text-[var(--dc-text-muted)]">Onder markt</div>
                 <div className="mt-1 text-xl font-black text-emerald-200">
-                  {dealCount}
+                  {counts.dealCount}
                 </div>
               </div>
             </div>
           </div>
           <p className="mt-3 text-[10px] font-semibold text-[var(--dc-text-muted)]">
-            Laatste scan: {dateTime(run?.finished_at ?? null)} · Niet iedere
+            Laatste scan: {dateTime(run?.finishedAt ?? null)} · Niet iedere
             gecontroleerde advertentie haalt de dagselectie.
           </p>
           {run?.warning ? (
@@ -352,17 +301,15 @@ export default async function MarktplaatsDealsPanel({
         >
           <div className="flex flex-wrap gap-1.5">
             {[
-              [null, `Alles (${selectionCount})`],
-              ["raw", `Raw (${counts.get("raw") ?? 0})`],
-              ["graded", `Graded (${counts.get("graded") ?? 0})`],
-              ["expansion", `Expansions (${counts.get("expansion") ?? 0})`],
-              ["collection", `Collecties (${counts.get("collection") ?? 0})`],
+              [null, `Alles (${counts.allKindsCount})`],
+              ["raw", `Raw (${counts.categoryCounts.raw})`],
+              ["graded", `Graded (${counts.categoryCounts.graded})`],
+              ["expansion", `Expansions (${counts.categoryCounts.expansion})`],
+              ["collection", `Collecties (${counts.categoryCounts.collection})`],
             ].map(([filterKind, label]) => (
-              <MarktplaatsFilterSubmit
+              <MarktplaatsFilterButton
                 key={filterKind ?? "all"}
-                kind={filterKind as DealKind | null}
-                selection={selection}
-                query={query}
+                onClick={() => setKind(filterKind as DealKind | null)}
                 active={filterKind === kind}
                 label={label ?? ""}
                 activeClassName="bg-amber-300 text-slate-950"
@@ -370,15 +317,13 @@ export default async function MarktplaatsDealsPanel({
               />
             ))}
             {[
-              ["daily", `Dagselectie (${selectionCount})`],
-              ["deals", `Onder markt (${dealCount})`],
-              ["review", `Controleren (${reviewCount})`],
+              ["daily", `Dagselectie (${counts.dailyCount})`],
+              ["deals", `Onder markt (${counts.dealCount})`],
+              ["review", `Controleren (${counts.reviewCount})`],
             ].map(([filter, label]) => (
-              <MarktplaatsFilterSubmit
+              <MarktplaatsFilterButton
                 key={filter}
-                kind={kind}
-                selection={filter as SelectionFilter}
-                query={query}
+                onClick={() => setSelection(filter as SelectionFilter)}
                 active={filter === selection}
                 label={label}
                 activeClassName="bg-violet-300 text-slate-950"
@@ -386,24 +331,24 @@ export default async function MarktplaatsDealsPanel({
               />
             ))}
           </div>
-          <form className="flex min-w-0 gap-2" action="/">
-            <input type="hidden" name="tab" value="selling" />
-            <input type="hidden" name="sellingView" value="marktplaats" />
-            {kind ? <input type="hidden" name="dealKind" value={kind} /> : null}
-            {selection !== "daily" ? (
-              <input type="hidden" name="dealMatch" value={selection} />
-            ) : null}
+          <div className="flex min-w-0 gap-2">
             <input
               type="search"
-              name="dealQ"
-              defaultValue={query}
+              value={query}
+              onChange={(event) => setQuery(event.target.value.slice(0, 100))}
               placeholder="Zoek titel of beschrijving"
               className="min-w-0 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.8)] bg-[var(--dc-surface-primary)] px-3 py-2 text-xs text-[var(--dc-text-primary)] outline-none placeholder:text-[var(--dc-text-muted)] focus:border-amber-300/60"
             />
-            <button className="rounded-xl bg-[rgb(var(--dc-text-primary-rgb)/0.1)] px-3 py-2 text-xs font-bold text-[var(--dc-text-primary)] hover:bg-[rgb(var(--dc-text-primary-rgb)/0.15)]">
-              Zoeken
-            </button>
-          </form>
+            {query ? (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="rounded-xl bg-[rgb(var(--dc-text-primary-rgb)/0.1)] px-3 py-2 text-xs font-bold text-[var(--dc-text-primary)] hover:bg-[rgb(var(--dc-text-primary-rgb)/0.15)]"
+              >
+                Wissen
+              </button>
+            ) : null}
+          </div>
         </section>
 
         {deals.length === 0 ? (
@@ -495,17 +440,9 @@ export default async function MarktplaatsDealsPanel({
                                     Kaartdetails
                                   </span>
                                 </MarktplaatsCardDetailButton>
-                              ) : (
+                              ) : deal.episode ? (
                                 <Link
-                                  href={
-                                    deal.episode
-                                      ? `/expansions/${encodeURIComponent(deal.episode.id)}`
-                                      : buildFilterHref({
-                                          kind,
-                                          selection,
-                                          q: query,
-                                        })
-                                  }
+                                  href={`/expansions/${encodeURIComponent(deal.episode.id)}`}
                                   aria-label={detailLabel}
                                   className="group/reference block rounded-xl outline-none focus-visible:ring-2 focus-visible:ring-violet-300/70"
                                 >
@@ -519,6 +456,17 @@ export default async function MarktplaatsDealsPanel({
                                     Setdetails
                                   </span>
                                 </Link>
+                              ) : (
+                                <span className="block rounded-xl opacity-70">
+                                  <ReferenceImage
+                                    imageUrl={referenceImageUrl}
+                                    alt={referenceName}
+                                    kind="expansion"
+                                  />
+                                  <span className="mt-2 inline-flex w-full items-center justify-center rounded-lg border border-[rgb(var(--dc-border-rgb)/0.65)] px-2 py-2 text-[9px] font-black text-[var(--dc-text-muted)] sm:text-[10px]">
+                                    Geen setdetail
+                                  </span>
+                                </span>
                               )}
                               <p className="mt-2 text-center text-[8px] font-black uppercase tracking-[0.12em] text-[var(--dc-text-muted)] sm:text-[9px]">
                                 DustyCards match

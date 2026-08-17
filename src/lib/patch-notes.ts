@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.84",
+    releasedAt: "August 17, 2026",
+    title: "Instant contextual Marktplaats filters",
+    summary: "Marktplaats filters now behave like the rest of the app and all metrics describe the exact result set being displayed.",
+    tone: "fixed",
+    highlights: [
+      "Filter chips and search update locally without a page reload, URL change or scroll jump.",
+      "Category badges are scoped to the active Daily, Below market or Review selection.",
+      "Selection badges are scoped to the active item category.",
+      "Search and card results share the exact same in-memory filter source as every displayed total.",
+    ],
+  },
+  {
     version: "3.12.83",
     releasedAt: "August 17, 2026",
     title: "Marktplaats filters cannot get stuck",

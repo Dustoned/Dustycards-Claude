@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.84",
+    releasedAt: "August 17, 2026",
+    title: "Instant and accurate Marktplaats filters",
+    summary: "Marktplaats now filters locally without a reload or URL change, while every badge uses the same result set as the visible cards.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "One consistent result set",
+        highlights: [
+          "Category, status and search filters update instantly without navigating away, changing the URL or losing scroll position.",
+          "Category totals change with Daily selection, Below market and Review instead of staying on the general daily totals.",
+          "Status totals change with All, Raw, Graded, Expansions and Collections.",
+          "Search, visible cards, selected count and below-market count now derive from one shared source list.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.83",
     releasedAt: "August 17, 2026",
     title: "Marktplaats filters use guaranteed submissions",

@@ -46,7 +46,7 @@ import ProgressiveTradeOpportunitiesPanel from "@/components/ProgressiveTradeOpp
 import SellingValueSummary from "@/components/SellingValueSummary";
 import MarktplaatsDealsPanel, {
   getLatestMarktplaatsSelectionCount,
-} from "@/components/MarktplaatsDealsPanel";
+} from "@/components/MarktplaatsDealsPanelServer";
 import { buildSellingInventoryTabsKey } from "@/lib/marktplaats-filter-navigation";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
