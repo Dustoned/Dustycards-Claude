@@ -122,6 +122,45 @@ function buildFilterHref(input: {
   return `/?${params.toString()}`;
 }
 
+function MarktplaatsFilterSubmit({
+  kind,
+  selection,
+  query,
+  active,
+  label,
+  activeClassName,
+  inactiveClassName,
+}: {
+  kind: DealKind | null;
+  selection: SelectionFilter;
+  query: string;
+  active: boolean;
+  label: string;
+  activeClassName: string;
+  inactiveClassName: string;
+}) {
+  return (
+    <form action="/#marktplaats-filters" method="get">
+      <input type="hidden" name="tab" value="selling" />
+      <input type="hidden" name="sellingView" value="marktplaats" />
+      {kind ? <input type="hidden" name="dealKind" value={kind} /> : null}
+      {selection !== "daily" ? (
+        <input type="hidden" name="dealMatch" value={selection} />
+      ) : null}
+      {query ? <input type="hidden" name="dealQ" value={query} /> : null}
+      <button
+        type="submit"
+        aria-pressed={active}
+        className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
+          active ? activeClassName : inactiveClassName
+        }`}
+      >
+        {label}
+      </button>
+    </form>
+  );
+}
+
 async function latestRun() {
   return db.marktplaatsScanRun.findFirst({
     where: { finished_at: { not: null } },
@@ -319,44 +358,32 @@ export default async function MarktplaatsDealsPanel({
               ["expansion", `Expansions (${counts.get("expansion") ?? 0})`],
               ["collection", `Collecties (${counts.get("collection") ?? 0})`],
             ].map(([filterKind, label]) => (
-              <a
+              <MarktplaatsFilterSubmit
                 key={filterKind ?? "all"}
-                href={`${buildFilterHref({
-                  kind: filterKind as DealKind | null,
-                  selection,
-                  q: query,
-                })}#marktplaats-filters`}
-                aria-current={filterKind === kind ? "page" : undefined}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                  filterKind === kind
-                    ? "bg-amber-300 text-slate-950"
-                    : "border border-[rgb(var(--dc-border-rgb)/0.75)] text-[var(--dc-text-secondary)] hover:bg-white/5"
-                }`}
-              >
-                {label}
-              </a>
+                kind={filterKind as DealKind | null}
+                selection={selection}
+                query={query}
+                active={filterKind === kind}
+                label={label ?? ""}
+                activeClassName="bg-amber-300 text-slate-950"
+                inactiveClassName="border border-[rgb(var(--dc-border-rgb)/0.75)] text-[var(--dc-text-secondary)] hover:bg-white/5"
+              />
             ))}
             {[
               ["daily", `Dagselectie (${selectionCount})`],
               ["deals", `Onder markt (${dealCount})`],
               ["review", `Controleren (${reviewCount})`],
             ].map(([filter, label]) => (
-              <a
+              <MarktplaatsFilterSubmit
                 key={filter}
-                href={`${buildFilterHref({
-                  kind,
-                  selection: filter as SelectionFilter,
-                  q: query,
-                })}#marktplaats-filters`}
-                aria-current={filter === selection ? "page" : undefined}
-                className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
-                  filter === selection
-                    ? "bg-violet-300 text-slate-950"
-                    : "border border-violet-300/20 text-violet-200 hover:bg-violet-300/10"
-                }`}
-              >
-                {label}
-              </a>
+                kind={kind}
+                selection={filter as SelectionFilter}
+                query={query}
+                active={filter === selection}
+                label={label}
+                activeClassName="bg-violet-300 text-slate-950"
+                inactiveClassName="border border-violet-300/20 text-violet-200 hover:bg-violet-300/10"
+              />
             ))}
           </div>
           <form className="flex min-w-0 gap-2" action="/">

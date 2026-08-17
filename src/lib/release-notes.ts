@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.83",
+    releasedAt: "August 17, 2026",
+    title: "Marktplaats filters use guaranteed submissions",
+    summary: "Marktplaats filter chips now submit as native GET controls instead of relying on client-side navigation.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "No more stuck category",
+        highlights: [
+          "Every filter button submits its complete category, selection and search state directly to the server.",
+          "The result panel is rebuilt for the exact submitted combination, including switching away from Expansions.",
+          "The filter bar stays in view after the new result set loads.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.82",
     releasedAt: "August 17, 2026",
     title: "Marktplaats filters that actually refresh",

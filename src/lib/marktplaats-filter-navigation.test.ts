@@ -42,15 +42,15 @@ describe("Marktplaats filter navigation", () => {
     );
   });
 
-  it("uses anchored native links so filter clicks cannot reuse stale prefetched content", () => {
+  it("uses native GET forms so filter clicks cannot reuse stale prefetched content", () => {
     const source = fs.readFileSync(
       path.join(process.cwd(), "src/components/MarktplaatsDealsPanel.tsx"),
       "utf8",
     );
 
     expect(source).toContain('id="marktplaats-filters"');
-    expect(source.match(/#marktplaats-filters`}/g)).toHaveLength(2);
-    expect(source).toContain("<a\n                key={filterKind ?? \"all\"}");
-    expect(source).toContain("<a\n                key={filter}");
+    expect(source).toContain('<form action="/#marktplaats-filters" method="get">');
+    expect(source).toContain('<button\n        type="submit"');
+    expect(source).not.toContain("Next-Router-Prefetch");
   });
 });

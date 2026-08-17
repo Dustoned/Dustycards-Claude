@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.83",
+    releasedAt: "August 17, 2026",
+    title: "Marktplaats filters cannot get stuck",
+    summary: "Category and deal filters now use native GET submissions with complete server state.",
+    tone: "fixed",
+    highlights: [
+      "Raw, Graded, Expansions, Collections and every deal-status filter submit independently.",
+      "Each submission rebuilds the result panel from the exact selected filters.",
+      "The selected query and filter-bar position are preserved across the refresh.",
+    ],
+  },
+  {
     version: "3.12.82",
     releasedAt: "August 17, 2026",
     title: "Working Marktplaats filters",
