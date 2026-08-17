@@ -47,6 +47,7 @@ import SellingValueSummary from "@/components/SellingValueSummary";
 import MarktplaatsDealsPanel, {
   getLatestMarktplaatsSelectionCount,
 } from "@/components/MarktplaatsDealsPanel";
+import { buildSellingInventoryTabsKey } from "@/lib/marktplaats-filter-navigation";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
 const CollectionSealedView = nextDynamic(() => import("@/components/CollectionSealedView"));
@@ -840,7 +841,7 @@ async function HomePageContent({
             </div>
           </section> : null}
           <SellingInventoryTabs
-            key={`selling-${sellingView ?? "default"}`}
+            key={buildSellingInventoryTabsKey(params)}
             activeCount={data.forSaleCards.length}
             soldCount={data.soldCards.length}
             marktplaatsCount={marktplaatsDealCount}

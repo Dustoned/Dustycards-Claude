@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.82",
+    releasedAt: "August 17, 2026",
+    title: "Marktplaats filters that actually refresh",
+    summary: "Marktplaats category and selection filters now replace stale results immediately instead of only changing the URL.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Reliable deal filtering",
+        highlights: [
+          "Raw, Graded, Expansions, Collections, Daily selection, Below market and Review each reload their exact result set.",
+          "The page returns to the filter bar after the refresh, so filtering no longer throws you back to the top.",
+          "Automatic prefetching of every heavy filter combination is disabled to avoid unnecessary parallel database work.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.81",
     releasedAt: "August 17, 2026",
     title: "Old High-Rarity pricing that fits every screen",

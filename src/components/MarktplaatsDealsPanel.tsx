@@ -307,7 +307,10 @@ export default async function MarktplaatsDealsPanel({
           ) : null}
         </section>
 
-        <section className="binder-subpanel flex flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between">
+        <section
+          id="marktplaats-filters"
+          className="binder-subpanel flex scroll-mt-24 flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between"
+        >
           <div className="flex flex-wrap gap-1.5">
             {[
               [null, `Alles (${selectionCount})`],
@@ -316,13 +319,14 @@ export default async function MarktplaatsDealsPanel({
               ["expansion", `Expansions (${counts.get("expansion") ?? 0})`],
               ["collection", `Collecties (${counts.get("collection") ?? 0})`],
             ].map(([filterKind, label]) => (
-              <Link
+              <a
                 key={filterKind ?? "all"}
-                href={buildFilterHref({
+                href={`${buildFilterHref({
                   kind: filterKind as DealKind | null,
                   selection,
                   q: query,
-                })}
+                })}#marktplaats-filters`}
+                aria-current={filterKind === kind ? "page" : undefined}
                 className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
                   filterKind === kind
                     ? "bg-amber-300 text-slate-950"
@@ -330,20 +334,21 @@ export default async function MarktplaatsDealsPanel({
                 }`}
               >
                 {label}
-              </Link>
+              </a>
             ))}
             {[
               ["daily", `Dagselectie (${selectionCount})`],
               ["deals", `Onder markt (${dealCount})`],
               ["review", `Controleren (${reviewCount})`],
             ].map(([filter, label]) => (
-              <Link
+              <a
                 key={filter}
-                href={buildFilterHref({
+                href={`${buildFilterHref({
                   kind,
                   selection: filter as SelectionFilter,
                   q: query,
-                })}
+                })}#marktplaats-filters`}
+                aria-current={filter === selection ? "page" : undefined}
                 className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${
                   filter === selection
                     ? "bg-violet-300 text-slate-950"
@@ -351,7 +356,7 @@ export default async function MarktplaatsDealsPanel({
                 }`}
               >
                 {label}
-              </Link>
+              </a>
             ))}
           </div>
           <form className="flex min-w-0 gap-2" action="/">

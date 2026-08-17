@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.82",
+    releasedAt: "August 17, 2026",
+    title: "Working Marktplaats filters",
+    summary: "Marktplaats filters now force the selling panel to render the selected server-side result set.",
+    tone: "fixed",
+    highlights: [
+      "Every category and deal-status chip refreshes the matching cards instead of leaving stale content behind.",
+      "Native filter navigation avoids stale prefetched React Server Component content.",
+      "The filter bar remains in view after navigation and no longer preloads every filter query at once.",
+    ],
+  },
+  {
     version: "3.12.81",
     releasedAt: "August 17, 2026",
     title: "CardMarket and TCGPlayer switch for Old High-Rarity",
