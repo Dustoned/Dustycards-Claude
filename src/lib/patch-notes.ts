@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.80",
+    releasedAt: "August 17, 2026",
+    title: "Action Center opens real card details",
+    summary: "Signal-result notifications now point only to reachable cards and respect the enabled game libraries.",
+    tone: "fixed",
+    highlights: [
+      "A Signal notification opens the exact shared Card Detail page with the correct game context.",
+      "One Piece outcomes stay out of Action Center when the One Piece library is disabled.",
+      "Historical outcomes whose card no longer exists are no longer shown as dead actions.",
+    ],
+  },
+  {
     version: "3.12.79",
     releasedAt: "August 17, 2026",
     title: "Old High-Rarity Home widget",

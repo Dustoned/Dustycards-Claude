@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
+import { ONE_PIECE_GAME, normalizeTradingCardGame } from "@/lib/games";
+import { getServerUserSettings } from "@/lib/user-settings-server";
 
 export const dynamic = "force-dynamic";
 
@@ -24,7 +26,7 @@ export async function GET() {
     const ebayWindowStart = new Date(now.getTime() - 24 * 60 * 60_000);
     const ebayWindowEnd = new Date(now.getTime() + 48 * 60 * 60_000);
 
-    const [cardAlerts, collectionAlerts, watched, outcomes, feedback, pendingAccounts] = await Promise.all([
+    const [cardAlerts, collectionAlerts, watched, outcomes, feedback, pendingAccounts, settings] = await Promise.all([
       db.cardPriceAlert.findMany({
         where: { user_id: user.id, triggered_at: { gte: recent } },
         orderBy: { triggered_at: "desc" },
@@ -64,7 +66,30 @@ export async function GET() {
             select: { id: true, email: true, approval_requested_at: true },
           })
         : Promise.resolve([]),
+      getServerUserSettings(user.id),
     ]);
+
+    // Signal observations are append-only evidence and can outlive a library
+    // card. Only create an actionable notification when the exact card still
+    // exists and its game is visible for this user; otherwise the destination
+    // detail loader would correctly return not-found.
+    const outcomeCardIds = [...new Set(outcomes.map((outcome) => outcome.entry_observation.card_id))];
+    const reachableSignalCards = outcomeCardIds.length
+      ? await db.card.findMany({
+          where: {
+            id: { in: outcomeCardIds },
+            ...(settings.onePieceLibraryEnabled ? {} : { game: { not: ONE_PIECE_GAME } }),
+          },
+          select: { id: true, game: true },
+        })
+      : [];
+    const reachableSignalGameByCardId = new Map(
+      reachableSignalCards.map((card) => [card.id, normalizeTradingCardGame(card.game)]),
+    );
+    const reachableOutcomes = outcomes.flatMap((outcome) => {
+      const game = reachableSignalGameByCardId.get(outcome.entry_observation.card_id);
+      return game ? [{ outcome, game }] : [];
+    });
 
     const items: ActionItem[] = [
       ...cardAlerts.map((alert) => ({
@@ -103,12 +128,12 @@ export async function GET() {
           tone: ended ? ("neutral" as const) : ("warning" as const),
         };
       }),
-      ...outcomes.map((outcome) => ({
+      ...reachableOutcomes.map(({ outcome, game }) => ({
         id: `signal-${outcome.id}`,
         kind: "signal" as const,
         title: outcome.meaningful_direction_hit ? "Signal prediction was correct" : "Signal prediction missed",
         detail: `${outcome.entry_observation.card_name} finished its ${outcome.horizon_days}-day check.`,
-        href: `/movers/signal-radar/${encodeURIComponent(outcome.entry_observation.card_id)}`,
+        href: `/movers/signal-radar/${encodeURIComponent(outcome.entry_observation.card_id)}?game=${encodeURIComponent(game)}`,
         occurredAt: (outcome.evaluated_at ?? outcome.updated_at).toISOString(),
         tone: outcome.meaningful_direction_hit ? ("positive" as const) : ("warning" as const),
       })),

@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.80",
+    releasedAt: "August 17, 2026",
+    title: "Action Center links that go somewhere",
+    summary: "Signal-result notifications now open their exact card detail and no longer include unreachable cards.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Reliable notification actions",
+        highlights: [
+          "Completed Signal predictions link to the shared Card Detail page with the correct Pokémon or One Piece context.",
+          "Disabled One Piece content and historical results for removed cards are filtered before they reach Action Center.",
+          "Tapping a valid notification still marks it read and closes the Action Center overlay.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.79",
     releasedAt: "August 17, 2026",
     title: "Old High-Rarity on Home",
