@@ -216,6 +216,11 @@ function buildSearchPlan({ cards, expansions, gradedPrices, radarSnapshot, expor
   });
   const gradedKey = (price) => `${price.cardId}:${price.company}:${price.grade}`;
   const alwaysGradedRows = takeDistinct(eligibleGraded, [
+    [(price) => price.company === "PSA" && price.marketValueEur >= 500, 2],
+    [(price) => price.company === "PSA" && price.marketValueEur >= 100 && price.marketValueEur < 500, 2],
+    [(price) => price.company === "PSA" && price.marketValueEur >= 5 && price.marketValueEur < 100, 2],
+    [(price) => price.company === "CGC", 3],
+    [(price) => price.company === "BGS", 3],
     [(price) => price.marketValueEur >= 500 && price.marketValueEur <= 25_000, 2],
     [(price) => price.marketValueEur >= 100 && price.marketValueEur < 500, 2],
     [(price) => price.marketValueEur >= 5 && price.marketValueEur < 100, 2],
@@ -224,7 +229,7 @@ function buildSearchPlan({ cards, expansions, gradedPrices, radarSnapshot, expor
   const alwaysGraded = alwaysGradedRows.map((price) => gradedEntry(price, "daily-value-tier"));
   const rotatingGraded = dailyRotation(
     eligibleGraded.filter((price) => !alwaysGradedKeys.has(gradedKey(price))),
-    6,
+    24,
     exportedAt,
     "graded-card-rotation"
   ).map((price) => gradedEntry(price, "rotating-catalog"));
@@ -247,29 +252,63 @@ function buildSearchPlan({ cards, expansions, gradedPrices, radarSnapshot, expor
       totalCards: expansion.totalCards,
     },
   });
-  const alwaysExpansions = eligibleExpansions
-    .slice(0, 4)
+  const alwaysExpansionRows = takeDistinct(eligibleExpansions, [
+    [(expansion) => expansion.marketValueEur >= 2_500, 4],
+    [(expansion) => expansion.marketValueEur >= 1_000 && expansion.marketValueEur < 2_500, 4],
+    [(expansion) => expansion.marketValueEur >= 500 && expansion.marketValueEur < 1_000, 4],
+    [(expansion) => expansion.marketValueEur < 500, 4],
+  ]);
+  const alwaysExpansionIds = new Set(alwaysExpansionRows.map((expansion) => expansion.id));
+  const alwaysExpansions = alwaysExpansionRows
     .map((expansion) => expansionEntry(expansion, "daily-high-value"));
   const rotatingExpansions = dailyRotation(
-    eligibleExpansions.slice(4),
-    4,
+    eligibleExpansions.filter((expansion) => !alwaysExpansionIds.has(expansion.id)),
+    16,
     exportedAt,
     "expansion-rotation"
   ).map((expansion) => expansionEntry(expansion, "rotating-catalog"));
 
-  const discovery = [
+  const rawDiscovery = [
     "pokemon kaarten engels",
     "pokemon kaart english",
+  ].map((query) => ({ query, purpose: "raw-discovery", kind: "raw", sort: "DATE_DESC" }));
+  const collectionDiscovery = [
     "pokemon collectie engels",
     "pokemon verzameling engels",
     "pokemon binder engels",
     "pokemon map kaarten engels",
+    "pokemon kaarten verzameling english",
+    "pokemon kaarten collectie english",
+  ].map((query) => ({ query, purpose: "collection-discovery", kind: "collection", sort: "DATE_DESC" }));
+  const expansionDiscovery = [
     "pokemon complete set engels",
     "pokemon master set engels",
+    "pokemon masterset engels",
+    "pokemon volledige set engels",
+    "pokemon complete expansion engels",
+    "pokemon complete pokemon set english",
+    "pokemon volledige pokemon uitbreiding engels",
+    "pokemon base set compleet engels",
+  ].map((query) => ({ query, purpose: "expansion-discovery", kind: "expansion", sort: "DATE_DESC" }));
+  const gradedDiscovery = [
+    "pokemon graded engels",
+    "pokemon graded kaart english",
+    "pokemon PSA engels",
+    "pokemon PSA 8 engels",
+    "pokemon PSA 9 engels",
     "pokemon PSA 10 engels",
+    "pokemon CGC 9 engels",
     "pokemon CGC 10 engels",
+    "pokemon BGS 9 engels",
+    "pokemon BGS 9.5 engels",
     "pokemon BGS 10 engels",
-  ].map((query) => ({ query, purpose: "new-listing-discovery", sort: "DATE_DESC" }));
+  ].map((query) => ({ query, purpose: "graded-discovery", kind: "graded", sort: "DATE_DESC" }));
+  const discovery = uniqueQueries([
+    ...gradedDiscovery,
+    ...expansionDiscovery,
+    ...collectionDiscovery,
+    ...rawDiscovery,
+  ]);
 
   const exactCards = uniqueQueries([...alwaysCards, ...rotatingCards]);
   const gradedCards = uniqueQueries([...alwaysGraded, ...rotatingGraded]);
@@ -284,22 +323,36 @@ function buildSearchPlan({ cards, expansions, gradedPrices, radarSnapshot, expor
   return {
     generatedFor: exportedAt.slice(0, 10),
     minimumCardMarketValueEur: MIN_CARD_MARKET_VALUE_EUR,
-    strategy: "layered-daily-rotation-v1",
+    strategy: "category-reserved-daily-rotation-v2",
     limits: {
       maxPrimaryQueries: primaryQueryCount,
       discoveryPagesPerQuery: 3,
       targetedPagesPerQuery: 1,
       maxDescriptionsToOpen: 180,
+      descriptionQuotas: {
+        graded: 60,
+        expansion: 50,
+        collection: 20,
+        raw: 50,
+      },
       minimumDelayMsBetweenSearches: 1_500,
     },
     instructions: [
       "Run every discovery query sorted newest-first and deduplicate candidates by Marktplaats m-id.",
+      "Reserve the complete description quota for each category before letting another category use unused capacity.",
+      "For graded and expansion candidates, continue through the reserved quota even when enough raw singles have already been found.",
       "Run each primary targeted query once. Use fallbackQuery only when the primary returns no plausible result.",
       "Open the full advert for every candidate before matching; title snippets never qualify as final evidence.",
       "Reject Catawiki, sponsored external links, auctions without a fixed price, lots with unclear contents, and cards below the minimum market value.",
       "Recheck every priorActiveDeals URL and record unavailable IDs in removedExternalIds.",
     ],
     discovery,
+    discoveryByKind: {
+      graded: gradedDiscovery,
+      expansion: expansionDiscovery,
+      collection: collectionDiscovery,
+      raw: rawDiscovery,
+    },
     signalRadarSnapshotAt: radarSnapshot.writtenAt,
     signalRadarGeneratedAt: radarSnapshot.generatedAt,
     signalRadarCards: uniqueQueries(signalRadarCards),
