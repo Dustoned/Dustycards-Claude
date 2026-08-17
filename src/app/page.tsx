@@ -881,7 +881,7 @@ async function HomePageContent({
                 emptyText="Cards only move here after you explicitly mark them sold."
               />
             }
-            marktplaatsContent={<MarktplaatsDealsPanel searchParams={params} />}
+            marktplaatsContent={<MarktplaatsDealsPanel />}
           />
         </div>
         ) : null

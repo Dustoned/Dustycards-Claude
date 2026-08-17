@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.85",
+    releasedAt: "August 17, 2026",
+    title: "Clear Marktplaats filter context",
+    summary: "Marktplaats now always opens on the complete daily selection and clearly separates item type from result status.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "No hidden stale filter",
+        highlights: [
+          "Old filter parameters in the browser address no longer reopen the panel on Below market or another stale selection.",
+          "Type and Selection are visibly separated, with the exact active combination written below the controls.",
+          "A single Reset control returns to every item type in the daily selection.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.84",
     releasedAt: "August 17, 2026",
     title: "Instant and accurate Marktplaats filters",

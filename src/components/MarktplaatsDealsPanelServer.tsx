@@ -1,6 +1,5 @@
 import MarktplaatsDealsPanel, {
   type MarktplaatsDealPanelItem,
-  type MarktplaatsDealSearchParams,
   type MarktplaatsRadarSignalPreview,
 } from "@/components/MarktplaatsDealsPanel";
 import { db } from "@/lib/db";
@@ -34,11 +33,7 @@ export async function getLatestMarktplaatsSelectionCount(): Promise<number> {
   });
 }
 
-export default async function MarktplaatsDealsPanelServer({
-  searchParams,
-}: {
-  searchParams: MarktplaatsDealSearchParams;
-}) {
+export default async function MarktplaatsDealsPanelServer() {
   const run = await latestRun();
   const rows = await db.marktplaatsDeal.findMany({
     where: {
@@ -97,7 +92,6 @@ export default async function MarktplaatsDealsPanelServer({
 
   return (
     <MarktplaatsDealsPanel
-      initialSearchParams={searchParams}
       run={
         run
           ? {

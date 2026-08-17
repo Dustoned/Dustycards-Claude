@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.85",
+    releasedAt: "August 17, 2026",
+    title: "Unambiguous Marktplaats selections",
+    summary: "The panel no longer inherits stale URL filters and now shows exactly why a result count has changed.",
+    tone: "fixed",
+    highlights: [
+      "Marktplaats always starts on all item types in the daily selection.",
+      "Type and selection controls have separate labels plus a live result summary.",
+      "Reset restores the full daily result set without navigating or reloading.",
+    ],
+  },
+  {
     version: "3.12.84",
     releasedAt: "August 17, 2026",
     title: "Instant contextual Marktplaats filters",

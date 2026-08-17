@@ -55,6 +55,12 @@ describe("Marktplaats filter navigation", () => {
     expect(source).toContain('"use client"');
     expect(source).toContain("onClick={() => setKind");
     expect(source).toContain("onClick={() => setSelection");
+    expect(source).toContain(
+      'const [selection, setSelection] = useState<SelectionFilter>("daily")',
+    );
+    expect(source).toContain(
+      "const [kind, setKind] = useState<DealKind | null>(null)",
+    );
     expect(source).not.toContain('<form action="/#marktplaats-filters"');
     expect(source).not.toContain("router.push");
     expect(source).not.toContain("router.replace");

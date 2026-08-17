@@ -23,12 +23,6 @@ import {
 
 type DealKind = MarktplaatsDealFilterKind;
 type SelectionFilter = MarktplaatsSelectionFilter;
-export interface MarktplaatsDealSearchParams {
-  dealKind?: string;
-  dealMatch?: string;
-  dealQ?: string;
-}
-
 export interface MarktplaatsDealPanelRun {
   finishedAt: string | null;
   listingsChecked: number;
@@ -77,19 +71,6 @@ export interface MarktplaatsRadarSignalPreview {
   confidence: string;
   reasons: string[];
   pressureExplanation: string;
-}
-
-function parseKind(value: string | undefined): DealKind | null {
-  return value === "raw" ||
-    value === "graded" ||
-    value === "expansion" ||
-    value === "collection"
-    ? value
-    : null;
-}
-
-function parseSelection(value: string | undefined): SelectionFilter {
-  return value === "deals" || value === "review" ? value : "daily";
 }
 
 function money(value: number): string {
@@ -183,25 +164,17 @@ function MarktplaatsFilterButton({
 }
 
 export default function MarktplaatsDealsPanel({
-  initialSearchParams,
   run,
   allDeals,
   radarSignals,
 }: {
-  initialSearchParams: MarktplaatsDealSearchParams;
   run: MarktplaatsDealPanelRun | null;
   allDeals: MarktplaatsDealPanelItem[];
   radarSignals: MarktplaatsRadarSignalPreview[];
 }) {
-  const [kind, setKind] = useState<DealKind | null>(() =>
-    parseKind(initialSearchParams.dealKind),
-  );
-  const [selection, setSelection] = useState<SelectionFilter>(() =>
-    parseSelection(initialSearchParams.dealMatch),
-  );
-  const [query, setQuery] = useState(
-    () => initialSearchParams.dealQ?.trim().slice(0, 100) ?? "",
-  );
+  const [kind, setKind] = useState<DealKind | null>(null);
+  const [selection, setSelection] = useState<SelectionFilter>("daily");
+  const [query, setQuery] = useState("");
   const normalizedQuery = query.toLocaleLowerCase("nl-NL");
   const searchedDeals = useMemo(
     () =>
@@ -299,9 +272,13 @@ export default function MarktplaatsDealsPanel({
           id="marktplaats-filters"
           className="binder-subpanel flex scroll-mt-24 flex-col gap-3 rounded-2xl p-3 sm:flex-row sm:items-center sm:justify-between"
         >
-          <div className="flex flex-wrap gap-1.5">
-            {[
-              [null, `Alles (${counts.allKindsCount})`],
+          <div className="flex min-w-0 flex-1 flex-col gap-2.5">
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[9px] font-black uppercase tracking-[0.14em] text-[var(--dc-text-muted)]">
+                Type
+              </span>
+              {[
+              [null, `Alle types (${counts.allKindsCount})`],
               ["raw", `Raw (${counts.categoryCounts.raw})`],
               ["graded", `Graded (${counts.categoryCounts.graded})`],
               ["expansion", `Expansions (${counts.categoryCounts.expansion})`],
@@ -316,7 +293,12 @@ export default function MarktplaatsDealsPanel({
                 inactiveClassName="border border-[rgb(var(--dc-border-rgb)/0.75)] text-[var(--dc-text-secondary)] hover:bg-white/5"
               />
             ))}
-            {[
+            </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-[9px] font-black uppercase tracking-[0.14em] text-[var(--dc-text-muted)]">
+                Selectie
+              </span>
+              {[
               ["daily", `Dagselectie (${counts.dailyCount})`],
               ["deals", `Onder markt (${counts.dealCount})`],
               ["review", `Controleren (${counts.reviewCount})`],
@@ -330,6 +312,23 @@ export default function MarktplaatsDealsPanel({
                 inactiveClassName="border border-violet-300/20 text-violet-200 hover:bg-violet-300/10"
               />
             ))}
+              {kind !== null || selection !== "daily" || query ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setKind(null);
+                    setSelection("daily");
+                    setQuery("");
+                  }}
+                  className="rounded-full border border-[rgb(var(--dc-border-rgb)/0.75)] px-3 py-1.5 text-xs font-bold text-[var(--dc-text-muted)] transition hover:bg-white/5 hover:text-[var(--dc-text-primary)]"
+                >
+                  Reset
+                </button>
+              ) : null}
+            </div>
+            <p className="text-[10px] font-semibold text-[var(--dc-text-muted)]">
+              {counts.currentResultCount} resultaten · {kind ? kindLabel(kind) : "Alle types"} · {selection === "deals" ? "Onder markt" : selection === "review" ? "Controleren" : "Dagselectie"}
+            </p>
           </div>
           <div className="flex min-w-0 gap-2">
             <input
