@@ -11,6 +11,11 @@ import {
 } from "@/lib/games";
 import { assertScraperRequestsEnabled } from "@/lib/scraper-guard";
 import { getTcgdexImageLookup, resolveTcgdexImageUrl } from "@/lib/tcgdex";
+import {
+  recordTcggoHealthObservation,
+  type TcggoHealthObservation,
+  type TcggoHealthReason,
+} from "@/lib/tcggo-health";
 import { recordTcggoQuotaSnapshot } from "@/lib/tcggo-usage";
 
 const BASE_URL = "https://cardmarket-api-tcg.p.rapidapi.com";
@@ -19,8 +24,12 @@ const MAX_RETRY_ATTEMPTS = 2;
 const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 500, 502, 503, 504]);
 const HISTORY_PAGE_FETCH_DELAY_MS = 250;
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
+const HEALTHCHECK_PATH = "/pokemon/healthcheck";
+const REACTIVE_HEALTHCHECK_FAILURE_THRESHOLD = 2;
+const REACTIVE_HEALTHCHECK_COOLDOWN_MS = 30 * 60 * 1000;
 const CARD_PAGE_FETCH_SIZE = 150;
 const SEALED_PRODUCT_PAGE_FETCH_SIZE = 100;
+export const TCGGO_BATCH_LOOKUP_MAX_IDS = 20;
 const MAX_CATALOG_PAGES = 10;
 export const TCGGO_REQUEST_CONCURRENCY = 8;
 
@@ -30,6 +39,9 @@ export const TCGGO_REQUEST_CONCURRENCY = 8;
 const MAX_REQUESTS_PER_MINUTE = 300;
 const RATE_LIMIT_WINDOW_MS = 60_000;
 const recentRequestTimestamps: number[] = [];
+let consecutiveTcggoRequestFailures = 0;
+let nextReactiveHealthcheckAt = 0;
+let reactiveHealthcheckPromise: Promise<TcggoHealthObservation> | null = null;
 
 function buildTcgplayerProductImageUrl(value: string | number | null | undefined): string | null {
   if (value == null) return null;
@@ -545,7 +557,13 @@ function resetTcggoRequestRuntimeForTests() {
   };
   activeTcggoRequests = 0;
   tcggoRequestQueue.splice(0, tcggoRequestQueue.length);
+  consecutiveTcggoRequestFailures = 0;
+  nextReactiveHealthcheckAt = 0;
+  reactiveHealthcheckPromise = null;
 }
+
+type CardBatchLookupField = "ids" | "tcgids" | "cardmarket_ids";
+type ProductBatchLookupField = "ids" | "cardmarket_ids";
 
 function setTcggoRuntimeQuotaForTests(snapshot: Partial<RuntimeQuotaSnapshot>) {
   runtimeQuotaSnapshot = {
@@ -560,6 +578,132 @@ export const __tcggoTestUtils = {
   runQueuedRequest: runQueuedTcggoRequest,
   resolveCatalogTotalPages,
 };
+
+function extractHealthcheckMessage(payload: unknown): string | null {
+  if (typeof payload === "string") {
+    const value = payload.trim();
+    return value ? value.slice(0, 500) : null;
+  }
+  if (typeof payload !== "object" || payload == null) return null;
+
+  for (const key of ["message", "status", "detail"] as const) {
+    const value = (payload as Record<string, unknown>)[key];
+    if (typeof value === "string" && value.trim()) {
+      return value.trim().slice(0, 500);
+    }
+  }
+
+  return null;
+}
+
+function noteTcggoRequestSucceeded(): void {
+  consecutiveTcggoRequestFailures = 0;
+}
+
+function shouldCountAsProviderFailure(error: unknown): boolean {
+  return !isTcggoQuotaExceededError(error);
+}
+
+function noteTcggoRequestFailed(error: unknown): void {
+  if (!shouldCountAsProviderFailure(error)) return;
+
+  consecutiveTcggoRequestFailures += 1;
+  const now = Date.now();
+  if (
+    consecutiveTcggoRequestFailures < REACTIVE_HEALTHCHECK_FAILURE_THRESHOLD ||
+    now < nextReactiveHealthcheckAt ||
+    reactiveHealthcheckPromise
+  ) {
+    return;
+  }
+
+  nextReactiveHealthcheckAt = now + REACTIVE_HEALTHCHECK_COOLDOWN_MS;
+  reactiveHealthcheckPromise = checkTcggoHealth({ reason: "reactive" }).finally(() => {
+    reactiveHealthcheckPromise = null;
+  });
+}
+
+export async function checkTcggoHealth(options?: {
+  reason?: TcggoHealthReason;
+  monthlyPeriodKey?: string | null;
+}): Promise<TcggoHealthObservation> {
+  const reason = options?.reason ?? "manual";
+  const checkedAt = new Date();
+  const startedAt = Date.now();
+  let observation: TcggoHealthObservation;
+
+  try {
+    assertScraperRequestsEnabled();
+    const response = await runQueuedTcggoRequest(HEALTHCHECK_PATH, async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+      try {
+        return await fetch(`${BASE_URL}${HEALTHCHECK_PATH}`, {
+          headers: getRapidApiHeaders(),
+          cache: "no-store",
+          signal: controller.signal,
+        });
+      } finally {
+        clearTimeout(timeout);
+      }
+    });
+
+    updateRuntimeQuotaSnapshot(response.headers);
+    try {
+      await recordTcggoQuotaSnapshot(response.headers);
+    } catch {
+      // Health reporting must not fail merely because quota telemetry could not persist.
+    }
+
+    const rawBody = await response.text();
+    let payload: unknown = rawBody;
+    if (rawBody.trim()) {
+      try {
+        payload = JSON.parse(rawBody) as unknown;
+      } catch {
+        // A readable text response is still useful health evidence.
+      }
+    }
+    const quotaPaused =
+      response.status === 429 &&
+      parseHeaderInt(response.headers.get("x-ratelimit-requests-remaining")) === 0;
+    observation = {
+      state: response.ok ? "healthy" : quotaPaused ? "quota-paused" : "degraded",
+      ok: response.ok,
+      reason,
+      checkedAt: checkedAt.toISOString(),
+      latencyMs: Math.max(0, Date.now() - startedAt),
+      httpStatus: response.status,
+      message: extractHealthcheckMessage(payload),
+      monthlyPeriodKey: options?.monthlyPeriodKey ?? null,
+    };
+
+    if (response.ok) {
+      noteTcggoRequestSucceeded();
+    }
+  } catch (error) {
+    observation = {
+      state: isTcggoQuotaExceededError(error) ? "quota-paused" : "unreachable",
+      ok: false,
+      reason,
+      checkedAt: checkedAt.toISOString(),
+      latencyMs: Math.max(0, Date.now() - startedAt),
+      httpStatus:
+        error instanceof TcggoHttpStatusError ? error.status : null,
+      message: error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500),
+      monthlyPeriodKey: options?.monthlyPeriodKey ?? null,
+    };
+  }
+
+  try {
+    await recordTcggoHealthObservation(observation);
+  } catch {
+    // Provider availability must remain observable even if status persistence fails.
+  }
+
+  return observation;
+}
 
 async function apiFetch<T>(path: string): Promise<T> {
   assertScraperRequestsEnabled();
@@ -623,6 +767,7 @@ async function apiFetch<T>(path: string): Promise<T> {
         throw statusError;
       }
 
+      noteTcggoRequestSucceeded();
       return res.json() as Promise<T>;
     } catch (error) {
       if (isTcggoQuotaExceededError(error)) {
@@ -641,6 +786,7 @@ async function apiFetch<T>(path: string): Promise<T> {
         continue;
       }
 
+      noteTcggoRequestFailed(error);
       throw error;
     }
   }
@@ -1262,6 +1408,88 @@ export async function fetchCardsForEpisode(
   return all;
 }
 
+function normalizeBatchLookupValues(
+  values: readonly (string | number)[],
+  options?: { game?: TradingCardGame; internalIds?: boolean }
+): string[] {
+  const normalized = values
+    .map((value) => String(value).trim())
+    .filter(Boolean)
+    .map((value) =>
+      options?.internalIds
+        ? getRemoteTcggoId(options.game ?? POKEMON_GAME, value)
+        : value
+    );
+
+  return [...new Set(normalized)];
+}
+
+function chunkBatchLookupValues(values: readonly string[]): string[][] {
+  const chunks: string[][] = [];
+  for (let index = 0; index < values.length; index += TCGGO_BATCH_LOOKUP_MAX_IDS) {
+    chunks.push(values.slice(index, index + TCGGO_BATCH_LOOKUP_MAX_IDS));
+  }
+  return chunks;
+}
+
+async function fetchCardsByBatchField(
+  field: CardBatchLookupField,
+  values: readonly (string | number)[],
+  game: TradingCardGame
+): Promise<NormalizedCard[]> {
+  const requestedValues = normalizeBatchLookupValues(values, {
+    game,
+    internalIds: field === "ids",
+  });
+  if (requestedValues.length === 0) return [];
+
+  const tcgdexImageLookup = game === POKEMON_GAME ? await getTcgdexImageLookup() : new Map();
+  const gamePath = getTcggoGamePath(game);
+  const cardsById = new Map<string, NormalizedCard>();
+
+  for (const chunk of chunkBatchLookupValues(requestedValues)) {
+    const params = new URLSearchParams({
+      [field]: chunk.join(","),
+      per_page: String(TCGGO_BATCH_LOOKUP_MAX_IDS),
+    });
+    const response = await apiFetch<{ data?: RawCard[] }>(
+      `/${gamePath}/cards/search?${params}`
+    );
+
+    for (const card of filterRawCardsForGame(response.data ?? [], game)) {
+      const normalizedCard = normalizeCard(card, tcgdexImageLookup, game);
+      cardsById.set(normalizedCard.id, normalizedCard);
+    }
+  }
+
+  return [...cardsById.values()];
+}
+
+/**
+ * Looks up exact TCGGO card IDs in batches of 20. The API charges one request
+ * per batch, so this is useful for sparse refresh work spread across sets.
+ */
+export function fetchCardsByIds(
+  cardIds: readonly (string | number)[],
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedCard[]> {
+  return fetchCardsByBatchField("ids", cardIds, game);
+}
+
+export function fetchCardsByTcgids(
+  tcgids: readonly (string | number)[],
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedCard[]> {
+  return fetchCardsByBatchField("tcgids", tcgids, game);
+}
+
+export function fetchCardsByCardMarketIds(
+  cardMarketIds: readonly (string | number)[],
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedCard[]> {
+  return fetchCardsByBatchField("cardmarket_ids", cardMarketIds, game);
+}
+
 export async function fetchSealedAvailabilityForEpisode(
   episodeId: string,
   game: TradingCardGame = POKEMON_GAME
@@ -1320,6 +1548,52 @@ export async function fetchSealedProductsForEpisode(
   }
 
   return all;
+}
+
+async function fetchSealedProductsByBatchField(
+  field: ProductBatchLookupField,
+  values: readonly (string | number)[],
+  game: TradingCardGame
+): Promise<NormalizedSealedProduct[]> {
+  const requestedValues = normalizeBatchLookupValues(values, {
+    game,
+    internalIds: field === "ids",
+  });
+  if (requestedValues.length === 0) return [];
+
+  const gamePath = getTcggoGamePath(game);
+  const productsById = new Map<string, NormalizedSealedProduct>();
+
+  for (const chunk of chunkBatchLookupValues(requestedValues)) {
+    const params = new URLSearchParams({
+      [field]: chunk.join(","),
+      per_page: String(TCGGO_BATCH_LOOKUP_MAX_IDS),
+    });
+    const response = await apiFetch<{ data?: RawSealedProduct[] }>(
+      `/${gamePath}/products/search?${params}`
+    );
+
+    for (const product of response.data ?? []) {
+      const normalizedProduct = normalizeSealedProduct(product, game);
+      productsById.set(normalizedProduct.id, normalizedProduct);
+    }
+  }
+
+  return [...productsById.values()];
+}
+
+export function fetchSealedProductsByIds(
+  productIds: readonly (string | number)[],
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedSealedProduct[]> {
+  return fetchSealedProductsByBatchField("ids", productIds, game);
+}
+
+export function fetchSealedProductsByCardMarketIds(
+  cardMarketIds: readonly (string | number)[],
+  game: TradingCardGame = POKEMON_GAME
+): Promise<NormalizedSealedProduct[]> {
+  return fetchSealedProductsByBatchField("cardmarket_ids", cardMarketIds, game);
 }
 
 export async function fetchHistoryPricesByItemId(

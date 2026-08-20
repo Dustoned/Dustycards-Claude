@@ -52,6 +52,12 @@ import {
   type SetLifecycleJobSnapshot,
 } from "@/lib/sync/set-lifecycle-job";
 import { getTcggoUsageSnapshot } from "@/lib/tcggo-usage";
+import { checkTcggoHealth } from "@/lib/tcggo";
+import {
+  getTcggoMonthlyHealthPeriod,
+  maybeRunMonthlyTcggoHealthcheck,
+  type TcggoMonthlyHealthcheckResult,
+} from "@/lib/tcggo-health";
 import { maybeRunMarketScoreJob } from "@/lib/sync/market-score-job";
 import {
   getCardReprintJobSnapshot,
@@ -118,6 +124,7 @@ export interface SyncSchedulerTickResult {
     hasLiveWindow: boolean;
   };
   maintenance: {
+    tcggoHealth: TcggoMonthlyHealthcheckResult;
     reprints: CardReprintJobSnapshot;
     normalizedPriceCheckedAtCards: number;
     signalOutcomePrices: {
@@ -439,6 +446,18 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
       error: error instanceof Error ? error.message : String(error),
     })
   );
+  const tcggoHealth: TcggoMonthlyHealthcheckResult = scraperDisabled
+    ? {
+        due: getTcggoMonthlyHealthPeriod(checkedAt) != null,
+        ran: false,
+        skippedReason: "scraper-disabled",
+        observation: null,
+      }
+    : await maybeRunMonthlyTcggoHealthcheck({
+        now: checkedAt,
+        quota,
+        run: checkTcggoHealth,
+      });
 
   const result: SyncSchedulerTickResult = {
     ok: true,
@@ -472,6 +491,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
       hasLiveWindow: quota.hasLiveWindow,
     },
     maintenance: {
+      tcggoHealth,
       reprints,
       normalizedPriceCheckedAtCards,
       signalOutcomePrices,

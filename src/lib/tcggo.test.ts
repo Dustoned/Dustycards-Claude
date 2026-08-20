@@ -4,8 +4,16 @@ process.env.RAPIDAPI_KEY = process.env.RAPIDAPI_KEY ?? "test-key";
 process.env.RAPIDAPI_HOST = process.env.RAPIDAPI_HOST ?? "test-host";
 process.env.DATABASE_URL = process.env.DATABASE_URL ?? "file:./test.db";
 
+const healthMocks = vi.hoisted(() => ({
+  recordObservation: vi.fn(),
+}));
+
 vi.mock("@/lib/tcggo-usage", () => ({
   recordTcggoQuotaSnapshot: vi.fn(),
+}));
+
+vi.mock("@/lib/tcggo-health", () => ({
+  recordTcggoHealthObservation: healthMocks.recordObservation,
 }));
 
 vi.mock("@/lib/tcgdex", () => ({
@@ -15,9 +23,14 @@ vi.mock("@/lib/tcgdex", () => ({
 
 import {
   __tcggoTestUtils,
+  checkTcggoHealth,
   extractEbaySoldGradedPrices,
   fetchAllEpisodes,
+  fetchCardsByCardMarketIds,
+  fetchCardsByIds,
   fetchCardsForEpisode,
+  fetchSealedProductsByCardMarketIds,
+  fetchSealedProductsByIds,
   fetchSealedProductsForEpisode,
   isTcggoHttpStatusError,
   TCGGO_REQUEST_CONCURRENCY,
@@ -30,6 +43,7 @@ describe("TCGGO request limiter", () => {
   beforeEach(() => {
     vi.stubEnv("DUSTYCARDS_ENABLE_LOCAL_SYNC", "1");
     __tcggoTestUtils.resetRequestRuntime();
+    vi.clearAllMocks();
     vi.restoreAllMocks();
   });
 
@@ -121,6 +135,59 @@ describe("TCGGO request limiter", () => {
     }
   });
 
+  it("checks the dedicated Pokemon health endpoint without retrying", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ status: "ok" }), { status: 200 })
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await checkTcggoHealth({ reason: "manual" });
+
+    expect(result).toMatchObject({
+      state: "healthy",
+      ok: true,
+      reason: "manual",
+      httpStatus: 200,
+      message: "ok",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://cardmarket-api-tcg.p.rapidapi.com/pokemon/healthcheck",
+      expect.any(Object)
+    );
+    expect(healthMocks.recordObservation).toHaveBeenCalledWith(result);
+  });
+
+  it("runs at most one reactive healthcheck after two failed API operations", async () => {
+    let requestCount = 0;
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      requestCount += 1;
+      if (String(input).endsWith("/pokemon/healthcheck")) {
+        return new Response(JSON.stringify({ status: "ok" }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ message: "upstream unavailable" }), {
+        status: 503,
+      });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(fetchCardsForEpisode("413")).rejects.toBeInstanceOf(
+      TcggoHttpStatusError
+    );
+    await expect(fetchCardsForEpisode("413")).rejects.toBeInstanceOf(
+      TcggoHttpStatusError
+    );
+
+    await vi.waitFor(() => {
+      expect(
+        fetchMock.mock.calls.filter(([input]) =>
+          String(input).endsWith("/pokemon/healthcheck")
+        )
+      ).toHaveLength(1);
+    });
+    expect(requestCount).toBe(7);
+  });
+
   it("fetches cards with an over-100 page size to avoid empty first pages from TCGGO", async () => {
     const fetchMock = vi.fn(async () =>
       new Response(
@@ -147,6 +214,52 @@ describe("TCGGO request limiter", () => {
       expect.stringContaining("/pokemon/episodes/413/cards?page=1&per_page=150"),
       expect.any(Object)
     );
+  });
+
+  it("chunks exact card batch lookups into at most 20 IDs per request", async () => {
+    const requestedIds = Array.from({ length: 21 }, (_, index) => String(index + 1));
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      const ids = url.searchParams.get("ids")?.split(",") ?? [];
+      return new Response(
+        JSON.stringify({
+          data: ids.map((id) => ({ id: Number(id), name: `Card ${id}`, prices: {} })),
+        }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const cards = await fetchCardsByIds([...requestedIds, requestedIds[0]]);
+
+    expect(cards).toHaveLength(21);
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    const firstUrl = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    const secondUrl = new URL(String(fetchMock.mock.calls[1]?.[0]));
+    expect(firstUrl.pathname).toBe("/pokemon/cards/search");
+    expect(firstUrl.searchParams.get("ids")?.split(",")).toHaveLength(20);
+    expect(firstUrl.searchParams.get("per_page")).toBe("20");
+    expect(secondUrl.searchParams.get("ids")).toBe("21");
+  });
+
+  it("supports exact card batch lookup by CardMarket ID", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      void input;
+      return new Response(
+        JSON.stringify({
+          data: [{ id: 42, name: "Exact card", cardmarket_id: 12345, prices: {} }],
+        }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const cards = await fetchCardsByCardMarketIds([12345]);
+
+    expect(cards).toHaveLength(1);
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe("/pokemon/cards/search");
+    expect(url.searchParams.get("cardmarket_ids")).toBe("12345");
   });
 
   it("treats a short sealed catalog total as an item count instead of page count", async () => {
@@ -205,6 +318,50 @@ describe("TCGGO request limiter", () => {
     expect(fetchMock.mock.calls[1]?.[0]).toEqual(
       expect.stringContaining("products?page=2&per_page=100")
     );
+  });
+
+  it("batches exact sealed-product IDs and preserves game-scoped IDs", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      const url = new URL(String(input));
+      const ids = url.searchParams.get("ids")?.split(",") ?? [];
+      return new Response(
+        JSON.stringify({
+          data: ids.map((id) => ({ id: Number(id), name: `Product ${id}`, prices: {} })),
+        }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const products = await fetchSealedProductsByIds(
+      ["one-piece:1", "one-piece:2"],
+      ONE_PIECE_GAME
+    );
+
+    expect(products.map((product) => product.id)).toEqual(["one-piece:1", "one-piece:2"]);
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe("/one-piece/products/search");
+    expect(url.searchParams.get("ids")).toBe("1,2");
+  });
+
+  it("supports exact sealed-product lookup by CardMarket ID", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      void input;
+      return new Response(
+        JSON.stringify({
+          data: [{ id: 7, name: "Exact product", cardmarket_id: 777, prices: {} }],
+        }),
+        { status: 200 }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const products = await fetchSealedProductsByCardMarketIds([777]);
+
+    expect(products).toHaveLength(1);
+    const url = new URL(String(fetchMock.mock.calls[0]?.[0]));
+    expect(url.pathname).toBe("/pokemon/products/search");
+    expect(url.searchParams.get("cardmarket_ids")).toBe("777");
   });
 });
 

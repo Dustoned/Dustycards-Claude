@@ -81,13 +81,16 @@ import {
   extractGradedPrices,
   extractPrices,
   fetchAllEpisodes,
+  fetchCardsByIds,
   fetchCardDetail,
   fetchEbaySoldGradedPricesForCard,
   fetchCardsForEpisode,
   fetchHistoryPricesByItemId,
+  fetchSealedProductsByIds,
   fetchSealedProductsForEpisode,
   isTcggoHttpStatusError,
   isTcggoQuotaExceededError,
+  TCGGO_BATCH_LOOKUP_MAX_IDS,
   type NormalizedCard,
   type NormalizedSealedProduct,
 } from "@/lib/tcggo";
@@ -3552,7 +3555,25 @@ async function refreshEpisodeDueCards(
     },
   });
   const game = normalizeTradingCardGame(episode?.game);
-  const remoteCards = await fetchCardsForEpisode(episodeId, game);
+  let usedEpisodeCatalog = true;
+  let remoteCards: NormalizedCard[];
+
+  if (cardIds.length <= TCGGO_BATCH_LOOKUP_MAX_IDS) {
+    const batchCards = await fetchCardsByIds(cardIds, game);
+    const batchCardIds = new Set(batchCards.map((card) => card.id));
+
+    if (cardIds.every((cardId) => batchCardIds.has(cardId))) {
+      remoteCards = batchCards;
+      usedEpisodeCatalog = false;
+    } else {
+      // Some older local IDs are not indexed by the new batch endpoint. Fall
+      // back to the authoritative episode catalogue rather than incorrectly
+      // marking those cards unavailable.
+      remoteCards = await fetchCardsForEpisode(episodeId, game);
+    }
+  } else {
+    remoteCards = await fetchCardsForEpisode(episodeId, game);
+  }
 
   await throwIfCancelled?.();
 
@@ -3717,15 +3738,17 @@ async function refreshEpisodeDueCards(
       priceCreates,
     });
 
-    await tx.episode.update({
-      where: { id: episodeId },
-      data: buildEpisodeSourceCheckUpdate({
-        catalogCardCount: episode?.card_count ?? null,
-        localCardCount: episode?._count.cards ?? 0,
-        actualCardCount: remoteCards.length,
-        checkedAt: fetchedAt,
-      }),
-    });
+    if (usedEpisodeCatalog) {
+      await tx.episode.update({
+        where: { id: episodeId },
+        data: buildEpisodeSourceCheckUpdate({
+          catalogCardCount: episode?.card_count ?? null,
+          localCardCount: episode?._count.cards ?? 0,
+          actualCardCount: remoteCards.length,
+          checkedAt: fetchedAt,
+        }),
+      });
+    }
 
     return {
       episodeId,
@@ -4028,11 +4051,17 @@ export async function runSealedProductRefresh(
       await progress.throwIfCancelled();
       await progress.updateMessage(`Refreshing ${existingProduct.name} (${productId})`);
 
-      const remoteProducts = await fetchSealedProductsForEpisode(
-        existingProduct.episode_id,
-        normalizeTradingCardGame(existingProduct.game)
-      );
-      const remoteProduct = remoteProducts.find((product) => product.id === productId);
+      const game = normalizeTradingCardGame(existingProduct.game);
+      const batchProducts = await fetchSealedProductsByIds([productId], game);
+      let remoteProduct = batchProducts.find((product) => product.id === productId);
+
+      if (!remoteProduct) {
+        const remoteProducts = await fetchSealedProductsForEpisode(
+          existingProduct.episode_id,
+          game
+        );
+        remoteProduct = remoteProducts.find((product) => product.id === productId);
+      }
 
       if (!remoteProduct) {
         throw new Error("Sealed product not found in the scraper source.");

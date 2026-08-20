@@ -143,4 +143,25 @@ describe("admin CardMarket live offer loading", () => {
       loadAdminCardMarketEnglishNmPrice("https://example.com/blissey", noEnglishScraper),
     ).rejects.toMatchObject({ status: 422 });
   });
+
+  it("recovers with a fresh Firecrawl read when the Scrape.do fallback is unauthorized", async () => {
+    const scraper = vi
+      .fn()
+      .mockResolvedValueOnce(makeScrape("<main>partial</main>", "firecrawl"))
+      .mockRejectedValueOnce(new Error("Scrape.do scrape failed with status 401."))
+      .mockResolvedValueOnce(makeScrape(makeOfferRow({ price: "120,00 €" }), "firecrawl"));
+
+    await expect(
+      loadAdminCardMarketEnglishNmPrice("https://example.com/blissey", scraper),
+    ).resolves.toMatchObject({
+      scrape: { provider: "firecrawl" },
+      strictPrice: { priceEur: 120, offerCount: 1 },
+    });
+    expect(scraper).toHaveBeenNthCalledWith(2, "https://example.com/blissey", {
+      skipFirecrawl: true,
+    });
+    expect(scraper).toHaveBeenNthCalledWith(3, "https://example.com/blissey", {
+      maxAge: 0,
+    });
+  });
 });

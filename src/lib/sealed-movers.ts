@@ -512,16 +512,23 @@ function chunkProductIds(productIds: string[]): string[][] {
   return chunks;
 }
 
+export function appendRowsWithoutArgumentSpread<T>(target: T[], source: readonly T[]): void {
+  for (const row of source) target.push(row);
+}
+
 async function fetchSealedSnapshotRows(input: {
   productIds: string[];
-  allProducts: boolean;
   fetchedAtGte?: Date;
 }): Promise<SealedSnapshotRow[]> {
   if (input.productIds.length === 0) {
     return [];
   }
 
-  const batches = input.allProducts ? [null] : chunkProductIds(input.productIds);
+  // Never load every product history in one Prisma result and then spread that
+  // result into another array. A sufficiently large live history exceeds V8's
+  // argument limit (`rows.push(...result)`) and crashes the whole RSC render
+  // with `Maximum call stack size exceeded`.
+  const batches = chunkProductIds(input.productIds);
   const rows: SealedSnapshotRow[] = [];
 
   for (const batch of batches) {
@@ -529,30 +536,27 @@ async function fetchSealedSnapshotRows(input: {
       OR: getPricePresenceWhere(),
     };
 
-    if (batch) {
-      where.product_id = { in: batch };
-    }
+    where.product_id = { in: batch };
 
     if (input.fetchedAtGte) {
       where.fetched_at = { gte: input.fetchedAtGte };
     }
 
-    rows.push(
-      ...(await db.sealedPriceSnapshot.findMany({
-        where,
-        orderBy: [{ product_id: "asc" }, { fetched_at: "asc" }],
-        select: {
-          product_id: true,
-          fetched_at: true,
-          cm_lowest: true,
-          cm_lowest_eu: true,
-          cm_lowest_de: true,
-          cm_lowest_fr: true,
-          cm_lowest_es: true,
-          cm_lowest_it: true,
-        },
-      }))
-    );
+    const batchRows = await db.sealedPriceSnapshot.findMany({
+      where,
+      orderBy: [{ product_id: "asc" }, { fetched_at: "asc" }],
+      select: {
+        product_id: true,
+        fetched_at: true,
+        cm_lowest: true,
+        cm_lowest_eu: true,
+        cm_lowest_de: true,
+        cm_lowest_fr: true,
+        cm_lowest_es: true,
+        cm_lowest_it: true,
+      },
+    });
+    appendRowsWithoutArgumentSpread(rows, batchRows);
   }
 
   return rows;
@@ -620,12 +624,10 @@ export async function getSealedMovers(
       : await Promise.all([
           fetchSealedSnapshotRows({
             productIds,
-            allProducts: itemScope === "all",
             fetchedAtGte: historyCutoff,
           }),
           fetchSealedSnapshotRows({
             productIds,
-            allProducts: itemScope === "all",
           }),
         ]);
 

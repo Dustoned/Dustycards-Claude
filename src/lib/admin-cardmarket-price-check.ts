@@ -96,10 +96,17 @@ export async function loadAdminCardMarketEnglishNmPrice(
   try {
     fallbackScrape = await scraper(sourceUrl, { skipFirecrawl: true });
   } catch (error) {
-    throw new AdminCardMarketPriceCheckError(
-      `CardMarket's English NM offer table could not be read: ${error instanceof Error ? error.message : String(error)}`,
-      502,
-    );
+    // A broken/expired Scrape.do token must not make the live price check a
+    // dead end. Force a fresh Firecrawl request (the key pool rotates between
+    // calls) before surfacing an operational provider error.
+    try {
+      fallbackScrape = await scraper(sourceUrl, { maxAge: 0 });
+    } catch (retryError) {
+      throw new AdminCardMarketPriceCheckError(
+        `CardMarket's English NM offer table could not be read: ${retryError instanceof Error ? retryError.message : String(retryError)}`,
+        502,
+      );
+    }
   }
 
   const fallbackPrice = parseStrictCardMarketEnglishNmPrice(fallbackScrape);
