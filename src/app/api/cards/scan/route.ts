@@ -12,6 +12,7 @@ import {
 } from "@/lib/card-scanner-server";
 import { CARD_SCANNER_ENABLED } from "@/lib/feature-flags";
 import { normalizeTradingCardGame } from "@/lib/games";
+import { requestBodyTooLarge, requestBodyTooLargeResponse } from "@/lib/request-limits";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -32,6 +33,9 @@ export async function POST(request: Request) {
       { ok: false, error: "The Card Scanner is temporarily disabled." },
       { status: 503 }
     );
+  }
+  if (requestBodyTooLarge(request, CARD_SCANNER_MAX_UPLOAD_BYTES + 512 * 1024)) {
+    return requestBodyTooLargeResponse();
   }
   try {
     const user = await requireUser();

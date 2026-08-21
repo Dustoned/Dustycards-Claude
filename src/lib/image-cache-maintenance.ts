@@ -224,6 +224,27 @@ export async function trimImageCache(
       continue;
     }
     if (!(await removeCacheEntry(entry))) continue;
+    removed.add(entry);
+    remainingEntries -= 1;
+    remainingBytes -= entry.bytes;
+    removedEntries += 1;
+    removedBytes += entry.bytes;
+    if (entry.responsive) {
+      responsiveEntries -= 1;
+      responsiveBytes -= entry.bytes;
+      removedResponsiveEntries += 1;
+      removedResponsiveBytes += entry.bytes;
+    }
+  }
+
+  // The disk budget is a hard availability boundary. Referenced originals are
+  // evicted last, but may still be removed when protected files alone exceed
+  // the configured cap; they can be fetched again on demand.
+  for (const entry of entries) {
+    if (remainingEntries <= maxEntries && remainingBytes <= maxBytes) break;
+    if (removed.has(entry)) continue;
+    if (!(await removeCacheEntry(entry))) continue;
+    removed.add(entry);
     remainingEntries -= 1;
     remainingBytes -= entry.bytes;
     removedEntries += 1;

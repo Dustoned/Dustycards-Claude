@@ -5,6 +5,11 @@ import { sendVerificationEmailForUser } from "@/lib/email-verification";
 import { getMailPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSafeNextPath } from "@/lib/safe-next-path";
+import {
+  AUTH_REQUEST_BODY_LIMIT_BYTES,
+  requestBodyTooLarge,
+  requestBodyTooLargeResponse,
+} from "@/lib/request-limits";
 
 export const runtime = "nodejs";
 
@@ -13,6 +18,9 @@ const RESEND_RATE_LIMIT_PER_IP = 5;
 const RESEND_RATE_LIMIT_PER_EMAIL = 3;
 
 export async function POST(req: NextRequest) {
+  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
+    return requestBodyTooLargeResponse();
+  }
   const body = (await req.json().catch(() => ({}))) as { email?: unknown; next?: unknown };
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
   const nextPath = getSafeNextPath(body.next);

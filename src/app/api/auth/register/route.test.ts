@@ -81,4 +81,29 @@ describe("registration account approval", () => {
       verificationSent: true,
     });
   });
+
+  it("does not reveal whether an email address already has an account", async () => {
+    dbMock.user.findUnique.mockResolvedValue({ id: "existing-user" });
+
+    const response = await POST(
+      new NextRequest("http://localhost:3000/api/auth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email: "existing@example.com",
+          password: "password-123",
+          passwordConfirm: "password-123",
+        }),
+      })
+    );
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({
+      ok: true,
+      approvalRequired: true,
+      verifyEmail: true,
+    });
+    expect(dbMock.user.create).not.toHaveBeenCalled();
+    expect(mailMock.sendVerificationEmailForUser).not.toHaveBeenCalled();
+  });
 });

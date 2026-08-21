@@ -12,6 +12,8 @@ import {
   type ImageCacheVariant,
 } from "@/lib/image-cache";
 import { getRemoteImageCandidates } from "@/lib/image-cache-fallbacks";
+import { trimImageCache } from "@/lib/image-cache-maintenance";
+import { assertPublicNetworkTarget } from "@/lib/remote-url-security";
 
 // Image transforms share the web process with normal page requests. One
 // libvips thread per transform prevents a cold card grid from claiming both
@@ -27,11 +29,13 @@ function resolveImageCacheDir() {
 }
 
 export const IMAGE_CACHE_DIR = resolveImageCacheDir();
-const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGE_BYTES = 12 * 1024 * 1024;
+const MAX_INPUT_PIXELS = 40_000_000;
 const FETCH_TIMEOUT_MS = 30_000;
+const MAX_REDIRECTS = 3;
 // The remaining proxied image hosts accept parallel connections. Keep enough
 // slots available for one visible row without flooding the upstream CDNs.
-const MAX_REMOTE_IMAGE_FETCHES = 16;
+const MAX_REMOTE_IMAGE_FETCHES = 6;
 // Sharp decodes full source images before producing a thumbnail. Bounding the
 // number of decodes prevents a cold grid from multiplying CPU and native-memory
 // pressure by every simultaneously requested card.
@@ -42,6 +46,13 @@ const remoteImageFetchQueue: Array<() => void> = [];
 const pendingDownloads = new Map<string, Promise<EnsureImageResult>>();
 const pendingResponsiveImages = new Map<string, Promise<EnsureImageResult>>();
 const imageTransformLimiter = createConcurrencyLimiter(MAX_IMAGE_TRANSFORMS);
+const IMAGE_CACHE_MAX_ENTRIES = 12_000;
+const IMAGE_CACHE_MAX_BYTES = 1024 * 1024 * 1024;
+const RESPONSIVE_CACHE_MAX_ENTRIES = 3_000;
+const RESPONSIVE_CACHE_MAX_BYTES = 192 * 1024 * 1024;
+const CACHE_MAINTENANCE_WRITE_INTERVAL = 16;
+let cacheWritesSinceMaintenance = 0;
+let cacheMaintenancePromise: Promise<unknown> | null = null;
 
 function joinRuntimeFile(dir: string, fileName: string): string {
   const normalizedDir = dir.replace(/[\\/]+$/, "");
@@ -97,16 +108,68 @@ export function parseImageCacheVariant(
 }
 
 export function parseCacheableImageUrl(value: string | null | undefined): URL | null {
-  if (!value) return null;
+  if (!value || value.length > 2_048) return null;
 
   try {
     const url = new URL(value);
-    if (url.protocol !== "https:" && url.protocol !== "http:") return null;
+    if (url.protocol !== "https:") return null;
+    if (url.username || url.password || (url.port && url.port !== "443")) return null;
     if (!CACHEABLE_IMAGE_HOSTS.has(url.hostname)) return null;
+    url.hash = "";
+    url.searchParams.sort();
     return url;
   } catch {
     return null;
   }
+}
+
+function scheduleImageCacheMaintenance(): void {
+  cacheWritesSinceMaintenance += 1;
+  if (
+    cacheWritesSinceMaintenance < CACHE_MAINTENANCE_WRITE_INTERVAL ||
+    cacheMaintenancePromise
+  ) {
+    return;
+  }
+
+  cacheWritesSinceMaintenance = 0;
+  cacheMaintenancePromise = trimImageCache(IMAGE_CACHE_DIR, {
+    maxEntries: IMAGE_CACHE_MAX_ENTRIES,
+    maxBytes: IMAGE_CACHE_MAX_BYTES,
+    maxResponsiveEntries: RESPONSIVE_CACHE_MAX_ENTRIES,
+    maxResponsiveBytes: RESPONSIVE_CACHE_MAX_BYTES,
+  })
+    .catch(() => undefined)
+    .finally(() => {
+      cacheMaintenancePromise = null;
+    });
+}
+
+async function fetchRemoteImage(
+  initialUrl: URL,
+  headers: HeadersInit,
+  signal: AbortSignal
+): Promise<Response> {
+  let currentUrl = initialUrl;
+  for (let redirects = 0; redirects <= MAX_REDIRECTS; redirects += 1) {
+    await assertPublicNetworkTarget(currentUrl);
+    const response = await fetch(currentUrl, {
+      signal,
+      headers,
+      redirect: "manual",
+    });
+    if (response.status < 300 || response.status >= 400) return response;
+
+    const location = response.headers.get("location");
+    await response.body?.cancel().catch(() => undefined);
+    if (!location || redirects === MAX_REDIRECTS) {
+      throw new Error("Image redirect rejected");
+    }
+    const redirected = parseCacheableImageUrl(new URL(location, currentUrl).href);
+    if (!redirected) throw new Error("Image redirect target rejected");
+    currentUrl = redirected;
+  }
+  throw new Error("Too many image redirects");
 }
 
 async function readMeta(metaPath: string): Promise<ImageMeta | null> {
@@ -298,10 +361,11 @@ async function downloadAndPersist(
           headers.Referer = "https://www.pokemon.com/";
         }
 
-        const candidateResponse = await fetch(candidate, {
-          signal: controller.signal,
+        const candidateResponse = await fetchRemoteImage(
+          candidate,
           headers,
-        });
+          controller.signal
+        );
         if (candidateResponse.ok) {
           response = candidateResponse;
           break;
@@ -339,15 +403,17 @@ async function downloadAndPersist(
     const buffer = prepared.buffer;
     const contentType = prepared.contentType;
 
-    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
+    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true, mode: 0o700 });
     await Promise.all([
-      fs.writeFile(/*turbopackIgnore: true*/ imagePath, buffer),
+      fs.writeFile(/*turbopackIgnore: true*/ imagePath, buffer, { mode: 0o600 }),
       fs.writeFile(
         /*turbopackIgnore: true*/
         metaPath,
-        JSON.stringify({ contentType, sourceUrl: sourceUrl.href, variant } satisfies ImageMeta)
+        JSON.stringify({ contentType, sourceUrl: sourceUrl.href, variant } satisfies ImageMeta),
+        { mode: 0o600 }
       ),
     ]);
+    scheduleImageCacheMaintenance();
 
     return { imagePath, contentType, hit: false, buffer };
   } finally {
@@ -387,7 +453,7 @@ async function prepareResponsiveImageBuffer(
     return null;
   }
 
-  const image = sharp(buffer, { limitInputPixels: false });
+  const image = sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS });
   const metadata = await image.metadata();
   if (!metadata.width || metadata.width <= width) {
     return null;
@@ -416,7 +482,7 @@ async function prepareResponsiveImageBuffer(
 }
 
 async function trimTransparentImagePadding(buffer: Buffer): Promise<Buffer | null> {
-  const image = sharp(buffer, { limitInputPixels: false }).ensureAlpha();
+  const image = sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS }).ensureAlpha();
   const { data, info } = await image.raw().toBuffer({ resolveWithObject: true });
   const { width, height, channels } = info;
 
@@ -446,7 +512,7 @@ async function trimTransparentImagePadding(buffer: Buffer): Promise<Buffer | nul
     return null;
   }
 
-  return sharp(buffer, { limitInputPixels: false })
+  return sharp(buffer, { limitInputPixels: MAX_INPUT_PIXELS })
     .extract({ left, top, width: trimWidth, height: trimHeight })
     .png({ compressionLevel: 6, effort: 3 })
     .toBuffer();
@@ -474,9 +540,9 @@ async function createVariantFromOriginalCache(
       /*turbopackIgnore: true*/ originalPaths.imagePath
     );
     const prepared = await prepareCachedImageBuffer(originalBuffer, originalContentType, variant);
-    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
+    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true, mode: 0o700 });
     await Promise.all([
-      fs.writeFile(/*turbopackIgnore: true*/ imagePath, prepared.buffer),
+      fs.writeFile(/*turbopackIgnore: true*/ imagePath, prepared.buffer, { mode: 0o600 }),
       fs.writeFile(
         /*turbopackIgnore: true*/
         metaPath,
@@ -484,9 +550,11 @@ async function createVariantFromOriginalCache(
           contentType: prepared.contentType,
           sourceUrl: sourceUrl.href,
           variant,
-        } satisfies ImageMeta)
+        } satisfies ImageMeta),
+        { mode: 0o600 }
       ),
     ]);
+    scheduleImageCacheMaintenance();
 
     return {
       imagePath,
@@ -608,9 +676,9 @@ export async function ensureResponsiveImageCached(
 
     if (!prepared) return original;
 
-    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true });
+    await fs.mkdir(IMAGE_CACHE_DIR, { recursive: true, mode: 0o700 });
     await Promise.all([
-      fs.writeFile(/*turbopackIgnore: true*/ imagePath, prepared.buffer),
+      fs.writeFile(/*turbopackIgnore: true*/ imagePath, prepared.buffer, { mode: 0o600 }),
       fs.writeFile(
         /*turbopackIgnore: true*/
         metaPath,
@@ -619,9 +687,11 @@ export async function ensureResponsiveImageCached(
           sourceUrl: sourceUrl.href,
           variant,
           deliveryWidth: width,
-        } satisfies ImageMeta)
+        } satisfies ImageMeta),
+        { mode: 0o600 }
       ),
     ]);
+    scheduleImageCacheMaintenance();
     return {
       imagePath,
       contentType: prepared.contentType,

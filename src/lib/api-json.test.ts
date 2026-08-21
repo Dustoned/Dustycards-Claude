@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   MalformedJsonBodyError,
+  RequestBodyTooLargeError,
   malformedJsonBodyResponse,
   readJsonBody,
 } from "./api-json";
@@ -27,6 +28,18 @@ describe("readJsonBody", () => {
       )
     ).rejects.toBeInstanceOf(MalformedJsonBodyError);
   });
+
+  it("rejects oversized streamed JSON before parsing", async () => {
+    await expect(
+      readJsonBody(
+        new Request("http://localhost/api", {
+          method: "POST",
+          body: JSON.stringify({ value: "too large" }),
+        }),
+        8
+      )
+    ).rejects.toBeInstanceOf(RequestBodyTooLargeError);
+  });
 });
 
 describe("malformedJsonBodyResponse", () => {
@@ -39,5 +52,12 @@ describe("malformedJsonBodyResponse", () => {
 
   it("ignores unrelated errors", () => {
     expect(malformedJsonBodyResponse(new Error("Other"))).toBeNull();
+  });
+
+  it("returns 413 for oversized request bodies", async () => {
+    const response = malformedJsonBodyResponse(new RequestBodyTooLargeError());
+
+    expect(response?.status).toBe(413);
+    await expect(response?.json()).resolves.toEqual({ error: "Request body too large" });
   });
 });

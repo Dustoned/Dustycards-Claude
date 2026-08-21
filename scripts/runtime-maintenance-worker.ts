@@ -15,12 +15,13 @@ import { refreshSharedSealedSignalRadarData } from "@/lib/sealed-signal-radar-se
 const ACTIVE_USER_WINDOW_MS = 3 * 60_000;
 const RECENT_DETAIL_DAYS = 14;
 const DAILY_HISTORY_DAYS = 395;
-// The live catalog currently contains roughly 27k unique source images. Leave
-// room for every referenced original plus the bounded responsive variants.
-const IMAGE_CACHE_MAX_ENTRIES = 36_000;
-const IMAGE_CACHE_MAX_BYTES = 4 * 1024 * 1024 * 1024;
-const RESPONSIVE_CACHE_MAX_ENTRIES = 4_096;
-const RESPONSIVE_CACHE_MAX_BYTES = 256 * 1024 * 1024;
+// This is a disposable performance cache, not a source of record. Keep a hard
+// ceiling well below the VPS free-space margin; referenced originals are
+// evicted last and can always be fetched again.
+const IMAGE_CACHE_MAX_ENTRIES = 12_000;
+const IMAGE_CACHE_MAX_BYTES = 1024 * 1024 * 1024;
+const RESPONSIVE_CACHE_MAX_ENTRIES = 3_000;
+const RESPONSIVE_CACHE_MAX_BYTES = 192 * 1024 * 1024;
 
 type HistoryTable =
   | "CardGradedPriceSnapshot"

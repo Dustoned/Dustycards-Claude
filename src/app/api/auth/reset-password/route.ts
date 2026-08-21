@@ -3,6 +3,12 @@ import { hashPassword, hashSessionToken } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import { getPublicOrigin } from "@/lib/public-origin";
 import { getSafeNextPath } from "@/lib/safe-next-path";
+import {
+  AUTH_REQUEST_BODY_LIMIT_BYTES,
+  MAX_PASSWORD_LENGTH,
+  requestBodyTooLarge,
+  requestBodyTooLargeResponse,
+} from "@/lib/request-limits";
 
 function resetRedirect(req: NextRequest, token: string, error: string, nextPath: string) {
   const redirectUrl = new URL("/reset-password", getPublicOrigin(req));
@@ -12,7 +18,12 @@ function resetRedirect(req: NextRequest, token: string, error: string, nextPath:
   return NextResponse.redirect(redirectUrl, { status: 303 });
 }
 
+class ResetTokenConsumedError extends Error {}
+
 export async function POST(req: NextRequest) {
+  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
+    return requestBodyTooLargeResponse();
+  }
   const contentType = req.headers.get("content-type") ?? "";
   const isFormPost =
     contentType.includes("application/x-www-form-urlencoded") ||
@@ -31,7 +42,7 @@ export async function POST(req: NextRequest) {
   const passwordConfirm =
     typeof body.passwordConfirm === "string" ? body.passwordConfirm : "";
 
-  if (password.length < 8) {
+  if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
     if (isFormPost) return resetRedirect(req, token, "short", nextPath);
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
   }
@@ -67,14 +78,32 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Reset link is invalid or expired" }, { status: 400 });
   }
 
-  await db.$transaction([
-    db.user.update({
-      where: { id: record.user_id },
-      data: { password_hash: await hashPassword(password) },
-    }),
-    db.passwordResetToken.deleteMany({ where: { user_id: record.user_id } }),
-    db.session.deleteMany({ where: { user_id: record.user_id } }),
-  ]);
+  const passwordHash = await hashPassword(password);
+  try {
+    await db.$transaction(async (transaction) => {
+      const consumed = await transaction.passwordResetToken.updateMany({
+        where: {
+          token_hash: hashSessionToken(token),
+          user_id: record.user_id,
+          used_at: null,
+          expires_at: { gt: new Date() },
+        },
+        data: { used_at: new Date() },
+      });
+      if (consumed.count !== 1) throw new ResetTokenConsumedError();
+
+      await transaction.user.update({
+        where: { id: record.user_id },
+        data: { password_hash: passwordHash },
+      });
+      await transaction.session.deleteMany({ where: { user_id: record.user_id } });
+      await transaction.passwordResetToken.deleteMany({ where: { user_id: record.user_id } });
+    });
+  } catch (error) {
+    if (!(error instanceof ResetTokenConsumedError)) throw error;
+    if (isFormPost) return resetRedirect(req, token, "invalid", nextPath);
+    return NextResponse.json({ error: "Reset link is invalid or expired" }, { status: 400 });
+  }
 
   if (isFormPost) {
     const redirectUrl = new URL("/login", getPublicOrigin(req));

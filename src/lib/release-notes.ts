@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.86",
+    releasedAt: "August 22, 2026",
+    title: "Security hardening",
+    summary: "DustyCards now applies tighter boundaries to remote images, private browser data, requests and the live web server.",
+    tone: "system",
+    sections: [
+      {
+        title: "Safer app and infrastructure",
+        highlights: [
+          "Authenticated pages are no longer retained in the offline browser cache.",
+          "Remote images are constrained by safe redirects, public-network validation, decode limits, rate limits and a hard disk budget.",
+          "Production dependencies, HTTPS routing, body-size limits, response headers and private file permissions are hardened.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.85",
     releasedAt: "August 17, 2026",
     title: "Clear Marktplaats filter context",

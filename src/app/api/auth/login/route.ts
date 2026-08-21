@@ -13,6 +13,12 @@ import { sendVerificationEmailForUser } from "@/lib/email-verification";
 import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { getClientIp, isRateLimited, recordRateLimitHit } from "@/lib/rate-limit";
 import { getSafeNextPath } from "@/lib/safe-next-path";
+import {
+  AUTH_REQUEST_BODY_LIMIT_BYTES,
+  MAX_PASSWORD_LENGTH,
+  requestBodyTooLarge,
+  requestBodyTooLargeResponse,
+} from "@/lib/request-limits";
 
 export const runtime = "nodejs";
 
@@ -21,6 +27,9 @@ const LOGIN_RATE_LIMIT_PER_IP = 20;
 const LOGIN_RATE_LIMIT_PER_EMAIL = 8;
 
 export async function POST(req: NextRequest) {
+  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
+    return requestBodyTooLargeResponse();
+  }
   const contentType = req.headers.get("content-type") ?? "";
   const isFormPost =
     contentType.includes("application/x-www-form-urlencoded") ||
@@ -35,6 +44,10 @@ export async function POST(req: NextRequest) {
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
   const next = getSafeNextPath(body.next);
   const password = typeof body.password === "string" ? body.password : "";
+
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    return NextResponse.json({ error: "Invalid email or password" }, { status: 401 });
+  }
 
   const ipKey = `login:ip:${getClientIp(req)}`;
   const emailKey = email ? `login:email:${email}` : null;

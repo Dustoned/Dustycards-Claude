@@ -7,6 +7,33 @@
 }
 
 (dustycards_routes) {
+	header {
+		-Server
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(self), geolocation=(), microphone=(), payment=(), usb=()"
+		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'"
+	}
+
+	# Bound bodies before Next.js allocates/parses them. The scanner is the only
+	# endpoint that intentionally accepts a multi-megabyte upload.
+	@scanner_upload {
+		method POST
+		path /api/cards/scan
+	}
+	request_body @scanner_upload {
+		max_size 12MB
+	}
+	@normal_write {
+		method POST PUT PATCH DELETE
+		not path /api/cards/scan
+	}
+	request_body @normal_write {
+		max_size 1MB
+	}
+
 	# DustyCards has no PHP surface. Reject common exploit scans at the edge so
 	# they never occupy the single Next.js web process.
 	@blocked_php path_regexp blocked_php (?i)\.php(?:/|$)
@@ -62,5 +89,5 @@ dustycards.myftp.org, dustycards.93-190-187-221.sslip.io {
 
 :80 {
 	import dustycards_access_log
-	import dustycards_routes
+	redir https://dustycards.myftp.org{uri} permanent
 }

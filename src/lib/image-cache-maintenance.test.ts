@@ -149,4 +149,36 @@ describe("trimImageCache", () => {
       code: "ENOENT",
     });
   });
+
+  it("treats the total byte budget as hard even when every entry is referenced", async () => {
+    const dir = await makeCacheDir();
+    await writeEntry(dir, "old-live", {
+      bytes: 40,
+      responsive: false,
+      modifiedAt: 1_000,
+      sourceUrl: "https://images.test/old.webp",
+    });
+    await writeEntry(dir, "new-live", {
+      bytes: 30,
+      responsive: false,
+      modifiedAt: 2_000,
+      sourceUrl: "https://images.test/new.webp",
+    });
+
+    const result = await trimImageCache(dir, {
+      maxEntries: 1,
+      maxBytes: 30,
+      maxResponsiveEntries: 10,
+      maxResponsiveBytes: 100,
+      protectedSourceUrls: new Set([
+        "https://images.test/old.webp",
+        "https://images.test/new.webp",
+      ]),
+    });
+
+    expect(result).toMatchObject({ entries: 1, bytes: 30, removedEntries: 1 });
+    await expect(fs.stat(path.join(dir, "old-live.img"))).rejects.toMatchObject({
+      code: "ENOENT",
+    });
+  });
 });

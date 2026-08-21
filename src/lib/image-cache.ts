@@ -73,7 +73,7 @@ export function isCacheableRemoteImageUrl(value: string | null | undefined): val
 
   try {
     const url = new URL(value);
-    return (url.protocol === "https:" || url.protocol === "http:") && CACHEABLE_IMAGE_HOSTS.has(url.hostname);
+    return url.protocol === "https:" && CACHEABLE_IMAGE_HOSTS.has(url.hostname);
   } catch {
     return false;
   }

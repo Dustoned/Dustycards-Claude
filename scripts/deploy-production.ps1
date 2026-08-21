@@ -99,7 +99,7 @@ DeploySha="${DUSTYCARDS_DEPLOY_SHA:-}"
 DeployArchive="${DUSTYCARDS_DEPLOY_ARCHIVE:-/tmp/dustycards-deploy.tar.gz}"
 
 mkdir -p /opt/dustycards /opt/dustycards/backups /opt/dustycards/cache
-install -d -o dustycards -g dustycards -m 0755 /opt/dustycards/backups
+install -d -o dustycards -g dustycards -m 0700 /opt/dustycards/backups
 install -d -o dustycards -g dustycards -m 0755 /opt/dustycards/cache
 touch /opt/dustycards/backup.lock
 chown root:dustycards /opt/dustycards/backup.lock
@@ -172,6 +172,8 @@ try {
 NODE
 
   mv "$tmp_file" "$backup_file"
+  chown dustycards:dustycards "$backup_file"
+  chmod 0600 "$backup_file"
   prune_predeploy_backups 2
 }
 
@@ -261,11 +263,13 @@ legacy_image_cache_dir="$RemoteAppPath/data/image-cache"
 if [ -d "$legacy_image_cache_dir" ] && [ ! -L "$legacy_image_cache_dir" ] && [ ! -e "$image_cache_dir" ]; then
   mv -- "$legacy_image_cache_dir" "$image_cache_dir"
 fi
-install -d -o dustycards -g dustycards -m 0755 "$image_cache_dir"
+install -d -o dustycards -g dustycards -m 0700 "$image_cache_dir"
 if [ ! -e "$legacy_image_cache_dir" ]; then
   ln -s "$image_cache_dir" "$legacy_image_cache_dir"
 fi
 chown -R dustycards:dustycards "$image_cache_dir"
+chmod 0700 "$image_cache_dir"
+find "$image_cache_dir" -maxdepth 1 -type f -exec chmod 0600 {} +
 
 # Caddy serves immutable browser assets without involving the Next web
 # process. Merge every retained release into one shared directory before the
@@ -286,9 +290,16 @@ chown -R dustycards:dustycards "$next_static_dir"
 # replacing the live configuration and reload without dropping connections.
 if [ -f "$RemoteAppPath/deploy/Caddyfile" ]; then
   caddy validate --config "$RemoteAppPath/deploy/Caddyfile" --adapter caddyfile
-  install -d -o caddy -g caddy -m 0755 /var/log/caddy
+  install -d -o caddy -g caddy -m 0750 /var/log/caddy
+  find /var/log/caddy -maxdepth 1 -type f -exec chmod 0640 {} +
   install -m 0644 "$RemoteAppPath/deploy/Caddyfile" /etc/caddy/Caddyfile
-  systemctl reload caddy
+  install -d -m 0755 /etc/systemd/system/caddy.service.d
+  cat > /etc/systemd/system/caddy.service.d/20-dustycards-security.conf <<'EOF'
+[Service]
+UMask=0027
+EOF
+  systemctl daemon-reload
+  systemctl reload-or-restart caddy
 fi
 
 cd "$RemoteAppPath"
@@ -483,6 +494,32 @@ CPUWeight=1000
 IOWeight=1000
 TimeoutStopSec=30
 EOF
+cat > /etc/systemd/system/dustycards.service.d/30-security-hardening.conf <<'EOF'
+[Service]
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+CapabilityBoundingSet=
+AmbientCapabilities=
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+EOF
+
+# Keep databases, tokens and collection backups private to the application
+# account. SQLite will create future WAL/SHM files with the service UMask.
+chown dustycards:dustycards "$RemoteAppPath/dustycards.db" 2>/dev/null || true
+find "$RemoteAppPath" -maxdepth 2 -type f \
+  \( -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' \) \
+  -exec chown dustycards:dustycards {} + -exec chmod 0600 {} +
+find /opt/dustycards/backups -maxdepth 1 -type f \
+  \( -name '*.db' -o -name '*.db-wal' -o -name '*.db-shm' \) \
+  -exec chown dustycards:dustycards {} + -exec chmod 0600 {} +
 systemctl daemon-reload
 systemctl restart dustycards
 services_stopped=0

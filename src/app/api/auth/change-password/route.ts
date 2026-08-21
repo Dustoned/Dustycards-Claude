@@ -7,8 +7,17 @@ import {
 } from "@/lib/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
+import {
+  AUTH_REQUEST_BODY_LIMIT_BYTES,
+  MAX_PASSWORD_LENGTH,
+  requestBodyTooLarge,
+  requestBodyTooLargeResponse,
+} from "@/lib/request-limits";
 
 export async function POST(req: NextRequest) {
+  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
+    return requestBodyTooLargeResponse();
+  }
   try {
     const user = await requireUser();
     const body = (await req.json().catch(() => ({}))) as {
@@ -22,7 +31,7 @@ export async function POST(req: NextRequest) {
     const newPasswordConfirm =
       typeof body.newPasswordConfirm === "string" ? body.newPasswordConfirm : "";
 
-    if (newPassword.length < 8) {
+    if (newPassword.length < 8 || newPassword.length > MAX_PASSWORD_LENGTH) {
       return NextResponse.json({ error: "New password must be at least 8 characters" }, { status: 400 });
     }
 

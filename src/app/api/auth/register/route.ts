@@ -5,6 +5,12 @@ import { sendVerificationEmailForUser } from "@/lib/email-verification";
 import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSafeNextPath } from "@/lib/safe-next-path";
+import {
+  AUTH_REQUEST_BODY_LIMIT_BYTES,
+  MAX_PASSWORD_LENGTH,
+  requestBodyTooLarge,
+  requestBodyTooLargeResponse,
+} from "@/lib/request-limits";
 
 export const runtime = "nodejs";
 
@@ -19,6 +25,9 @@ function registerRedirect(req: NextRequest, error: string, nextPath: string) {
 }
 
 export async function POST(req: NextRequest) {
+  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
+    return requestBodyTooLargeResponse();
+  }
   const contentType = req.headers.get("content-type") ?? "";
   const isFormPost =
     contentType.includes("application/x-www-form-urlencoded") ||
@@ -42,7 +51,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Enter a valid email address" }, { status: 400 });
   }
 
-  if (password.length < 8) {
+  if (password.length < 8 || password.length > MAX_PASSWORD_LENGTH) {
     if (isFormPost) return registerRedirect(req, "short", nextPath);
     return NextResponse.json({ error: "Password must be at least 8 characters" }, { status: 400 });
   }
@@ -71,8 +80,15 @@ export async function POST(req: NextRequest) {
     select: { id: true },
   });
   if (existing) {
-    if (isFormPost) return registerRedirect(req, "exists", nextPath);
-    return NextResponse.json({ error: "An account with this email already exists" }, { status: 409 });
+    // Do not reveal whether an address already has an account. The forgot
+    // password flow remains available to the owner of an existing address.
+    if (isFormPost) {
+      const redirectUrl = new URL("/login", getPublicOrigin(req));
+      redirectUrl.searchParams.set("verify", "sent");
+      redirectUrl.searchParams.set("next", nextPath);
+      return NextResponse.redirect(redirectUrl, { status: 303 });
+    }
+    return NextResponse.json({ ok: true, approvalRequired: true, verifyEmail: true });
   }
 
   const user = await db.user.create({

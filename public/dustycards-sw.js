@@ -1,10 +1,8 @@
-const CACHE_VERSION = "3.12.0-2";
+const CACHE_VERSION = "3.12.85-security-1";
 const STATIC_CACHE = `dustycards-static-${CACHE_VERSION}`;
-const PAGE_CACHE = `dustycards-pages-${CACHE_VERSION}`;
 const IMAGE_CACHE = "dustycards-images-v1";
 const CACHE_PREFIX = "dustycards-";
 const MAX_STATIC_ENTRIES = 220;
-const MAX_PAGE_ENTRIES = 80;
 const MAX_IMAGE_ENTRIES = 1400;
 const CACHE_TRIM_WRITE_THRESHOLD = 32;
 const CACHE_TRIM_INTERVAL_MS = 2 * 60 * 1000;
@@ -34,15 +32,6 @@ function isStaticAssetRequest(request, url) {
       request.destination === "style" ||
       request.destination === "font" ||
       /\.(?:css|js|mjs|woff2?|ttf|otf|stl)$/i.test(url.pathname))
-  );
-}
-
-function isPageRequest(request, url) {
-  return (
-    isSameOrigin(url) &&
-    request.mode === "navigate" &&
-    !url.pathname.startsWith("/api/") &&
-    !url.pathname.startsWith("/_next/")
   );
 }
 
@@ -139,25 +128,6 @@ async function cacheFirst(schedule, request, cacheName, maxEntries, expectedKind
   }
 }
 
-async function pageNetworkFirst(schedule, request, preloadResponse) {
-  const cache = await caches.open(PAGE_CACHE);
-  try {
-    const preloaded = await Promise.resolve(preloadResponse);
-    const response = preloaded || await fetch(request);
-    if (shouldCacheResponse(response, "page")) {
-      rememberInBackground(schedule, cache, request, response, PAGE_CACHE, MAX_PAGE_ENTRIES);
-    }
-    return response;
-  } catch (error) {
-    // Authenticated app documents may reference deployment-specific assets and
-    // private data. Only use a cached document when the network actually fails;
-    // a merely slow response must never be replaced with stale HTML.
-    const cached = await cache.match(request);
-    if (cached) return cached;
-    throw error;
-  }
-}
-
 function respondWithBackground(event, strategy) {
   let background = Promise.resolve();
   const response = strategy((task) => {
@@ -184,7 +154,6 @@ self.addEventListener("activate", (event) => {
             (key) =>
               key.startsWith(CACHE_PREFIX) &&
               key !== STATIC_CACHE &&
-              key !== PAGE_CACHE &&
               key !== IMAGE_CACHE
           )
           .map((key) => caches.delete(key))
@@ -231,9 +200,6 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (isPageRequest(request, url)) {
-    respondWithBackground(event, (schedule) =>
-      pageNetworkFirst(schedule, request, event.preloadResponse)
-    );
-  }
+  // Never intercept or persist navigations. DustyCards pages contain private,
+  // user-specific collection data and must not survive logout in CacheStorage.
 });

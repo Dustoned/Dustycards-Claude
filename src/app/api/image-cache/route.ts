@@ -6,6 +6,7 @@ import {
   parseCacheableImageUrl,
   parseImageCacheVariant,
 } from "@/lib/image-cache-server";
+import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,13 @@ function imageHeaders(contentType: string, cacheState: "HIT" | "MISS"): HeadersI
 }
 
 export async function GET(request: NextRequest) {
+  if (consumeRateLimit(`image-cache:${getClientIp(request)}`, 240, 60_000)) {
+    return NextResponse.json(
+      { error: "Too many image requests" },
+      { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "60" } }
+    );
+  }
+
   const sourceUrl = parseCacheableImageUrl(request.nextUrl.searchParams.get("url"));
   if (!sourceUrl) {
     return NextResponse.json({ error: "Unsupported image URL" }, { status: 400 });
@@ -40,6 +48,10 @@ export async function GET(request: NextRequest) {
     return new NextResponse(bytes, { headers: imageHeaders(result.contentType, "MISS") });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    return NextResponse.json({ error: message }, { status: 502 });
+    console.error("[image-cache] fetch failed", message);
+    return NextResponse.json(
+      { error: "Image could not be loaded" },
+      { status: 502, headers: { "Cache-Control": "no-store" } }
+    );
   }
 }

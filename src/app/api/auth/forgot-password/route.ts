@@ -5,6 +5,11 @@ import { sendPasswordResetEmail } from "@/lib/mail";
 import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSafeNextPath } from "@/lib/safe-next-path";
+import {
+  AUTH_REQUEST_BODY_LIMIT_BYTES,
+  requestBodyTooLarge,
+  requestBodyTooLargeResponse,
+} from "@/lib/request-limits";
 
 export const runtime = "nodejs";
 
@@ -25,6 +30,9 @@ function sentResponse(req: NextRequest, isFormPost: boolean, nextPath: string) {
 }
 
 export async function POST(req: NextRequest) {
+  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
+    return requestBodyTooLargeResponse();
+  }
   const contentType = req.headers.get("content-type") ?? "";
   const isFormPost =
     contentType.includes("application/x-www-form-urlencoded") ||

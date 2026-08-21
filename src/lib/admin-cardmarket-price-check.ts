@@ -95,7 +95,7 @@ export async function loadAdminCardMarketEnglishNmPrice(
   let fallbackScrape: ProviderPageScrapeResult;
   try {
     fallbackScrape = await scraper(sourceUrl, { skipFirecrawl: true });
-  } catch (error) {
+  } catch {
     // A broken/expired Scrape.do token must not make the live price check a
     // dead end. Force a fresh Firecrawl request (the key pool rotates between
     // calls) before surfacing an operational provider error.

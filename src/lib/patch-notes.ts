@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.86",
+    releasedAt: "August 22, 2026",
+    title: "Security hardening across app and server",
+    summary: "Public network surfaces, private browser data and production dependencies now have stricter security boundaries.",
+    tone: "system",
+    highlights: [
+      "Private collection pages are no longer stored in the offline browser cache.",
+      "Remote artwork now has redirect, network, pixel, request-rate and disk-budget protection.",
+      "HTTPS routing, request-size limits, response headers and live file permissions are hardened.",
+      "Next.js, Sharp and Nodemailer are upgraded, with secured Prisma transitive dependencies and a clean dependency audit.",
+    ],
+  },
+  {
     version: "3.12.85",
     releasedAt: "August 17, 2026",
     title: "Unambiguous Marktplaats selections",
