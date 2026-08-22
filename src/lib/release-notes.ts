@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.97",
+    releasedAt: "August 23, 2026",
+    title: "Daily backups now leave the production server",
+    summary: "A verified encrypted copy of the newest nightly database is kept on a separate Windows drive.",
+    tone: "system",
+    sections: [
+      {
+        title: "Safer disaster recovery",
+        highlights: [
+          "The production server exposes only its newest verified nightly backup through a fixed read-only export.",
+          "Windows pulls and authenticates the backup over SSH, encrypts it locally and verifies decryption before publishing it.",
+          "Seven daily copies are retained on the D drive and missed scheduled runs catch up at the next login.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.96",
     releasedAt: "August 22, 2026",
     title: "Opening pools no longer guess box contents",

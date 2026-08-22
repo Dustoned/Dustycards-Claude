@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.97",
+    releasedAt: "August 23, 2026",
+    title: "Encrypted off-server database backups",
+    summary: "The newest verified production backup is copied to a protected D-drive archive every day.",
+    tone: "system",
+    highlights: [
+      "The export path is fixed and read-only instead of granting general access to production backups.",
+      "Every download is checked against the server SHA-256 before AES-256-GCM encryption.",
+      "The encrypted result is decrypted and hashed again before it becomes a retained restore point.",
+      "Seven daily copies are kept and the task catches up automatically after a missed run.",
+    ],
+  },
+  {
     version: "3.12.96",
     releasedAt: "August 22, 2026",
     title: "Unknown box contents are no longer guessed",

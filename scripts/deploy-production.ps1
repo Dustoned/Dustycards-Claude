@@ -105,6 +105,40 @@ install -d -o dustycards -g dustycards -m 0755 /opt/dustycards/cache
 touch /opt/dustycards/backup.lock
 chown root:dustycards /opt/dustycards/backup.lock
 chmod 0660 /opt/dustycards/backup.lock
+
+# The named deployment administrator may invoke this already-whitelisted
+# release wrapper over SSH. These two fixed, read-only modes expose only the
+# newest verified nightly backup, allowing a trusted workstation to keep an
+# off-server copy without opening an inbound port or making the backup
+# directory readable to the deployment account.
+if [ "${1:-}" = "--latest-daily-backup-metadata" ] || [ "${1:-}" = "--stream-latest-daily-backup" ]; then
+  exec 7</opt/dustycards/backup.lock
+  flock -s -w 120 7 || { echo "Could not acquire the backup read lock." >&2; exit 75; }
+  latest_backup="$({
+    find /opt/dustycards/backups -maxdepth 1 -type f \
+      -name 'dustycards-daily-*.db' -printf '%T@ %p\n' 2>/dev/null || true
+  } | sort -nr | awk 'NR == 1 { sub(/^[^ ]+ /, ""); print; exit }')"
+  [ -n "$latest_backup" ] && [ -f "$latest_backup" ] || {
+    echo "No verified daily DustyCards backup is available." >&2
+    exit 66
+  }
+  case "$latest_backup" in
+    /opt/dustycards/backups/dustycards-daily-*.db) ;;
+    *) echo "Refusing to export an unexpected backup path." >&2; exit 65 ;;
+  esac
+
+  if [ "$1" = "--stream-latest-daily-backup" ]; then
+    exec /bin/cat -- "$latest_backup"
+  fi
+
+  backup_name="$(basename "$latest_backup")"
+  backup_size="$(stat -c '%s' "$latest_backup")"
+  backup_hash="$(sha256sum "$latest_backup" | awk '{ print $1 }')"
+  printf '{"name":"%s","sizeBytes":%s,"sha256":"%s"}\n' \
+    "$backup_name" "$backup_size" "$backup_hash"
+  exit 0
+fi
+
 exec 9>/opt/dustycards/deploy.lock
 if ! flock -n 9; then
   echo "Another DustyCards deploy is already running; refusing to overlap." >&2
