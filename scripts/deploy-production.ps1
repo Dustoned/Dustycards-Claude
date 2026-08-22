@@ -391,7 +391,7 @@ if ! timeout --signal=TERM --kill-after=30s 25m \
     -p CPUQuota=100% \
     -p CPUWeight=10 \
     -p IOWeight=10 \
-    -p MemoryHigh=1536M \
+    -p MemoryHigh=2G \
     -p MemoryMax=2304M \
     -p MemorySwapMax=1024M \
     /usr/bin/env \
@@ -401,7 +401,7 @@ if ! timeout --signal=TERM --kill-after=30s 25m \
       APP_BUILD="$app_build" \
       NODE_OPTIONS="--max-old-space-size=1280" \
       UV_THREADPOOL_SIZE=2 \
-      /usr/bin/npm run build; then
+      /usr/bin/npm run build -- --webpack; then
   echo "The isolated Next build failed; the active release was left untouched." >&2
   exit 1
 fi
