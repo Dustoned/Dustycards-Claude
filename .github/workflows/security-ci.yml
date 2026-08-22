@@ -35,8 +35,10 @@ jobs:
         run: npm audit --audit-level=high
       - name: Generate database client
         run: npx prisma generate
-      - name: Apply database migrations to the CI snapshot
-        run: npx prisma migrate deploy
+      - name: Prepare and migrate the CI database
+        run: |
+          cp data/dustycards.app.db dustycards.db
+          npx prisma migrate deploy
       - name: TypeScript
         run: npx tsc --noEmit
       - name: Lint
