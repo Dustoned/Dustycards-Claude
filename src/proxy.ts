@@ -14,6 +14,20 @@ const PUBLIC_API_PREFIXES = [
 ];
 const SAFE_REQUEST_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+function getPublicRequestOrigin(
+  request: Pick<NextRequest, "headers" | "nextUrl">
+): string {
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const host = forwardedHost || request.headers.get("host")?.trim();
+  const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
+  const protocol = forwardedProto || request.nextUrl.protocol.replace(/:$/, "");
+
+  if (host && (protocol === "https" || protocol === "http")) {
+    return `${protocol}://${host}`;
+  }
+  return request.nextUrl.origin;
+}
+
 /**
  * Reject browser-initiated cross-site mutations before they reach public auth
  * endpoints, server actions or authenticated APIs. Requests from systemd jobs
@@ -33,7 +47,7 @@ export function isCrossSiteMutation(
   if (origin === "null") return true;
 
   try {
-    return new URL(origin).origin !== request.nextUrl.origin;
+    return new URL(origin).origin !== getPublicRequestOrigin(request);
   } catch {
     return true;
   }

@@ -8,7 +8,12 @@ function mutationRequest(
 ): NextRequest {
   return new NextRequest("https://dustycards.example/api/collection/items", {
     method,
-    headers,
+    headers: {
+      host: "dustycards.example",
+      "x-forwarded-host": "dustycards.example",
+      "x-forwarded-proto": "https",
+      ...headers,
+    },
   });
 }
 
@@ -28,6 +33,21 @@ describe("cross-site mutation protection", () => {
         })
       )
     ).toBe(false);
+  });
+
+  it("uses the trusted public proxy origin instead of the internal Next URL", () => {
+    const request = new NextRequest("http://127.0.0.1:3000/api/collection/items", {
+      method: "POST",
+      headers: {
+        host: "dustycards.example",
+        "x-forwarded-host": "dustycards.example",
+        "x-forwarded-proto": "https",
+        origin: "https://dustycards.example",
+        "sec-fetch-site": "same-origin",
+      },
+    });
+
+    expect(isCrossSiteMutation(request)).toBe(false);
   });
 
   it("blocks cross-site browser mutations even on public auth routes", () => {
