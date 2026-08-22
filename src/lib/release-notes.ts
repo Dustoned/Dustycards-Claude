@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.92",
+    releasedAt: "August 22, 2026",
+    title: "Sealed search that speaks collector shorthand",
+    summary: "Openings now keeps released products visible and understands set codes and sealed abbreviations.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Find the right product faster",
+        highlights: [
+          "Released products such as Pitch Black no longer disappear because their stored release date is an ISO string.",
+          "Searches understand combinations such as PBL ETB, PC ETB, UPC, BB and full set or product names.",
+          "The Openings catalogue, owned sealed picker, sealed origin picker and global sealed search now share the same shorthand rules.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.91",
     releasedAt: "August 22, 2026",
     title: "Open any sealed product",

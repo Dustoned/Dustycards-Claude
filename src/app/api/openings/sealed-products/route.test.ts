@@ -62,10 +62,57 @@ describe("GET /api/openings/sealed-products", () => {
     });
   });
 
-  it("forwards a search across product and set names", async () => {
-    await GET(new NextRequest("http://localhost/api/openings/sealed-products?q=temporal"));
-    expect(mocks.products).toHaveBeenCalledWith(expect.objectContaining({
-      where: expect.objectContaining({ OR: expect.any(Array) }),
-    }));
+  it("searches set names, codes and common product abbreviations together", async () => {
+    mocks.products.mockResolvedValue([
+      product({
+        id: "pitch-etb",
+        name: "Pitch Black Elite Trainer Box",
+        episode: { id: "pitch", name: "Pitch Black", code: "PBL" },
+      }),
+      product({
+        id: "pitch-box",
+        name: "Pitch Black Booster Box",
+        episode: { id: "pitch", name: "Pitch Black", code: "PBL" },
+      }),
+    ]);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/openings/sealed-products?q=PBL%20ETB")
+    );
+
+    await expect(response.json()).resolves.toMatchObject({
+      total: 1,
+      items: [{ productId: "pitch-etb" }],
+    });
+    const where = mocks.products.mock.calls[0]?.[0]?.where;
+    expect(where.game).toEqual({ in: ["pokemon"] });
+    expect(JSON.stringify(where)).toContain('"contains":"elite"');
+    expect(JSON.stringify(where)).toContain('"contains":"trainer"');
+    expect(JSON.stringify(where)).toContain('"contains":"box"');
+  });
+
+  it("keeps released products whose dates are stored as ISO strings", async () => {
+    mocks.products.mockResolvedValue([
+      product({
+        id: "pitch-box",
+        name: "Pitch Black Booster Box",
+        release_date: "2026-07-17T00:00:00.000Z",
+        episode: {
+          id: "pitch",
+          name: "Pitch Black",
+          code: "PBL",
+          release_date: "2026-07-17T00:00:00.000Z",
+        },
+      }),
+    ]);
+
+    const response = await GET(
+      new NextRequest("http://localhost/api/openings/sealed-products?q=Pitch%20Black")
+    );
+
+    await expect(response.json()).resolves.toMatchObject({
+      total: 1,
+      items: [{ productId: "pitch-box" }],
+    });
   });
 });

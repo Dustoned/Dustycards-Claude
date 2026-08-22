@@ -54,6 +54,11 @@ describe("rankSealedOriginAutocompleteOptions", () => {
       .toEqual(["etb", "pc-etb"]);
   });
 
+  it("combines set codes with sealed-product shorthand", () => {
+    expect(rankSealedOriginAutocompleteOptions(autocompleteOptions, "PRE PC ETB").map(({ id }) => id))
+      .toEqual(["pc-etb"]);
+  });
+
   it("lets a direct manual fallback outrank a less relevant known product", () => {
     const options = [
       ...autocompleteOptions,

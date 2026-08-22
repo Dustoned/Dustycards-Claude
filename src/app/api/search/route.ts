@@ -20,6 +20,7 @@ import {
 } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
+import { getSealedSearchScore, getSealedSearchTokens } from "@/lib/sealed-search";
 
 const MAX_RESULTS = 100;
 const FUZZY_CARD_CANDIDATE_LIMIT = 180;
@@ -951,7 +952,7 @@ function nameContains<TWhere extends Record<string, unknown>>(name: string, fiel
 }
 
 function sealedNameContains(name: string): Prisma.SealedProductWhereInput {
-  const tokens = searchTokens(name);
+  const tokens = getSealedSearchTokens(name);
 
   if (tokens.length <= 1) {
     return {
@@ -1367,14 +1368,16 @@ function formatSealedResults(
       episode: product.episode,
     }))
     .sort((a, b) => {
-      const aScore =
-        getTextRelevanceScore(a.name, relevanceQuery, rankingMode) * 2 +
-        getTextRelevanceScore(a.episode.name, relevanceQuery, rankingMode) +
-        getTextRelevanceScore(a.episode.code ?? "", relevanceQuery, rankingMode);
-      const bScore =
-        getTextRelevanceScore(b.name, relevanceQuery, rankingMode) * 2 +
-        getTextRelevanceScore(b.episode.name, relevanceQuery, rankingMode) +
-        getTextRelevanceScore(b.episode.code ?? "", relevanceQuery, rankingMode);
+      const aScore = rankingMode === "direct"
+        ? getSealedSearchScore(a, relevanceQuery) ?? 0
+        : getTextRelevanceScore(a.name, relevanceQuery, rankingMode) * 2 +
+          getTextRelevanceScore(a.episode.name, relevanceQuery, rankingMode) +
+          getTextRelevanceScore(a.episode.code ?? "", relevanceQuery, rankingMode);
+      const bScore = rankingMode === "direct"
+        ? getSealedSearchScore(b, relevanceQuery) ?? 0
+        : getTextRelevanceScore(b.name, relevanceQuery, rankingMode) * 2 +
+          getTextRelevanceScore(b.episode.name, relevanceQuery, rankingMode) +
+          getTextRelevanceScore(b.episode.code ?? "", relevanceQuery, rankingMode);
       const scoreDiff = compareRelevance(aScore, bScore);
       if (scoreDiff !== 0) return scoreDiff;
 

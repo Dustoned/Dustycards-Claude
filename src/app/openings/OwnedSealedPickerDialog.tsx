@@ -10,6 +10,7 @@ import {
   modalCloseButtonClass,
 } from "@/components/modal-glass-styles";
 import { formatCollectionCurrency } from "@/lib/collection";
+import { rankSealedSearchCandidates } from "@/lib/sealed-search";
 import type { CatalogSealedChoice, OpeningSealedChoice, OwnedSealedChoice } from "./OpeningSessionsClient";
 
 type PickerTab = "collection" | "catalog";
@@ -119,9 +120,9 @@ export default function OwnedSealedPickerDialog({ items, selectedKey, onClose, o
   const ownedChoices = useMemo(() => items.map(asOwnedChoice), [items]);
   const filteredOwned = useMemo(
     () => normalizedQuery
-      ? ownedChoices.filter((item) => `${item.name} ${item.episode.name} ${item.episode.code ?? ""}`.toLocaleLowerCase().includes(normalizedQuery))
+      ? rankSealedSearchCandidates(ownedChoices, query)
       : ownedChoices,
-    [normalizedQuery, ownedChoices]
+    [normalizedQuery, ownedChoices, query]
   );
 
   useEffect(() => {

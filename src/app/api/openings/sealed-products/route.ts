@@ -5,6 +5,7 @@ import { db } from "@/lib/db";
 import { isHiddenExpansion } from "@/lib/episodes";
 import { ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import { inferSealedOpeningPackCount, isOpenableSealedProduct } from "@/lib/opening-sealed";
+import { getSealedSearchTokens, rankSealedSearchCandidates } from "@/lib/sealed-search";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
 const PAGE_SIZE = 60;
@@ -13,6 +14,12 @@ const MAX_QUERY_LENGTH = 100;
 function readOffset(value: string | null): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 0 ? Math.min(parsed, 10_000) : 0;
+}
+
+function isReleasedBy(value: string | Date | null | undefined, now: Date): boolean {
+  if (!value) return true;
+  const timestamp = value instanceof Date ? value.getTime() : Date.parse(value);
+  return Number.isFinite(timestamp) && timestamp <= now.getTime();
 }
 
 export async function GET(request: NextRequest) {
@@ -28,16 +35,19 @@ export async function GET(request: NextRequest) {
     const games = settings.onePieceLibraryEnabled
       ? [POKEMON_GAME, ONE_PIECE_GAME]
       : [POKEMON_GAME];
+    const queryTokens = getSealedSearchTokens(query);
     const products = await db.sealedProduct.findMany({
       where: {
         game: { in: games },
-        ...(query
+        ...(queryTokens.length > 0
           ? {
-              OR: [
-                { name: { contains: query } },
-                { episode: { name: { contains: query } } },
-                { episode: { code: { contains: query } } },
-              ],
+              AND: queryTokens.map((token) => ({
+                OR: [
+                  { name: { contains: token } },
+                  { episode: { name: { contains: token } } },
+                  { episode: { code: { contains: token } } },
+                ],
+              })),
             }
           : {}),
       },
@@ -66,10 +76,11 @@ export async function GET(request: NextRequest) {
         const effectiveReleaseDate = product.release_date ?? product.episode.release_date;
         return !isHiddenExpansion(product.episode) &&
           isOpenableSealedProduct(product.name) &&
-          (effectiveReleaseDate == null || effectiveReleaseDate <= now);
+          isReleasedBy(effectiveReleaseDate, now);
       }
     );
-    const page = openable.slice(offset, offset + PAGE_SIZE);
+    const matches = query ? rankSealedSearchCandidates(openable, query) : openable;
+    const page = matches.slice(offset, offset + PAGE_SIZE);
     const setCodes = [...new Set(page.map((product) => product.episode.code?.trim()).filter(Boolean))] as string[];
     const profiles = setCodes.length
       ? await db.setPullRateProfile.findMany({
@@ -104,8 +115,8 @@ export async function GET(request: NextRequest) {
           product.game
         ),
       })),
-      total: openable.length,
-      nextOffset: offset + PAGE_SIZE < openable.length ? offset + PAGE_SIZE : null,
+      total: matches.length,
+      nextOffset: offset + PAGE_SIZE < matches.length ? offset + PAGE_SIZE : null,
     });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Could not load sealed products" }, { status: 500 });
