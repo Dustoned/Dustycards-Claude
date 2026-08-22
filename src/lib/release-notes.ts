@@ -20,6 +20,40 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.94",
+    releasedAt: "August 22, 2026",
+    title: "Opening mistakes can be reversed safely",
+    summary: "Open sessions can be cancelled and completed opening history can be removed without losing real pulls.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Clear recovery actions",
+        highlights: [
+          "Cancelling an active opening removes its accidental pulls and restores the owned sealed item when applicable.",
+          "Deleting a completed opening removes only the history record and keeps every pulled card in the collection.",
+          "The final owned sealed copy now remains recoverable at zero quantity instead of losing its inventory link.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "3.12.93",
+    releasedAt: "August 22, 2026",
+    title: "Alternate artworks belong to the same print family",
+    summary: "Exact card rules now connect regular, rainbow, alternate-art and trainer-gallery printings.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Reliable related printings",
+        highlights: [
+          "Mew VMAX TG30 now shows its Fusion Strike regular, rainbow and alternate-art printings.",
+          "Exact attacks, effects and compatible card identity now outweigh artwork-style and illustrator differences.",
+          "Visual similarity remains the safety check when card rules are incomplete or only loosely related.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.92",
     releasedAt: "August 22, 2026",
     title: "Sealed search that speaks collector shorthand",

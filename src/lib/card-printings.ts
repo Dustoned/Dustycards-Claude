@@ -3,8 +3,7 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v11-review68-rules";
-const MIN_RULES_VERIFIED_IMAGE_SIMILARITY = 0.82;
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v12-exact-rules";
 const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.84;
 const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.68;
 const STRONG_REPRINT_IMAGE_SIMILARITY = 0.92;
@@ -93,6 +92,7 @@ export type PrintingLookupCard = {
 };
 
 export type CardPrintingMatchMethod =
+  | "rules-exact"
   | "rules-and-art"
   | "lineage-and-art"
   | "likely-art"
@@ -409,20 +409,14 @@ export function getPrintingMatchDetails(
         haveCompatibleKnownIdentityFields(current, candidate)
       );
 
-    if (
-      rulesMatch &&
-      sameIllustrator &&
-      imageSimilarity >= MIN_RULES_VERIFIED_IMAGE_SIMILARITY
-    ) {
-      // Matching rules are necessary, but regular/full-art printings can share
-      // every attack while still using genuinely different artwork. Only a
-      // strong visual match bypasses review; the lower-confidence band must be
-      // confirmed by an admin before it appears in a print family.
+    if (rulesMatch) {
+      // A regular, rainbow, gold, promo or trainer-gallery treatment can use
+      // entirely different artwork (and even a different credited artist)
+      // while still being the same playable card. Exact rules plus compatible
+      // identity fields are stronger evidence than artwork similarity.
       return {
         matchType: "reprint",
-        method: imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY
-          ? "rules-and-art"
-          : "likely-art",
+        method: "rules-exact",
         imageSimilarity,
       };
     }

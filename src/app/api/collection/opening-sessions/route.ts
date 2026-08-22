@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
     }
     const owned = collectionSealedId
       ? await db.collectionSealed.findFirst({
-          where: { id: collectionSealedId, user_id: user.id },
+          where: { id: collectionSealedId, user_id: user.id, quantity: { gt: 0 } },
           include: { product: { select: { id: true, name: true } } },
         })
       : null;
@@ -69,14 +69,13 @@ export async function POST(request: NextRequest) {
       });
 
       if (owned) {
-        if (owned.quantity > 1) {
-          await tx.collectionSealed.update({
-            where: { id: owned.id },
-            data: { quantity: { decrement: 1 } },
-          });
-        } else {
-          await tx.collectionSealed.delete({ where: { id: owned.id } });
-        }
+        // Keep the row at quantity zero so an accidental opening can restore
+        // the exact inventory item. Visible collection queries already require
+        // quantity > 0, so a consumed final copy remains hidden as expected.
+        await tx.collectionSealed.update({
+          where: { id: owned.id },
+          data: { quantity: { decrement: 1 } },
+        });
       }
 
       return created;
