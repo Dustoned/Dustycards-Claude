@@ -126,5 +126,5 @@ export function getSealedOriginMarketPrice(product: SealedOriginPriceRef): numbe
     product.cm_avg_30d,
   ];
 
-  return candidates.find((value): value is number => value != null && value > 0) ?? null;
+  return candidates.find((value): value is number => value != null && value > 0 && value !== 9001) ?? null;
 }

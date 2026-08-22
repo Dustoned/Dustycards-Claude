@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.91",
+    releasedAt: "August 22, 2026",
+    title: "Full sealed catalogue in Openings",
+    summary: "Openings are no longer limited to sealed products already saved in your collection.",
+    tone: "improved",
+    highlights: [
+      "Search owned sealed or the complete openable catalogue from one mobile-friendly picker.",
+      "Best available market price and known pack contents are prefilled automatically.",
+      "Single boosters count as one pack, while unknown contents remain editable instead of being guessed.",
+      "Opening a catalogue product does not change collection inventory.",
+    ],
+  },
+  {
     version: "3.12.90",
     releasedAt: "August 22, 2026",
     title: "Security monitor runtime verified",
