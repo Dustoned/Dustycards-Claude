@@ -93,6 +93,7 @@ function ConvertTo-ShellSingleQuoted {
 
 $remoteAppPathLiteral = ConvertTo-ShellSingleQuoted $RemoteAppPath
 $remoteScript = @'
+#!/usr/bin/env bash
 set -e
 RemoteAppPath=__REMOTE_APP_PATH__
 DeploySha="${1:-${DUSTYCARDS_DEPLOY_SHA:-}}"
