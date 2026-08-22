@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.92",
+    releasedAt: "August 22, 2026",
+    title: "Released sealed products stay searchable",
+    summary: "Openings no longer filters valid released products out because their release date is stored as text.",
+    tone: "fixed",
+    highlights: [
+      "Pitch Black and other released sets remain visible in the complete sealed catalogue.",
+      "Set codes and common sealed abbreviations work across sealed search experiences.",
+      "Multi-part searches such as Pitch Black ETB match every term instead of requiring one literal phrase.",
+    ],
+  },
+  {
     version: "3.12.91",
     releasedAt: "August 22, 2026",
     title: "Full sealed catalogue in Openings",

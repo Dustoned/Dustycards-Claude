@@ -1563,4 +1563,33 @@ describe("GET /api/search", () => {
       "expensive-fuzzy",
     ]);
   });
+
+  it("expands sealed abbreviations in the global search", async () => {
+    dbMock.card.findMany.mockResolvedValue([]);
+    dbMock.sealedProduct.findMany.mockResolvedValue([
+      {
+        id: "pitch-etb",
+        name: "Pitch Black Elite Trainer Box",
+        image_url: null,
+        cardmarket_url: null,
+        cm_lowest: 49,
+        cm_lowest_eu: 48,
+        cm_avg_7d: null,
+        cm_avg_30d: null,
+        episode: { id: "pitch", name: "Pitch Black", code: "PBL" },
+      },
+    ]);
+    dbMock.episode.findMany.mockResolvedValue([]);
+
+    const response = await GET(
+      new NextRequest("http://localhost:3000/api/search?q=Pitch%20Black%20ETB")
+    );
+    const body = await response.json();
+
+    expect(body.sealed.map((product: { id: string }) => product.id)).toEqual(["pitch-etb"]);
+    const sealedWhere = dbMock.sealedProduct.findMany.mock.calls[0]?.[0]?.where;
+    expect(JSON.stringify(sealedWhere)).toContain('"contains":"elite"');
+    expect(JSON.stringify(sealedWhere)).toContain('"contains":"trainer"');
+    expect(JSON.stringify(sealedWhere)).toContain('"contains":"box"');
+  });
 });

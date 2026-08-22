@@ -1,3 +1,5 @@
+import { getSealedSearchScore, normalizeSealedSearchText } from "@/lib/sealed-search";
+
 export const SEALED_ORIGIN_PRICE_SOURCE = "sealed_origin";
 
 export interface SealedOriginCardRef {
@@ -36,15 +38,6 @@ export interface SealedOriginAutocompleteRef {
   };
 }
 
-function normalizeSealedOriginSearch(value: string): string {
-  return value
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLocaleLowerCase("en")
-    .replace(/[^a-z0-9]+/g, " ")
-    .trim();
-}
-
 /**
  * Ranks every matching autocomplete option. Products that are known to
  * contain the selected card(s) win close ties, while direct name matches still
@@ -54,39 +47,22 @@ function normalizeSealedOriginSearch(value: string): string {
 export function rankSealedOriginAutocompleteOptions<
   T extends SealedOriginAutocompleteRef,
 >(options: T[], query: string): T[] {
-  const normalizedQuery = normalizeSealedOriginSearch(query);
-  const queryTokens = normalizedQuery.split(" ").filter(Boolean);
+  const normalizedQuery = normalizeSealedSearchText(query);
 
   return options
     .map((option, index) => {
-      const name = normalizeSealedOriginSearch(option.name);
-      const episodeName = normalizeSealedOriginSearch(option.episode.name);
-      const episodeCode = normalizeSealedOriginSearch(option.episode.code ?? "");
+      const name = normalizeSealedSearchText(option.name);
       const nameWords = name.split(" ").filter(Boolean);
-      const acronym = nameWords.map((word) => word[0]).join("");
-      const searchable = `${name} ${episodeName} ${episodeCode}`.trim();
-
-      if (queryTokens.some((token) => !searchable.includes(token) && !acronym.includes(token))) {
+      const searchScore = getSealedSearchScore(option, query);
+      if (searchScore == null) {
         return null;
       }
 
-      let score = (option.matches_cards ? 100 : 0) + (option.owned ? 40 : 0);
+      let score = searchScore + (option.matches_cards ? 100 : 0) + (option.owned ? 40 : 0);
       if (!normalizedQuery) {
         return { option, index, score };
       }
-      if (name === normalizedQuery) score += 1_000;
-      else if (name.startsWith(normalizedQuery)) score += 800;
-      else if (nameWords.some((word) => word.startsWith(normalizedQuery))) score += 650;
-      else if (name.includes(normalizedQuery)) score += 560;
-      else if (acronym.includes(normalizedQuery)) score += 520;
-
-      for (const token of queryTokens) {
-        if (nameWords.some((word) => word === token)) score += 120;
-        else if (nameWords.some((word) => word.startsWith(token))) score += 90;
-        else if (name.includes(token)) score += 65;
-        else if (episodeCode === token) score += 55;
-        else score += 30;
-      }
+      if (nameWords.some((word) => word.startsWith(normalizedQuery))) score += 80;
 
       return { option, index, score };
     })
