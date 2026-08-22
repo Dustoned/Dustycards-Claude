@@ -21,7 +21,7 @@ function imageHeaders(contentType: string, cacheState: "HIT" | "MISS"): HeadersI
 }
 
 export async function GET(request: NextRequest) {
-  if (consumeRateLimit(`image-cache:${getClientIp(request)}`, 240, 60_000)) {
+  if (await consumeRateLimit(`image-cache:${getClientIp(request)}`, 240, 60_000)) {
     return NextResponse.json(
       { error: "Too many image requests" },
       { status: 429, headers: { "Cache-Control": "no-store", "Retry-After": "60" } }

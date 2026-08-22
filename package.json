@@ -1,6 +1,6 @@
 {
   "name": "dustycards",
-  "version": "3.12.87",
+  "version": "3.12.88",
   "private": true,
   "scripts": {
     "dev": "next dev",

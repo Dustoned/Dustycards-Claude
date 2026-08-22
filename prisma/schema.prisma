@@ -56,6 +56,9 @@ model User {
   approval_requested_at DateTime?
   settings_json         String?
   email_verified_at     DateTime?
+  mfa_secret_encrypted  String?
+  mfa_recovery_codes_json String?
+  mfa_enabled_at        DateTime?
   created_at            DateTime  @default(now())
   updated_at            DateTime  @updatedAt
 
@@ -76,6 +79,7 @@ model User {
   binderShareLinks         BinderShareLink[]
   cardSubmissions          CardSubmission[]
   feedback                 Feedback[]
+  securityEvents           SecurityEvent[]
   socialRequestsSent       SocialConnection[]        @relation("SocialConnectionRequester")
   socialRequestsReceived   SocialConnection[]        @relation("SocialConnectionAddressee")
   socialConnectionsAsA     SocialConnection[]        @relation("SocialConnectionUserA")
@@ -138,6 +142,7 @@ model Session {
   expires_at   DateTime
   last_seen_at DateTime @default(now())
   created_at   DateTime @default(now())
+  mfa_verified_at DateTime?
 
   user User @relation(fields: [user_id], references: [id], onDelete: Cascade)
 
@@ -772,6 +777,32 @@ model EbayWatchedListing {
   @@unique([user_id, marketplace_id, item_id])
   @@index([user_id, created_at])
   @@index([card_id])
+}
+
+model RateLimitBucket {
+  key        String   @id
+  hits_json  String
+  expires_at DateTime
+  updated_at DateTime @updatedAt
+
+  @@index([expires_at])
+}
+
+model SecurityEvent {
+  id          String   @id @default(cuid())
+  user_id     String?
+  event_type  String
+  severity    String   @default("info")
+  ip_hash     String?
+  metadata_json String?
+  created_at  DateTime @default(now())
+
+  user User? @relation(fields: [user_id], references: [id], onDelete: SetNull)
+
+  @@index([event_type, created_at])
+  @@index([severity, created_at])
+  @@index([user_id, created_at])
+  @@index([created_at])
 }
 
 model MarktplaatsScanRun {

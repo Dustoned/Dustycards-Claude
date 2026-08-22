@@ -30,12 +30,12 @@ export async function POST(req: NextRequest) {
   }
 
   // Silent throttle: identical response, just skip the email work.
-  const ipThrottled = consumeRateLimit(
+  const ipThrottled = await consumeRateLimit(
     `resend-verify:ip:${getClientIp(req)}`,
     RESEND_RATE_LIMIT_PER_IP,
     RESEND_RATE_WINDOW_MS
   );
-  const emailThrottled = consumeRateLimit(
+  const emailThrottled = await consumeRateLimit(
     `resend-verify:email:${email}`,
     RESEND_RATE_LIMIT_PER_EMAIL,
     RESEND_RATE_WINDOW_MS

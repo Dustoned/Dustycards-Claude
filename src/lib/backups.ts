@@ -1,6 +1,11 @@
 import "server-only";
 import fs from "node:fs/promises";
+import { createReadStream, createWriteStream } from "node:fs";
 import path from "node:path";
+import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
+import { pipeline } from "node:stream/promises";
+import { Writable } from "node:stream";
+import BetterSqlite3 from "better-sqlite3";
 import { db } from "@/lib/db";
 
 export interface BackupFileInfo {
@@ -18,6 +23,7 @@ const DAILY_BACKUP_PREFIX = "dustycards-daily-";
 // separately configured off-site directory retains the longer seven-day run.
 const LOCAL_DAILY_BACKUPS_TO_KEEP = 1;
 const OFFSITE_DAILY_BACKUPS_TO_KEEP = 7;
+const ENCRYPTED_BACKUP_MAGIC = Buffer.from("DUSTYCARDS-BACKUP-V1\n", "utf8");
 // Pre-deploy backups are written by the deploy pipeline (~3 GB each) and were
 // never pruned; keep the newest few. Named milestone backups (migrations,
 // repairs) are left alone.
@@ -126,6 +132,65 @@ async function pruneManualBackups(dir: string): Promise<number> {
   return prunePrefixedBackups(dir, MANUAL_BACKUP_PREFIX, MANUAL_BACKUPS_TO_KEEP);
 }
 
+function backupEncryptionKey(): Buffer {
+  const configured = process.env.DUSTYCARDS_BACKUP_ENCRYPTION_KEY?.trim();
+  if (!configured || configured.length < 32) {
+    throw new Error("DUSTYCARDS_BACKUP_ENCRYPTION_KEY must contain at least 32 characters");
+  }
+  return createHash("sha256").update(configured).digest();
+}
+
+async function sha256File(filePath: string): Promise<string> {
+  const hash = createHash("sha256");
+  await pipeline(createReadStream(filePath), new Writable({
+    write(chunk, _encoding, callback) {
+      hash.update(chunk);
+      callback();
+    },
+  }));
+  return hash.digest("hex");
+}
+
+async function encryptAndVerifyBackup(source: string, target: string): Promise<void> {
+  const partial = `${target}.partial`;
+  const iv = randomBytes(12);
+  await fs.rm(partial, { force: true });
+  await fs.writeFile(partial, Buffer.concat([ENCRYPTED_BACKUP_MAGIC, iv]), { mode: 0o600 });
+  const cipher = createCipheriv("aes-256-gcm", backupEncryptionKey(), iv);
+  await pipeline(createReadStream(source), cipher, createWriteStream(partial, { flags: "a", mode: 0o600 }));
+  const tag = cipher.getAuthTag();
+  await fs.appendFile(partial, tag);
+
+  const stat = await fs.stat(partial);
+  const contentStart = ENCRYPTED_BACKUP_MAGIC.length + iv.length;
+  const contentEnd = stat.size - tag.length - 1;
+  if (contentEnd < contentStart) throw new Error("Encrypted backup is incomplete");
+  const decipher = createDecipheriv("aes-256-gcm", backupEncryptionKey(), iv);
+  decipher.setAuthTag(tag);
+  const decryptedHash = createHash("sha256");
+  await pipeline(
+    createReadStream(partial, { start: contentStart, end: contentEnd }),
+    decipher,
+    new Writable({ write(chunk, _encoding, callback) { decryptedHash.update(chunk); callback(); } })
+  );
+  const [sourceHash, verifiedHash] = await Promise.all([
+    sha256File(source),
+    Promise.resolve(decryptedHash.digest("hex")),
+  ]);
+  if (sourceHash !== verifiedHash) throw new Error("Encrypted offsite backup failed verification");
+  await fs.rename(partial, target);
+}
+
+function verifySqliteBackup(filePath: string): void {
+  const backup = new BetterSqlite3(filePath, { readonly: true, fileMustExist: true });
+  try {
+    const result = backup.pragma("quick_check", { simple: true });
+    if (result !== "ok") throw new Error(`SQLite backup quick_check failed: ${String(result)}`);
+  } finally {
+    backup.close();
+  }
+}
+
 async function copyDailyBackupOffServer(source: string, name: string): Promise<void> {
   const configured = process.env.DUSTYCARDS_OFFSITE_BACKUP_DIR?.trim();
   if (!configured) return;
@@ -135,22 +200,11 @@ async function copyDailyBackupOffServer(source: string, name: string): Promise<v
     throw new Error("Offsite backup directory must differ from the primary backup directory");
   }
   await fs.mkdir(/*turbopackIgnore: true*/ offsiteDir, { recursive: true });
-  const finalTarget = joinRuntimeFile(offsiteDir, name);
-  const partialTarget = `${finalTarget}.partial`;
-  await fs.rm(/*turbopackIgnore: true*/ partialTarget, { force: true });
-  await fs.copyFile(/*turbopackIgnore: true*/ source, /*turbopackIgnore: true*/ partialTarget);
-  const [sourceStat, copyStat] = await Promise.all([
-    fs.stat(/*turbopackIgnore: true*/ source),
-    fs.stat(/*turbopackIgnore: true*/ partialTarget),
-  ]);
-  if (sourceStat.size !== copyStat.size) {
-    await fs.rm(/*turbopackIgnore: true*/ partialTarget, { force: true });
-    throw new Error("Offsite backup verification failed: copied size differs");
-  }
-  await fs.rename(/*turbopackIgnore: true*/ partialTarget, /*turbopackIgnore: true*/ finalTarget);
+  const finalTarget = joinRuntimeFile(offsiteDir, `${name}.enc`);
+  await encryptAndVerifyBackup(source, finalTarget);
   const entries = await fs.readdir(/*turbopackIgnore: true*/ offsiteDir, { withFileTypes: true });
   const dailyFiles = entries
-    .filter((entry) => entry.isFile() && entry.name.startsWith(DAILY_BACKUP_PREFIX) && entry.name.endsWith(".db"))
+    .filter((entry) => entry.isFile() && entry.name.startsWith(DAILY_BACKUP_PREFIX) && entry.name.endsWith(".db.enc"))
     .map((entry) => entry.name)
     .sort((left, right) => right.localeCompare(left));
   await Promise.all(
@@ -180,6 +234,7 @@ export async function createManualBackup(): Promise<BackupFileInfo> {
   await db.$executeRawUnsafe(`VACUUM INTO '${escapedTarget}'`);
 
   const stat = await fs.stat(/*turbopackIgnore: true*/ target);
+  verifySqliteBackup(target);
   await pruneManualBackups(dir);
 
   return {
@@ -194,6 +249,27 @@ export async function createManualBackup(): Promise<BackupFileInfo> {
 export async function getLatestDailyBackupAt(): Promise<string | null> {
   const { backups } = await listBackups();
   return backups.find((backup) => backup.name.startsWith(DAILY_BACKUP_PREFIX))?.updatedAt ?? null;
+}
+
+/** ISO timestamp of the newest encrypted off-site nightly, when configured. */
+export async function getLatestOffsiteBackupAt(): Promise<string | null> {
+  const configured = process.env.DUSTYCARDS_OFFSITE_BACKUP_DIR?.trim();
+  if (!configured || !(await dirExists(configured))) return null;
+  const entries = await fs.readdir(/*turbopackIgnore: true*/ configured, { withFileTypes: true });
+  const candidates = await Promise.all(
+    entries
+      .filter((entry) =>
+        entry.isFile()
+        && entry.name.startsWith(DAILY_BACKUP_PREFIX)
+        && entry.name.endsWith(".db.enc")
+      )
+      .map(async (entry) => ({
+        name: entry.name,
+        updatedAt: (await fs.stat(joinRuntimeFile(configured, entry.name))).mtime,
+      }))
+  );
+  candidates.sort((left, right) => right.updatedAt.getTime() - left.updatedAt.getTime());
+  return candidates[0]?.updatedAt.toISOString() ?? null;
 }
 
 /**
@@ -225,6 +301,7 @@ export async function createDailyBackup(): Promise<BackupFileInfo> {
   await db.$executeRawUnsafe(`VACUUM INTO '${escapedTarget}'`);
 
   const stat = await fs.stat(/*turbopackIgnore: true*/ target);
+  verifySqliteBackup(target);
   await prunePrefixedBackups(dir, DAILY_BACKUP_PREFIX, LOCAL_DAILY_BACKUPS_TO_KEEP);
   await prunePrefixedBackups(dir, PREDEPLOY_BACKUP_PREFIX, PREDEPLOY_BACKUPS_TO_KEEP);
   await copyDailyBackupOffServer(target, name);

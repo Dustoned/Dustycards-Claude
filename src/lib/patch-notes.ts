@@ -17,6 +17,21 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.88",
+    releasedAt: "August 22, 2026",
+    title: "Persistent production security controls",
+    summary: "Admin access, rate limiting, scripts, backups, monitoring and deployment now have independent safeguards.",
+    tone: "system",
+    highlights: [
+      "Admin accounts support authenticator MFA, recovery codes and shorter verified sessions.",
+      "Rate limits and security events persist in SQLite instead of resetting with the app process.",
+      "A per-request CSP nonce protects scripts while external URLs pass a shared safe-protocol validator.",
+      "Backups are integrity-checked and can be encrypted to an off-server destination with health monitoring.",
+      "GitHub CI verifies dependencies, types, lint, tests and production builds before release workflows.",
+      "Direct root SSH is disabled and fail2ban protects the named production administrator account.",
+    ],
+  },
+  {
     version: "3.12.87",
     releasedAt: "August 22, 2026",
     title: "Cross-site mutations are blocked centrally",

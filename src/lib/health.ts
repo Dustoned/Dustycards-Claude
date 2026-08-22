@@ -3,9 +3,11 @@ import "server-only";
 import fs from "node:fs/promises";
 import { db } from "@/lib/db";
 import { getSqliteSidecarPaths, LIVE_DB_PATH } from "@/lib/db-paths";
+import { getLatestDailyBackupAt, getLatestOffsiteBackupAt } from "@/lib/backups";
 
 const SCHEDULER_HEALTHY_WITHIN_MS = 15 * 60 * 1000;
 const SYNC_SCHEDULER_JOB_TYPE = "sync-scheduler";
+const BACKUP_HEALTHY_WITHIN_MS = 36 * 60 * 60 * 1000;
 
 export interface HealthSnapshot {
   ok: boolean;
@@ -25,6 +27,15 @@ export interface HealthSnapshot {
     heartbeatAt: string | null;
     heartbeatAgeSeconds: number | null;
     error: string | null;
+  };
+  backup: {
+    ok: boolean;
+    latestAt: string | null;
+    ageSeconds: number | null;
+    offsiteConfigured: boolean;
+    offsiteOk: boolean;
+    offsiteLatestAt: string | null;
+    offsiteAgeSeconds: number | null;
   };
 }
 
@@ -88,9 +99,27 @@ export async function getHealthSnapshot(now = new Date()): Promise<HealthSnapsho
     schedulerHeartbeatAgeSeconds != null &&
       schedulerHeartbeatAgeSeconds * 1000 <= SCHEDULER_HEALTHY_WITHIN_MS
   );
+  const offsiteConfigured = Boolean(process.env.DUSTYCARDS_OFFSITE_BACKUP_DIR?.trim());
+  const [latestBackupAt, latestOffsiteBackupAt] = await Promise.all([
+    getLatestDailyBackupAt().catch(() => null),
+    getLatestOffsiteBackupAt().catch(() => null),
+  ]);
+  const backupAgeSeconds = latestBackupAt
+    ? Math.max(0, Math.round((now.getTime() - new Date(latestBackupAt).getTime()) / 1000))
+    : null;
+  const offsiteBackupAgeSeconds = latestOffsiteBackupAt
+    ? Math.max(0, Math.round((now.getTime() - new Date(latestOffsiteBackupAt).getTime()) / 1000))
+    : null;
+  const offsiteOk = !offsiteConfigured || (
+    offsiteBackupAgeSeconds != null
+    && offsiteBackupAgeSeconds * 1000 <= BACKUP_HEALTHY_WITHIN_MS
+  );
+  const backupOk = backupAgeSeconds != null
+    && backupAgeSeconds * 1000 <= BACKUP_HEALTHY_WITHIN_MS
+    && offsiteOk;
 
   return {
-    ok: dbOk && schedulerOk,
+    ok: dbOk && schedulerOk && backupOk,
     checkedAt,
     db: {
       ok: dbOk,
@@ -107,6 +136,15 @@ export async function getHealthSnapshot(now = new Date()): Promise<HealthSnapsho
       heartbeatAt: schedulerHeartbeatAt,
       heartbeatAgeSeconds: schedulerHeartbeatAgeSeconds,
       error: schedulerError,
+    },
+    backup: {
+      ok: backupOk,
+      latestAt: latestBackupAt,
+      ageSeconds: backupAgeSeconds,
+      offsiteConfigured,
+      offsiteOk,
+      offsiteLatestAt: latestOffsiteBackupAt,
+      offsiteAgeSeconds: offsiteBackupAgeSeconds,
     },
   };
 }

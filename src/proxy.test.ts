@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { NextRequest } from "next/server";
-import { isCrossSiteMutation, isPublicFile, isPublicPath } from "@/proxy";
+import {
+  buildContentSecurityPolicy,
+  isCrossSiteMutation,
+  isPublicFile,
+  isPublicPath,
+} from "@/proxy";
 
 function mutationRequest(
   method: string,
@@ -68,6 +73,18 @@ describe("cross-site mutation protection", () => {
   it("blocks malformed and opaque browser origins", () => {
     expect(isCrossSiteMutation(mutationRequest("PATCH", { origin: "null" }))).toBe(true);
     expect(isCrossSiteMutation(mutationRequest("DELETE", { origin: "not a URL" }))).toBe(true);
+  });
+});
+
+describe("content security policy", () => {
+  it("allows scripts only through a request nonce and blocks object embedding", () => {
+    const policy = buildContentSecurityPolicy("requestnonce123");
+    expect(policy).toContain("script-src 'self' 'nonce-requestnonce123' 'strict-dynamic'");
+    expect(policy).not.toContain("'unsafe-eval'");
+    expect(policy).not.toContain("script-src 'self' 'unsafe-inline'");
+    expect(policy).toContain("object-src 'none'");
+    expect(policy).toContain("frame-ancestors 'none'");
+    expect(policy).toContain("base-uri 'self'");
   });
 });
 

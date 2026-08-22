@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
   }
 
   if (
-    consumeRateLimit(
+    await consumeRateLimit(
       `register:ip:${getClientIp(req)}`,
       REGISTER_RATE_LIMIT_PER_IP,
       REGISTER_RATE_WINDOW_MS

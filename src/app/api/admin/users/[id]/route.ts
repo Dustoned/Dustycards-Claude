@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { authErrorResponse, requireAdmin } from "@/lib/auth";
+import { authErrorResponse, requireRecentAdmin } from "@/lib/auth";
 import { hashPassword } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
+import { getClientIp } from "@/lib/rate-limit";
+import { recordSecurityEvent } from "@/lib/security-events";
 
 function normalizeRole(value: unknown): "admin" | "user" | null {
   return value === "admin" || value === "user" ? value : null;
@@ -12,7 +14,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const currentUser = await requireAdmin();
+    const currentUser = await requireRecentAdmin();
     const { id } = await params;
     const body = (await req.json().catch(() => ({}))) as {
       disabled?: unknown;
@@ -105,6 +107,19 @@ export async function PATCH(
     if (data.disabled || data.password_hash) {
       await db.session.deleteMany({ where: { user_id: id } });
     }
+    await recordSecurityEvent({
+      eventType: "admin.user.updated",
+      severity: data.disabled || data.password_hash || data.role ? "warning" : "info",
+      userId: currentUser.id,
+      ip: getClientIp(req),
+      metadata: {
+        targetUserId: id,
+        disabledChanged: data.disabled !== undefined,
+        passwordReset: Boolean(data.password_hash),
+        roleChanged: Boolean(data.role),
+        emailVerified: Boolean(data.email_verified_at),
+      },
+    });
 
     return NextResponse.json({
       ok: true,

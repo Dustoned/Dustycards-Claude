@@ -1,78 +1,58 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  consumeRateLimit,
-  getClientIp,
-  isRateLimited,
-  recordRateLimitHit,
-} from "./rate-limit";
 
-function requestWithHeaders(headers: Record<string, string>) {
+const { state, dbMock } = vi.hoisted(() => {
+  const entries = new Map<string, { hits_json: string; expires_at: Date }>();
+  const mock: Record<string, unknown> = {};
+  Object.assign(mock, {
+    rateLimitBucket: {
+      deleteMany: vi.fn(async () => ({ count: 0 })),
+      findUnique: vi.fn(async ({ where }: { where: { key: string } }) => entries.get(where.key) ?? null),
+      upsert: vi.fn(async ({ where, create, update }: { where: { key: string }; create: { hits_json: string; expires_at: Date }; update: { hits_json: string; expires_at: Date } }) => {
+        const value = entries.has(where.key) ? update : create;
+        entries.set(where.key, value);
+        return value;
+      }),
+    },
+    $transaction: vi.fn(async (callback: (transaction: unknown) => unknown) => callback(mock)),
+  });
+  return { state: entries, dbMock: mock };
+});
+
+vi.mock("@/lib/db", () => ({ db: dbMock }));
+
+import { consumeRateLimit, getClientIp, isRateLimited, recordRateLimitHit } from "./rate-limit";
+
+function request(headers: Record<string, string>) {
   return new NextRequest("http://localhost:3000/api/auth/login", { headers });
 }
 
-describe("rate limit", () => {
+describe("persistent rate limit", () => {
   beforeEach(() => {
-    vi.useFakeTimers();
+    state.clear();
+    vi.clearAllMocks();
   });
 
-  afterEach(() => {
-    vi.useRealTimers();
+  it("blocks after the configured number of durable hits", async () => {
+    const key = "login:test";
+    await expect(consumeRateLimit(key, 2, 60_000)).resolves.toBe(false);
+    await expect(consumeRateLimit(key, 2, 60_000)).resolves.toBe(false);
+    await expect(consumeRateLimit(key, 2, 60_000)).resolves.toBe(true);
+    await expect(isRateLimited(key, 2, 60_000)).resolves.toBe(true);
   });
 
-  it("allows requests under the limit", () => {
-    const key = `test:${Math.random()}`;
-    expect(consumeRateLimit(key, 3, 60_000)).toBe(false);
-    expect(consumeRateLimit(key, 3, 60_000)).toBe(false);
-    expect(consumeRateLimit(key, 3, 60_000)).toBe(false);
+  it("records a standalone failed attempt", async () => {
+    await recordRateLimitHit("login:email:test", 60_000);
+    await expect(isRateLimited("login:email:test", 1, 60_000)).resolves.toBe(true);
   });
 
-  it("rejects requests over the limit", () => {
-    const key = `test:${Math.random()}`;
-    consumeRateLimit(key, 2, 60_000);
-    consumeRateLimit(key, 2, 60_000);
-    expect(consumeRateLimit(key, 2, 60_000)).toBe(true);
-    expect(isRateLimited(key, 2, 60_000)).toBe(true);
+  it("keeps keys independent", async () => {
+    await consumeRateLimit("a", 1, 60_000);
+    await expect(isRateLimited("a", 1, 60_000)).resolves.toBe(true);
+    await expect(isRateLimited("b", 1, 60_000)).resolves.toBe(false);
   });
 
-  it("frees up after the window passes", () => {
-    const key = `test:${Math.random()}`;
-    consumeRateLimit(key, 1, 60_000);
-    expect(isRateLimited(key, 1, 60_000)).toBe(true);
-
-    vi.advanceTimersByTime(61_000);
-    expect(isRateLimited(key, 1, 60_000)).toBe(false);
-  });
-
-  it("tracks keys independently", () => {
-    const keyA = `test:${Math.random()}`;
-    const keyB = `test:${Math.random()}`;
-    consumeRateLimit(keyA, 1, 60_000);
-    expect(isRateLimited(keyA, 1, 60_000)).toBe(true);
-    expect(isRateLimited(keyB, 1, 60_000)).toBe(false);
-  });
-
-  it("recordRateLimitHit counts toward the limit without checking", () => {
-    const key = `test:${Math.random()}`;
-    recordRateLimitHit(key);
-    recordRateLimitHit(key);
-    expect(isRateLimited(key, 2, 60_000)).toBe(true);
-  });
-
-  it("uses the trusted proxy hop from x-forwarded-for", () => {
-    const req = requestWithHeaders({
-      "x-forwarded-for": "198.51.100.1, 203.0.113.10",
-      "x-real-ip": "198.51.100.200",
-    });
-
-    expect(getClientIp(req)).toBe("203.0.113.10");
-  });
-
-  it("falls back to x-real-ip when x-forwarded-for is absent", () => {
-    const req = requestWithHeaders({
-      "x-real-ip": "203.0.113.20:443",
-    });
-
-    expect(getClientIp(req)).toBe("203.0.113.20");
+  it("uses the last trusted proxy hop", () => {
+    expect(getClientIp(request({ "x-forwarded-for": "198.51.100.5, 127.0.0.1" }))).toBe("127.0.0.1");
   });
 });

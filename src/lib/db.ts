@@ -47,7 +47,7 @@ type PrismaClientWithRuntimeModel = PrismaClient & {
 };
 
 const REQUIRED_RUNTIME_FIELDS = {
-  User: ["email", "password_hash", "role", "disabled", "settings_json", "email_verified_at"],
+  User: ["email", "password_hash", "role", "disabled", "settings_json", "email_verified_at", "mfa_secret_encrypted", "mfa_recovery_codes_json", "mfa_enabled_at"],
   SocialConnection: [
     "requester_id",
     "addressee_id",
@@ -60,7 +60,9 @@ const REQUIRED_RUNTIME_FIELDS = {
     "full_access_requested_at",
     "full_access_accepted_at",
   ],
-  Session: ["user_id", "token_hash", "expires_at", "last_seen_at"],
+  Session: ["user_id", "token_hash", "expires_at", "last_seen_at", "mfa_verified_at"],
+  RateLimitBucket: ["key", "hits_json", "expires_at"],
+  SecurityEvent: ["event_type", "severity", "ip_hash", "metadata_json", "created_at"],
   PasswordResetToken: ["user_id", "token_hash", "expires_at", "used_at"],
   EmailVerificationToken: ["user_id", "token_hash", "expires_at"],
   Episode: ["game", "source_status", "source_checked_at", "source_actual_card_count", "is_user_submitted"],

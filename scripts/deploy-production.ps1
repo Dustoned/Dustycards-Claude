@@ -95,7 +95,7 @@ $remoteAppPathLiteral = ConvertTo-ShellSingleQuoted $RemoteAppPath
 $remoteScript = @'
 set -e
 RemoteAppPath=__REMOTE_APP_PATH__
-DeploySha="${DUSTYCARDS_DEPLOY_SHA:-}"
+DeploySha="${1:-${DUSTYCARDS_DEPLOY_SHA:-}}"
 DeployArchive="${DUSTYCARDS_DEPLOY_ARCHIVE:-/tmp/dustycards-deploy.tar.gz}"
 
 mkdir -p /opt/dustycards /opt/dustycards/backups /opt/dustycards/cache
@@ -232,6 +232,7 @@ background_timers=(
   dustycards-daily-backup.timer
   dustycards-runtime-maintenance.timer
   dustycards-live-performance-probe.timer
+  dustycards-security-monitor.timer
   dustycards-reprint-backlog.timer
 )
 
@@ -811,6 +812,24 @@ Unit=dustycards-sync-scheduler.service
 WantedBy=timers.target
 EOF
 
+cat > /etc/systemd/system/dustycards-security-monitor.service <<EOF
+[Unit]
+Description=DustyCards security and backup monitor
+After=dustycards.service network-online.target
+Wants=dustycards.service network-online.target
+
+[Service]
+Type=oneshot
+User=dustycards
+Group=dustycards
+WorkingDirectory=$RemoteAppPath
+EnvironmentFile=$RemoteAppPath/.env
+ExecStart=/usr/bin/node --no-warnings scripts/security-monitor-worker.mjs
+Nice=10
+MemoryMax=256M
+TimeoutStartSec=2min
+EOF
+
 cat > /etc/systemd/system/dustycards-price-refresh.timer <<'EOF'
 [Unit]
 Description=Keep DustyCards card prices current independently of website traffic
@@ -894,6 +913,21 @@ Unit=dustycards-live-performance-probe.service
 WantedBy=timers.target
 EOF
 
+cat > /etc/systemd/system/dustycards-security-monitor.timer <<'EOF'
+[Unit]
+Description=Audit DustyCards security signals and backups hourly
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=1h
+AccuracySec=5min
+Persistent=true
+Unit=dustycards-security-monitor.service
+
+[Install]
+WantedBy=timers.target
+EOF
+
 cat > /etc/systemd/system/dustycards-sealed-release-refresh.timer <<'EOF'
 [Unit]
 Description=Refresh official sealed release dates twice monthly
@@ -915,6 +949,7 @@ systemctl enable --now dustycards-sealed-release-refresh.timer
 systemctl enable --now dustycards-daily-backup.timer
 systemctl enable --now dustycards-runtime-maintenance.timer
 systemctl enable --now dustycards-live-performance-probe.timer
+systemctl enable --now dustycards-security-monitor.timer
 # Image comparison is intentionally never started by a deployment or web
 # scheduler. Even at low CPU priority, a batch already in flight could make the
 # first visitor wait. Run it only in the quiet nightly window instead.
@@ -931,6 +966,7 @@ systemctl is-active dustycards-sealed-release-refresh.timer
 systemctl is-active dustycards-daily-backup.timer
 systemctl is-active dustycards-runtime-maintenance.timer
 systemctl is-active dustycards-live-performance-probe.timer
+systemctl is-active dustycards-security-monitor.timer
 systemctl is-active dustycards-reprint-backlog.timer
 
 # Production follows GitHub over an outbound connection. This removes inbound
@@ -1034,7 +1070,7 @@ scp -o BatchMode=yes -o StrictHostKeyChecking=no $remoteScriptFile "${HostName}:
 # the remote build+restart succeeded. Only the remote exit code tells us if the
 # deploy actually failed, so check that instead of the error stream.
 $ErrorActionPreference = "Continue"
-ssh -o BatchMode=yes -o StrictHostKeyChecking=no $HostName "install -m 0755 /tmp/dustycards-deploy.sh /usr/local/sbin/dustycards-apply-release && DUSTYCARDS_DEPLOY_SHA=$deploySha /usr/local/sbin/dustycards-apply-release"
+ssh -o BatchMode=yes -o StrictHostKeyChecking=no $HostName "sudo install -m 0755 /tmp/dustycards-deploy.sh /usr/local/sbin/dustycards-apply-release && sudo /usr/local/sbin/dustycards-apply-release $deploySha"
 $deployExitCode = $LASTEXITCODE
 $ErrorActionPreference = "Stop"
 if ($deployExitCode -ne 0) {

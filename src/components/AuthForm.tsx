@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useRef, useState } from "react";
 import { Eye, EyeOff, LoaderCircle, ShieldCheck, X } from "lucide-react";
-import { ACCOUNT_APPROVAL_ERROR_CODE } from "@/lib/auth-constants";
+import { ACCOUNT_APPROVAL_ERROR_CODE, MFA_REQUIRED_ERROR_CODE } from "@/lib/auth-constants";
 import useModalA11y from "@/lib/useModalA11y";
 
 export default function AuthForm({
@@ -25,6 +25,8 @@ export default function AuthForm({
   const router = useRouter();
   const [email, setEmail] = useState(initialVerificationEmail);
   const [password, setPassword] = useState("");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaRequired, setMfaRequired] = useState(false);
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -71,6 +73,7 @@ export default function AuthForm({
           next: nextPath,
           password: passwordValue,
           passwordConfirm: confirmPasswordValue,
+          mfaCode,
         }),
       });
       const data = (await response.json().catch(() => ({}))) as {
@@ -82,6 +85,12 @@ export default function AuthForm({
       };
 
       if (!response.ok) {
+        if (data.code === MFA_REQUIRED_ERROR_CODE) {
+          setMfaRequired(true);
+          setError(null);
+          setLoading(false);
+          return;
+        }
         if (data.code === ACCOUNT_APPROVAL_ERROR_CODE) {
           setApprovalPending(true);
           setError(null);
@@ -229,6 +238,24 @@ export default function AuthForm({
               {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
             </button>
           </span>
+        </label>
+      )}
+
+      {!isRegister && mfaRequired && (
+        <label className="grid gap-1.5 text-sm font-medium text-white/75">
+          Authenticator or recovery code
+          <input
+            name="mfaCode"
+            type="text"
+            autoComplete="one-time-code"
+            autoCapitalize="characters"
+            required
+            autoFocus
+            value={mfaCode}
+            onChange={(event) => setMfaCode(event.target.value)}
+            placeholder="123456 or recovery code"
+            className="min-h-11 rounded-xl border border-violet-300/25 bg-violet-500/[0.08] px-3 py-2.5 font-mono tracking-[0.2em] text-white outline-none transition focus:border-violet-300/50"
+          />
         </label>
       )}
 

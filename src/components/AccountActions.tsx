@@ -2,9 +2,15 @@
 
 import { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, LogOut } from "lucide-react";
+import { KeyRound, LogOut, ShieldCheck } from "lucide-react";
 
-export default function AccountActions() {
+export default function AccountActions({
+  initialMfaEnabled,
+  isAdmin,
+}: {
+  initialMfaEnabled: boolean;
+  isAdmin: boolean;
+}) {
   const router = useRouter();
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -13,6 +19,58 @@ export default function AccountActions() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [mfaEnabled, setMfaEnabled] = useState(initialMfaEnabled);
+  const [mfaSecret, setMfaSecret] = useState<string | null>(null);
+  const [mfaUri, setMfaUri] = useState<string | null>(null);
+  const [mfaCode, setMfaCode] = useState("");
+  const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
+  const [mfaLoading, setMfaLoading] = useState(false);
+
+  async function prepareMfa() {
+    setMfaLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "prepare" }),
+      });
+      const data = (await response.json()) as { error?: string; secret?: string; uri?: string };
+      if (!response.ok || !data.secret || !data.uri) throw new Error(data.error ?? "Could not start MFA setup");
+      setMfaSecret(data.secret);
+      setMfaUri(data.uri);
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not start MFA setup");
+    } finally {
+      setMfaLoading(false);
+    }
+  }
+
+  async function enableMfa(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setMfaLoading(true);
+    setError(null);
+    try {
+      const response = await fetch("/api/auth/mfa", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "enable", code: mfaCode }),
+      });
+      const data = (await response.json()) as { error?: string; recoveryCodes?: string[] };
+      if (!response.ok) throw new Error(data.error ?? "Could not enable MFA");
+      setMfaEnabled(true);
+      setMfaSecret(null);
+      setMfaUri(null);
+      setRecoveryCodes(data.recoveryCodes ?? []);
+      setMfaCode("");
+      setMessage("Authenticator protection is now enabled.");
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not enable MFA");
+    } finally {
+      setMfaLoading(false);
+    }
+  }
 
   async function logout() {
     setLoggingOut(true);
@@ -62,6 +120,52 @@ export default function AccountActions() {
   }
 
   return (
+    <div className="grid gap-4">
+    <section className="binder-panel rounded-2xl p-4 sm:p-5">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <div className="flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-violet-200" />
+            <h2 className="text-base font-semibold text-white">Authenticator protection</h2>
+          </div>
+          <p className="mt-1 text-sm text-white/45">
+            {isAdmin ? "Required before admin controls can be used." : "Protect your account with a second sign-in factor."}
+          </p>
+        </div>
+        <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${mfaEnabled ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200" : "border-amber-400/20 bg-amber-400/[0.08] text-amber-200"}`}>
+          {mfaEnabled ? "Enabled" : "Setup required"}
+        </span>
+      </div>
+
+      {!mfaEnabled && !mfaSecret ? (
+        <button type="button" onClick={prepareMfa} disabled={mfaLoading} className="mt-4 inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-60">
+          {mfaLoading ? "Preparing..." : "Set up authenticator"}
+        </button>
+      ) : null}
+
+      {!mfaEnabled && mfaSecret && mfaUri ? (
+        <form onSubmit={enableMfa} className="mt-4 grid gap-3 rounded-xl border border-violet-300/15 bg-violet-500/[0.06] p-4">
+          <p className="text-sm text-white/65">Add this key to Google Authenticator, Microsoft Authenticator, 1Password or another TOTP app.</p>
+          <code className="break-all rounded-lg bg-black/25 p-3 text-sm font-bold tracking-[0.12em] text-violet-100">{mfaSecret}</code>
+          <a href={mfaUri} className="text-xs font-semibold text-violet-200 underline underline-offset-4">Open in authenticator app</a>
+          <label className="grid gap-1.5 text-sm font-medium text-white/75">
+            Six-digit code
+            <input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" className="min-h-11 rounded-xl border border-white/10 bg-black/20 px-3 font-mono tracking-[0.2em] text-white outline-none focus:border-violet-300/40" />
+          </label>
+          <button type="submit" disabled={mfaLoading} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-60">Verify and enable</button>
+        </form>
+      ) : null}
+
+      {recoveryCodes.length > 0 ? (
+        <div className="mt-4 rounded-xl border border-amber-300/20 bg-amber-500/[0.07] p-4">
+          <p className="text-sm font-semibold text-amber-100">Save these one-time recovery codes now. They are shown only once.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-xs text-white/75 sm:grid-cols-5">
+            {recoveryCodes.map((code) => <code key={code}>{code}</code>)}
+          </div>
+        </div>
+      ) : null}
+    </section>
+
     <section className="binder-panel rounded-2xl p-4 sm:p-5">
       <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
         <div className="min-w-0">
@@ -145,5 +249,6 @@ export default function AccountActions() {
         </div>
       </form>
     </section>
+    </div>
   );
 }

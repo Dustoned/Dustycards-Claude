@@ -49,12 +49,12 @@ export async function POST(req: NextRequest) {
 
   // Silent throttle: respond as if sent so the limiter leaks nothing about
   // account existence, but skip the token + email work.
-  const ipThrottled = consumeRateLimit(
+  const ipThrottled = await consumeRateLimit(
     `forgot:ip:${getClientIp(req)}`,
     RESET_RATE_LIMIT_PER_IP,
     RESET_RATE_WINDOW_MS
   );
-  const emailThrottled = consumeRateLimit(
+  const emailThrottled = await consumeRateLimit(
     `forgot:email:${email}`,
     RESET_RATE_LIMIT_PER_EMAIL,
     RESET_RATE_WINDOW_MS

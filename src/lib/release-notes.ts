@@ -20,6 +20,24 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.88",
+    releasedAt: "August 22, 2026",
+    title: "Defense in depth",
+    summary: "Account, browser, server and recovery controls now keep protecting DustyCards across restarts and deployments.",
+    tone: "system",
+    sections: [
+      {
+        title: "Stronger production boundaries",
+        highlights: [
+          "Authenticator MFA and shorter verified sessions protect admin controls, with one-time recovery codes for account recovery.",
+          "Persistent login throttling, security events, strict script nonces and validated external URLs reduce abuse and injection risk.",
+          "Verified encrypted backup mirroring, backup health checks, CI security gates and a dedicated security monitor protect releases and recovery.",
+          "Production SSH now uses a named administrator, blocks direct root login and automatically bans repeated SSH attacks.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.87",
     releasedAt: "August 22, 2026",
     title: "Cross-site request protection",

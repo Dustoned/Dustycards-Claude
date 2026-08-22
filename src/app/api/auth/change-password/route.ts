@@ -56,7 +56,10 @@ export async function POST(req: NextRequest) {
       db.session.deleteMany({ where: { user_id: user.id } }),
     ]);
 
-    const session = await createUserSession(user.id);
+    const session = await createUserSession(user.id, {
+      isAdmin: user.role === "admin",
+      mfaVerified: user.mfaEnabled && user.mfaVerified,
+    });
     await setSessionCookie(session.token, session.expiresAt);
 
     return NextResponse.json({ ok: true });

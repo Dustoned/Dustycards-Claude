@@ -1,0 +1,70 @@
+name: Production health monitor
+
+on:
+  schedule:
+    - cron: "*/15 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: production-health
+  cancel-in-progress: true
+
+jobs:
+  health:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - id: probe
+        name: Probe DustyCards
+        shell: bash
+        run: |
+          if curl --fail --silent --show-error --retry 2 --retry-delay 5 \
+            --max-time 20 https://dustycards.myftp.org/api/health \
+            | grep -Eq '"ok"[[:space:]]*:[[:space:]]*true'; then
+            echo "healthy=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "healthy=false" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Open or resolve the monitoring issue
+        uses: actions/github-script@f28e40c7f34bde8b3046d885e986cb6290c5673b # v7
+        env:
+          HEALTHY: ${{ steps.probe.outputs.healthy }}
+        with:
+          script: |
+            const title = "Production health check is failing";
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: "open",
+              per_page: 100,
+            });
+            const existing = issues.find((issue) => !issue.pull_request && issue.title === title);
+            if (process.env.HEALTHY === "true") {
+              if (existing) {
+                await github.rest.issues.createComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existing.number,
+                  body: `Recovered at ${new Date().toISOString()}.`,
+                });
+                await github.rest.issues.update({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  issue_number: existing.number,
+                  state: "closed",
+                });
+              }
+              return;
+            }
+            if (!existing) {
+              await github.rest.issues.create({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                title,
+                body: `The public database/scheduler/backup health probe failed at ${new Date().toISOString()}. Check systemd services, backup age and recent security events.`,
+              });
+            }

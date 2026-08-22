@@ -1,7 +1,14 @@
 import { cache } from "react";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
-import { SESSION_COOKIE_NAME, SESSION_DURATION_MS } from "@/lib/auth-constants";
+import {
+  ADMIN_REAUTH_MAX_AGE_MS,
+  ADMIN_SESSION_DURATION_MS,
+  MFA_SETUP_REQUIRED_ERROR_CODE,
+  REAUTH_REQUIRED_ERROR_CODE,
+  SESSION_COOKIE_NAME,
+  SESSION_DURATION_MS,
+} from "@/lib/auth-constants";
 import { db } from "@/lib/db";
 import {
   generateSessionToken,
@@ -18,6 +25,9 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   disabled: boolean;
+  mfaEnabled: boolean;
+  mfaVerified: boolean;
+  sessionCreatedAt: Date;
 }
 
 export class AuthenticationError extends Error {
@@ -34,18 +44,38 @@ export class AuthorizationError extends Error {
   }
 }
 
+export class MfaSetupRequiredError extends Error {
+  code = MFA_SETUP_REQUIRED_ERROR_CODE;
+  constructor() {
+    super("Admin MFA must be enabled before using admin controls");
+    this.name = "MfaSetupRequiredError";
+  }
+}
+
+export class ReauthenticationRequiredError extends Error {
+  code = REAUTH_REQUIRED_ERROR_CODE;
+  constructor() {
+    super("Log in again before performing this sensitive action");
+    this.name = "ReauthenticationRequiredError";
+  }
+}
+
 function toAuthUser(user: {
   id: string;
   email: string;
   email_verified_at: Date | null;
   role: string;
   disabled: boolean;
-}): AuthUser {
+  mfa_enabled_at: Date | null;
+}, session: { created_at: Date; mfa_verified_at: Date | null }): AuthUser {
   return {
     id: user.id,
     email: user.email,
     role: user.role === "admin" ? "admin" : "user",
     disabled: user.disabled,
+    mfaEnabled: Boolean(user.mfa_enabled_at),
+    mfaVerified: Boolean(session.mfa_verified_at),
+    sessionCreatedAt: session.created_at,
   };
 }
 
@@ -59,18 +89,22 @@ function sessionCookieOptions(expires?: Date) {
   };
 }
 
-export async function createUserSession(userId: string): Promise<{
+export async function createUserSession(userId: string, options?: {
+  isAdmin?: boolean;
+  mfaVerified?: boolean;
+}): Promise<{
   token: string;
   expiresAt: Date;
 }> {
   const token = generateSessionToken();
-  const expiresAt = new Date(Date.now() + SESSION_DURATION_MS);
+  const expiresAt = new Date(Date.now() + (options?.isAdmin ? ADMIN_SESSION_DURATION_MS : SESSION_DURATION_MS));
 
   await db.session.create({
     data: {
       user_id: userId,
       token_hash: hashSessionToken(token),
       expires_at: expiresAt,
+      mfa_verified_at: options?.mfaVerified ? new Date() : null,
     },
   });
 
@@ -112,6 +146,8 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Aut
     where: { token_hash: hashSessionToken(token) },
     select: {
       id: true,
+      created_at: true,
+      mfa_verified_at: true,
       expires_at: true,
       last_seen_at: true,
       user: {
@@ -121,6 +157,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Aut
           email_verified_at: true,
           role: true,
           disabled: true,
+          mfa_enabled_at: true,
         },
       },
     },
@@ -153,7 +190,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Aut
     });
   }
 
-  return toAuthUser(session.user);
+  return toAuthUser(session.user, session);
 });
 
 export async function requireUser(): Promise<AuthUser> {
@@ -169,6 +206,20 @@ export async function requireAdmin(): Promise<AuthUser> {
   if (user.role !== "admin") {
     throw new AuthorizationError();
   }
+  if (process.env.DUSTYCARDS_REQUIRE_ADMIN_MFA === "true" && !user.mfaEnabled) {
+    throw new MfaSetupRequiredError();
+  }
+  if (user.mfaEnabled && !user.mfaVerified) {
+    throw new MfaSetupRequiredError();
+  }
+  return user;
+}
+
+export async function requireRecentAdmin(maxAgeMs = ADMIN_REAUTH_MAX_AGE_MS): Promise<AuthUser> {
+  const user = await requireAdmin();
+  if (Date.now() - user.sessionCreatedAt.getTime() > maxAgeMs) {
+    throw new ReauthenticationRequiredError();
+  }
   return user;
 }
 
@@ -179,6 +230,10 @@ export function authErrorResponse(error: unknown): NextResponse | null {
 
   if (error instanceof AuthorizationError) {
     return NextResponse.json({ error: error.message }, { status: 403 });
+  }
+
+  if (error instanceof MfaSetupRequiredError || error instanceof ReauthenticationRequiredError) {
+    return NextResponse.json({ code: error.code, error: error.message }, { status: 403 });
   }
 
   return null;

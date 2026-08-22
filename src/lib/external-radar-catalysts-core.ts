@@ -6,6 +6,8 @@
  * radar candidates, and prepares a tightly bounded set of search queries.
  */
 
+import { parseSafeExternalUrl } from "@/lib/safe-external-url";
+
 export type ExternalRadarGame = "pokemon" | "one-piece";
 export type CatalystSourceKind = "official" | "community" | "social";
 export type CatalystKind =
@@ -430,21 +432,11 @@ function isDomainOrSubdomain(hostname: string, allowedDomain: string): boolean {
   return hostname === allowedDomain || hostname.endsWith(`.${allowedDomain}`);
 }
 
-function safeUrl(value: string): URL | null {
-  try {
-    const parsed = new URL(value);
-    if (!/^https?:$/.test(parsed.protocol) || parsed.username || parsed.password) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
-}
-
 export function getTrustedCatalystSource(
   url: string,
   game?: ExternalRadarGame | null
 ): TrustedCatalystDomain | null {
-  const parsed = safeUrl(url);
+  const parsed = parseSafeExternalUrl(url);
   if (!parsed) return null;
   const hostname = normalizeHostname(parsed.hostname);
 
@@ -464,7 +456,7 @@ export function getTrustedCatalystDomains(game: ExternalRadarGame): string[] {
 }
 
 export function normalizeCatalystUrl(value: string): string | null {
-  const parsed = safeUrl(value);
+  const parsed = parseSafeExternalUrl(value);
   if (!parsed) return null;
 
   parsed.protocol = "https:";

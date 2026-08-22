@@ -1,6 +1,8 @@
-import { NextResponse } from "next/server";
-import { authErrorResponse, requireAdmin } from "@/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { authErrorResponse, requireAdmin, requireRecentAdmin } from "@/lib/auth";
 import { createManualBackup, listBackups } from "@/lib/backups";
+import { getClientIp } from "@/lib/rate-limit";
+import { recordSecurityEvent } from "@/lib/security-events";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -19,10 +21,16 @@ export async function GET() {
   }
 }
 
-export async function POST() {
+export async function POST(request: NextRequest) {
   try {
-    await requireAdmin();
+    const user = await requireRecentAdmin();
     const backup = await createManualBackup();
+    await recordSecurityEvent({
+      eventType: "admin.backup.created",
+      userId: user.id,
+      ip: getClientIp(request),
+      metadata: { name: backup.name, sizeBytes: backup.sizeBytes },
+    });
     const { dir, backups } = await listBackups();
     return NextResponse.json({ ok: true, created: backup, dir, backups });
   } catch (error) {

@@ -491,7 +491,8 @@ const prepaintThemeStyles = `
   }
 `;
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html
       lang="en"
@@ -507,7 +508,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <link rel="preconnect" href="https://assets.tcgdex.net" crossOrigin="anonymous" />
         <link rel="dns-prefetch" href="https://images.tcggo.com" />
-        <script dangerouslySetInnerHTML={{ __html: initSettingsScript }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: initSettingsScript }} />
         <style dangerouslySetInnerHTML={{ __html: prepaintThemeStyles }} />
       </head>
       <body className="min-h-full flex flex-col bg-transparent text-white">

@@ -24,7 +24,7 @@ export async function POST(
       return NextResponse.json({ ok: false, error: "A card id is required." }, { status: 400 });
     }
     if (
-      consumeRateLimit(
+      await consumeRateLimit(
         `external-card-research:user:${user.id}`,
         USER_RESEARCH_LIMIT_PER_HOUR,
         60 * 60_000

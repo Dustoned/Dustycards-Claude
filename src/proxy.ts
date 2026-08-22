@@ -14,6 +14,32 @@ const PUBLIC_API_PREFIXES = [
 ];
 const SAFE_REQUEST_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
+export function buildContentSecurityPolicy(nonce: string): string {
+  return [
+    "default-src 'self'",
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob: https:",
+    "font-src 'self' data:",
+    "connect-src 'self' https:",
+    "media-src 'self' blob: https:",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
+
+function secureResponse(response: NextResponse, nonce: string): NextResponse {
+  response.headers.set("Content-Security-Policy", buildContentSecurityPolicy(nonce));
+  response.headers.set("Referrer-Policy", "strict-origin-when-cross-origin");
+  response.headers.set("X-Content-Type-Options", "nosniff");
+  response.headers.set("X-Frame-Options", "DENY");
+  response.headers.set("Permissions-Policy", "camera=(self), microphone=(), geolocation=(), payment=()");
+  return response;
+}
+
 function getPublicRequestOrigin(
   request: Pick<NextRequest, "headers" | "nextUrl">
 ): string {
@@ -70,39 +96,46 @@ export function isPublicFile(pathname: string): boolean {
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  const nonce = crypto.randomUUID().replaceAll("-", "");
   if (isCrossSiteMutation(request)) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Cross-site request blocked" }, { status: 403 });
+      return secureResponse(NextResponse.json({ error: "Cross-site request blocked" }, { status: 403 }), nonce);
     }
-    return new NextResponse("Cross-site request blocked", { status: 403 });
+    return secureResponse(new NextResponse("Cross-site request blocked", { status: 403 }), nonce);
   }
 
   if (isPublicFile(pathname) || isPublicPath(pathname)) {
     const headers = new Headers(request.headers);
     headers.set("x-dustycards-pathname", pathname);
-    return NextResponse.next({
+    headers.set("x-nonce", nonce);
+    // Next.js reads the request CSP to apply the same nonce to its framework
+    // scripts. Setting it only on the response would block those scripts.
+    headers.set("Content-Security-Policy", buildContentSecurityPolicy(nonce));
+    return secureResponse(NextResponse.next({
       request: { headers },
-    });
+    }), nonce);
   }
 
   const token = request.cookies.get(SESSION_COOKIE_NAME)?.value;
   if (!token) {
     if (pathname.startsWith("/api/")) {
-      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
+      return secureResponse(NextResponse.json({ error: "Authentication required" }, { status: 401 }), nonce);
     }
 
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
     loginUrl.search = "";
     loginUrl.searchParams.set("next", `${pathname}${search}`);
-    return NextResponse.redirect(loginUrl);
+    return secureResponse(NextResponse.redirect(loginUrl), nonce);
   }
 
   const headers = new Headers(request.headers);
   headers.set("x-dustycards-pathname", pathname);
-  return NextResponse.next({
+  headers.set("x-nonce", nonce);
+  headers.set("Content-Security-Policy", buildContentSecurityPolicy(nonce));
+  return secureResponse(NextResponse.next({
     request: { headers },
-  });
+  }), nonce);
 }
 
 export const config = {

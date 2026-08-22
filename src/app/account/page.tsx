@@ -96,6 +96,7 @@ function AccountOverview({
     created_at: Date;
     updated_at: Date;
     settings_json: string | null;
+    mfa_enabled_at: Date | null;
     _count: {
       binders: number;
       collectionCards: number;
@@ -202,6 +203,7 @@ export default async function AccountPage({
         role: true,
         disabled: true,
         settings_json: true,
+        mfa_enabled_at: true,
         created_at: true,
         updated_at: true,
         _count: {
@@ -329,7 +331,7 @@ export default async function AccountPage({
             key: "security",
             label: "Security",
             description: "Password and current session controls.",
-            content: <AccountActions />,
+            content: <AccountActions initialMfaEnabled={Boolean(account.mfa_enabled_at)} isAdmin={account.role === "admin"} />,
           },
           ...(user.role === "admin"
             ? [
