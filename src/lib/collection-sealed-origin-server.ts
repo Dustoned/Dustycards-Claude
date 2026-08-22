@@ -1,7 +1,7 @@
 import "server-only";
 
 import {
-  sealedOriginMatchesAllCards,
+  openingSealedProductMatchesAllCards,
   type SealedOriginCardRef,
 } from "@/lib/collection-sealed-origin";
 import { db } from "@/lib/db";
@@ -18,6 +18,7 @@ export async function isValidCollectionSealedOrigin(
       game: true,
       name: true,
       episode_id: true,
+      episode: { select: { name: true, code: true } },
       contentSets: { select: { episode_id: true } },
       includedCards: { select: { card_id: true } },
     },
@@ -27,6 +28,6 @@ export async function isValidCollectionSealedOrigin(
     product &&
       cards.length > 0 &&
       isCollectionSealedOriginProduct(product.name) &&
-      sealedOriginMatchesAllCards(product, cards)
+      openingSealedProductMatchesAllCards(product, cards)
   );
 }

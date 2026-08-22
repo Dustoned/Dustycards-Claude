@@ -55,7 +55,9 @@ describe("GET /api/openings/cards", () => {
     mocks.findSession.mockResolvedValue({
       sealedProduct: {
         game: "pokemon",
+        name: "Main Set Elite Trainer Box",
         episode_id: "main-set",
+        episode: { name: "Main Set", code: "MAIN" },
         contentSets: [{ episode_id: "subset" }],
         includedCards: [{ card_id: "promo-1" }],
       },
@@ -101,6 +103,60 @@ describe("GET /api/openings/cards", () => {
 
     expect(payload.singles).toHaveLength(1);
     expect(payload.singles[0]).toMatchObject({ id: "promo-1", included_promo: true });
+  });
+
+  it("searches all same-game cards for a random box with unknown pack contents", async () => {
+    mocks.findSession.mockResolvedValue({
+      sealedProduct: {
+        game: "pokemon",
+        name: "Mega Lucario ex Box",
+        episode_id: "catalogue-era",
+        episode: { name: "Mega Evolution", code: "MEG" },
+        contentSets: [],
+        includedCards: [{ card_id: "promo-1" }],
+      },
+    });
+    mocks.findCards.mockResolvedValue([
+      card("unrelated-1", "other-set", "Wrong Charizard", "4/100", "Other Set"),
+    ]);
+
+    const response = await GET(request("Wrong Charizard"));
+    const payload = await response.json();
+
+    expect(payload.scope).toMatchObject({
+      strict: false,
+      reason: "unknown-pack-contents",
+      episodeIds: [],
+    });
+    expect(payload.singles.map((entry: { id: string }) => entry.id)).toEqual(["unrelated-1"]);
+    expect(mocks.findCards).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          game: "pokemon",
+          AND: expect.any(Array),
+        }),
+      })
+    );
+  });
+
+  it("does not load the full catalogue until a broad search has at least two characters", async () => {
+    mocks.findSession.mockResolvedValue({
+      sealedProduct: {
+        game: "pokemon",
+        name: "Mega Lucario ex Box",
+        episode_id: "catalogue-era",
+        episode: { name: "Mega Evolution", code: "MEG" },
+        contentSets: [],
+        includedCards: [],
+      },
+    });
+
+    const response = await GET(request(""));
+    const payload = await response.json();
+
+    expect(payload.singles).toEqual([]);
+    expect(payload.scope.strict).toBe(false);
+    expect(mocks.findCards).not.toHaveBeenCalled();
   });
 
   it("does not expose a closed or another user's opening", async () => {

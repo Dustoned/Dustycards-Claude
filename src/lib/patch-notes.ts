@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.96",
+    releasedAt: "August 22, 2026",
+    title: "Unknown box contents are no longer guessed",
+    summary: "Opening validation now distinguishes expansion products from assorted boxes with unknown packs.",
+    tone: "fixed",
+    highlights: [
+      "Expansion-named products and mapped pack lists keep their exact card pool.",
+      "Random boxes without known contents can search all cards from the same game.",
+      "The opening screen clearly explains whether its card pool is restricted or broad.",
+    ],
+  },
+  {
     version: "3.12.95",
     releasedAt: "August 22, 2026",
     title: "Opening pulls stay inside the sealed product",

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  getOpeningSealedPoolPolicy,
   getSealedOriginMarketPrice,
+  openingSealedProductMatchesCard,
   rankSealedOriginAutocompleteOptions,
   sealedOriginMatchesAllCards,
   sealedOriginMatchesCard,
@@ -142,5 +144,101 @@ describe("collection sealed origins", () => {
         cm_avg_30d: 104,
       })
     ).toBe(101);
+  });
+});
+
+describe("opening sealed card pools", () => {
+  it("restricts products whose own name identifies the expansion", () => {
+    const namedProduct = {
+      ...product,
+      name: "Pitch Black Elite Trainer Box",
+      episode: { name: "Pitch Black", code: "PBL" },
+      episode_id: "pitch-black",
+      contentSets: [],
+    };
+
+    expect(getOpeningSealedPoolPolicy(namedProduct)).toMatchObject({
+      strict: true,
+      reason: "named-expansion",
+      episodeIds: ["pitch-black"],
+    });
+    expect(
+      openingSealedProductMatchesCard(namedProduct, {
+        id: "pbl-1",
+        game: "pokemon",
+        episode_id: "pitch-black",
+      })
+    ).toBe(true);
+    expect(
+      openingSealedProductMatchesCard(namedProduct, {
+        id: "other-1",
+        game: "pokemon",
+        episode_id: "other-set",
+      })
+    ).toBe(false);
+  });
+
+  it("keeps random boxes broad when their pack contents are unknown", () => {
+    const randomBox = {
+      ...product,
+      name: "Mega Lucario ex Box",
+      episode: { name: "Mega Evolution", code: "MEG" },
+      episode_id: "mega-evolution",
+      contentSets: [],
+      includedCards: [],
+    };
+
+    expect(getOpeningSealedPoolPolicy(randomBox)).toEqual({
+      strict: false,
+      reason: "unknown-pack-contents",
+      episodeIds: [],
+      includedCardIds: [],
+    });
+    expect(
+      openingSealedProductMatchesCard(randomBox, {
+        id: "different-set-card",
+        game: "pokemon",
+        episode_id: "different-set",
+      })
+    ).toBe(true);
+    expect(
+      openingSealedProductMatchesCard(randomBox, {
+        id: "one-piece-card",
+        game: "one-piece",
+        episode_id: "op-set",
+      })
+    ).toBe(false);
+  });
+
+  it("uses explicitly mapped pack sets without assuming the catalogue episode", () => {
+    const mappedBox = {
+      ...product,
+      name: "Mega Lucario ex Box",
+      episode: { name: "Mega Evolution", code: "MEG" },
+      episode_id: "catalogue-era",
+      contentSets: [{ episode_id: "pack-set-a" }, { episode_id: "pack-set-b" }],
+      includedCards: [{ card_id: "box-promo" }],
+    };
+
+    expect(getOpeningSealedPoolPolicy(mappedBox)).toEqual({
+      strict: true,
+      reason: "declared-content-sets",
+      episodeIds: ["pack-set-a", "pack-set-b"],
+      includedCardIds: ["box-promo"],
+    });
+    expect(
+      openingSealedProductMatchesCard(mappedBox, {
+        id: "catalogue-card",
+        game: "pokemon",
+        episode_id: "catalogue-era",
+      })
+    ).toBe(false);
+    expect(
+      openingSealedProductMatchesCard(mappedBox, {
+        id: "box-promo",
+        game: "pokemon",
+        episode_id: "promo-era",
+      })
+    ).toBe(true);
   });
 });
