@@ -128,7 +128,7 @@ describe("collection sealed origins", () => {
     expect(
       getSealedOriginMarketPrice({
         cm_lowest: 101,
-        cm_lowest_eu: 0,
+        cm_lowest_eu: 9001,
         cm_lowest_de: null,
         cm_lowest_fr: null,
         cm_lowest_es: null,

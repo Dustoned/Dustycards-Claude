@@ -15,6 +15,33 @@ export type OwnedSealedChoice = {
   imageUrl: string | null;
   quantity: number;
   purchasePricePerItem: number | null;
+  marketPrice: number | null;
+  suggestedPacks: number | null;
+  episode: { id: string; name: string; code: string | null };
+};
+
+export type CatalogSealedChoice = {
+  productId: string;
+  name: string;
+  imageUrl: string | null;
+  game: string;
+  marketPrice: number | null;
+  suggestedPacks: number | null;
+  episode: { id: string; name: string; code: string | null };
+};
+
+export type OpeningSealedChoice = {
+  selectionKey: string;
+  source: "collection" | "catalog";
+  collectionSealedId: string | null;
+  productId: string;
+  name: string;
+  imageUrl: string | null;
+  quantity: number | null;
+  purchasePricePerItem: number | null;
+  marketPrice: number | null;
+  suggestedPacks: number | null;
+  episode: { id: string; name: string; code: string | null };
 };
 
 type OpeningCard = {
@@ -59,9 +86,9 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
   const router = useRouter();
   const [createOpen, setCreateOpen] = useState(sessions.length === 0);
   const [sealedPickerOpen, setSealedPickerOpen] = useState(false);
-  const [selectedOwnedId, setSelectedOwnedId] = useState("");
+  const [selectedChoice, setSelectedChoice] = useState<OpeningSealedChoice | null>(null);
   const [cost, setCost] = useState("");
-  const [packs, setPacks] = useState("1");
+  const [packs, setPacks] = useState("");
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activeSessionId, setActiveSessionId] = useState(sessions.find((session) => session.status === "open")?.id ?? null);
@@ -70,7 +97,6 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
   const [searching, setSearching] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null;
-  const selectedOwned = owned.find((item) => item.id === selectedOwnedId) ?? null;
   const visibleResults = search.trim().length >= 2 && activeSession ? results : [];
 
   useEffect(() => {
@@ -97,17 +123,29 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
     return { sessions: summary.sessions + 1, cards: summary.cards + session.cards.length, cost: summary.cost + (session.cost ?? 0), value: summary.value + value };
   }, { sessions: 0, cards: 0, cost: 0, value: 0 }), [sessions]);
 
-  function selectOwned(id: string) {
-    setSelectedOwnedId(id);
-    const item = owned.find((candidate) => candidate.id === id);
-    setCost(item?.purchasePricePerItem?.toFixed(2) ?? "");
+  function selectSealed(item: OpeningSealedChoice) {
+    setSelectedChoice(item);
+    const suggestedCost = item.purchasePricePerItem ?? item.marketPrice;
+    setCost(suggestedCost?.toFixed(2) ?? "");
+    setPacks(item.suggestedPacks?.toString() ?? "");
   }
 
   async function createSession() {
-    if (!selectedOwnedId || creating) return;
+    const packCount = Number(packs);
+    if (!selectedChoice || creating || !Number.isInteger(packCount) || packCount <= 0) return;
     setCreating(true); setError(null);
     try {
-      const response = await fetch("/api/collection/opening-sessions", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ collectionSealedId: selectedOwnedId, openedCostEur: cost, packsOpened: packs }) });
+      const response = await fetch("/api/collection/opening-sessions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ...(selectedChoice.source === "collection"
+            ? { collectionSealedId: selectedChoice.collectionSealedId }
+            : { sealedProductId: selectedChoice.productId }),
+          openedCostEur: cost,
+          packsOpened: packs,
+        }),
+      });
       const payload = (await response.json().catch(() => ({}))) as { error?: string; id?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not start opening");
       setActiveSessionId(payload.id ?? null); setCreateOpen(false); router.refresh();
@@ -147,26 +185,30 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
       {createOpen ? <section className="mt-3 rounded-2xl border border-violet-300/14 bg-violet-500/[0.04] p-4">
         <div className="mb-3">
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-200/52">New opening</p>
-          <p className="mt-1 text-xs text-white/38">Choose one product you own, then confirm the actual opening cost and pack count.</p>
+          <p className="mt-1 text-xs text-white/38">Choose from your collection or the full sealed catalogue. Best price and pack count are filled automatically when known.</p>
         </div>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_8rem_8rem_auto] lg:items-end">
           <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white/36">Owned sealed</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.1em] text-white/36">Sealed product</p>
             <button
               type="button"
               onClick={() => setSealedPickerOpen(true)}
               aria-haspopup="dialog"
               className="mt-1.5 flex min-h-16 w-full items-center gap-3 rounded-2xl border border-white/10 bg-black/18 p-2.5 text-left transition-colors hover:border-violet-300/24 hover:bg-violet-500/[0.06]"
             >
-              {selectedOwned ? (
+              {selectedChoice ? (
                 <>
-                  {productImage(selectedOwned.imageUrl, selectedOwned.name)}
+                  {productImage(selectedChoice.imageUrl, selectedChoice.name)}
                   <span className="min-w-0 flex-1">
-                    <strong className="block truncate text-sm text-white/84">{selectedOwned.name}</strong>
+                    <strong className="block truncate text-sm text-white/84">{selectedChoice.name}</strong>
                     <span className="mt-1 flex flex-wrap items-center gap-1.5 text-[9px] font-bold text-white/38">
-                      <span>{selectedOwned.quantity} owned</span>
+                      <span>{selectedChoice.source === "collection" ? `${selectedChoice.quantity} owned` : "Full catalogue"}</span>
                       <span aria-hidden="true">·</span>
-                      <span>{selectedOwned.purchasePricePerItem == null ? "No cost saved" : `${formatCollectionCurrency(selectedOwned.purchasePricePerItem)} paid`}</span>
+                      <span>{selectedChoice.purchasePricePerItem != null
+                        ? `${formatCollectionCurrency(selectedChoice.purchasePricePerItem)} paid`
+                        : selectedChoice.marketPrice != null
+                          ? `${formatCollectionCurrency(selectedChoice.marketPrice)} best price`
+                          : "No price available"}</span>
                     </span>
                   </span>
                   <span className="shrink-0 rounded-xl border border-violet-300/14 bg-violet-500/[0.08] px-2.5 py-1.5 text-[10px] font-black text-violet-100/68">Change</span>
@@ -177,8 +219,8 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
                     <Search className="h-4 w-4" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <strong className="block text-sm text-white/72">Choose from your sealed collection</strong>
-                    <span className="mt-1 block text-[10px] text-white/32">Search all products you currently own.</span>
+                    <strong className="block text-sm text-white/72">Choose a sealed product</strong>
+                    <span className="mt-1 block text-[10px] text-white/32">Your collection or every openable sealed product.</span>
                   </span>
                 </>
               )}
@@ -186,16 +228,16 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
           </div>
           <label className="text-[10px] font-black uppercase tracking-[0.1em] text-white/36">Cost EUR<input value={cost} onChange={(event) => setCost(event.target.value)} inputMode="decimal" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm text-white" /></label>
           <label className="text-[10px] font-black uppercase tracking-[0.1em] text-white/36">Packs<input value={packs} onChange={(event) => setPacks(event.target.value)} inputMode="numeric" className="mt-1.5 h-11 w-full rounded-xl border border-white/10 bg-zinc-950 px-3 text-sm text-white" /></label>
-          <button type="button" onClick={() => void createSession()} disabled={!selectedOwned || creating} className="h-11 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:opacity-45">{creating ? "Starting..." : "Start opening"}</button>
+          <button type="button" onClick={() => void createSession()} disabled={!selectedChoice || !Number.isInteger(Number(packs)) || Number(packs) <= 0 || creating} className="h-11 rounded-xl bg-violet-600 px-4 text-sm font-black text-white disabled:opacity-45">{creating ? "Starting..." : "Start opening"}</button>
         </div>
       </section> : null}
       {sealedPickerOpen ? (
         <OwnedSealedPickerDialog
           items={owned}
-          selectedId={selectedOwnedId || null}
+          selectedKey={selectedChoice?.selectionKey ?? null}
           onClose={() => setSealedPickerOpen(false)}
           onSelect={(item) => {
-            selectOwned(item.id);
+            selectSealed(item);
             setSealedPickerOpen(false);
           }}
         />
@@ -203,7 +245,7 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
       {error ? <p className="mt-3 rounded-xl border border-rose-300/14 bg-rose-500/[0.07] px-3 py-2 text-sm text-rose-100">{error}</p> : null}
 
       <section className="mt-4 grid gap-3">
-        {sessions.length === 0 ? <div className="rounded-2xl border border-dashed border-white/10 px-4 py-12 text-center text-sm text-white/42">Start an opening from sealed you own.</div> : sessions.map((session) => {
+        {sessions.length === 0 ? <div className="rounded-2xl border border-dashed border-white/10 px-4 py-12 text-center text-sm text-white/42">Start an opening from your collection or the sealed catalogue.</div> : sessions.map((session) => {
           const pullValue = session.cards.reduce((sum, card) => sum + (card.value ?? 0), 0); const result = pullValue - (session.cost ?? 0); const open = session.id === activeSessionId;
           return <article key={session.id} className={`rounded-2xl border p-3 sm:p-4 ${open ? "border-violet-300/22 bg-violet-500/[0.055]" : "border-white/8 bg-white/[0.025]"}`}>
             <button type="button" onClick={() => setActiveSessionId(open ? null : session.id)} className="flex w-full items-center gap-3 text-left">{productImage(session.product.imageUrl, session.product.name)}<span className="min-w-0 flex-1"><strong className="block truncate text-sm text-white">{session.title ?? session.product.name}</strong><span className="mt-1 block text-[10px] font-semibold text-white/38">{session.packsOpened} packs · {session.cards.length} pulls · {new Date(session.openedAt).toLocaleDateString("en-GB")}</span></span><span className="text-right"><strong className={`block text-sm tabular-nums ${result >= 0 ? "text-emerald-200" : "text-rose-200"}`}>{result >= 0 ? "+" : ""}{formatCollectionCurrency(result)}</strong><small className="text-[9px] uppercase text-white/28">live result</small></span><ChevronDown className={`h-4 w-4 text-white/30 transition ${open ? "rotate-180" : ""}`} /></button>

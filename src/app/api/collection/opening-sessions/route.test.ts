@@ -3,6 +3,7 @@ import { NextRequest } from "next/server";
 
 const mocks = vi.hoisted(() => ({
   findFirst: vi.fn(),
+  findProduct: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
   delete: vi.fn(),
@@ -17,6 +18,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/db", () => ({
   db: {
     collectionSealed: { findFirst: mocks.findFirst },
+    sealedProduct: { findFirst: mocks.findProduct },
     $transaction: mocks.transaction,
   },
 }));
@@ -34,6 +36,7 @@ describe("POST /api/collection/opening-sessions", () => {
       product: { id: "product-1", name: "Booster Bundle" },
     });
     mocks.create.mockResolvedValue({ id: "opening-1" });
+    mocks.findProduct.mockResolvedValue({ id: "catalog-product-1", name: "Temporal Forces Booster Box" });
     mocks.transaction.mockImplementation(async (work) => work({
       sealedOpeningSession: { create: mocks.create },
       collectionSealed: { update: mocks.update, delete: mocks.delete },
@@ -80,5 +83,45 @@ describe("POST /api/collection/opening-sessions", () => {
     expect(response.status).toBe(200);
     expect(mocks.delete).toHaveBeenCalledWith({ where: { id: "owned-sealed-1" } });
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("starts a catalogue opening without changing sealed inventory", async () => {
+    const response = await POST(new NextRequest("http://localhost/api/collection/opening-sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sealedProductId: "catalog-product-1",
+        openedCostEur: "109.95",
+        packsOpened: 36,
+      }),
+    }));
+
+    expect(response.status).toBe(200);
+    expect(mocks.findFirst).not.toHaveBeenCalled();
+    expect(mocks.findProduct).toHaveBeenCalledWith({
+      where: { id: "catalog-product-1" },
+      select: { id: true, name: true },
+    });
+    expect(mocks.create).toHaveBeenCalledWith(expect.objectContaining({
+      data: expect.objectContaining({
+        collection_sealed_id: null,
+        sealed_product_id: "catalog-product-1",
+        opened_cost_eur: 109.95,
+        packs_opened: 36,
+      }),
+    }));
+    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.delete).not.toHaveBeenCalled();
+  });
+
+  it("rejects ambiguous owned and catalogue selections", async () => {
+    const response = await POST(new NextRequest("http://localhost/api/collection/opening-sessions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ collectionSealedId: "owned-sealed-1", sealedProductId: "catalog-product-1" }),
+    }));
+
+    expect(response.status).toBe(400);
+    expect(mocks.transaction).not.toHaveBeenCalled();
   });
 });

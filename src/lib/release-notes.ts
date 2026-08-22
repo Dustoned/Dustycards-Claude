@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.91",
+    releasedAt: "August 22, 2026",
+    title: "Open any sealed product",
+    summary: "Opening sessions can now start from your collection or the complete sealed catalogue.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Faster opening setup",
+        highlights: [
+          "The picker now separates owned sealed from the full searchable catalogue.",
+          "DustyCards fills the best available price and a reliable pack count automatically, while keeping both editable.",
+          "Catalogue openings never remove an item from your sealed collection; owned openings still reduce inventory by exactly one.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.90",
     releasedAt: "August 22, 2026",
     title: "Verified security monitoring",
