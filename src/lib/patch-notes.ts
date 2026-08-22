@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.87",
+    releasedAt: "August 22, 2026",
+    title: "Cross-site mutations are blocked centrally",
+    summary: "Browser writes now receive an additional origin boundary before authentication and route handling.",
+    tone: "system",
+    highlights: [
+      "Cross-site POST, PUT, PATCH and DELETE requests are rejected before they reach auth, collection or admin handlers.",
+      "Same-origin browser actions keep working, while secret-authenticated background workers remain compatible.",
+      "The session cookie continues to use HttpOnly, Secure and SameSite protection as an independent security layer.",
+    ],
+  },
+  {
     version: "3.12.86",
     releasedAt: "August 22, 2026",
     title: "Security hardening across app and server",

@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.87",
+    releasedAt: "August 22, 2026",
+    title: "Cross-site request protection",
+    summary: "DustyCards now blocks browser writes from other sites before they can reach an app route.",
+    tone: "system",
+    sections: [
+      {
+        title: "Independent request boundary",
+        highlights: [
+          "Cross-site browser mutations are rejected centrally for public auth, collection and admin actions.",
+          "Same-origin actions and secret-authenticated background workers continue through their normal controls.",
+          "Secure SameSite session cookies remain active as a separate layer of protection.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.86",
     releasedAt: "August 22, 2026",
     title: "Security hardening",

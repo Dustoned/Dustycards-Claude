@@ -12,6 +12,32 @@ const PUBLIC_API_PREFIXES = [
   "/api/internal/warm-collection-overviews",
   "/api/internal/warm-signal-radar",
 ];
+const SAFE_REQUEST_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+/**
+ * Reject browser-initiated cross-site mutations before they reach public auth
+ * endpoints, server actions or authenticated APIs. Requests from systemd jobs
+ * and other non-browser clients normally omit both browser headers and remain
+ * protected by their route-specific credentials.
+ */
+export function isCrossSiteMutation(
+  request: Pick<NextRequest, "headers" | "method" | "nextUrl">
+): boolean {
+  if (SAFE_REQUEST_METHODS.has(request.method.toUpperCase())) return false;
+
+  const fetchSite = request.headers.get("sec-fetch-site")?.toLowerCase();
+  if (fetchSite === "cross-site") return true;
+
+  const origin = request.headers.get("origin")?.trim();
+  if (!origin) return false;
+  if (origin === "null") return true;
+
+  try {
+    return new URL(origin).origin !== request.nextUrl.origin;
+  } catch {
+    return true;
+  }
+}
 
 export function isPublicPath(pathname: string): boolean {
   return (
@@ -30,6 +56,13 @@ export function isPublicFile(pathname: string): boolean {
 
 export function proxy(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
+  if (isCrossSiteMutation(request)) {
+    if (pathname.startsWith("/api/")) {
+      return NextResponse.json({ error: "Cross-site request blocked" }, { status: 403 });
+    }
+    return new NextResponse("Cross-site request blocked", { status: 403 });
+  }
+
   if (isPublicFile(pathname) || isPublicPath(pathname)) {
     const headers = new Headers(request.headers);
     headers.set("x-dustycards-pathname", pathname);

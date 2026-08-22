@@ -1,5 +1,55 @@
 import { describe, expect, it } from "vitest";
-import { isPublicFile, isPublicPath } from "@/proxy";
+import { NextRequest } from "next/server";
+import { isCrossSiteMutation, isPublicFile, isPublicPath } from "@/proxy";
+
+function mutationRequest(
+  method: string,
+  headers: Record<string, string> = {}
+): NextRequest {
+  return new NextRequest("https://dustycards.example/api/collection/items", {
+    method,
+    headers,
+  });
+}
+
+describe("cross-site mutation protection", () => {
+  it("allows safe reads regardless of their browser source", () => {
+    expect(
+      isCrossSiteMutation(mutationRequest("GET", { "sec-fetch-site": "cross-site" }))
+    ).toBe(false);
+  });
+
+  it("allows same-origin browser mutations", () => {
+    expect(
+      isCrossSiteMutation(
+        mutationRequest("POST", {
+          origin: "https://dustycards.example",
+          "sec-fetch-site": "same-origin",
+        })
+      )
+    ).toBe(false);
+  });
+
+  it("blocks cross-site browser mutations even on public auth routes", () => {
+    expect(
+      isCrossSiteMutation(
+        mutationRequest("POST", {
+          origin: "https://attacker.example",
+          "sec-fetch-site": "cross-site",
+        })
+      )
+    ).toBe(true);
+  });
+
+  it("allows credentialed server workers that do not send browser origin headers", () => {
+    expect(isCrossSiteMutation(mutationRequest("POST"))).toBe(false);
+  });
+
+  it("blocks malformed and opaque browser origins", () => {
+    expect(isCrossSiteMutation(mutationRequest("PATCH", { origin: "null" }))).toBe(true);
+    expect(isCrossSiteMutation(mutationRequest("DELETE", { origin: "not a URL" }))).toBe(true);
+  });
+});
 
 describe("public app metadata", () => {
   it.each([
