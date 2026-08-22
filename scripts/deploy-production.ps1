@@ -224,9 +224,44 @@ cleanup_remote_junk
 
 release_dir="$(mktemp -d /tmp/dustycards-release.XXXXXX)"
 services_stopped=0
+background_timers_stopped=0
+background_timers=(
+  dustycards-sync-scheduler.timer
+  dustycards-price-refresh.timer
+  dustycards-sealed-release-refresh.timer
+  dustycards-daily-backup.timer
+  dustycards-runtime-maintenance.timer
+  dustycards-live-performance-probe.timer
+  dustycards-reprint-backlog.timer
+)
+
+stop_background_work() {
+  for unit in "${background_timers[@]}"; do
+    systemctl stop "$unit" 2>/dev/null || true
+  done
+  systemctl stop dustycards-sync-scheduler.service 2>/dev/null || true
+  systemctl stop dustycards-price-refresh.service 2>/dev/null || true
+  systemctl stop dustycards-sealed-release-refresh.service 2>/dev/null || true
+  systemctl stop dustycards-daily-backup.service 2>/dev/null || true
+  systemctl stop dustycards-runtime-maintenance.service 2>/dev/null || true
+  systemctl stop dustycards-live-performance-probe.service 2>/dev/null || true
+  systemctl stop dustycards-reprint-backlog.service 2>/dev/null || true
+  background_timers_stopped=1
+}
+
+start_background_timers() {
+  for unit in "${background_timers[@]}"; do
+    systemctl start "$unit" 2>/dev/null || true
+  done
+  background_timers_stopped=0
+}
+
 cleanup() {
   if [ "$services_stopped" -eq 1 ]; then
     systemctl start dustycards 2>/dev/null || true
+  fi
+  if [ "$background_timers_stopped" -eq 1 ]; then
+    start_background_timers
   fi
   rm -rf "$release_dir"
   rm -f -- "$DeployArchive"
@@ -340,12 +375,36 @@ app_build="${DeploySha:-$(date -u +%Y%m%dT%H%M%SZ)}"
 release_build="$app_build-$(date -u +%Y%m%dT%H%M%SZ)-$$"
 release_dist_dir=".next-releases/$release_build"
 install -d -o dustycards -g dustycards -m 0755 "$RemoteAppPath/.next-releases"
-DUSTYCARDS_IMAGE_CACHE_DIR="$image_cache_dir" \
-DUSTYCARDS_NEXT_DIST_DIR="$release_dist_dir" \
-NEXT_PUBLIC_APP_BUILD="$app_build" \
-  APP_BUILD="$app_build" \
-  NODE_OPTIONS="${NODE_OPTIONS:---max-old-space-size=2048}" \
-  npm run build
+
+# Keep the public app online, but pause all periodic workers while compiling.
+# A Next build can otherwise overlap a price worker and exhaust the 4 GB VPS.
+# Run the compiler in its own cgroup so an unexpected memory regression kills
+# only the build, never sshd, Caddy, systemd or the currently active release.
+stop_background_work
+build_unit="dustycards-build-${release_build//[^a-zA-Z0-9_.-]/-}"
+if ! timeout --signal=TERM --kill-after=30s 25m \
+  systemd-run --quiet --wait --collect --pipe --unit="$build_unit" \
+    -p Type=exec \
+    -p WorkingDirectory="$RemoteAppPath" \
+    -p Nice=15 \
+    -p IOSchedulingClass=idle \
+    -p CPUQuota=100% \
+    -p CPUWeight=10 \
+    -p IOWeight=10 \
+    -p MemoryHigh=1536M \
+    -p MemoryMax=2304M \
+    -p MemorySwapMax=1024M \
+    /usr/bin/env \
+      DUSTYCARDS_IMAGE_CACHE_DIR="$image_cache_dir" \
+      DUSTYCARDS_NEXT_DIST_DIR="$release_dist_dir" \
+      NEXT_PUBLIC_APP_BUILD="$app_build" \
+      APP_BUILD="$app_build" \
+      NODE_OPTIONS="--max-old-space-size=1280" \
+      UV_THREADPOOL_SIZE=2 \
+      /usr/bin/npm run build; then
+  echo "The isolated Next build failed; the active release was left untouched." >&2
+  exit 1
+fi
 
 # Never activate a partial Next build. Route manifests are required for the
 # authenticated App Router pages; a health-only API check cannot detect when
@@ -861,6 +920,7 @@ systemctl enable --now dustycards-live-performance-probe.timer
 # first visitor wait. Run it only in the quiet nightly window instead.
 systemctl disable --now dustycards-reprint-backlog.service || true
 systemctl enable --now dustycards-reprint-backlog.timer
+background_timers_stopped=0
 # Kick off one sync immediately, but do not fail the deploy if it does: the app
 # has only just restarted and may not be ready to serve the sync endpoint in
 # this exact instant. The timer (enabled above) runs it every 5 min regardless.
