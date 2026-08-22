@@ -586,7 +586,7 @@ systemctl is-active dustycards
 
 health_ok=0
 for attempt in $(seq 1 30); do
-  if /usr/bin/curl -fsS --max-time 5 http://127.0.0.1:3000/api/health >/dev/null; then
+  if /usr/bin/curl -fsS --max-time 5 'http://127.0.0.1:3000/api/health?readiness=1' >/dev/null; then
     health_ok=1
     break
   fi
