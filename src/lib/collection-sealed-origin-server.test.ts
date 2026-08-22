@@ -20,28 +20,51 @@ describe("isValidCollectionSealedOrigin", () => {
     vi.clearAllMocks();
   });
 
-  it("allows a same-game consumer box even when contents metadata is incomplete", async () => {
+  it("allows cards from the product set, declared content sets and included promos", async () => {
     mocks.findProduct.mockResolvedValue({
       id: "other-box",
       game: "pokemon",
       name: "Mega Lucario ex Box",
+      episode_id: "set-1",
+      contentSets: [{ episode_id: "set-2" }],
+      includedCards: [{ card_id: "promo-1" }],
     });
 
     await expect(isValidCollectionSealedOrigin("other-box", [card])).resolves.toBe(true);
-
-    mocks.findProduct.mockResolvedValue({
-      id: "loose-pack",
-      game: "pokemon",
-      name: "Sleeved Booster",
-    });
-    await expect(isValidCollectionSealedOrigin("loose-pack", [card])).resolves.toBe(true);
+    await expect(
+      isValidCollectionSealedOrigin("other-box", [
+        { id: "card-2", game: "pokemon", episode_id: "set-2" },
+      ])
+    ).resolves.toBe(true);
+    await expect(
+      isValidCollectionSealedOrigin("other-box", [
+        { id: "promo-1", game: "pokemon", episode_id: "promo-era" },
+      ])
+    ).resolves.toBe(true);
   });
 
-  it("rejects cases, displays and products from another game", async () => {
+  it("rejects unrelated cards, cases, displays and products from another game", async () => {
+    mocks.findProduct.mockResolvedValue({
+      id: "box",
+      game: "pokemon",
+      name: "Mega Lucario ex Box",
+      episode_id: "set-1",
+      contentSets: [],
+      includedCards: [],
+    });
+    await expect(
+      isValidCollectionSealedOrigin("box", [
+        { id: "card-3", game: "pokemon", episode_id: "another-set" },
+      ])
+    ).resolves.toBe(false);
+
     mocks.findProduct.mockResolvedValue({
       id: "case",
       game: "pokemon",
       name: "Elite Trainer Box Case",
+      episode_id: "set-1",
+      contentSets: [],
+      includedCards: [],
     });
     await expect(isValidCollectionSealedOrigin("case", [card])).resolves.toBe(false);
 
@@ -49,6 +72,9 @@ describe("isValidCollectionSealedOrigin", () => {
       id: "other-game",
       game: "one-piece",
       name: "Booster Box",
+      episode_id: "set-1",
+      contentSets: [],
+      includedCards: [],
     });
     await expect(isValidCollectionSealedOrigin("other-game", [card])).resolves.toBe(false);
   });

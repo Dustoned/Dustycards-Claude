@@ -71,6 +71,7 @@ type SearchCard = {
   image_url: string | null;
   episode_name: string;
   cm_en_lowest_nm: number | null;
+  included_promo?: boolean;
 };
 
 function productImage(imageUrl: string | null, name: string, size = "64px") {
@@ -94,29 +95,40 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
   const [activeSessionId, setActiveSessionId] = useState(sessions.find((session) => session.status === "open")?.id ?? null);
   const [search, setSearch] = useState("");
   const [results, setResults] = useState<SearchCard[]>([]);
+  const [resultsKey, setResultsKey] = useState("");
   const [searching, setSearching] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
   const [confirmingRemovalId, setConfirmingRemovalId] = useState<string | null>(null);
   const [removingId, setRemovingId] = useState<string | null>(null);
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null;
-  const visibleResults = search.trim().length >= 2 && activeSession ? results : [];
+  const activeSearchKey = activeSession?.status === "open"
+    ? `${activeSession.id}:${search.trim()}`
+    : "";
+  const visibleResults = resultsKey === activeSearchKey ? results : [];
 
   useEffect(() => {
     const query = search.trim();
-    if (query.length < 2 || !activeSession) {
+    if (!activeSession || activeSession.status !== "open") {
       return;
     }
     const controller = new AbortController();
+    const requestKey = `${activeSession.id}:${query}`;
     const timer = window.setTimeout(async () => {
       setSearching(true);
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(query)}&game=all`, { signal: controller.signal });
+        const response = await fetch(
+          `/api/openings/cards?sessionId=${encodeURIComponent(activeSession.id)}&q=${encodeURIComponent(query)}`,
+          { cache: "no-store", signal: controller.signal }
+        );
         const payload = (await response.json().catch(() => ({}))) as { singles?: SearchCard[] };
-        if (response.ok) setResults((payload.singles ?? []).slice(0, 8));
+        if (response.ok) {
+          setResults(payload.singles ?? []);
+          setResultsKey(requestKey);
+        }
       } finally {
-        setSearching(false);
+        if (!controller.signal.aborted) setSearching(false);
       }
-    }, 250);
+    }, query ? 180 : 0);
     return () => { controller.abort(); window.clearTimeout(timer); };
   }, [activeSession, search]);
 
@@ -162,7 +174,7 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
       const response = await fetch("/api/collection/cards", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ cardId: card.id, openingSessionId: activeSession.id, condition: "Near Mint", language: "English" }) });
       const payload = (await response.json().catch(() => ({}))) as { error?: string };
       if (!response.ok) throw new Error(payload.error ?? "Could not add pull");
-      setSearch(""); setResults([]); router.refresh();
+      router.refresh();
     } catch (caught) { setError(caught instanceof Error ? caught.message : "Could not add pull"); }
     finally { setAddingId(null); }
   }
@@ -273,8 +285,9 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
           return <article key={session.id} className={`rounded-2xl border p-3 sm:p-4 ${open ? "border-violet-300/22 bg-violet-500/[0.055]" : "border-white/8 bg-white/[0.025]"}`}>
             <button type="button" onClick={() => setActiveSessionId(open ? null : session.id)} className="flex w-full items-center gap-3 text-left">{productImage(session.product.imageUrl, session.product.name)}<span className="min-w-0 flex-1"><strong className="block truncate text-sm text-white">{session.title ?? session.product.name}</strong><span className="mt-1 block text-[10px] font-semibold text-white/38">{session.packsOpened} packs · {session.cards.length} pulls · {new Date(session.openedAt).toLocaleDateString("en-GB")}</span></span><span className="text-right"><strong className={`block text-sm tabular-nums ${result >= 0 ? "text-emerald-200" : "text-rose-200"}`}>{result >= 0 ? "+" : ""}{formatCollectionCurrency(result)}</strong><small className="text-[9px] uppercase text-white/28">live result</small></span><ChevronDown className={`h-4 w-4 text-white/30 transition ${open ? "rotate-180" : ""}`} /></button>
             {open ? <div className="mt-3 border-t border-white/7 pt-3"><div className="grid gap-2 sm:grid-cols-3">{[["Opening cost", session.cost == null ? "Unknown" : formatCollectionCurrency(session.cost)], ["Pull value", formatCollectionCurrency(pullValue)], ["Value / cost", session.cost && session.cost > 0 ? `${(pullValue / session.cost).toFixed(2)}x` : "--"]].map(([label, value]) => <div key={label} className="rounded-xl border border-white/7 bg-black/16 px-3 py-2"><p className="text-[9px] uppercase text-white/28">{label}</p><p className="mt-1 text-sm font-black text-white/78">{value}</p></div>)}</div>
-              {session.status === "open" ? <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search a pulled card..." className="h-11 w-full rounded-xl border border-white/10 bg-black/20 pl-10 pr-3 text-sm text-white outline-none focus:border-violet-300/30" />{searching ? <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-violet-200" /> : null}</div><Link href={`/scan?openingSession=${encodeURIComponent(session.id)}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/9 px-3 text-xs font-black text-white/62"><Camera className="h-4 w-4" /> Scan pulls</Link><button type="button" onClick={() => void closeSession(session.id)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300/14 bg-emerald-500/[0.06] px-3 text-xs font-black text-emerald-100"><Check className="h-4 w-4" /> Finish</button></div> : null}
-              {visibleResults.length && session.status === "open" ? <div className="mt-2 grid gap-1.5 sm:grid-cols-2">{visibleResults.map((card) => <button key={card.id} type="button" onClick={() => void addPull(card)} disabled={addingId === card.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.025] p-2 text-left hover:bg-white/[0.05]"><span className="relative aspect-[63/88] w-9 shrink-0 overflow-hidden rounded-md">{card.image_url ? <CachedImage sourceUrl={card.image_url} alt="" fill sizes="36px" className="object-contain" unoptimized /> : null}</span><span className="min-w-0 flex-1"><strong className="block truncate text-xs text-white/82">{card.name}</strong><small className="block truncate text-[9px] text-white/34">{card.episode_name} {card.card_number ? `#${card.card_number}` : ""}</small></span><Plus className="h-4 w-4 text-violet-200/62" /></button>)}</div> : null}
+              {session.status === "open" ? <><div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search this expansion or its included promos..." className="h-11 w-full rounded-xl border border-white/10 bg-black/20 pl-10 pr-3 text-sm text-white outline-none focus:border-violet-300/30" />{searching ? <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-violet-200" /> : null}</div><Link href={`/scan?openingSession=${encodeURIComponent(session.id)}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/9 px-3 text-xs font-black text-white/62"><Camera className="h-4 w-4" /> Scan pulls</Link><button type="button" onClick={() => void closeSession(session.id)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300/14 bg-emerald-500/[0.06] px-3 text-xs font-black text-emerald-100"><Check className="h-4 w-4" /> Finish</button></div><p className="mt-1.5 text-[10px] text-white/32">Only cards from this sealed expansion, declared content sets and explicitly included promos can be added.</p></> : null}
+              {visibleResults.length > 0 && session.status === "open" ? <div className="mt-2 grid gap-1.5 sm:grid-cols-2">{visibleResults.map((card) => <button key={card.id} type="button" onClick={() => void addPull(card)} disabled={addingId === card.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.025] p-2 text-left hover:bg-white/[0.05]"><span className="relative aspect-[63/88] w-9 shrink-0 overflow-hidden rounded-md">{card.image_url ? <CachedImage sourceUrl={card.image_url} alt="" fill sizes="36px" className="object-contain" unoptimized /> : null}</span><span className="min-w-0 flex-1"><strong className="block truncate text-xs text-white/82">{card.name}</strong><small className="block truncate text-[9px] text-white/34">{card.episode_name} {card.card_number ? `#${card.card_number}` : ""}{card.included_promo ? " · Included promo" : ""}</small></span><Plus className="h-4 w-4 text-violet-200/62" /></button>)}</div> : null}
+              {!searching && session.status === "open" && resultsKey === activeSearchKey && visibleResults.length === 0 ? <p className="mt-3 rounded-xl border border-dashed border-white/8 px-3 py-5 text-center text-xs text-white/34">No cards from this sealed product match your search.</p> : null}
               {session.cards.length ? <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{session.cards.map((card) => <div key={card.collectionItemId} className="w-20 shrink-0"><span className="relative block aspect-[63/88] overflow-hidden rounded-lg border border-white/8 bg-black/16">{card.imageUrl ? <CachedImage sourceUrl={card.imageUrl} alt="" fill sizes="80px" className="object-contain" unoptimized /> : null}</span><p className="mt-1 truncate text-[9px] font-bold text-white/58">{card.name}</p><p className="text-[9px] tabular-nums text-white/34">{card.value == null ? "--" : formatCollectionCurrency(card.value)}</p></div>)}</div> : <p className="mt-3 text-xs text-white/34">No pulls added yet.</p>}
               <div className="mt-4 border-t border-white/7 pt-3">
                 {confirmingRemovalId === session.id ? (

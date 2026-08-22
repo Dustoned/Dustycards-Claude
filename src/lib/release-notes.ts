@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.95",
+    releasedAt: "August 22, 2026",
+    title: "Every opening uses the correct card pool",
+    summary: "Sealed openings now show and accept only cards that can belong to the selected product.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Expansion-accurate pulls",
+        highlights: [
+          "Opening search is restricted to the sealed product's own expansion and declared content sets.",
+          "Only promos explicitly included with that sealed product are added to the pool.",
+          "The server now rejects unrelated cards even when they are submitted through the scanner or a direct request.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.94",
     releasedAt: "August 22, 2026",
     title: "Opening mistakes can be reversed safely",

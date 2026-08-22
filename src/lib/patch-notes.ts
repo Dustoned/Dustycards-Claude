@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.95",
+    releasedAt: "August 22, 2026",
+    title: "Opening pulls stay inside the sealed product",
+    summary: "The opening picker and backend now share one strict product-specific card pool.",
+    tone: "fixed",
+    highlights: [
+      "Cards from unrelated expansions no longer appear in an opening search.",
+      "Declared subsets and explicitly bundled promos remain available.",
+      "Scanner and direct API submissions cannot bypass the sealed contents check.",
+    ],
+  },
+  {
     version: "3.12.94",
     releasedAt: "August 22, 2026",
     title: "Cancel or remove an opening",
