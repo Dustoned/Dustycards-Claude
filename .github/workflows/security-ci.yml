@@ -18,6 +18,10 @@ jobs:
   verify:
     runs-on: ubuntu-latest
     timeout-minutes: 35
+    env:
+      DATABASE_URL: file:./dustycards.db
+      AUTH_MFA_ENCRYPTION_KEY: ci-only-security-key-that-is-long-enough
+      SECURITY_EVENT_HASH_KEY: ci-only-event-hash-key-that-is-long-enough
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -41,7 +45,5 @@ jobs:
         run: npm test
       - name: Production build
         env:
-          AUTH_MFA_ENCRYPTION_KEY: ci-only-security-key-that-is-long-enough
-          DATABASE_URL: file:./ci.db
           NEXT_PUBLIC_APP_BUILD: ci-${{ github.sha }}
         run: npm run build -- --webpack
