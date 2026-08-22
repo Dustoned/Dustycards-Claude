@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.93",
+    releasedAt: "August 22, 2026",
+    title: "Alternate artworks belong to the same print family",
+    summary: "Exact card rules now connect regular, rainbow, alternate-art and trainer-gallery printings.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Reliable related printings",
+        highlights: [
+          "Mew VMAX TG30 now shows its Fusion Strike regular, rainbow and alternate-art printings.",
+          "Exact attacks, effects and compatible card identity now outweigh artwork-style and illustrator differences.",
+          "Visual similarity remains the safety check when card rules are incomplete or only loosely related.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.92",
     releasedAt: "August 22, 2026",
     title: "Sealed search that speaks collector shorthand",

@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.93",
+    releasedAt: "August 22, 2026",
+    title: "Exact-rule reprints no longer depend on matching artwork",
+    summary: "Print families now recognize alternate artwork when the complete playable card is identical.",
+    tone: "fixed",
+    highlights: [
+      "Mew VMAX TG30 is linked to Fusion Strike 114, 268 and 269.",
+      "Regular, rainbow, gold, promo and trainer-gallery treatments can share one verified print family.",
+      "Different attacks or effects still prevent an automatic match.",
+    ],
+  },
+  {
     version: "3.12.92",
     releasedAt: "August 22, 2026",
     title: "Released sealed products stay searchable",

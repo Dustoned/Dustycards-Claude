@@ -69,14 +69,14 @@ describe("card printings", () => {
     ).toBe("swsh12.5gg-GG01");
   });
 
-  it("rejects identical rules when the artwork is visibly different", () => {
+  it("accepts identical rules when the artwork is visibly different", () => {
     expect(
       getPrintingMatchType(
         CHARIZARD_RULES,
         CHARIZARD_RULES,
         0.59
       )
-    ).toBeNull();
+    ).toBe("reprint");
   });
 
   it("matches a visually equivalent reprint when the complete card rules are equal", () => {
@@ -92,38 +92,41 @@ describe("card printings", () => {
     ).toBe("reprint");
   });
 
-  it("does not let matching text override a weak visual match", () => {
-    expect(getPrintingMatchType(CHARIZARD_RULES, CHARIZARD_RULES, 0.645)).toBeNull();
+  it("uses exact full rules even when alternate artwork has weak visual similarity", () => {
+    expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.12)).toMatchObject({
+      matchType: "reprint",
+      method: "rules-exact",
+    });
   });
 
-  it("requires a manual decision for gold, promo or jumbo variants with different art", () => {
+  it("links gold, promo or trainer-gallery variants when their full rules are exact", () => {
     expect(
-      getPrintingMatchType(
+      getPrintingMatchDetails(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: "Promo Studio" },
         0.28
       )
-    ).toBeNull();
+    ).toMatchObject({ matchType: "reprint", method: "rules-exact" });
   });
 
-  it("automatically rejects identical rules when the illustrator differs", () => {
+  it("does not reject exact rules merely because the illustrator differs", () => {
     expect(
       getPrintingMatchDetails(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: "HYOGONOSUKE" },
         0.95
       )
-    ).toBeNull();
+    ).toMatchObject({ matchType: "reprint", method: "rules-exact" });
   });
 
-  it("does not auto-link a visually different promo when illustrator data is absent", () => {
+  it("links exact rules when optional illustrator data is absent", () => {
     expect(
-      getPrintingMatchType(
+      getPrintingMatchDetails(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: undefined },
         0.24
       )
-    ).toBeNull();
+    ).toMatchObject({ matchType: "reprint", method: "rules-exact" });
   });
 
   it("accepts an updated reprint lineage when move names and art still match", () => {
@@ -161,15 +164,49 @@ describe("card printings", () => {
     ).toBe("reprint");
   });
 
-  it("sends exact-rule matches with different-looking artwork to review", () => {
+  it("automatically accepts exact-rule matches at every artwork similarity", () => {
     expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.859)).toMatchObject({
       matchType: "reprint",
-      method: "likely-art",
+      method: "rules-exact",
     });
     expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.92)).toMatchObject({
       matchType: "reprint",
-      method: "rules-and-art",
+      method: "rules-exact",
     });
+  });
+
+  it("groups Mew VMAX regular, rainbow, alternate-art and trainer-gallery printings", () => {
+    const mewVmax = {
+      category: "Pokemon",
+      name: "Mew VMAX",
+      illustrator: "5ban Graphics",
+      hp: 310,
+      stage: "VMAX",
+      attacks: [
+        {
+          cost: ["Colorless", "Colorless"],
+          name: "Cross Fusion Strike",
+          effect: "Choose 1 of your Benched Fusion Strike Pokemon's attacks and use it as this attack.",
+        },
+        {
+          cost: ["Psychic", "Psychic"],
+          name: "Max Miracle",
+          damage: "130",
+          effect: "This attack's damage isn't affected by any effects on your opponent's Active Pokemon.",
+        },
+      ],
+      weaknesses: [{ type: "Darkness", value: "x2" }],
+      resistances: [{ type: "Fighting", value: "-30" }],
+      retreat: 0,
+    };
+
+    expect(
+      getPrintingMatchDetails(
+        mewVmax,
+        { ...mewVmax, illustrator: "AKIRA EGAWA" },
+        0.18
+      )
+    ).toMatchObject({ matchType: "reprint", method: "rules-exact" });
   });
 
   it("normalizes historical power labels before comparing otherwise identical reprints", () => {
@@ -242,7 +279,7 @@ describe("card printings", () => {
     const right = { ...left, name: "Rayquaza GX" };
 
     expect(getPrintingMatchDetails(left, right, 0.74)).toMatchObject({
-      method: "likely-art",
+      method: "rules-exact",
     });
   });
 
@@ -310,7 +347,7 @@ describe("card printings", () => {
     ).toBeNull();
   });
 
-  it("does not propagate a reprint match through an intermediate card", () => {
+  it("only returns direct matches while accepting exact-rule alternate artwork", () => {
     const regular = CHARIZARD_RULES;
     const rainbow = { ...CHARIZARD_RULES };
     const gallery = {
@@ -334,7 +371,7 @@ describe("card printings", () => {
         [rainbow, regular, gallery, alternateArtwork],
         (leftIndex, rightIndex) => similarities[leftIndex][rightIndex]
       )
-    ).toEqual([1]);
+    ).toEqual([1, 2, 3]);
   });
 
   it("refuses weak identities without actual card rules", () => {
