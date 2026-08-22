@@ -17,6 +17,16 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.90",
+    releasedAt: "August 22, 2026",
+    title: "Security monitor runtime verified",
+    summary: "The isolated production worker now resolves both TypeScript and generated JavaScript modules.",
+    tone: "fixed",
+    highlights: [
+      "Hourly login-failure, critical-event and backup freshness checks run successfully under systemd.",
+    ],
+  },
+  {
     version: "3.12.89",
     releasedAt: "August 22, 2026",
     title: "The live proxy preserves script nonces",

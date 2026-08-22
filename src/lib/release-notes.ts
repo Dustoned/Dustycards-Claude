@@ -20,6 +20,21 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.90",
+    releasedAt: "August 22, 2026",
+    title: "Verified security monitoring",
+    summary: "The production security monitor now resolves generated database modules in its isolated worker runtime.",
+    tone: "system",
+    sections: [
+      {
+        title: "Runtime verification",
+        highlights: [
+          "Hourly authentication, security-event and backup checks now execute successfully in the production service.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.89",
     releasedAt: "August 22, 2026",
     title: "Nonce policy at the edge",

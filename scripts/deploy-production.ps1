@@ -368,6 +368,7 @@ fi
 
 npm install --no-audit --no-fund
 npx prisma generate
+node --no-warnings scripts/security-monitor-worker.mjs --check
 
 # Build the immutable Next release while the previous process remains online.
 # Every attempt gets its own directory, including an automatic retry of the
