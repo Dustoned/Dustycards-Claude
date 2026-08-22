@@ -1,6 +1,6 @@
 # DustyCards roadmap
 
-Last updated: 2026-08-04.
+Last updated: 2026-08-23.
 
 This file contains only work that is still useful and not already live. Completed
 work belongs in patch notes and git history. Audit evidence and temporary execution
@@ -19,8 +19,6 @@ waves are not part of the active roadmap.
 These are reliability tasks, not user-facing promises:
 
 - Build releases out of place before swapping the live application directory.
-- Configure `DUSTYCARDS_OFFSITE_BACKUP_DIR` on production so the verified daily
-  backup copy is stored outside the primary application volume.
 - Finish graceful shutdown for in-flight sync work and SQLite WAL checkpointing
   (database disconnect and boot reconciliation are live).
 - Split very large modules only while a related feature or fix already touches them.
