@@ -24,8 +24,9 @@ describe("isValidCollectionSealedOrigin", () => {
     mocks.findProduct.mockResolvedValue({
       id: "other-box",
       game: "pokemon",
-      name: "Mega Lucario ex Box",
+      name: "Main Set Elite Trainer Box",
       episode_id: "set-1",
+      episode: { name: "Main Set", code: "MAIN" },
       contentSets: [{ episode_id: "set-2" }],
       includedCards: [{ card_id: "promo-1" }],
     });
@@ -43,12 +44,13 @@ describe("isValidCollectionSealedOrigin", () => {
     ).resolves.toBe(true);
   });
 
-  it("rejects unrelated cards, cases, displays and products from another game", async () => {
+  it("allows unrelated same-game pulls for random boxes with unknown packs", async () => {
     mocks.findProduct.mockResolvedValue({
       id: "box",
       game: "pokemon",
       name: "Mega Lucario ex Box",
       episode_id: "set-1",
+      episode: { name: "Mega Evolution", code: "MEG" },
       contentSets: [],
       includedCards: [],
     });
@@ -56,13 +58,17 @@ describe("isValidCollectionSealedOrigin", () => {
       isValidCollectionSealedOrigin("box", [
         { id: "card-3", game: "pokemon", episode_id: "another-set" },
       ])
-    ).resolves.toBe(false);
+    ).resolves.toBe(true);
+  });
+
+  it("rejects cases, displays and products from another game", async () => {
 
     mocks.findProduct.mockResolvedValue({
       id: "case",
       game: "pokemon",
       name: "Elite Trainer Box Case",
       episode_id: "set-1",
+      episode: { name: "Main Set", code: "MAIN" },
       contentSets: [],
       includedCards: [],
     });
@@ -73,6 +79,7 @@ describe("isValidCollectionSealedOrigin", () => {
       game: "one-piece",
       name: "Booster Box",
       episode_id: "set-1",
+      episode: { name: "Main Set", code: "MAIN" },
       contentSets: [],
       includedCards: [],
     });

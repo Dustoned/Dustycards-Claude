@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.96",
+    releasedAt: "August 22, 2026",
+    title: "Opening pools no longer guess box contents",
+    summary: "Expansion products stay precise while assorted boxes remain searchable when their packs are unknown.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Known contents stay strict",
+        highlights: [
+          "Products that identify an expansion in their name remain limited to that expansion and its explicit promos.",
+          "Products with mapped pack contents use exactly those declared sets.",
+          "Assorted boxes without a confirmed pack list allow a same-game search instead of assuming the catalogue expansion.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.95",
     releasedAt: "August 22, 2026",
     title: "Every opening uses the correct card pool",
