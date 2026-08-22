@@ -6,7 +6,6 @@ const mocks = vi.hoisted(() => ({
   findProduct: vi.fn(),
   create: vi.fn(),
   update: vi.fn(),
-  delete: vi.fn(),
   transaction: vi.fn(),
 }));
 
@@ -39,7 +38,7 @@ describe("POST /api/collection/opening-sessions", () => {
     mocks.findProduct.mockResolvedValue({ id: "catalog-product-1", name: "Temporal Forces Booster Box" });
     mocks.transaction.mockImplementation(async (work) => work({
       sealedOpeningSession: { create: mocks.create },
-      collectionSealed: { update: mocks.update, delete: mocks.delete },
+      collectionSealed: { update: mocks.update },
     }));
   });
 
@@ -65,7 +64,7 @@ describe("POST /api/collection/opening-sessions", () => {
     await expect(response.json()).resolves.toEqual({ ok: true, id: "opening-1" });
   });
 
-  it("removes the final inventory row while retaining the new session", async () => {
+  it("keeps the final inventory row at zero so cancellation can restore it", async () => {
     mocks.findFirst.mockResolvedValue({
       id: "owned-sealed-1",
       product_id: "product-1",
@@ -81,8 +80,10 @@ describe("POST /api/collection/opening-sessions", () => {
     }));
 
     expect(response.status).toBe(200);
-    expect(mocks.delete).toHaveBeenCalledWith({ where: { id: "owned-sealed-1" } });
-    expect(mocks.update).not.toHaveBeenCalled();
+    expect(mocks.update).toHaveBeenCalledWith({
+      where: { id: "owned-sealed-1" },
+      data: { quantity: { decrement: 1 } },
+    });
   });
 
   it("starts a catalogue opening without changing sealed inventory", async () => {
@@ -111,7 +112,6 @@ describe("POST /api/collection/opening-sessions", () => {
       }),
     }));
     expect(mocks.update).not.toHaveBeenCalled();
-    expect(mocks.delete).not.toHaveBeenCalled();
   });
 
   it("rejects ambiguous owned and catalogue selections", async () => {

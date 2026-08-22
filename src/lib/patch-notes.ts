@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.94",
+    releasedAt: "August 22, 2026",
+    title: "Cancel or remove an opening",
+    summary: "Opening sessions now have safe recovery actions for mistakes and old history.",
+    tone: "fixed",
+    highlights: [
+      "Active openings can be cancelled with explicit confirmation.",
+      "Cancellation removes session pulls and restores consumed owned sealed inventory.",
+      "Completed openings can be removed while their collected pulls remain untouched.",
+    ],
+  },
+  {
     version: "3.12.93",
     releasedAt: "August 22, 2026",
     title: "Exact-rule reprints no longer depend on matching artwork",

@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.94",
+    releasedAt: "August 22, 2026",
+    title: "Opening mistakes can be reversed safely",
+    summary: "Open sessions can be cancelled and completed opening history can be removed without losing real pulls.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Clear recovery actions",
+        highlights: [
+          "Cancelling an active opening removes its accidental pulls and restores the owned sealed item when applicable.",
+          "Deleting a completed opening removes only the history record and keeps every pulled card in the collection.",
+          "The final owned sealed copy now remains recoverable at zero quantity instead of losing its inventory link.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.93",
     releasedAt: "August 22, 2026",
     title: "Alternate artworks belong to the same print family",

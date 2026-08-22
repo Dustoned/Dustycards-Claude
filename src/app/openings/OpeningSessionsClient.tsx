@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Camera, Check, ChevronDown, Loader2, PackageOpen, Plus, Search } from "lucide-react";
+import { Camera, Check, ChevronDown, Loader2, PackageOpen, Plus, Search, Trash2, XCircle } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import CachedImage from "@/components/CachedImage";
 import { formatCollectionCurrency } from "@/lib/collection";
@@ -96,6 +96,8 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
   const [results, setResults] = useState<SearchCard[]>([]);
   const [searching, setSearching] = useState(false);
   const [addingId, setAddingId] = useState<string | null>(null);
+  const [confirmingRemovalId, setConfirmingRemovalId] = useState<string | null>(null);
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const activeSession = sessions.find((session) => session.id === activeSessionId) ?? null;
   const visibleResults = search.trim().length >= 2 && activeSession ? results : [];
 
@@ -168,6 +170,27 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
   async function closeSession(sessionId: string) {
     const response = await fetch(`/api/collection/opening-sessions/${encodeURIComponent(sessionId)}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "closed" }) });
     if (response.ok) { if (activeSessionId === sessionId) setActiveSessionId(null); router.refresh(); }
+  }
+
+  async function removeSession(session: OpeningSessionView) {
+    if (removingId) return;
+    setRemovingId(session.id);
+    setError(null);
+    try {
+      const response = await fetch(
+        `/api/collection/opening-sessions/${encodeURIComponent(session.id)}`,
+        { method: "DELETE" }
+      );
+      const payload = (await response.json().catch(() => ({}))) as { error?: string };
+      if (!response.ok) throw new Error(payload.error ?? "Could not remove opening");
+      if (activeSessionId === session.id) setActiveSessionId(null);
+      setConfirmingRemovalId(null);
+      router.refresh();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "Could not remove opening");
+    } finally {
+      setRemovingId(null);
+    }
   }
 
   return (
@@ -253,6 +276,48 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
               {session.status === "open" ? <div className="mt-3 grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" /><input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search a pulled card..." className="h-11 w-full rounded-xl border border-white/10 bg-black/20 pl-10 pr-3 text-sm text-white outline-none focus:border-violet-300/30" />{searching ? <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-violet-200" /> : null}</div><Link href={`/scan?openingSession=${encodeURIComponent(session.id)}`} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-white/9 px-3 text-xs font-black text-white/62"><Camera className="h-4 w-4" /> Scan pulls</Link><button type="button" onClick={() => void closeSession(session.id)} className="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-emerald-300/14 bg-emerald-500/[0.06] px-3 text-xs font-black text-emerald-100"><Check className="h-4 w-4" /> Finish</button></div> : null}
               {visibleResults.length && session.status === "open" ? <div className="mt-2 grid gap-1.5 sm:grid-cols-2">{visibleResults.map((card) => <button key={card.id} type="button" onClick={() => void addPull(card)} disabled={addingId === card.id} className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.025] p-2 text-left hover:bg-white/[0.05]"><span className="relative aspect-[63/88] w-9 shrink-0 overflow-hidden rounded-md">{card.image_url ? <CachedImage sourceUrl={card.image_url} alt="" fill sizes="36px" className="object-contain" unoptimized /> : null}</span><span className="min-w-0 flex-1"><strong className="block truncate text-xs text-white/82">{card.name}</strong><small className="block truncate text-[9px] text-white/34">{card.episode_name} {card.card_number ? `#${card.card_number}` : ""}</small></span><Plus className="h-4 w-4 text-violet-200/62" /></button>)}</div> : null}
               {session.cards.length ? <div className="mt-3 flex gap-2 overflow-x-auto pb-1">{session.cards.map((card) => <div key={card.collectionItemId} className="w-20 shrink-0"><span className="relative block aspect-[63/88] overflow-hidden rounded-lg border border-white/8 bg-black/16">{card.imageUrl ? <CachedImage sourceUrl={card.imageUrl} alt="" fill sizes="80px" className="object-contain" unoptimized /> : null}</span><p className="mt-1 truncate text-[9px] font-bold text-white/58">{card.name}</p><p className="text-[9px] tabular-nums text-white/34">{card.value == null ? "--" : formatCollectionCurrency(card.value)}</p></div>)}</div> : <p className="mt-3 text-xs text-white/34">No pulls added yet.</p>}
+              <div className="mt-4 border-t border-white/7 pt-3">
+                {confirmingRemovalId === session.id ? (
+                  <div className="rounded-xl border border-rose-300/16 bg-rose-500/[0.07] p-3">
+                    <p className="text-xs font-black text-rose-100">
+                      {session.status === "open" ? "Cancel this opening?" : "Delete this opening record?"}
+                    </p>
+                    <p className="mt-1 text-[10px] leading-4 text-rose-100/58">
+                      {session.status === "open"
+                        ? `${session.cards.length} pull${session.cards.length === 1 ? "" : "s"} will be removed. An owned sealed item is restored when applicable.`
+                        : `${session.cards.length} collected pull${session.cards.length === 1 ? "" : "s"} will stay in your collection.`}
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void removeSession(session)}
+                        disabled={removingId === session.id}
+                        className="inline-flex h-9 items-center gap-2 rounded-xl bg-rose-600 px-3 text-[11px] font-black text-white disabled:opacity-50"
+                      >
+                        {removingId === session.id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                        {removingId === session.id ? "Removing..." : session.status === "open" ? "Confirm cancel" : "Confirm delete"}
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setConfirmingRemovalId(null)}
+                        disabled={removingId === session.id}
+                        className="h-9 rounded-xl border border-white/10 px-3 text-[11px] font-black text-white/60 disabled:opacity-50"
+                      >
+                        Keep opening
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingRemovalId(session.id)}
+                    className="inline-flex h-9 items-center gap-2 rounded-xl border border-rose-300/12 px-3 text-[11px] font-black text-rose-100/70 transition-colors hover:bg-rose-500/[0.07]"
+                  >
+                    {session.status === "open" ? <XCircle className="h-3.5 w-3.5" /> : <Trash2 className="h-3.5 w-3.5" />}
+                    {session.status === "open" ? "Cancel opening" : "Delete opening"}
+                  </button>
+                )}
+              </div>
             </div> : null}
           </article>;
         })}
