@@ -20,6 +20,21 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.89",
+    releasedAt: "August 22, 2026",
+    title: "Nonce policy at the edge",
+    summary: "The live proxy now preserves DustyCards' per-request script nonce instead of replacing it with a weaker static browser policy.",
+    tone: "system",
+    sections: [
+      {
+        title: "Stricter script execution",
+        highlights: [
+          "Every HTML response keeps its unique script nonce through Caddy, so browsers no longer accept arbitrary inline scripts.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.88",
     releasedAt: "August 22, 2026",
     title: "Defense in depth",

@@ -14,7 +14,10 @@
 		X-Frame-Options "DENY"
 		Referrer-Policy "strict-origin-when-cross-origin"
 		Permissions-Policy "camera=(self), geolocation=(), microphone=(), payment=(), usb=()"
-		Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self' https: wss:; worker-src 'self' blob:; media-src 'self' blob:; manifest-src 'self'"
+		# The application generates a fresh nonce for every HTML response. Do not
+		# replace that dynamic CSP here with a static policy that permits inline
+		# scripts; Caddy keeps the transport-level headers and forwards the nonce
+		# policy produced by Next.js unchanged.
 	}
 
 	# Bound bodies before Next.js allocates/parses them. The scanner is the only

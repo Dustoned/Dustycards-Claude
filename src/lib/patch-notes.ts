@@ -17,6 +17,17 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.89",
+    releasedAt: "August 22, 2026",
+    title: "The live proxy preserves script nonces",
+    summary: "Caddy now forwards the application's unique browser policy instead of replacing it with a static inline-script policy.",
+    tone: "system",
+    highlights: [
+      "Every rendered page retains its per-request CSP nonce through the public proxy.",
+      "Arbitrary inline scripts are no longer permitted by the public response policy.",
+    ],
+  },
+  {
     version: "3.12.88",
     releasedAt: "August 22, 2026",
     title: "Persistent production security controls",
