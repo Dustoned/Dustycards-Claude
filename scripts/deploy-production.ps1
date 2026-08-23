@@ -107,11 +107,10 @@ chown root:dustycards /opt/dustycards/backup.lock
 chmod 0660 /opt/dustycards/backup.lock
 
 # The named deployment administrator may invoke this already-whitelisted
-# release wrapper over SSH. These two fixed, read-only modes expose only the
-# newest verified nightly backup, allowing a trusted workstation to keep an
-# off-server copy without opening an inbound port or making the backup
-# directory readable to the deployment account.
-if [ "${1:-}" = "--latest-daily-backup-metadata" ] || [ "${1:-}" = "--stream-latest-daily-backup" ]; then
+# release wrapper over SSH. These fixed modes expose only the newest verified
+# nightly backup, allowing a trusted workstation to keep an off-server copy
+# without opening an inbound port or making the backup directory readable.
+if [ "${1:-}" = "--latest-daily-backup-metadata" ] || [ "${1:-}" = "--prepare-latest-daily-backup-export" ]; then
   exec 7</opt/dustycards/backup.lock
   flock -s -w 120 7 || { echo "Could not acquire the backup read lock." >&2; exit 75; }
   latest_backup="$({
@@ -127,8 +126,21 @@ if [ "${1:-}" = "--latest-daily-backup-metadata" ] || [ "${1:-}" = "--stream-lat
     *) echo "Refusing to export an unexpected backup path." >&2; exit 65 ;;
   esac
 
-  if [ "$1" = "--stream-latest-daily-backup" ]; then
-    exec /bin/cat -- "$latest_backup"
+  if [ "$1" = "--prepare-latest-daily-backup-export" ]; then
+    export_user="${SUDO_USER:-}"
+    case "$export_user" in
+      ''|*[!a-zA-Z0-9_-]*) echo "Refusing an invalid export user." >&2; exit 65 ;;
+    esac
+    id "$export_user" >/dev/null 2>&1 || { echo "Export user does not exist." >&2; exit 65; }
+    export_dir="/opt/dustycards/backup-export"
+    export_path="$export_dir/latest-daily.db"
+    export_temp="$export_dir/.latest-daily.$$"
+    install -d -o root -g "$export_user" -m 0750 "$export_dir"
+    rm -f -- "$export_temp"
+    ln -- "$latest_backup" "$export_temp"
+    chown dustycards:"$export_user" "$export_temp"
+    chmod 0640 "$export_temp"
+    mv -f -- "$export_temp" "$export_path"
   fi
 
   backup_name="$(basename "$latest_backup")"

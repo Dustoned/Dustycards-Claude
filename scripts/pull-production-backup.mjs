@@ -63,32 +63,29 @@ function runSshCapture(host, remoteCommand) {
 }
 
 async function streamProductionBackup(host, targetPath) {
-  const child = spawn("ssh", [
+  if (!/^[a-zA-Z0-9_.@:-]+$/.test(host) || host.startsWith("-")) {
+    throw new Error("Backup host has an invalid format");
+  }
+  const child = spawn("scp", [
     "-o", "BatchMode=yes",
     "-o", "StrictHostKeyChecking=yes",
-    host,
-    "sudo /usr/local/sbin/dustycards-apply-release --stream-latest-daily-backup",
-  ], { windowsHide: true, stdio: ["ignore", "pipe", "pipe"] });
-  const hash = createHash("sha256");
-  let sizeBytes = 0;
+    `${host}:/opt/dustycards/backup-export/latest-daily.db`,
+    targetPath,
+  ], { windowsHide: true, stdio: ["ignore", "ignore", "pipe"] });
   const stderr = [];
   child.stderr.on("data", (chunk) => stderr.push(chunk));
-  child.stdout.on("data", (chunk) => {
-    sizeBytes += chunk.length;
-    hash.update(chunk);
-  });
-  const completed = new Promise((resolve, reject) => {
+  await new Promise((resolve, reject) => {
     child.on("error", reject);
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(`SSH backup stream failed (${code}): ${Buffer.concat(stderr).toString("utf8").trim()}`));
+        reject(new Error(`SCP backup transfer failed (${code}): ${Buffer.concat(stderr).toString("utf8").trim()}`));
         return;
       }
       resolve();
     });
   });
-  await Promise.all([pipeline(child.stdout, createWriteStream(targetPath, { mode: 0o600 })), completed]);
-  return { sizeBytes, sha256: hash.digest("hex") };
+  const stat = await fs.stat(targetPath);
+  return { sizeBytes: stat.size, sha256: await sha256File(targetPath) };
 }
 
 async function sha256File(filePath) {
@@ -196,7 +193,7 @@ export async function pullProductionBackup({ host, output }) {
   await fs.mkdir(outputDir, { recursive: true });
   const metadata = parseBackupMetadata(await runSshCapture(
     host,
-    "sudo /usr/local/sbin/dustycards-apply-release --latest-daily-backup-metadata"
+    "sudo /usr/local/sbin/dustycards-apply-release --prepare-latest-daily-backup-export"
   ));
   const encryptedPath = path.join(outputDir, `${metadata.name}.enc`);
   const manifestPath = `${encryptedPath}.json`;
@@ -215,7 +212,11 @@ export async function pullProductionBackup({ host, output }) {
   try {
     const streamed = await streamProductionBackup(host, plainTemp);
     if (streamed.sizeBytes !== metadata.sizeBytes || streamed.sha256 !== metadata.sha256) {
-      throw new Error("Downloaded backup does not match production metadata");
+      throw new Error(
+        `Downloaded backup does not match production metadata ` +
+        `(expected ${metadata.sizeBytes} bytes/${metadata.sha256}, ` +
+        `received ${streamed.sizeBytes} bytes/${streamed.sha256})`
+      );
     }
     const key = await loadOrCreateBackupKey(outputDir);
     const encrypted = await encryptAndVerifyLocalBackup(plainTemp, encryptedPath, key);
