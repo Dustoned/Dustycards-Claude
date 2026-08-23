@@ -39,6 +39,7 @@ vi.mock("@/lib/rate-limit", () => rateLimitMock);
 vi.mock("@/lib/safe-next-path", () => ({ getSafeNextPath: vi.fn(() => "/") }));
 
 import { POST } from "@/app/api/auth/login/route";
+import { AUTH_REQUEST_BODY_LIMIT_BYTES } from "@/lib/request-limits";
 
 const pendingUser = {
   id: "pending-user",
@@ -119,5 +120,24 @@ describe("login account approval", () => {
     expect(response.headers.get("location")).toBe(
       "http://localhost:3000/login?error=pending&next=%2F"
     );
+  });
+
+  it("rejects oversized requests even when Content-Length is omitted", async () => {
+    const request = new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email: pendingUser.email,
+        password: "x".repeat(AUTH_REQUEST_BODY_LIMIT_BYTES),
+      }),
+    });
+
+    expect(request.headers.get("content-length")).toBeNull();
+    const response = await POST(request);
+
+    expect(response.status).toBe(413);
+    await expect(response.json()).resolves.toEqual({ error: "Request body too large" });
+    expect(dbMock.user.findUnique).not.toHaveBeenCalled();
+    expect(cryptoMock.verifyPassword).not.toHaveBeenCalled();
   });
 });

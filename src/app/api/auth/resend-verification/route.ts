@@ -7,7 +7,8 @@ import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSafeNextPath } from "@/lib/safe-next-path";
 import {
   AUTH_REQUEST_BODY_LIMIT_BYTES,
-  requestBodyTooLarge,
+  readAuthRequestBody,
+  RequestBodyLimitExceededError,
   requestBodyTooLargeResponse,
 } from "@/lib/request-limits";
 
@@ -18,10 +19,15 @@ const RESEND_RATE_LIMIT_PER_IP = 5;
 const RESEND_RATE_LIMIT_PER_EMAIL = 3;
 
 export async function POST(req: NextRequest) {
-  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
-    return requestBodyTooLargeResponse();
+  let body: { email?: unknown; next?: unknown };
+  try {
+    ({ body } = await readAuthRequestBody(req, AUTH_REQUEST_BODY_LIMIT_BYTES));
+  } catch (error) {
+    if (error instanceof RequestBodyLimitExceededError) {
+      return requestBodyTooLargeResponse();
+    }
+    throw error;
   }
-  const body = (await req.json().catch(() => ({}))) as { email?: unknown; next?: unknown };
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
   const nextPath = getSafeNextPath(body.next);
 

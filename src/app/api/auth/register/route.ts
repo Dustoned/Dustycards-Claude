@@ -8,7 +8,8 @@ import { getSafeNextPath } from "@/lib/safe-next-path";
 import {
   AUTH_REQUEST_BODY_LIMIT_BYTES,
   MAX_PASSWORD_LENGTH,
-  requestBodyTooLarge,
+  readAuthRequestBody,
+  RequestBodyLimitExceededError,
   requestBodyTooLargeResponse,
 } from "@/lib/request-limits";
 
@@ -25,21 +26,21 @@ function registerRedirect(req: NextRequest, error: string, nextPath: string) {
 }
 
 export async function POST(req: NextRequest) {
-  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
-    return requestBodyTooLargeResponse();
+  let parsed: Awaited<ReturnType<typeof readAuthRequestBody<{
+    email?: unknown;
+    next?: unknown;
+    password?: unknown;
+    passwordConfirm?: unknown;
+  }>>>;
+  try {
+    parsed = await readAuthRequestBody(req, AUTH_REQUEST_BODY_LIMIT_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyLimitExceededError) {
+      return requestBodyTooLargeResponse();
+    }
+    throw error;
   }
-  const contentType = req.headers.get("content-type") ?? "";
-  const isFormPost =
-    contentType.includes("application/x-www-form-urlencoded") ||
-    contentType.includes("multipart/form-data");
-  const body = isFormPost
-    ? Object.fromEntries(await req.formData())
-    : ((await req.json().catch(() => ({}))) as {
-        email?: unknown;
-        next?: unknown;
-        password?: unknown;
-        passwordConfirm?: unknown;
-      });
+  const { body, isFormPost } = parsed;
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
   const nextPath = getSafeNextPath(body.next);
   const password = typeof body.password === "string" ? body.password : "";

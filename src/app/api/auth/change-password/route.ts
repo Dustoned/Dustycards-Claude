@@ -10,21 +10,27 @@ import { db } from "@/lib/db";
 import {
   AUTH_REQUEST_BODY_LIMIT_BYTES,
   MAX_PASSWORD_LENGTH,
-  requestBodyTooLarge,
+  readAuthRequestBody,
+  RequestBodyLimitExceededError,
   requestBodyTooLargeResponse,
 } from "@/lib/request-limits";
 
 export async function POST(req: NextRequest) {
-  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
-    return requestBodyTooLargeResponse();
-  }
   try {
-    const user = await requireUser();
-    const body = (await req.json().catch(() => ({}))) as {
+    let body: {
       currentPassword?: unknown;
       newPassword?: unknown;
       newPasswordConfirm?: unknown;
     };
+    try {
+      ({ body } = await readAuthRequestBody(req, AUTH_REQUEST_BODY_LIMIT_BYTES));
+    } catch (error) {
+      if (error instanceof RequestBodyLimitExceededError) {
+        return requestBodyTooLargeResponse();
+      }
+      throw error;
+    }
+    const user = await requireUser();
     const currentPassword =
       typeof body.currentPassword === "string" ? body.currentPassword : "";
     const newPassword = typeof body.newPassword === "string" ? body.newPassword : "";
