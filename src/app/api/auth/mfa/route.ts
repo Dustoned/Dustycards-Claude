@@ -14,6 +14,12 @@ import {
 } from "@/lib/mfa";
 import { recordSecurityEvent } from "@/lib/security-events";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
+import {
+  AUTH_REQUEST_BODY_LIMIT_BYTES,
+  readAuthRequestBody,
+  RequestBodyLimitExceededError,
+  requestBodyTooLargeResponse,
+} from "@/lib/request-limits";
 
 const MFA_RATE_WINDOW_MS = 15 * 60_000;
 const MFA_RATE_LIMIT = 10;
@@ -31,10 +37,18 @@ async function rejectThrottledMfa(request: NextRequest, userId: string): Promise
 
 export async function POST(request: NextRequest) {
   try {
+    let body: { action?: unknown; code?: unknown };
+    try {
+      ({ body } = await readAuthRequestBody(request, AUTH_REQUEST_BODY_LIMIT_BYTES));
+    } catch (error) {
+      if (error instanceof RequestBodyLimitExceededError) {
+        return requestBodyTooLargeResponse();
+      }
+      throw error;
+    }
     const user = await requireUser();
     const throttled = await rejectThrottledMfa(request, user.id);
     if (throttled) return throttled;
-    const body = (await request.json().catch(() => ({}))) as { action?: unknown; code?: unknown };
     const action = body.action === "enable" ? "enable" : "prepare";
     const record = await db.user.findUnique({
       where: { id: user.id },
@@ -87,10 +101,18 @@ export async function POST(request: NextRequest) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    let body: { password?: unknown; code?: unknown };
+    try {
+      ({ body } = await readAuthRequestBody(request, AUTH_REQUEST_BODY_LIMIT_BYTES));
+    } catch (error) {
+      if (error instanceof RequestBodyLimitExceededError) {
+        return requestBodyTooLargeResponse();
+      }
+      throw error;
+    }
     const user = await requireUser();
     const throttled = await rejectThrottledMfa(request, user.id);
     if (throttled) return throttled;
-    const body = (await request.json().catch(() => ({}))) as { password?: unknown; code?: unknown };
     const password = typeof body.password === "string" ? body.password : "";
     const code = typeof body.code === "string" ? body.code : "";
     const record = await db.user.findUnique({

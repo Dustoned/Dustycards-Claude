@@ -29,9 +29,16 @@
 	request_body @scanner_upload {
 		max_size 12MB
 	}
+	@auth_write {
+		method POST PUT PATCH DELETE
+		path /api/auth/*
+	}
+	request_body @auth_write {
+		max_size 64KB
+	}
 	@normal_write {
 		method POST PUT PATCH DELETE
-		not path /api/cards/scan
+		not path /api/cards/scan /api/auth/*
 	}
 	request_body @normal_write {
 		max_size 1MB

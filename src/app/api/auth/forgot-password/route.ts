@@ -7,7 +7,8 @@ import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { getSafeNextPath } from "@/lib/safe-next-path";
 import {
   AUTH_REQUEST_BODY_LIMIT_BYTES,
-  requestBodyTooLarge,
+  readAuthRequestBody,
+  RequestBodyLimitExceededError,
   requestBodyTooLargeResponse,
 } from "@/lib/request-limits";
 
@@ -30,16 +31,19 @@ function sentResponse(req: NextRequest, isFormPost: boolean, nextPath: string) {
 }
 
 export async function POST(req: NextRequest) {
-  if (requestBodyTooLarge(req, AUTH_REQUEST_BODY_LIMIT_BYTES)) {
-    return requestBodyTooLargeResponse();
+  let parsed: Awaited<ReturnType<typeof readAuthRequestBody<{
+    email?: unknown;
+    next?: unknown;
+  }>>>;
+  try {
+    parsed = await readAuthRequestBody(req, AUTH_REQUEST_BODY_LIMIT_BYTES);
+  } catch (error) {
+    if (error instanceof RequestBodyLimitExceededError) {
+      return requestBodyTooLargeResponse();
+    }
+    throw error;
   }
-  const contentType = req.headers.get("content-type") ?? "";
-  const isFormPost =
-    contentType.includes("application/x-www-form-urlencoded") ||
-    contentType.includes("multipart/form-data");
-  const body = isFormPost
-    ? Object.fromEntries(await req.formData())
-    : ((await req.json().catch(() => ({}))) as { email?: unknown; next?: unknown });
+  const { body, isFormPost } = parsed;
   const email = typeof body.email === "string" ? normalizeEmail(body.email) : "";
   const nextPath = getSafeNextPath(body.next);
 

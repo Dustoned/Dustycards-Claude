@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.98",
+    releasedAt: "August 23, 2026",
+    title: "Authentication bodies are bounded while streaming",
+    summary: "Login and account endpoints now enforce their real request size instead of trusting a browser header.",
+    tone: "system",
+    sections: [
+      {
+        title: "Stronger request protection",
+        highlights: [
+          "Every authentication request is stopped at 64 KB while its bytes arrive, including chunked requests without Content-Length.",
+          "A false or undersized Content-Length header can no longer bypass the application limit.",
+          "JSON, regular forms and multipart forms keep their existing login and account behavior within the safe limit.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.97",
     releasedAt: "August 23, 2026",
     title: "Daily backups now leave the production server",
