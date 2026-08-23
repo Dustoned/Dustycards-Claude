@@ -19,9 +19,15 @@ if (-not $deployTarget) {
 
 $startedAt = Get-Date -Format o
 "[$startedAt] Starting DustyCards offsite backup." | Add-Content -LiteralPath $logFile
-& node (Join-Path $PSScriptRoot "pull-production-backup.mjs") `
+$nodeOutput = & node (Join-Path $PSScriptRoot "pull-production-backup.mjs") `
   --host $deployTarget `
-  --output $outputDir 2>&1 | Tee-Object -FilePath $logFile -Append
-if ($LASTEXITCODE -ne 0) {
-  throw "DustyCards offsite backup failed with exit code $LASTEXITCODE."
+  --output $outputDir 2>&1
+$nodeExitCode = $LASTEXITCODE
+foreach ($line in $nodeOutput) {
+  $text = [string]$line
+  $text | Add-Content -LiteralPath $logFile -Encoding UTF8
+  Write-Output $text
+}
+if ($nodeExitCode -ne 0) {
+  throw "DustyCards offsite backup failed with exit code $nodeExitCode."
 }
