@@ -140,6 +140,7 @@ if [ "${1:-}" = "--latest-daily-backup-metadata" ] || [ "${1:-}" = "--prepare-la
     ln -- "$latest_backup" "$export_temp"
     chown dustycards:"$export_user" "$export_temp"
     chmod 0640 "$export_temp"
+    rm -f -- "$export_path"
     mv -f -- "$export_temp" "$export_path"
   fi
 
