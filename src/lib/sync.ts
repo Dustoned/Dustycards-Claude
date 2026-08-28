@@ -14,6 +14,7 @@ import {
   normalizeTradingCardGame,
   ONE_PIECE_GAME,
   POKEMON_GAME,
+  POKEMON_JAPANESE_GAME,
   type TradingCardGame,
 } from "@/lib/games";
 import { startPerformanceTimer, timeAsync } from "@/lib/performance-timing";
@@ -129,7 +130,11 @@ const EBAY_SOLD_GRADED_PRICE_SYNC_TYPE = "ebay-sold-graded-prices";
 const KNOWN_UNAVAILABLE_PRICE_CHECK_TYPE = "known-unavailable-prices";
 const AUTO_PRICE_REFRESH_MAX_EPISODES = 12;
 const AUTO_PRICE_REFRESH_MAX_CARDS = 1200;
-const AUTO_CATALOG_SYNC_GAMES = [POKEMON_GAME, ONE_PIECE_GAME] as const;
+const AUTO_CATALOG_SYNC_GAMES = [
+  POKEMON_GAME,
+  POKEMON_JAPANESE_GAME,
+  ONE_PIECE_GAME,
+] as const;
 const AUTO_PRICE_BACKFILL_MAX_EPISODES = 6;
 const AUTO_PRICE_BACKFILL_MAX_CARDS = 400;
 const KNOWN_UNAVAILABLE_PRICE_CHECK_MAX_EPISODES = 8;
@@ -186,7 +191,9 @@ const MANUAL_HISTORY_POKEMON_RARE_EXCLUDED_RARITIES = [
 ] as const;
 
 function getAutoCatalogGameLabel(game: TradingCardGame): string {
-  return game === ONE_PIECE_GAME ? "One Piece" : "Pokemon";
+  if (game === ONE_PIECE_GAME) return "One Piece";
+  if (game === POKEMON_JAPANESE_GAME) return "Japanese Pokémon";
+  return "Pokemon";
 }
 
 function shouldSkipAutoCatalogStatusError(error: unknown): boolean {

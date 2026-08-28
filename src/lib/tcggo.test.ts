@@ -32,12 +32,13 @@ import {
   fetchSealedProductsByCardMarketIds,
   fetchSealedProductsByIds,
   fetchSealedProductsForEpisode,
+  extractPrices,
   isTcggoHttpStatusError,
   TCGGO_REQUEST_CONCURRENCY,
   TcggoHttpStatusError,
   TcggoQuotaExceededError,
 } from "@/lib/tcggo";
-import { ONE_PIECE_GAME } from "@/lib/games";
+import { ONE_PIECE_GAME, POKEMON_JAPANESE_GAME } from "@/lib/games";
 
 describe("TCGGO request limiter", () => {
   beforeEach(() => {
@@ -216,6 +217,45 @@ describe("TCGGO request limiter", () => {
     );
   });
 
+  it("loads Japanese cards through the dedicated catalog and prefers their English name", async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(
+        JSON.stringify({
+          data: [
+            {
+              id: 51925,
+              name: "メガヤンマex",
+              name_en: "Yanmega ex",
+              card_number: 1,
+              image: "https://example.test/yanmega.png",
+              prices: { tcg_player: { market_price: 0 } },
+            },
+          ],
+          paging: { current: 1, total: 1, per_page: 100 },
+        }),
+        { status: 200 }
+      )
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    const cards = await fetchCardsForEpisode(
+      "pokemon-jp:444",
+      POKEMON_JAPANESE_GAME
+    );
+
+    expect(cards).toMatchObject([
+      {
+        id: "pokemon-jp:51925",
+        game: POKEMON_JAPANESE_GAME,
+        name: "Yanmega ex",
+      },
+    ]);
+    expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/pokemon-jp/episodes/444/cards?page=1&per_page=150"),
+      expect.any(Object)
+    );
+  });
+
   it("chunks exact card batch lookups into at most 20 IDs per request", async () => {
     const requestedIds = Array.from({ length: 21 }, (_, index) => String(index + 1));
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
@@ -366,6 +406,21 @@ describe("TCGGO request limiter", () => {
 });
 
 describe("TCGGO price extraction", () => {
+  it("treats zero and negative marketplace values as missing prices", () => {
+    expect(
+      extractPrices({
+        cardmarket: { lowest_near_mint: 0, "30d_average": -1 },
+        tcg_player: { market_price: 0, mid_price: 12.5, low_price: -2 },
+      })
+    ).toMatchObject({
+      cm_en_lowest_nm: null,
+      cm_en_avg_30d: null,
+      tcp_market: null,
+      tcp_mid: 12.5,
+      tcp_low: null,
+    });
+  });
+
   it("extracts eBay sold graded medians separately from CardMarket graded prices", () => {
     const prices = {
       ebay: {

@@ -2,6 +2,7 @@ import { POKEMON_GAME, type TradingCardGame } from "@/lib/games";
 
 const CARDMARKET_PRODUCTS_BASE_URL_BY_GAME: Record<TradingCardGame, string> = {
   pokemon: "https://www.cardmarket.com/Pokemon/Products",
+  "pokemon-jp": "https://www.cardmarket.com/Pokemon/Products",
   "one-piece": "https://www.cardmarket.com/OnePiece/Products",
 };
 const CARDMARKET_LOCALIZED_PRODUCTS_BASE_URL =
@@ -73,7 +74,8 @@ export function getSafeDirectCardMarketCardUrl(
   game: TradingCardGame
 ): string | null {
   if (!isDirectCardMarketUrl(url)) return null;
-  if (getCardMarketUrlGame(url) !== game) return null;
+  const urlGame = getCardMarketUrlGame(url);
+  if (urlGame !== game && !(game === "pokemon-jp" && urlGame === "pokemon")) return null;
   // Keep same-game idProduct URLs direct for every game. Sending a known
   // CardMarket product through TCGGo first can drop the language/condition
   // query during its redirect and, on iOS, makes the eventual window.open
@@ -172,9 +174,7 @@ export function resolveCardMarketSealedProductUrl(product: {
 export function buildCardMarketProxyUrl(cardId: string): string {
   // DustyCards scopes One Piece IDs to avoid collisions with Pokemon IDs,
   // while TCGGO's external CardMarket redirect expects its original ID.
-  const tcggoCardId = cardId.startsWith("one-piece:")
-    ? cardId.slice("one-piece:".length)
-    : cardId;
+  const tcggoCardId = cardId.replace(/^(?:one-piece|pokemon-jp):/, "");
   return `https://www.tcggo.com/external/cm/${encodeURIComponent(tcggoCardId)}`;
 }
 

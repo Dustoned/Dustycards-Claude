@@ -146,6 +146,7 @@ export default async function OnePieceExpansionsPage() {
           <GameFilterSwitch
             items={[
               { href: "/expansions", active: false, label: "Pokemon" },
+              { href: "/expansions?game=pokemon-jp", active: false, label: "Japanese" },
               { href: "/one-piece/expansions", active: true, label: "One Piece" },
               { href: "/expansions?view=user", active: false, label: "User" },
             ]}

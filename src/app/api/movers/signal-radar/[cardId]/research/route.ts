@@ -5,7 +5,11 @@ import {
   ExternalCardResearchError,
   researchExternalRadarCard,
 } from "@/lib/external-card-research";
-import { normalizeTradingCardGame, ONE_PIECE_GAME } from "@/lib/games";
+import {
+  normalizeTradingCardGame,
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+} from "@/lib/games";
 import { consumeRateLimit } from "@/lib/rate-limit";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 
@@ -62,6 +66,12 @@ export async function POST(
     }
 
     const game = normalizeTradingCardGame(card.game);
+    if (game !== POKEMON_GAME && game !== ONE_PIECE_GAME) {
+      return NextResponse.json(
+        { ok: false, error: "Signal Radar research is not available for Japanese cards yet." },
+        { status: 400 }
+      );
+    }
     const research = await researchExternalRadarCard({
       cardId: card.id,
       game,

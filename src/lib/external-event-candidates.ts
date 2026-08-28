@@ -4,7 +4,11 @@ import { db } from "@/lib/db";
 import type { ExternalCatalystDiscoveryCandidate } from "@/lib/external-radar-catalyst-discovery";
 import type { CatalystWatchTopic } from "@/lib/external-radar-catalysts-core";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
-import type { TradingCardGame } from "@/lib/games";
+import {
+  ONE_PIECE_GAME,
+  POKEMON_GAME,
+  type TradingCardGame,
+} from "@/lib/games";
 
 const VERSION_SUFFIX = /\s*\((?:v\.?\s*\d+|version\s*\d+|alt(?:ernate)?\s*art)\)\s*$/i;
 const POKEMON_MECHANIC_SUFFIX =
@@ -172,6 +176,7 @@ export function mergeExternalEventCandidates(
   const byCard = new Map<string, ExternalCatalystDiscoveryCandidate>();
   for (const candidate of universe) byCard.set(candidate.cardId, candidate);
   for (const signal of signals) {
+    if (signal.game !== POKEMON_GAME && signal.game !== ONE_PIECE_GAME) continue;
     const universeCandidate = byCard.get(signal.cardId);
     byCard.set(signal.cardId, {
       ...universeCandidate,

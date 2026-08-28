@@ -6,6 +6,7 @@ import {
   getTcggoGamePath,
   ONE_PIECE_GAME,
   POKEMON_GAME,
+  POKEMON_JAPANESE_GAME,
   scopeGameId,
   type TradingCardGame,
 } from "@/lib/games";
@@ -90,6 +91,7 @@ interface RawEpisode {
 interface RawCard {
   id: number;
   name: string;
+  name_en?: string | null;
   card_number?: number | string | null;
   version?: string | null;
   card_version?: string | null;
@@ -988,7 +990,10 @@ function normalizeCard(
   return {
     id: scopeGameId(game, card.id),
     game,
-    name: card.name,
+    name:
+      game === POKEMON_JAPANESE_GAME
+        ? card.name_en?.replace(/\s+/g, " ").trim() || card.name
+        : card.name,
     card_number: card.card_number != null ? String(card.card_number) : null,
     version: normalizeCardVersion(card),
     rarity: card.rarity ?? null,
@@ -1695,17 +1700,19 @@ export async function fetchEbaySoldGradedPricesForCard(
 export function extractPrices(prices: RawPrices | undefined) {
   const cm = prices?.cardmarket;
   const tcp = prices?.tcg_player;
+  const positivePrice = (value: number | null | undefined): number | null =>
+    typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
   return {
-    cm_en_lowest_nm: cm?.lowest_near_mint ?? null,
-    cm_de_lowest_nm: cm?.lowest_near_mint_DE ?? null,
-    cm_fr_lowest_nm: cm?.lowest_near_mint_FR ?? null,
-    cm_es_lowest_nm: cm?.lowest_near_mint_ES ?? null,
-    cm_it_lowest_nm: cm?.lowest_near_mint_IT ?? null,
+    cm_en_lowest_nm: positivePrice(cm?.lowest_near_mint),
+    cm_de_lowest_nm: positivePrice(cm?.lowest_near_mint_DE),
+    cm_fr_lowest_nm: positivePrice(cm?.lowest_near_mint_FR),
+    cm_es_lowest_nm: positivePrice(cm?.lowest_near_mint_ES),
+    cm_it_lowest_nm: positivePrice(cm?.lowest_near_mint_IT),
     cm_jp_lowest_nm: null as number | null,
-    cm_en_avg_30d: cm?.["30d_average"] ?? null,
-    cm_en_avg_7d: cm?.["7d_average"] ?? null,
-    tcp_market: tcp?.market_price ?? null,
-    tcp_mid: tcp?.mid_price ?? null,
-    tcp_low: tcp?.low_price ?? null,
+    cm_en_avg_30d: positivePrice(cm?.["30d_average"]),
+    cm_en_avg_7d: positivePrice(cm?.["7d_average"]),
+    tcp_market: positivePrice(tcp?.market_price),
+    tcp_mid: positivePrice(tcp?.mid_price),
+    tcp_low: positivePrice(tcp?.low_price),
   };
 }

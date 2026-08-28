@@ -1,14 +1,17 @@
-export type TradingCardGame = "pokemon" | "one-piece";
+export type TradingCardGame = "pokemon" | "pokemon-jp" | "one-piece";
 export type TradingCardGameFilter = "all" | TradingCardGame;
 
 export const ALL_GAMES = "all" satisfies TradingCardGameFilter;
 export const POKEMON_GAME = "pokemon" satisfies TradingCardGame;
+export const POKEMON_JAPANESE_GAME = "pokemon-jp" satisfies TradingCardGame;
 export const ONE_PIECE_GAME = "one-piece" satisfies TradingCardGame;
 export const GAME_SEARCH_PARAM = "game";
 export const GAME_FILTER_OPTIONS = [ALL_GAMES, POKEMON_GAME, ONE_PIECE_GAME] as const;
 
 export function normalizeTradingCardGame(value: string | null | undefined): TradingCardGame {
-  return value === ONE_PIECE_GAME ? ONE_PIECE_GAME : POKEMON_GAME;
+  if (value === ONE_PIECE_GAME) return ONE_PIECE_GAME;
+  if (value === POKEMON_JAPANESE_GAME) return POKEMON_JAPANESE_GAME;
+  return POKEMON_GAME;
 }
 
 export function parseVisibleTradingCardGame(
@@ -32,7 +35,7 @@ export function parseVisibleGameFilter(
 }
 
 export function getGameSearchParamValue(game: TradingCardGame): string | null {
-  return game === ONE_PIECE_GAME ? ONE_PIECE_GAME : null;
+  return game === POKEMON_GAME ? null : game;
 }
 
 export function getGameFilterSearchParamValue(game: TradingCardGameFilter): string | null {
@@ -42,15 +45,23 @@ export function getGameFilterSearchParamValue(game: TradingCardGameFilter): stri
 export function isSpecificTradingCardGame(
   game: TradingCardGameFilter | null | undefined
 ): game is TradingCardGame {
-  return game === POKEMON_GAME || game === ONE_PIECE_GAME;
+  return (
+    game === POKEMON_GAME ||
+    game === POKEMON_JAPANESE_GAME ||
+    game === ONE_PIECE_GAME
+  );
 }
 
 export function getTcggoGamePath(game: TradingCardGame): string {
-  return game === ONE_PIECE_GAME ? "one-piece" : "pokemon";
+  if (game === ONE_PIECE_GAME) return "one-piece";
+  if (game === POKEMON_JAPANESE_GAME) return "pokemon-jp";
+  return "pokemon";
 }
 
 export function getGameLabel(game: TradingCardGame): string {
-  return game === ONE_PIECE_GAME ? "One Piece" : "Pokemon";
+  if (game === ONE_PIECE_GAME) return "One Piece";
+  if (game === POKEMON_JAPANESE_GAME) return "Pokémon Japanese";
+  return "Pokemon";
 }
 
 export function getGameFilterLabel(game: TradingCardGameFilter): string {
@@ -65,7 +76,9 @@ export function scopeGameId(game: TradingCardGame, id: string | number | null | 
 }
 
 export function getGameFromScopedId(id: string | null | undefined): TradingCardGame {
-  return id?.startsWith(`${ONE_PIECE_GAME}:`) ? ONE_PIECE_GAME : POKEMON_GAME;
+  if (id?.startsWith(`${POKEMON_JAPANESE_GAME}:`)) return POKEMON_JAPANESE_GAME;
+  if (id?.startsWith(`${ONE_PIECE_GAME}:`)) return ONE_PIECE_GAME;
+  return POKEMON_GAME;
 }
 
 export function getRemoteTcggoId(game: TradingCardGame, id: string | number): string {
