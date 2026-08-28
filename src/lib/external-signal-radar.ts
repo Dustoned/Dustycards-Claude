@@ -3,6 +3,7 @@ import { loadLatestSafeEnglishNmPrices } from "@/lib/card-market-history";
 import type { ExternalCardForecastSummary } from "@/lib/external-signal-forecast-store";
 import type { ExternalEbayDemandIntelligence } from "@/lib/ebay-demand-signal";
 import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
+import type { ExternalRadarGame } from "@/lib/external-radar-catalysts-core";
 import type { PostLaunchReratingMetrics } from "@/lib/post-launch-rerating";
 import type {
   OlderHighRarityMarketPrices,
@@ -258,7 +259,7 @@ interface AggregatedExternalCard {
 }
 
 interface GameSignalScan {
-  game: TradingCardGame;
+  game: ExternalRadarGame;
   source: ExternalSignalSourceStatus;
   cards: AggregatedExternalCard[];
 }
@@ -479,7 +480,7 @@ export function resolveDeckScanStatus(input: {
   return { complete, message: complete ? null : detail, detail };
 }
 
-async function scanGame(game: TradingCardGame): Promise<GameSignalScan> {
+async function scanGame(game: ExternalRadarGame): Promise<GameSignalScan> {
   const config = SOURCE_CONFIG[game];
   const decksUrl = `${config.baseUrl}/decks`;
 
@@ -572,7 +573,7 @@ async function scanGame(game: TradingCardGame): Promise<GameSignalScan> {
   }
 }
 
-async function getCachedGameScan(game: TradingCardGame): Promise<GameSignalScan> {
+async function getCachedGameScan(game: ExternalRadarGame): Promise<GameSignalScan> {
   const config = SOURCE_CONFIG[game];
   try {
     return await gameScanCache.get(game, async () => {
@@ -759,8 +760,12 @@ async function buildRadarData(
   gameFilter: TradingCardGameFilter,
   options?: { fresh?: boolean }
 ): Promise<ExternalSignalRadarData> {
-  const games: TradingCardGame[] =
-    gameFilter === ALL_GAMES ? [POKEMON_GAME, ONE_PIECE_GAME] : [gameFilter];
+  const games: ExternalRadarGame[] =
+    gameFilter === ALL_GAMES
+      ? [POKEMON_GAME, ONE_PIECE_GAME]
+      : gameFilter === ONE_PIECE_GAME
+        ? [ONE_PIECE_GAME]
+        : [POKEMON_GAME];
   const scans = await Promise.all(
     games.map((game) => (options?.fresh ? scanGame(game) : getCachedGameScan(game)))
   );

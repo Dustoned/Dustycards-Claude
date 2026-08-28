@@ -15,6 +15,7 @@ import {
   normalizeTradingCardGame,
   ONE_PIECE_GAME,
   POKEMON_GAME,
+  POKEMON_JAPANESE_GAME,
 } from "@/lib/games";
 import { getExpansionTileScale, getFixedTrackGridTemplate } from "@/lib/display-scale";
 import { getExpansionCurrentValues } from "@/lib/expansions-overview";
@@ -122,10 +123,12 @@ function getKnownEpisodeCardCount(input: {
 export default async function ExpansionsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; range?: string }>;
+  searchParams: Promise<{ view?: string; range?: string; game?: string }>;
 }) {
-  const { view, range } = await searchParams;
+  const { view, range, game } = await searchParams;
   const userViewActive = view === "user";
+  const japaneseViewActive = !userViewActive && game === POKEMON_JAPANESE_GAME;
+  const libraryGame = japaneseViewActive ? POKEMON_JAPANESE_GAME : POKEMON_GAME;
   const showArchive = range === "all";
   const user = await requirePageUser("/expansions");
   const isAdmin = user.role === "admin";
@@ -142,7 +145,7 @@ export default async function ExpansionsPage({
               : [POKEMON_GAME],
           },
         }
-      : { game: POKEMON_GAME, is_user_submitted: false },
+      : { game: libraryGame, is_user_submitted: false },
     orderBy: userViewActive
       ? [{ created_at: "desc" }, { name: "asc" }]
       : [{ release_date: "desc" }, { name: "asc" }],
@@ -182,12 +185,14 @@ export default async function ExpansionsPage({
   const newestEra = ERA_ORDER[0];
   const visibleSets = userViewActive
     ? deduped.filter((episode) => getKnownEpisodeCardCount(episode) > 0)
+    : japaneseViewActive
+      ? deduped.filter((episode) => episode._count.cards > 0)
     : deduped.filter(
         (episode) =>
           !isRedundantSubsetExpansion(episode.name) &&
           !isHiddenExpansion({ id: episode.id, code: episode.code, name: episode.name })
       );
-  const withCards = userViewActive
+  const withCards = userViewActive || japaneseViewActive
     ? visibleSets
     : visibleSets.filter((episode) => {
         const cardCount = getEpisodeDisplayCardCount(episode);
@@ -201,6 +206,10 @@ export default async function ExpansionsPage({
     const era = getEra(episode.name, episode.series, episode.release_date);
     const group = userViewActive
       ? getGameLabel(normalizeTradingCardGame(episode.game))
+      : japaneseViewActive
+        ? isFutureReleaseDate(episode.release_date, now)
+          ? UPCOMING_RELEASE_GROUP
+          : episode.release_date?.slice(0, 4) ?? "Other"
       : isFutureReleaseDate(episode.release_date, now)
         ? UPCOMING_RELEASE_GROUP
         : era;
@@ -215,6 +224,11 @@ export default async function ExpansionsPage({
         if (b === "Pokemon") return 1;
         return a.localeCompare(b);
       }
+      if (japaneseViewActive) {
+        if (a === UPCOMING_RELEASE_GROUP) return -1;
+        if (b === UPCOMING_RELEASE_GROUP) return 1;
+        return Number(b) - Number(a);
+      }
       if (a === UPCOMING_RELEASE_GROUP) return -1;
       if (b === UPCOMING_RELEASE_GROUP) return 1;
       const aIndex = ERA_ORDER.indexOf(a);
@@ -227,10 +241,10 @@ export default async function ExpansionsPage({
       return [era, [...nonPromos, ...promos]] as [string, typeof sets];
     });
   const displayedGroups =
-    userViewActive || showArchive
+    userViewActive || japaneseViewActive || showArchive
       ? sortedGroups
       : sortedGroups.slice(0, RECENT_EXPANSION_GROUP_LIMIT);
-  const archivedGroups = userViewActive
+  const archivedGroups = userViewActive || japaneseViewActive
     ? []
     : sortedGroups.slice(RECENT_EXPANSION_GROUP_LIMIT);
   const archivedSetCount = archivedGroups.reduce((total, [, sets]) => total + sets.length, 0);
@@ -270,7 +284,7 @@ export default async function ExpansionsPage({
       tone: "amber",
     },
     {
-      label: userViewActive ? "Games" : "Eras",
+      label: userViewActive ? "Games" : japaneseViewActive ? "Years" : "Eras",
       value: (userViewActive ? userGameCount : eraCount).toLocaleString(),
       Icon: Shapes,
       tone: "emerald",
@@ -288,11 +302,17 @@ export default async function ExpansionsPage({
       <div className="mb-4 flex min-w-0 flex-col gap-3 sm:mb-5 sm:flex-row sm:items-end sm:justify-between">
         <div className="min-w-0">
           <h1 className="min-w-0 text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">
-            {userViewActive ? "User Expansions" : "Expansions"}
+            {userViewActive
+              ? "User Expansions"
+              : japaneseViewActive
+                ? "Japanese Pokémon Sets"
+                : "Expansions"}
           </h1>
           <p className="mt-1 max-w-md text-[length:var(--ui-page-header-description-size)] leading-[var(--ui-page-header-description-leading)] text-white/52">
             {userViewActive
               ? "Firecrawl and user-submitted sets live here, separate from the normal TCGGO expansion lists."
+              : japaneseViewActive
+                ? "Browse the Japanese sets that TCGGO currently supplies with actual card data."
               : "Browse released and upcoming sets. Upcoming sets stay empty until release."}
           </p>
         </div>
@@ -300,7 +320,16 @@ export default async function ExpansionsPage({
         <div className="shrink-0 sm:ml-auto">
           <GameFilterSwitch
             items={[
-              { href: "/expansions", active: !userViewActive, label: "Pokemon" },
+              {
+                href: "/expansions",
+                active: !userViewActive && !japaneseViewActive,
+                label: "Pokemon",
+              },
+              {
+                href: `/expansions?game=${POKEMON_JAPANESE_GAME}`,
+                active: japaneseViewActive,
+                label: "Japanese",
+              },
               ...(settings.onePieceLibraryEnabled
                 ? [{ href: "/one-piece/expansions", active: false, label: "One Piece" }]
                 : []),
@@ -333,12 +362,24 @@ export default async function ExpansionsPage({
 
       {needsSync && (
         <div className="binder-panel mb-5 rounded-2xl p-5 text-center">
-          <p className="mb-1 font-semibold text-white">No expansions loaded yet</p>
+          <p className="mb-1 font-semibold text-white">
+            No {japaneseViewActive ? "Japanese " : ""}expansions loaded yet
+          </p>
           <p className="text-sm text-white/45">
-            Open Settings and run Sync Expansions to load all Pokemon sets.
+            Open Settings and run Sync Expansions to load the TCGGO catalog.
           </p>
         </div>
       )}
+
+      {japaneseViewActive && !needsSync && withCards.length === 0 ? (
+        <div className="binder-panel mb-5 rounded-2xl p-5 text-center">
+          <p className="mb-1 font-semibold text-white">Japanese catalog is being filled</p>
+          <p className="text-sm text-white/45">
+            Set shells without actual TCGGO card data stay hidden. Run Sync Expansions to import
+            the populated Japanese releases.
+          </p>
+        </div>
+      ) : null}
 
       {userViewActive && withCards.length === 0 ? (
         <div className="binder-panel mb-5 rounded-2xl p-5 text-center">

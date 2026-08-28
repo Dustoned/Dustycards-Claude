@@ -11,7 +11,12 @@ import BackNavigationLink from "@/components/BackNavigationLink";
 import { db } from "@/lib/db";
 import { getEpisodeSetPriceSnapshotRows } from "@/lib/episode-set-prices";
 import { isHiddenExpansion } from "@/lib/episodes";
-import { POKEMON_GAME } from "@/lib/games";
+import {
+  getGameFromScopedId,
+  getGameLabel,
+  POKEMON_GAME,
+  type TradingCardGame,
+} from "@/lib/games";
 import {
   buildEpisodeSealedSetPriceHistory,
   buildEpisodeSetPriceHistory,
@@ -57,10 +62,10 @@ function toNormalizedSealedProduct(product: {
   cm_lowest_it: number | null;
   cm_avg_7d: number | null;
   cm_avg_30d: number | null;
-}): NormalizedSealedProduct {
+}, game: TradingCardGame = POKEMON_GAME): NormalizedSealedProduct {
   return {
     id: product.id,
-    game: POKEMON_GAME,
+    game,
     name: product.name,
     image_url: product.image_url,
     tcggo_url: product.tcggo_url,
@@ -226,6 +231,7 @@ export default async function ExpansionDetailPage({
   searchParams: Promise<{ tab?: string; sealed?: string; card?: string }>;
 }) {
   const { id } = await params;
+  const episodeGame = getGameFromScopedId(id);
   const { tab, sealed, card: initialCardId } = await searchParams;
   const requestedTab = tab === "sealed" ? "sealed" : "cards";
   const nextParams = new URLSearchParams();
@@ -236,7 +242,7 @@ export default async function ExpansionDetailPage({
   const user = await requirePageUser(`/expansions/${id}${nextQuery ? `?${nextQuery}` : ""}`);
 
   const episode = await db.episode.findFirst({
-    where: { id, game: POKEMON_GAME },
+    where: { id, game: episodeGame },
     include: {
       _count: {
         select: { cards: true, sealedProducts: true },
@@ -306,7 +312,9 @@ export default async function ExpansionDetailPage({
         },
       });
 
-      sealedProducts = localSealedProducts.map(toNormalizedSealedProduct);
+      sealedProducts = localSealedProducts.map((product) =>
+        toNormalizedSealedProduct(product, episodeGame)
+      );
     }
   }
 
@@ -401,7 +409,7 @@ export default async function ExpansionDetailPage({
 
       return {
         id: card.id,
-        game: POKEMON_GAME,
+        game: episodeGame,
         name: card.name,
         card_number: getDisplayCardNumber(card),
         rarity: card.rarity,
@@ -562,11 +570,15 @@ export default async function ExpansionDetailPage({
         gridClassName="xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch"
         backLinks={
           <BackNavigationLink
-            href="/expansions"
+            href={
+              episodeGame === POKEMON_GAME
+                ? "/expansions"
+                : "/expansions?game=pokemon-jp"
+            }
             className="hidden items-center gap-2 font-medium text-gray-500 transition-colors hover:text-gray-900 dark:text-white/50 dark:hover:text-white sm:inline-flex"
           >
             <ArrowLeft className="h-4 w-4" />
-            Back to expansions
+            Back to {getGameLabel(episodeGame)} sets
           </BackNavigationLink>
         }
         leadingVisual={
@@ -633,7 +645,9 @@ export default async function ExpansionDetailPage({
                 />
               </Link>
             ) : null}
-            {episode._count.cards > 0 && !isUpcomingEmptySet ? (
+            {episode._count.cards > 0 &&
+            !isUpcomingEmptySet &&
+            episodeGame === POKEMON_GAME ? (
               <Link
                 href={`/movers/signal-radar?game=pokemon&set=${encodeURIComponent(id)}#new-release-chases`}
                 prefetch={false}
