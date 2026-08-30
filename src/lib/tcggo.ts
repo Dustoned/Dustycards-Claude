@@ -26,6 +26,7 @@ const RETRYABLE_STATUS_CODES = new Set([408, 409, 425, 500, 502, 503, 504]);
 const HISTORY_PAGE_FETCH_DELAY_MS = 250;
 const RATE_LIMIT_RETRY_DELAY_MS = 2_000;
 const HEALTHCHECK_PATH = "/pokemon/healthcheck";
+const HEALTHCHECK_FALLBACK_PATH = "/pokemon/episodes?page=1&per_page=1";
 const REACTIVE_HEALTHCHECK_FAILURE_THRESHOLD = 2;
 const REACTIVE_HEALTHCHECK_COOLDOWN_MS = 30 * 60 * 1000;
 const CARD_PAGE_FETCH_SIZE = 150;
@@ -636,7 +637,8 @@ export async function checkTcggoHealth(options?: {
 
   try {
     assertScraperRequestsEnabled();
-    const response = await runQueuedTcggoRequest(HEALTHCHECK_PATH, async () => {
+    let usedCatalogFallback = false;
+    let response = await runQueuedTcggoRequest(HEALTHCHECK_PATH, async () => {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
 
@@ -650,6 +652,30 @@ export async function checkTcggoHealth(options?: {
         clearTimeout(timeout);
       }
     });
+
+    // TCGGO documents the dedicated health route, but some RapidAPI rollouts
+    // temporarily return a route-level 404 while normal data endpoints remain
+    // available. Verify one tiny catalogue page in that specific case so a
+    // healthy provider is not reported as down. Other health failures remain
+    // authoritative and never fall back.
+    if (response.status === 404) {
+      await response.arrayBuffer().catch(() => undefined);
+      usedCatalogFallback = true;
+      response = await runQueuedTcggoRequest(HEALTHCHECK_FALLBACK_PATH, async () => {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+
+        try {
+          return await fetch(`${BASE_URL}${HEALTHCHECK_FALLBACK_PATH}`, {
+            headers: getRapidApiHeaders(),
+            cache: "no-store",
+            signal: controller.signal,
+          });
+        } finally {
+          clearTimeout(timeout);
+        }
+      });
+    }
 
     updateRuntimeQuotaSnapshot(response.headers);
     try {
@@ -677,7 +703,9 @@ export async function checkTcggoHealth(options?: {
       checkedAt: checkedAt.toISOString(),
       latencyMs: Math.max(0, Date.now() - startedAt),
       httpStatus: response.status,
-      message: extractHealthcheckMessage(payload),
+      message:
+        extractHealthcheckMessage(payload) ??
+        (response.ok && usedCatalogFallback ? "Catalog endpoint reachable" : null),
       monthlyPeriodKey: options?.monthlyPeriodKey ?? null,
     };
 
