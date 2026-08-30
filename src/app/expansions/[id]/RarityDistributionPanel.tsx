@@ -1,5 +1,21 @@
+"use client";
+
 import { Dices, Layers3 } from "lucide-react";
 import { normalizeRarityLabel } from "@/lib/rarity";
+
+export interface RarityDistributionProfile {
+  source: string;
+  source_url: string | null;
+  cards_counted: number | null;
+  rarities: Array<{
+    id: string;
+    rarity_name: string;
+    card_count: number | null;
+    per_booster_box: number | null;
+    pull_rate_denominator: number | null;
+    specific_pull_denominator: number | null;
+  }>;
+}
 
 interface RarityDistributionPanelProps {
   expansionName: string;
@@ -7,19 +23,10 @@ interface RarityDistributionPanelProps {
     name: string;
     count: number;
   }>;
-  profile: {
-    source: string;
-    source_url: string | null;
-    cards_counted: number | null;
-    rarities: Array<{
-      id: string;
-      rarity_name: string;
-      card_count: number | null;
-      per_booster_box: number | null;
-      pull_rate_denominator: number | null;
-      specific_pull_denominator: number | null;
-    }>;
-  };
+  profile: RarityDistributionProfile;
+  activeRarities: string[];
+  onSelectRarity: (rarity: string) => void;
+  onShowAll: () => void;
 }
 
 const RARITY_TONES = [
@@ -43,7 +50,15 @@ export default function RarityDistributionPanel({
   expansionName,
   rarityCounts,
   profile,
+  activeRarities,
+  onSelectRarity,
+  onShowAll,
 }: RarityDistributionPanelProps) {
+  const selectedRarities = new Set(
+    activeRarities
+      .map((rarity) => normalizeRarityLabel(rarity))
+      .filter((rarity): rarity is string => Boolean(rarity))
+  );
   const pullRatesByRarity = new Map(
     profile.rarities.map((rarity) => [
       normalizeRarityLabel(rarity.rarity_name) ?? rarity.rarity_name,
@@ -110,13 +125,24 @@ export default function RarityDistributionPanel({
               : index === rarities.length - 1
                 ? "right-0"
                 : "left-1/2 -translate-x-1/2";
+            const selected = selectedRarities.has(
+              normalizeRarityLabel(rarity.rarity_name) ?? rarity.rarity_name
+            );
 
             return (
               <button
                 key={rarity.id}
                 type="button"
-                className="group/rarity relative min-w-[5px] rounded-xl outline-none transition-[filter,transform] hover:z-20 hover:brightness-110 focus-visible:z-20 focus-visible:brightness-110 active:scale-[0.98]"
+                onClick={() => onSelectRarity(rarity.rarity_name)}
+                className={`group/rarity relative min-w-[5px] rounded-xl outline-none transition-[filter,transform,box-shadow] hover:z-20 hover:brightness-110 focus-visible:z-20 focus-visible:brightness-110 active:scale-[0.98] ${
+                  selected
+                    ? "z-10 ring-2 ring-white ring-offset-2 ring-offset-[var(--dc-surface-primary)] brightness-110"
+                    : selectedRarities.size > 0
+                      ? "opacity-45 hover:opacity-100"
+                      : ""
+                }`}
                 style={{ flexGrow: count, flexBasis: 0 }}
+                aria-pressed={selected}
                 aria-label={`${rarity.rarity_name}: ${count} cards, ${share.toFixed(1)} percent${perBox ? `, ${perBox}` : ""}${rarityOdds ? `, rarity odds ${rarityOdds}` : ""}${specificOdds ? `, specific card odds ${specificOdds}` : ""}`}
               >
                 <span className={`absolute inset-0 rounded-xl bg-gradient-to-b ${tone.segment} opacity-80 shadow-[inset_0_1px_rgba(255,255,255,0.22)] transition-opacity group-hover/rarity:opacity-100 group-focus-visible/rarity:opacity-100`} />
@@ -144,9 +170,19 @@ export default function RarityDistributionPanel({
             );
           })}
         </div>
-        <div className="mt-2.5 flex items-center justify-between gap-3 text-[9px] font-semibold text-[var(--dc-text-muted)] sm:text-[10px]">
-          <span>Hover or tap a segment for rarity and pull-rate details.</span>
-          <span className="shrink-0 tabular-nums">{rarities.length} rarity tiers</span>
+        <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 text-[9px] font-semibold text-[var(--dc-text-muted)] sm:text-[10px]">
+          <span>Click a segment to show only cards from that rarity.</span>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="tabular-nums">{rarities.length} rarity tiers</span>
+            <button
+              type="button"
+              onClick={onShowAll}
+              disabled={selectedRarities.size === 0}
+              className="inline-flex min-h-8 items-center rounded-lg border border-[rgb(var(--dc-primary-rgb)/0.24)] bg-[rgb(var(--dc-primary-rgb)/0.1)] px-3 text-[10px] font-extrabold text-[var(--dc-primary)] transition hover:border-[rgb(var(--dc-primary-rgb)/0.42)] hover:bg-[rgb(var(--dc-primary-rgb)/0.16)] disabled:cursor-default disabled:border-[rgb(var(--dc-border-rgb)/0.68)] disabled:bg-transparent disabled:text-[var(--dc-text-muted)] disabled:opacity-55"
+            >
+              Show all
+            </button>
+          </div>
         </div>
       </div>
 

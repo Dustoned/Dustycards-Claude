@@ -40,7 +40,6 @@ import type { CardData } from "@/types/card-data";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import ExpansionCardsSection from "./ExpansionCardsSection";
 import PullRateHoverTable from "./PullRateHoverTable";
-import RarityDistributionPanel from "./RarityDistributionPanel";
 import SealedProductsGrid from "./SealedProductsGrid";
 import SyncEpisodeButton from "./SyncEpisodeButton";
 
@@ -716,14 +715,6 @@ export default async function ExpansionDetailPage({
         )}
       </div>
 
-      {activeTab === "cards" && pullRateProfile ? (
-        <RarityDistributionPanel
-          expansionName={episode.name}
-          rarityCounts={rarityCounts}
-          profile={pullRateProfile}
-        />
-      ) : null}
-
       {activeTab === "cards" ? (
         cards.length === 0 ? (
           <div
@@ -757,6 +748,11 @@ export default async function ExpansionDetailPage({
             episode={{ id: episode.id, name: episode.name, code: episode.code }}
             showPriceHistory={false}
             initialCardId={initialCardId ?? null}
+            rarityDistribution={pullRateProfile ? {
+              expansionName: episode.name,
+              rarityCounts,
+              profile: pullRateProfile,
+            } : null}
           />
         )
       ) : (

@@ -184,6 +184,22 @@ function verdictClasses(key: ExpansionChaseRadarCard["verdict"]["key"]): string 
   return "border-white/10 bg-white/[0.045] text-white/66";
 }
 
+function buySignalClasses(label: ExpansionChaseRadarCard["buySignal"]["label"]): string {
+  if (label === "strong_buy") {
+    return "border-emerald-300/28 bg-emerald-400/[0.14] text-emerald-100";
+  }
+  if (label === "buy") {
+    return "border-cyan-300/24 bg-cyan-400/[0.11] text-cyan-100";
+  }
+  if (label === "strong_sell") {
+    return "border-rose-300/28 bg-rose-400/[0.14] text-rose-100";
+  }
+  if (label === "sell") {
+    return "border-orange-300/24 bg-orange-400/[0.11] text-orange-100";
+  }
+  return "border-amber-300/22 bg-amber-400/[0.09] text-amber-100";
+}
+
 function modelReturn(card: ExpansionChaseRadarCard): number | null {
   if (!card.scenario || card.scenario.currentPrice <= 0) return null;
   if (card.scenario.expectedReturnPct180 != null) {
@@ -236,6 +252,7 @@ function ChaseCard({
       accent="radar"
       layout="showcase"
       data-chase-verdict={card.verdict.key}
+      data-buy-signal={card.buySignal.label}
       data-chase-card-id={card.cardId}
     >
       <CardListTileLink
@@ -272,13 +289,24 @@ function ChaseCard({
       <CardListTileBody className="pointer-events-none relative z-[1]">
         <CardListTileHeader
           badges={
-            <span
-              className={cx(
-                "inline-flex max-w-full truncate rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]",
-                verdictClasses(card.verdict.key)
-              )}
-            >
-              {card.verdict.label}
+            <span className="flex max-w-full flex-wrap items-center gap-1">
+              <span
+                className={cx(
+                  "inline-flex truncate rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em]",
+                  buySignalClasses(card.buySignal.label)
+                )}
+                title={`${card.buySignal.label_text} · ${card.buySignal.confidence} confidence`}
+              >
+                {card.buySignal.label_text}
+              </span>
+              <span
+                className={cx(
+                  "inline-flex truncate rounded-full border px-2 py-1 text-[8px] font-bold uppercase tracking-[0.1em]",
+                  verdictClasses(card.verdict.key)
+                )}
+              >
+                {card.verdict.label}
+              </span>
             </span>
           }
           priceLabel="Raw"
@@ -305,7 +333,9 @@ function ChaseCard({
         <CardListTileInsight>
           <Radar className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300/72" />
           <span className="line-clamp-2">
-            <strong className="font-bold text-white/76">Score {card.opportunityScore}</strong>
+            <strong className="font-bold text-white/82">
+              {card.buySignal.label_text} {card.buySignal.score}/100
+            </strong>
             {" · "}
             {insight}
           </span>

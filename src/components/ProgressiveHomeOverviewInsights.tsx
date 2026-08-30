@@ -64,6 +64,10 @@ const HomeFeaturedCardsPanel = dynamic(() => import("@/components/HomeFeaturedCa
   ssr: false,
   loading: () => <FeaturedCardsSkeleton />,
 });
+const HomeFeaturedSealedPanel = dynamic(() => import("@/components/HomeFeaturedSealedPanel"), {
+  ssr: false,
+  loading: () => <FeaturedCardsSkeleton />,
+});
 const HomeOldHighRarityWidget = dynamic(() => import("@/components/HomeOldHighRarityWidget"), {
   ssr: false,
   loading: () => <InsightPanelSkeleton />,
@@ -94,6 +98,7 @@ const HOME_MODULE_LABELS: Record<
   "signal-radar": { label: "Signal Radar", description: "Highest-scoring current opportunities" },
   "old-high-rarity": { label: "Old High-Rarity", description: "Older premium chase cards at relative-value prices" },
   featured: { label: "Featured cards", description: "Collection highlights" },
+  "featured-sealed": { label: "Featured Sealed", description: "Highest-value sealed collection highlights" },
   allocation: { label: "Collection allocation", description: "Value by collection type" },
   "top-sets": { label: "Top sets", description: "Your strongest sets and binders" },
   wants: { label: "Wants", description: "Recently wanted cards and prices" },
@@ -114,6 +119,7 @@ const COMPACTABLE_HOME_MODULES = new Set<HomeDashboardModuleKey>([
   "signal-radar",
   "old-high-rarity",
   "featured",
+  "featured-sealed",
   "allocation",
   "top-sets",
   "wants",
@@ -299,6 +305,7 @@ export default function ProgressiveHomeOverviewInsights({
   forSaleHref,
   upcomingHref,
   collectionHref,
+  sealedCollectionHref,
   portfolioSlot,
   topSetsSlot,
   shortcutsSlot,
@@ -315,6 +322,7 @@ export default function ProgressiveHomeOverviewInsights({
   forSaleHref: string;
   upcomingHref: string;
   collectionHref: string;
+  sealedCollectionHref: string;
   portfolioSlot: ReactNode;
   topSetsSlot: ReactNode;
   shortcutsSlot: ReactNode;
@@ -560,6 +568,17 @@ export default function ProgressiveHomeOverviewInsights({
     featured: payload ? (
       payload.featuredCards.length > 0 ? (
         <HomeFeaturedCardsPanel cards={payload.featuredCards} viewAllHref={collectionHref} viewMode={viewModeFor("featured")} />
+      ) : null
+    ) : (
+      <FeaturedCardsSkeleton />
+    ),
+    "featured-sealed": payload ? (
+      (payload.featuredSealed ?? []).length > 0 ? (
+        <HomeFeaturedSealedPanel
+          items={payload.featuredSealed}
+          viewAllHref={sealedCollectionHref}
+          viewMode={viewModeFor("featured-sealed")}
+        />
       ) : null
     ) : (
       <FeaturedCardsSkeleton />

@@ -36,6 +36,9 @@ import { getCardImageClassName, getCardImageFrameClassName } from "@/lib/card-im
 import { getExpansionHref } from "@/lib/games";
 import { useIncrementalItems } from "@/lib/use-incremental-items";
 import { rarityBadge } from "@/lib/rarity-styles";
+import RarityDistributionPanel, {
+  type RarityDistributionProfile,
+} from "./RarityDistributionPanel";
 import {
   cardNumberCollator,
   compareCardNumbers,
@@ -112,6 +115,11 @@ interface Props {
   warmCardImages?: boolean;
   initialCardId?: string | null;
   cardDetailBackLabel?: string;
+  rarityDistribution?: {
+    expansionName: string;
+    rarityCounts: Array<{ name: string; count: number }>;
+    profile: RarityDistributionProfile;
+  } | null;
 }
 
 interface FilterOption {
@@ -255,6 +263,7 @@ export default function ExpansionView({
   warmCardImages = true,
   initialCardId = null,
   cardDetailBackLabel = "Back to Expansion",
+  rarityDistribution = null,
 }: Props) {
   const { settings, displaySettings, isMobileViewport, set, setDisplay } = useSettings();
   const [search, setSearch] = useState("");
@@ -635,6 +644,11 @@ export default function ExpansionView({
     set("defaultRarities", next);
   }
 
+  function selectOnlyRarity(rarity: string) {
+    const normalized = normalizeRarityLabel(rarity) ?? rarity;
+    set("defaultRarities", [normalized]);
+  }
+
   function toggleSupertype(s: string) {
     const next = supertypes.includes(s)
       ? supertypes.filter((x) => x !== s)
@@ -971,6 +985,17 @@ export default function ExpansionView({
 
   return (
     <div>
+      {rarityDistribution ? (
+        <RarityDistributionPanel
+          expansionName={rarityDistribution.expansionName}
+          rarityCounts={rarityDistribution.rarityCounts}
+          profile={rarityDistribution.profile}
+          activeRarities={activeRarities}
+          onSelectRarity={selectOnlyRarity}
+          onShowAll={() => set("defaultRarities", [])}
+        />
+      ) : null}
+
       <CardBrowserToolbar
         searchValue={search}
         onSearchChange={setSearch}

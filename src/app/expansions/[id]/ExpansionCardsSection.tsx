@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import ExpansionView from "./ExpansionView";
+import type { RarityDistributionProfile } from "./RarityDistributionPanel";
 import {
   buildEpisodeSetPriceHistory,
   getCardMarketValue,
@@ -21,6 +22,11 @@ interface Props {
   priceSnapshots?: EpisodePriceHistorySnapshot[];
   showPriceHistory?: boolean;
   initialCardId?: string | null;
+  rarityDistribution?: {
+    expansionName: string;
+    rarityCounts: Array<{ name: string; count: number }>;
+    profile: RarityDistributionProfile;
+  } | null;
 }
 
 export default function ExpansionCardsSection({
@@ -30,6 +36,7 @@ export default function ExpansionCardsSection({
   priceSnapshots = [],
   showPriceHistory = true,
   initialCardId = null,
+  rarityDistribution = null,
 }: Props) {
   const [visibleCards, setVisibleCards] = useState<CardData[]>(cards);
 
@@ -99,6 +106,7 @@ export default function ExpansionCardsSection({
         episode={episode}
         onVisibleCardsChange={setVisibleCards}
         initialCardId={initialCardId}
+        rarityDistribution={rarityDistribution}
       />
     </div>
   );
