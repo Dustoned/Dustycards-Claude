@@ -159,6 +159,54 @@ describe("TCGGO request limiter", () => {
     expect(healthMocks.recordObservation).toHaveBeenCalledWith(result);
   });
 
+  it("falls back to a tiny catalogue request when RapidAPI has not mounted the documented health route", async () => {
+    const fetchMock = vi.fn(async (input: string | URL | Request) => {
+      if (String(input).endsWith("/pokemon/healthcheck")) {
+        return new Response(
+          JSON.stringify({ message: "Endpoint '/pokemon/healthcheck' does not exist" }),
+          { status: 404 }
+        );
+      }
+
+      return new Response(
+        JSON.stringify({
+          data: [{ id: 437, name: "Delta Reign" }],
+          paging: { current: 1, total: 1, per_page: 1 },
+        }),
+        {
+          status: 200,
+          headers: {
+            "x-ratelimit-requests-limit": "3000",
+            "x-ratelimit-requests-remaining": "2674",
+            "x-ratelimit-requests-reset": "25300",
+          },
+        }
+      );
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await checkTcggoHealth({ reason: "manual" });
+
+    expect(result).toMatchObject({
+      state: "healthy",
+      ok: true,
+      httpStatus: 200,
+      message: "Catalog endpoint reachable",
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      1,
+      "https://cardmarket-api-tcg.p.rapidapi.com/pokemon/healthcheck",
+      expect.any(Object)
+    );
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      "https://cardmarket-api-tcg.p.rapidapi.com/pokemon/episodes?page=1&per_page=1",
+      expect.any(Object)
+    );
+    expect(healthMocks.recordObservation).toHaveBeenCalledWith(result);
+  });
+
   it("runs at most one reactive healthcheck after two failed API operations", async () => {
     let requestCount = 0;
     const fetchMock = vi.fn(async (input: string | URL | Request) => {
