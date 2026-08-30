@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   HOME_FEATURED_CARD_LIMIT,
+  HOME_FEATURED_SEALED_LIMIT,
   HOME_VALUE_DRIVER_LANE_LIMIT,
   getHomeFeaturedCards,
+  getHomeFeaturedSealed,
   getHomeValueDriversPreview,
 } from "@/lib/home-page-payload";
 import type {
@@ -10,6 +12,7 @@ import type {
   CollectionValueDriversData,
 } from "@/lib/collection-data";
 import type { CollectionCardViewItem } from "@/types/collection-view";
+import type { CollectionSealedViewItem } from "@/types/collection-view";
 
 function card(index: number): CollectionCardViewItem {
   return {
@@ -71,6 +74,26 @@ function driver(index: number, change: number): CollectionValueDriverItem {
   };
 }
 
+function sealed(
+  index: number,
+  currentValue: number | null,
+  quantity = 1
+): CollectionSealedViewItem {
+  return {
+    id: `sealed-copy-${index}`,
+    product_id: `sealed-${index}`,
+    name: `Sealed ${index}`,
+    image_url: null,
+    episode_id: "episode",
+    episode_name: "Episode",
+    episode_code: "SET",
+    cardmarket_url: null,
+    quantity,
+    purchase_price_per_item: index,
+    current_value_per_item: currentValue,
+  };
+}
+
 describe("home page payload", () => {
   it("keeps twelve driver rows per lane for the denser card wall", () => {
     expect(HOME_VALUE_DRIVER_LANE_LIMIT).toBe(12);
@@ -84,6 +107,23 @@ describe("home page payload", () => {
     expect(result[0]?.current_value).toBe(60);
     expect(result.at(-1)?.current_value).toBe(13);
     expect(cards).toHaveLength(60);
+  });
+
+  it("ranks featured sealed by total live market value without mutating the collection", () => {
+    const items = [sealed(1, 100), sealed(2, 60, 2), sealed(3, null)];
+    const result = getHomeFeaturedSealed(items);
+
+    expect(HOME_FEATURED_SEALED_LIMIT).toBe(8);
+    expect(result.map((item) => item.product_id)).toEqual([
+      "sealed-2",
+      "sealed-1",
+      "sealed-3",
+    ]);
+    expect(items.map((item) => item.product_id)).toEqual([
+      "sealed-1",
+      "sealed-2",
+      "sealed-3",
+    ]);
   });
 
   it("removes hidden driver rows without changing portfolio totals", () => {

@@ -38,6 +38,7 @@ import {
 } from "@/lib/new-release-chase-watch-core";
 import { getNewReleaseChaseScrapeDoBudgetSnapshot } from "@/lib/scrapedo-budget";
 import { getLatestNewReleaseChaseWatchEpisodes } from "@/lib/new-release-chase-watch-server";
+import { buildBuySignal, type BuySignalResult } from "@/lib/buy-signal";
 
 const NON_STALE_FRESHNESS = new Set<ExpansionChaseFreshness>(["fresh", "aging"]);
 
@@ -75,6 +76,7 @@ export interface ExpansionChaseRadarCard {
   scenarioConfidence: ExternalPriceScenario["confidence"] | null;
   scenario: ExternalPriceScenario | null;
   verdict: ExpansionChaseVerdict;
+  buySignal: Pick<BuySignalResult, "label" | "label_text" | "score" | "confidence">;
   priceSource: "cardmarket-direct" | "tcggo";
   watch: {
     enabled: boolean;
@@ -375,6 +377,29 @@ export async function getExpansionChaseRadarData(
       now,
     });
     const directPrice = latestPrice?.row.source === NEW_RELEASE_CHASE_WATCH_SOURCE;
+    const buySignal = buildBuySignal({
+      rarity: signal.rarity,
+      episode_name: episode.name,
+      episode_code: episode.code,
+      episode_release_date: episode.release_date,
+      price: latestPrice?.row ?? {
+        cm_en_lowest_nm: candidate.currentPrice,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+        cm_jp_lowest_nm: null,
+        tcp_market: null,
+        tcp_mid: null,
+        tcp_low: null,
+        cm_en_avg_7d: null,
+        cm_en_avg_30d: null,
+      },
+      price_fetched_at: latestPrice?.fetchedAt.toISOString() ?? validPriceAsOf?.toISOString() ?? null,
+      price_history: [],
+      collection_item: null,
+      now,
+    });
     return [{
       setRank: index + 1,
       cardId: signal.cardId,
@@ -397,6 +422,12 @@ export async function getExpansionChaseRadarData(
         freshness,
         observedChange7dPct: changeVs7dPct,
       }),
+      buySignal: {
+        label: buySignal.label,
+        label_text: buySignal.label_text,
+        score: buySignal.score,
+        confidence: buySignal.confidence,
+      },
       priceSource: directPrice ? "cardmarket-direct" : "tcggo",
       watch: {
         enabled: watchEnabled,

@@ -3,7 +3,11 @@ import type {
   CollectionValueDriversData,
 } from "@/lib/collection-data";
 import type { ExternalCardSignal } from "@/lib/external-signal-radar";
-import { getHomeFeaturedCards, getHomeValueDriversPreview } from "@/lib/home-page-payload";
+import {
+  getHomeFeaturedCards,
+  getHomeFeaturedSealed,
+  getHomeValueDriversPreview,
+} from "@/lib/home-page-payload";
 import type { CollectionMoverItem } from "@/lib/movers";
 import type { UpcomingSealedRelease } from "@/lib/sealed-movers";
 import type { UpcomingSingleItem } from "@/lib/upcoming-releases";
@@ -147,6 +151,7 @@ export interface HomeUpcomingSinglePreviewGroup {
 
 export interface HomeOverviewInsightsPayload {
   featuredCards: CollectionOverviewData["cards"];
+  featuredSealed: CollectionOverviewData["sealed"];
   valueDrivers: CollectionValueDriversData;
   allocation: HomeAllocationSegment[];
   marketMovers: HomeMarketMoverPreviewItem[];
@@ -359,6 +364,7 @@ export function buildHomeOverviewInsights(
 
   return {
     featuredCards: getHomeFeaturedCards(data.cards),
+    featuredSealed: getHomeFeaturedSealed(data.sealed),
     valueDrivers: getHomeValueDriversPreview(data.valueDrivers),
     marketMovers: buildMarketMoverPreview(extras.movers ?? []),
     gradedMovers: buildGradedPreview(extras.gradedMovers ?? []),

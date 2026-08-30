@@ -653,6 +653,7 @@ async function HomePageContent({
             forSaleHref={buildCollectionHref("selling")}
             upcomingHref="/upcoming"
             collectionHref={buildCollectionHref("complete")}
+            sealedCollectionHref={buildCollectionHref("sealed")}
             portfolioSlot={
               <section className="grid min-w-0 gap-2.5 sm:gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
                 <div data-collection-summary-financial className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3 lg:p-4">
