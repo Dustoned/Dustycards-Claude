@@ -92,6 +92,12 @@ describe("Signal Radar durable snapshot store", () => {
 
     expect(stored?.writtenAt).toBe("2026-07-29T20:06:00.000Z");
     expect(stored?.data?.cards[0]?.cardId).toBe("chase-1");
+    expect(stored?.data?.cards[0]?.buySignal).toEqual({
+      label: "hold",
+      label_text: "Hold",
+      score: 50,
+      confidence: "low",
+    });
   });
 
   it("stores sealed Radar data separately for each game filter", async () => {

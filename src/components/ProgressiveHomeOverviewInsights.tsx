@@ -654,7 +654,7 @@ export default function ProgressiveHomeOverviewInsights({
       {showCustomizer ? (
         <DashboardCustomizerDialog
           title="Customize Home"
-          description="Choose what appears, arrange the order, set each card widget to Grid or List, and resize modules. Changes save automatically to your account."
+          description="Use Hide to remove a widget completely or Collapse to keep only its title bar. You can also arrange the order, choose Grid or List, and resize modules. Changes save automatically."
           onClose={() => setShowCustomizer(false)}
         >
           <div className="flex justify-end">
@@ -670,6 +670,7 @@ export default function ProgressiveHomeOverviewInsights({
           <div className="mt-3 grid gap-2.5 md:grid-cols-2">
             {moduleOrder.map((moduleKey, index) => {
               const hidden = hiddenModules.has(moduleKey);
+              const collapsed = collapsedModules.has(moduleKey);
               const compact = compactModules.has(moduleKey);
               const compactable = COMPACTABLE_HOME_MODULES.has(moduleKey);
               const viewSelectable = HOME_DASHBOARD_VIEW_MODULES.has(moduleKey);
@@ -690,11 +691,16 @@ export default function ProgressiveHomeOverviewInsights({
                   <button
                     type="button"
                     onClick={() => toggleModule(moduleKey)}
-                    className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-black/15"
+                    className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-bold transition-colors ${
+                      hidden
+                        ? "border-emerald-300/20 bg-emerald-400/[0.08] text-emerald-200"
+                        : "border-rose-300/16 bg-rose-400/[0.055] text-rose-200/80 hover:bg-rose-400/[0.1]"
+                    }`}
                     aria-label={`${hidden ? "Show" : "Hide"} ${meta.label}`}
-                    aria-pressed={!hidden}
+                    title={`${hidden ? "Show" : "Hide"} ${meta.label} ${hidden ? "on" : "from"} Home`}
                   >
-                    {hidden ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                    {hidden ? <Eye className="h-3.5 w-3.5" /> : <EyeOff className="h-3.5 w-3.5" />}
+                    {hidden ? "Show" : "Hide"}
                   </button>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-xs font-bold">{meta.label}</span>
@@ -703,7 +709,22 @@ export default function ProgressiveHomeOverviewInsights({
                     </span>
                   </span>
                   <div className="flex basis-full items-center justify-end gap-1.5 pl-10 sm:basis-auto sm:pl-0">
-                  {compactable ? (
+                    <button
+                      type="button"
+                      onClick={() => toggleModuleCollapsed(moduleKey)}
+                      disabled={hidden}
+                      className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                        collapsed
+                          ? "border-amber-300/22 bg-amber-400/[0.08] text-amber-100"
+                          : "border-white/8 bg-black/12 text-white/45 hover:text-white"
+                      }`}
+                      aria-label={`${collapsed ? "Expand" : "Collapse"} ${meta.label}`}
+                      aria-pressed={collapsed}
+                    >
+                      <ChevronDown className={`h-3 w-3 transition-transform ${collapsed ? "" : "rotate-90"}`} />
+                      {collapsed ? "Collapsed" : "Expanded"}
+                    </button>
+                    {compactable ? (
                     <button
                       type="button"
                       onClick={() => toggleModuleSize(moduleKey)}
@@ -768,7 +789,7 @@ export default function ProgressiveHomeOverviewInsights({
             })}
           </div>
           <p className="mt-4 text-[11px] font-semibold leading-5 text-white/35">
-            Compact modules pair automatically on desktop. Grid/List is saved per widget. Mobile always keeps one readable module per row.
+            Hide removes a widget completely; Collapse keeps a small title bar so it can be reopened quickly. Mobile always keeps one readable module per row.
           </p>
         </DashboardCustomizerDialog>
       ) : null}

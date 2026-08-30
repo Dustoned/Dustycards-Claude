@@ -6,6 +6,7 @@ import path from "node:path";
 import type { ExpansionChaseRadarData } from "@/lib/expansion-chase-radar";
 import type { ExternalSignalRadarData } from "@/lib/external-signal-radar";
 import type { SealedSignalRadarData } from "@/lib/sealed-signal-radar";
+import { normalizeExpansionChaseRadarData } from "@/lib/expansion-chase-compat";
 import {
   ALL_GAMES,
   type TradingCardGame,
@@ -206,7 +207,10 @@ export async function readSignalRadarChaseSnapshot(
     }
     return {
       writtenAt: parsed.writtenAt,
-      data: parsed.data as ExpansionChaseRadarData | null,
+      data:
+        parsed.data === null
+          ? null
+          : normalizeExpansionChaseRadarData(parsed.data as ExpansionChaseRadarData),
     };
   } catch {
     return null;

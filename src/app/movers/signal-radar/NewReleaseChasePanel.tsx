@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowUpRight,
   BarChart3,
@@ -38,8 +38,13 @@ import type {
   ExpansionChaseRadarCard,
   ExpansionChaseRadarData,
 } from "@/lib/expansion-chase-radar";
+import { getSafeChaseBuySignal } from "@/lib/expansion-chase-compat";
 import { formatCurrency } from "@/lib/format";
 import { getExpansionHref, type TradingCardGame } from "@/lib/games";
+import {
+  matchesPopularPokemonFilter,
+  type PopularPokemonFilter,
+} from "@/lib/popular-pokemon";
 
 const INITIAL_CARD_LIMIT = 3;
 
@@ -245,6 +250,7 @@ function ChaseCard({
     ) ?? null;
 
   const insight = driver ?? card.verdict.summary;
+  const buySignal = getSafeChaseBuySignal(card);
 
   return (
     <CardListTile
@@ -252,7 +258,7 @@ function ChaseCard({
       accent="radar"
       layout="showcase"
       data-chase-verdict={card.verdict.key}
-      data-buy-signal={card.buySignal.label}
+      data-buy-signal={buySignal.label}
       data-chase-card-id={card.cardId}
     >
       <CardListTileLink
@@ -293,11 +299,11 @@ function ChaseCard({
               <span
                 className={cx(
                   "inline-flex truncate rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-[0.1em]",
-                  buySignalClasses(card.buySignal.label)
+                  buySignalClasses(buySignal.label)
                 )}
-                title={`${card.buySignal.label_text} · ${card.buySignal.confidence} confidence`}
+                title={`${buySignal.label_text} · ${buySignal.confidence} confidence`}
               >
-                {card.buySignal.label_text}
+                {buySignal.label_text}
               </span>
               <span
                 className={cx(
@@ -334,7 +340,7 @@ function ChaseCard({
           <Radar className="mt-0.5 h-3.5 w-3.5 shrink-0 text-violet-300/72" />
           <span className="line-clamp-2">
             <strong className="font-bold text-white/82">
-              {card.buySignal.label_text} {card.buySignal.score}/100
+              {buySignal.label_text} {buySignal.score}/100
             </strong>
             {" · "}
             {insight}
@@ -417,11 +423,13 @@ function ChaseCard({
 export default function NewReleaseChasePanel({
   data,
   cardQuickActions,
+  pokemonFilter = "all",
   manualRefreshHref = null,
   onDataChange,
 }: {
   data: ExpansionChaseRadarData;
   cardQuickActions: CardQuickActionMap;
+  pokemonFilter?: PopularPokemonFilter;
   manualRefreshHref?: string | null;
   onDataChange?: (data: ExpansionChaseRadarData) => void;
 }) {
@@ -438,7 +446,11 @@ export default function NewReleaseChasePanel({
     data.priceWatch.nextRefreshAt,
     nowMs
   );
-  const visibleCards = showAll ? data.cards : data.cards.slice(0, INITIAL_CARD_LIMIT);
+  const matchingCards = useMemo(
+    () => data.cards.filter((card) => matchesPopularPokemonFilter(card.name, pokemonFilter)),
+    [data.cards, pokemonFilter]
+  );
+  const visibleCards = showAll ? matchingCards : matchingCards.slice(0, INITIAL_CARD_LIMIT);
   const refreshCard = async (cardId: string) => {
     if (!manualRefreshHref || refreshStates[cardId]?.phase === "loading") return;
     setRefreshStates((current) => ({ ...current, [cardId]: { phase: "loading" } }));
@@ -599,20 +611,26 @@ export default function NewReleaseChasePanel({
             <ShieldAlert className="h-4 w-4" />
           </span>
           <div>
-            <p className="text-sm font-bold text-white/76">No chase verdicts yet</p>
-            <p className="mt-1 text-xs leading-5 text-white/42">Cards or usable market prices are still being imported.</p>
+            <p className="text-sm font-bold text-white/76">
+              {pokemonFilter === "all" ? "No chase verdicts yet" : "No matching Pokémon in this chase set"}
+            </p>
+            <p className="mt-1 text-xs leading-5 text-white/42">
+              {pokemonFilter === "all"
+                ? "Cards or usable market prices are still being imported."
+                : "Choose All Pokémon to show the complete new-release chase list."}
+            </p>
           </div>
         </div>
       )}
 
-      {data.cards.length > INITIAL_CARD_LIMIT ? (
+      {matchingCards.length > INITIAL_CARD_LIMIT ? (
         <button
           type="button"
           onClick={() => setShowAll((current) => !current)}
           className="mx-auto mt-4 flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-black/20 px-5 text-xs font-bold text-white/60 transition hover:border-violet-300/20 hover:bg-violet-400/[0.07] hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400"
           aria-expanded={showAll}
         >
-          {showAll ? "Show top 3" : `Show all ${data.cards.length} chases`}
+          {showAll ? "Show top 3" : `Show all ${matchingCards.length} chases`}
           <ChevronDown className={cx("h-4 w-4 transition-transform", showAll && "rotate-180")} />
         </button>
       ) : null}
