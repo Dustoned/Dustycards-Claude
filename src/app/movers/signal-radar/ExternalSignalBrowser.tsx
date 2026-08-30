@@ -196,6 +196,16 @@ function getReleaseYear(value: string | null | undefined): string | null {
   return value?.match(/^(\d{4})/)?.[1] ?? null;
 }
 
+function formatRadarGeneratedAt(value: string): string {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "Update time unavailable";
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Europe/Amsterdam",
+  }).format(date);
+}
+
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
 }
@@ -1067,18 +1077,22 @@ function SealedRadarSection({
   onRetry,
   expanded,
   onToggle,
+  pokemonFilter,
 }: {
   data: SealedSignalRadarData | null;
   state: "loading" | "ready" | "error";
   onRetry: () => void;
   expanded: boolean;
   onToggle: () => void;
+  pokemonFilter: PopularPokemonFilter;
 }) {
   const [historyFilter, setHistoryFilter] = useState<SealedHistoryFilter>("all");
   const [visibleLimit, setVisibleLimit] = useState(6);
   const [selectedProduct, setSelectedProduct] = useState<SealedModalProductData | null>(null);
   const visibleItems = useMemo(() => {
-    const items = data?.items ?? [];
+    const items = (data?.items ?? []).filter((item) =>
+      matchesPopularPokemonFilter(`${item.name} ${item.episodeName}`, pokemonFilter)
+    );
     if (historyFilter === "established") {
       return items.filter((item) => item.historyStatus === "established");
     }
@@ -1086,7 +1100,7 @@ function SealedRadarSection({
       return items.filter((item) => item.historyStatus !== "established");
     }
     return items;
-  }, [data?.items, historyFilter]);
+  }, [data?.items, historyFilter, pokemonFilter]);
 
   if (!expanded && !data) {
     return (
@@ -1195,8 +1209,8 @@ function SealedRadarSection({
       ) : (
         <EmptyState
           icon={PackageSearch}
-          title="No sealed products in this history stage"
-          description="History collection continues automatically."
+          title={pokemonFilter === "all" ? "No sealed products in this history stage" : "No matching Pokémon products"}
+          description={pokemonFilter === "all" ? "History collection continues automatically." : "Choose All Pokémon to show the complete sealed Radar."}
           actionHref={null}
         />
       )}
@@ -1781,7 +1795,6 @@ export default function ExternalSignalBrowser({
           !isOlderHighRarityValueSignalAtLeastAge(signal, minimumOlderAgeYears)
         ) return false;
         if (
-          origin === "older-high-rarity" &&
           !matchesPopularPokemonFilter(signal.name, popularPokemonFilter)
         ) return false;
         if (marketMode === "graded" && !signal.marketIntelligence?.graded.available) return false;
@@ -1914,14 +1927,50 @@ export default function ExternalSignalBrowser({
   const chaseSectionOwnsEverySignal =
     signals.length > 0 && signals.every((signal) => newReleaseCardIds.has(signal.cardId));
   const filtersAreDefault =
-    !deferredSearch.trim() && confidence === "all" && origin === "all" && marketMode === "raw" && activeReleaseYear === "all";
+    !deferredSearch.trim() &&
+    confidence === "all" &&
+    origin === "all" &&
+    marketMode === "raw" &&
+    activeReleaseYear === "all" &&
+    popularPokemonFilter === "all";
 
   return (
     <div className="space-y-4 sm:space-y-5">
+      <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3" aria-label="Page-wide Signal Radar filters">
+        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-bold text-white/76">Filter the entire Radar</p>
+            <p className="mt-0.5 text-[10px] leading-4 text-white/38">
+              This Pokémon choice applies to Chase Watch, singles and sealed products together.
+            </p>
+          </div>
+          <label className="relative flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-violet-300/16 bg-violet-400/[0.055] pl-3 pr-9 transition hover:border-violet-300/26 hover:bg-violet-400/[0.09] focus-within:border-violet-300/38 focus-within:ring-2 focus-within:ring-violet-500/12 sm:w-[17rem]">
+            <Sparkles className="h-4 w-4 shrink-0 text-violet-200/64" />
+            <span className="sr-only">Filter the entire Signal Radar by Pokémon</span>
+            <select
+              value={popularPokemonFilter}
+              onChange={(event) => {
+                setPopularPokemonFilter(event.target.value as PopularPokemonFilter);
+                setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+              }}
+              className="h-11 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-xs font-bold text-violet-50/82 outline-none [color-scheme:dark]"
+            >
+              {POPULAR_POKEMON_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-violet-100/42" />
+          </label>
+        </div>
+      </section>
+
       {newReleaseChases ? (
         <NewReleaseChasePanel
           data={newReleaseChases}
           cardQuickActions={cardQuickActions}
+          pokemonFilter={popularPokemonFilter}
           manualRefreshHref={manualChaseRefreshHref}
           onDataChange={setNewReleaseChases}
         />
@@ -1992,11 +2041,7 @@ export default function ExternalSignalBrowser({
               ) : null}
               {singlesExpanded ? (
                 <span className="hidden sm:inline" title="Time of the latest shared radar update">
-                  {new Intl.DateTimeFormat("en-GB", {
-                    dateStyle: "medium",
-                    timeStyle: "short",
-                    timeZone: "Europe/Amsterdam",
-                  }).format(new Date(generatedAt))}
+                  {formatRadarGeneratedAt(generatedAt)}
                 </span>
               ) : null}
               <RadarSectionToggle
@@ -2050,7 +2095,7 @@ export default function ExternalSignalBrowser({
         </button>
         {origin === "older-high-rarity" ? (
           <div className="mb-2.5 rounded-xl border border-amber-300/16 bg-amber-300/[0.035] p-2.5 sm:p-3">
-            <div className="grid min-w-0 gap-2.5 lg:grid-cols-[auto_minmax(21rem,1fr)_minmax(12rem,15rem)_auto] lg:items-end">
+            <div className="grid min-w-0 gap-2.5 lg:grid-cols-[auto_minmax(21rem,1fr)_auto] lg:items-end">
               <fieldset className="min-w-0">
                 <legend className="mb-1.5 text-[9px] font-black uppercase tracking-[0.14em] text-amber-100/58">
                   Pricing
@@ -2117,31 +2162,6 @@ export default function ExternalSignalBrowser({
                 </div>
               </fieldset>
 
-              <label className="min-w-0">
-                <span className="mb-1.5 block text-[9px] font-black uppercase tracking-[0.14em] text-amber-100/58">
-                  Pokémon
-                </span>
-                <span className="relative flex min-h-11 min-w-0 items-center gap-2 rounded-lg border border-amber-300/14 bg-black/24 pl-3 pr-9 transition hover:border-amber-300/24 hover:bg-black/32 focus-within:border-amber-300/30 focus-within:ring-2 focus-within:ring-amber-300/10">
-                  <Sparkles className="h-3.5 w-3.5 shrink-0 text-amber-200/65" />
-                  <span className="sr-only">Filter by popular Pokémon</span>
-                  <select
-                    value={popularPokemonFilter}
-                    onChange={(event) => {
-                      setPopularPokemonFilter(event.target.value as PopularPokemonFilter);
-                      setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
-                    }}
-                    className="h-10 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-[11px] font-bold text-amber-50/76 outline-none [color-scheme:dark]"
-                  >
-                    {POPULAR_POKEMON_FILTER_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-amber-100/40" />
-                </span>
-              </label>
-
               <span className="inline-flex min-h-11 items-center justify-center self-end rounded-lg border border-amber-300/14 bg-black/24 px-3 text-[10px] font-bold tabular-nums text-amber-100/60">
                 {visibleSignals.length} matches
               </span>
@@ -2151,8 +2171,8 @@ export default function ExternalSignalBrowser({
             </p>
           </div>
         ) : null}
-        <div className="grid grid-cols-2 gap-2 lg:grid-cols-[minmax(14rem,1fr)_auto_auto_auto_auto_auto] lg:items-center">
-          <label className="relative col-span-2 block min-w-0 lg:col-span-1">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(14rem,1fr)_auto_auto_minmax(10rem,13rem)_minmax(10rem,13rem)_minmax(10rem,13rem)] xl:items-center">
+          <label className="relative block min-w-0 sm:col-span-2 xl:col-span-1">
             <span className="sr-only">Search signal cards</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
             <input
@@ -2179,7 +2199,7 @@ export default function ExternalSignalBrowser({
             ) : null}
           </label>
 
-          <div className="col-span-2 flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:col-span-1">
+          <div className="flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:col-span-2 xl:col-span-1">
             {CONFIDENCE_OPTIONS.map((option) => (
               <button
                 key={option.value}
@@ -2265,7 +2285,7 @@ export default function ExternalSignalBrowser({
             </label>
           ) : null}
 
-          <label className="relative col-span-2 flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 pl-3 pr-9 transition hover:border-violet-300/22 hover:bg-white/[0.035] focus-within:border-violet-400/35 focus-within:ring-2 focus-within:ring-violet-500/10 lg:col-span-1">
+          <label className="relative flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 pl-3 pr-9 transition hover:border-violet-300/22 hover:bg-white/[0.035] focus-within:border-violet-400/35 focus-within:ring-2 focus-within:ring-violet-500/10">
             <BarChart3 className="h-4 w-4 text-white/32" />
             <span className="sr-only">Sort signals</span>
             <select
@@ -2337,6 +2357,7 @@ export default function ExternalSignalBrowser({
         onRetry={retryProgressiveLoad}
         expanded={sealedExpanded}
         onToggle={toggleSealedExpanded}
+        pokemonFilter={popularPokemonFilter}
       />
 
       <section className="flex flex-wrap items-center justify-between gap-2 border-t border-white/7 pt-3">

@@ -78,6 +78,69 @@ export function getCollectionSealedPnl(item: CollectionSealedViewItem): number |
   return Number((currentTotal - paidTotal).toFixed(2));
 }
 
+export function getCollectionSealedPnlPercent(
+  item: CollectionSealedViewItem
+): number | null {
+  const paidTotal = getCollectionSealedPaidTotal(item);
+  const pnl = getCollectionSealedPnl(item);
+
+  if (paidTotal == null || paidTotal <= 0 || pnl == null) {
+    return null;
+  }
+
+  return Number(((pnl / paidTotal) * 100).toFixed(1));
+}
+
+export interface CollectionSealedStats {
+  productCount: number;
+  unitCount: number;
+  marketValue: number | null;
+  investment: number | null;
+  pnl: number | null;
+  pnlPercent: number | null;
+}
+
+export function getCollectionSealedStats(
+  items: CollectionSealedViewItem[]
+): CollectionSealedStats {
+  let marketValue = 0;
+  let pricedProducts = 0;
+  let investment = 0;
+  let costedProducts = 0;
+  let pnl = 0;
+  let pnlBasis = 0;
+  let comparableProducts = 0;
+
+  for (const item of items) {
+    const currentTotal = getCollectionSealedCurrentTotal(item);
+    const paidTotal = getCollectionSealedPaidTotal(item);
+
+    if (currentTotal != null) {
+      marketValue += currentTotal;
+      pricedProducts += 1;
+    }
+    if (paidTotal != null) {
+      investment += paidTotal;
+      costedProducts += 1;
+    }
+    if (currentTotal != null && paidTotal != null) {
+      pnl += currentTotal - paidTotal;
+      pnlBasis += paidTotal;
+      comparableProducts += 1;
+    }
+  }
+
+  const roundedPnl = Number(pnl.toFixed(2));
+  return {
+    productCount: items.length,
+    unitCount: items.reduce((total, item) => total + item.quantity, 0),
+    marketValue: pricedProducts > 0 ? Number(marketValue.toFixed(2)) : null,
+    investment: costedProducts > 0 ? Number(investment.toFixed(2)) : null,
+    pnl: comparableProducts > 0 ? roundedPnl : null,
+    pnlPercent: pnlBasis > 0 ? Number(((roundedPnl / pnlBasis) * 100).toFixed(1)) : null,
+  };
+}
+
 export function compareCollectionSealedItems(
   a: CollectionSealedViewItem,
   b: CollectionSealedViewItem

@@ -7,6 +7,10 @@ import { useHomeItemDetails } from "@/components/HomeItemDetailProvider";
 import {
   buildModalProduct,
   getCollectionSealedCurrentTotal,
+  getCollectionSealedPaidTotal,
+  getCollectionSealedPnl,
+  getCollectionSealedPnlPercent,
+  getCollectionSealedStats,
 } from "@/components/collection-sealed/utils";
 import { formatCollectionCurrency } from "@/lib/collection";
 import type { HomeWidgetViewMode } from "@/lib/dashboard-module-preferences";
@@ -26,19 +30,34 @@ export default function HomeFeaturedSealedPanel({
 }) {
   const { openSealed } = useHomeItemDetails();
   const visibleItems = items.slice(0, viewMode === "list" ? LIST_LIMIT : GRID_LIMIT);
+  const stats = getCollectionSealedStats(visibleItems);
 
   if (visibleItems.length === 0) return null;
 
   return (
     <section className="binder-panel home-widget-panel h-full rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
-      <div className="mb-3 flex items-center justify-between gap-3">
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <h2 className="text-[length:var(--ui-section-header-title-size)] font-bold tracking-tight text-white">
             Featured Sealed
           </h2>
-          <p className="mt-0.5 text-[10px] font-semibold text-white/36">
-            Highest-value sealed highlights
-          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-semibold text-white/40">
+            <span>{stats.productCount} products</span>
+            <span>{stats.unitCount} units</span>
+            {stats.marketValue != null ? (
+              <span>{formatCollectionCurrency(stats.marketValue)} market</span>
+            ) : null}
+            {stats.investment != null ? (
+              <span>{formatCollectionCurrency(stats.investment)} invested</span>
+            ) : null}
+            {stats.pnl != null ? (
+              <span className={stats.pnl >= 0 ? "text-emerald-300/80" : "text-rose-300/80"}>
+                {stats.pnl >= 0 ? "+" : ""}
+                {formatCollectionCurrency(stats.pnl)} P&amp;L
+                {stats.pnlPercent != null ? ` (${stats.pnlPercent >= 0 ? "+" : ""}${stats.pnlPercent}%)` : ""}
+              </span>
+            ) : null}
+          </div>
         </div>
         <Link
           href={viewAllHref}
@@ -55,6 +74,14 @@ export default function HomeFeaturedSealedPanel({
       >
         {visibleItems.map((item) => {
           const totalValue = getCollectionSealedCurrentTotal(item);
+          const paidTotal = getCollectionSealedPaidTotal(item);
+          const pnl = getCollectionSealedPnl(item);
+          const pnlPercent = getCollectionSealedPnlPercent(item);
+          const pnlClass = pnl == null
+            ? "text-white/34"
+            : pnl >= 0
+              ? "text-emerald-300/80"
+              : "text-rose-300/80";
           return (
             <button
               key={item.id}
@@ -91,14 +118,34 @@ export default function HomeFeaturedSealedPanel({
                   {item.episode_name}{item.episode_code ? ` / ${item.episode_code}` : ""}
                 </span>
                 {viewMode === "grid" ? (
-                  <span className="mt-1.5 flex items-center justify-between gap-2">
-                    <span className="truncate text-[11px] font-black tabular-nums text-white/76">
-                      {item.current_value_per_item == null
-                        ? "No price"
-                        : formatCollectionCurrency(item.current_value_per_item)}
+                  <span className="mt-2 block border-t border-white/7 pt-1.5 text-[9px] font-semibold leading-4">
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-white/38">Unit / owned</span>
+                      <span className="truncate font-black tabular-nums text-white/72">
+                        {item.current_value_per_item == null
+                          ? "No price"
+                          : formatCollectionCurrency(item.current_value_per_item)} · ×{item.quantity}
+                      </span>
                     </span>
-                    <span className="shrink-0 text-[9px] font-bold text-white/38">
-                      ×{item.quantity}
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-white/38">Market total</span>
+                      <span className="font-black tabular-nums text-white/72">
+                        {totalValue == null ? "--" : formatCollectionCurrency(totalValue)}
+                      </span>
+                    </span>
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-white/38">Paid</span>
+                      <span className="font-bold tabular-nums text-white/54">
+                        {paidTotal == null ? "Not entered" : formatCollectionCurrency(paidTotal)}
+                      </span>
+                    </span>
+                    <span className="flex items-center justify-between gap-2">
+                      <span className="text-white/38">P&amp;L</span>
+                      <span className={`font-black tabular-nums ${pnlClass}`}>
+                        {pnl == null
+                          ? "--"
+                          : `${pnl >= 0 ? "+" : ""}${formatCollectionCurrency(pnl)}${pnlPercent == null ? "" : ` (${pnlPercent >= 0 ? "+" : ""}${pnlPercent}%)`}`}
+                      </span>
                     </span>
                   </span>
                 ) : null}
@@ -111,6 +158,11 @@ export default function HomeFeaturedSealedPanel({
                   </span>
                   <span className="mt-0.5 block text-[9px] font-bold text-white/35">
                     {item.quantity} owned
+                  </span>
+                  <span className={`mt-0.5 block text-[9px] font-black tabular-nums ${pnlClass}`}>
+                    {pnl == null
+                      ? paidTotal == null ? "Cost not entered" : "P&L unavailable"
+                      : `${pnl >= 0 ? "+" : ""}${formatCollectionCurrency(pnl)} P&L`}
                   </span>
                 </span>
               ) : null}

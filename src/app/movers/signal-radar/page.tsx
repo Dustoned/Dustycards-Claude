@@ -15,6 +15,7 @@ import {
 import {
   getExternalSignalRadarPageData,
 } from "@/lib/external-signal-persisted";
+import type { ExternalSignalRadarData } from "@/lib/external-signal-radar";
 import { requirePageUser } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { selectInitialSignalRadarCards } from "@/lib/signal-radar-progressive";
@@ -49,12 +50,24 @@ export default async function SignalRadarPage({
     "signal-radar.page.snapshot",
     () => readSignalRadarSnapshot(activeGame),
     { game: activeGame }
-  );
-  const radarData = storedRadar?.data ?? await timeAsync(
+  ).catch((error) => {
+    console.error("[signal-radar page snapshot]", error);
+    return null;
+  });
+  const radarData: ExternalSignalRadarData = storedRadar?.data ?? await timeAsync(
     "signal-radar.page.persisted-fallback",
     () => getExternalSignalRadarPageData(activeGame),
     { game: activeGame }
-  );
+  ).catch((error) => {
+    console.error("[signal-radar page persisted fallback]", error);
+    return {
+      generatedAt: new Date().toISOString(),
+      signals: [],
+      sources: [],
+      unmatchedCount: 0,
+      scannedDeckCount: 0,
+    };
+  });
   // Keep the first render on persisted data only. Full structural/market
   // enrichment is the expensive cold path and already belongs to the
   // progressive feed below; doing it here delayed the shell by ~1.7s just to
