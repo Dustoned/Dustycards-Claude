@@ -1936,36 +1936,6 @@ export default function ExternalSignalBrowser({
 
   return (
     <div className="space-y-4 sm:space-y-5">
-      <section className="binder-panel rounded-[1.25rem] p-2.5 sm:p-3" aria-label="Page-wide Signal Radar filters">
-        <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-xs font-bold text-white/76">Filter the entire Radar</p>
-            <p className="mt-0.5 text-[10px] leading-4 text-white/38">
-              This Pokémon choice applies to Chase Watch, singles and sealed products together.
-            </p>
-          </div>
-          <label className="relative flex min-h-11 min-w-0 items-center gap-2 rounded-xl border border-violet-300/16 bg-violet-400/[0.055] pl-3 pr-9 transition hover:border-violet-300/26 hover:bg-violet-400/[0.09] focus-within:border-violet-300/38 focus-within:ring-2 focus-within:ring-violet-500/12 sm:w-[17rem]">
-            <Sparkles className="h-4 w-4 shrink-0 text-violet-200/64" />
-            <span className="sr-only">Filter the entire Signal Radar by Pokémon</span>
-            <select
-              value={popularPokemonFilter}
-              onChange={(event) => {
-                setPopularPokemonFilter(event.target.value as PopularPokemonFilter);
-                setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
-              }}
-              className="h-11 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-xs font-bold text-violet-50/82 outline-none [color-scheme:dark]"
-            >
-              {POPULAR_POKEMON_FILTER_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-violet-100/42" />
-          </label>
-        </div>
-      </section>
-
       {newReleaseChases ? (
         <NewReleaseChasePanel
           data={newReleaseChases}
@@ -2171,8 +2141,8 @@ export default function ExternalSignalBrowser({
             </p>
           </div>
         ) : null}
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-[minmax(14rem,1fr)_auto_auto_minmax(10rem,13rem)_minmax(10rem,13rem)_minmax(10rem,13rem)] xl:items-center">
-          <label className="relative block min-w-0 sm:col-span-2 xl:col-span-1">
+        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-[minmax(14rem,1fr)_auto_auto_repeat(4,minmax(9rem,11rem))] 2xl:items-center">
+          <label className="relative block min-w-0 sm:col-span-2 lg:col-span-2 2xl:col-span-1">
             <span className="sr-only">Search signal cards</span>
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-white/30" />
             <input
@@ -2199,7 +2169,7 @@ export default function ExternalSignalBrowser({
             ) : null}
           </label>
 
-          <div className="flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:col-span-2 xl:col-span-1">
+          <div className="flex min-w-0 gap-1 overflow-x-auto rounded-xl border border-white/8 bg-black/20 p-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden sm:col-span-2 lg:col-span-1 2xl:col-span-1">
             {CONFIDENCE_OPTIONS.map((option) => (
               <button
                 key={option.value}
@@ -2219,6 +2189,29 @@ export default function ExternalSignalBrowser({
               </button>
             ))}
           </div>
+
+          <label
+            className="relative flex min-w-0 items-center gap-2 rounded-xl border border-white/8 bg-black/20 pl-3 pr-9 transition hover:border-violet-300/22 hover:bg-white/[0.035] focus-within:border-violet-400/35 focus-within:ring-2 focus-within:ring-violet-500/10"
+            title="Applies to Chase Watch, singles and sealed Radar"
+          >
+            <Sparkles className="h-4 w-4 shrink-0 text-white/32" />
+            <span className="sr-only">Filter the entire Signal Radar by Pokémon</span>
+            <select
+              value={popularPokemonFilter}
+              onChange={(event) => {
+                setPopularPokemonFilter(event.target.value as PopularPokemonFilter);
+                setVisibleLimit(INITIAL_VISIBLE_SIGNALS);
+              }}
+              className="h-11 min-w-0 flex-1 appearance-none bg-transparent pr-1 text-xs font-semibold text-white/68 outline-none [color-scheme:dark]"
+            >
+              {POPULAR_POKEMON_FILTER_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <ChevronDown className="pointer-events-none absolute right-3 h-3.5 w-3.5 text-white/32" />
+          </label>
 
           <div className="flex min-w-0 gap-1 rounded-xl border border-white/8 bg-black/20 p-1" aria-label="Market mode">
             {(["raw", "graded"] as const).map((mode) => (
