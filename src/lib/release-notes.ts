@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.13.3",
+    releasedAt: "September 4, 2026",
+    title: "Same-set families verify the illustrator again",
+    summary: "A same-set reprint now needs both matching illustrator credit and matching artwork evidence.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Two independent checks",
+        highlights: [
+          "The credited illustrator must match before a same-set pair can be accepted or reviewed.",
+          "Artwork similarity then separates true reprints from different rarity artworks by the same artist.",
+          "Cross-expansion alternate artwork and explicit manual decisions remain supported.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.13.2",
     releasedAt: "September 3, 2026",
     title: "Same-set reprints stay visible when the artwork proves it",

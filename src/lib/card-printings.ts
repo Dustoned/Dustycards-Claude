@@ -113,21 +113,29 @@ export type CardPrintingMatch = {
 export function isEligiblePrintFamilyPair(
   sourceEpisodeId: string,
   targetEpisodeId: string,
+  sourceArtist: string | null | undefined,
+  targetArtist: string | null | undefined,
   matchMethod: string
 ): boolean {
   return matchMethod === "manual-include" ||
-    matchMethod === "strong-art" ||
-    sourceEpisodeId !== targetEpisodeId;
+    sourceEpisodeId !== targetEpisodeId ||
+    (
+      matchMethod === "strong-art" &&
+      haveSameKnownPrintingArtist(sourceArtist, targetArtist)
+    );
 }
 
 export function qualifyPrintingMatchForEpisodes(
   sourceEpisodeId: string,
   targetEpisodeId: string,
+  sourceArtist: string | null | undefined,
+  targetArtist: string | null | undefined,
   match: CardPrintingMatch
 ): CardPrintingMatch | null {
   if (sourceEpisodeId !== targetEpisodeId || match.method === "manual-include") {
     return match;
   }
+  if (!haveSameKnownPrintingArtist(sourceArtist, targetArtist)) return null;
   if (match.imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY) {
     return { ...match, method: "strong-art" };
   }
@@ -790,6 +798,8 @@ export async function loadRelatedCardPrintings(
       return isEligiblePrintFamilyPair(
         current.episode.id,
         relation.targetCard.episode.id,
+        current.artist,
+        relation.targetCard.artist,
         matchMethod
       ) && (
         matchMethod !== "rules-and-art" ||

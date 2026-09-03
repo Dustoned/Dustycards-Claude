@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.13.3",
+    releasedAt: "September 4, 2026",
+    title: "Illustrator verification restored",
+    summary: "Same-set print families once again require the credited illustrator to match.",
+    tone: "fixed",
+    highlights: [
+      "Same-set automatic matches require the same known illustrator and near-identical artwork.",
+      "Exact attacks and HP can no longer bypass the illustrator check inside one expansion.",
+      "Cross-set alternate artwork and manually confirmed exceptions keep their existing behavior.",
+    ],
+  },
+  {
     version: "3.13.2",
     releasedAt: "September 3, 2026",
     title: "Same-set reprints use artwork verification",
