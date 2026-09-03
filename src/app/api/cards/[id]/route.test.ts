@@ -215,7 +215,6 @@ const CARD_DETAIL_API_KEYS = [
   "hp",
   "id",
   "image_url",
-  "is_promo",
   "market_stats",
   "name",
   "price",
@@ -223,7 +222,6 @@ const CARD_DETAIL_API_KEYS = [
   "price_history",
   "price_source_checked_at",
   "price_source_status",
-  "promo_origins",
   "pull_rate_info",
   "rarity",
   "related_printings",
@@ -499,7 +497,7 @@ describe("GET /api/cards/[id]", () => {
     expect(Object.keys(body).sort()).toEqual([...CARD_DETAIL_API_KEYS].sort());
   });
 
-  it("returns verified promo origins and only requests explicitly linked sealed products", async () => {
+  it("only requests explicitly linked sealed products for promo cards", async () => {
     const card = {
       ...makeCardRecord(),
       episode: {
@@ -509,50 +507,14 @@ describe("GET /api/cards/[id]", () => {
         series: "Scarlet & Violet",
         release_date: "2023-01-01",
       },
-      promoOrigins: [
-        {
-          id: "origin-1",
-          origin_name: "Mimikyu ex Box",
-          origin_type: "sealed_product",
-          source_name: "Bulbapedia",
-          source_url: "https://bulbapedia.example/promo",
-          confidence: 0.98,
-          product: {
-            id: "sealed-1",
-            name: "Mimikyu ex Box",
-            image_url: null,
-            cardmarket_url: null,
-            release_date: new Date("2023-03-03T00:00:00.000Z"),
-            cm_lowest: 20,
-            cm_lowest_eu: 21,
-            cm_lowest_de: null,
-            cm_lowest_fr: null,
-            cm_lowest_es: null,
-            cm_lowest_it: null,
-            cm_avg_7d: 22,
-            cm_avg_30d: 23,
-            episode: { id: "set-1", name: "Scarlet & Violet", code: "SVI" },
-          },
-        },
-      ],
     };
     dbMock.card.findUnique.mockResolvedValue(card);
     historyMock.loadSafeCardMarketHistoryRows.mockResolvedValue(
       new Map([[card.id, card.prices]])
     );
 
-    const payload = await getCardDetailPayload(card.id, "user-1");
+    await getCardDetailPayload(card.id, "user-1");
 
-    expect(payload).toMatchObject({
-      is_promo: true,
-      promo_origins: [
-        {
-          name: "Mimikyu ex Box",
-          type: "sealed_product",
-          product: { id: "sealed-1", match_type: "included_promo" },
-        },
-      ],
-    });
     expect(dbMock.sealedProduct.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: {

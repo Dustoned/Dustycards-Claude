@@ -2489,10 +2489,6 @@ html.widescreen .settings-page {
   grid-column: 1 / -1;
 }
 
-.card-detail-promo-origin {
-  grid-column: 1 / -1;
-}
-
 .card-detail-related-printings.card-detail-related-printings--compact {
   grid-column: auto;
 }

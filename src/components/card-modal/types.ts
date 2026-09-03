@@ -117,16 +117,6 @@ export interface ModalCardData {
   episode_code: string | null;
   episode_series?: string | null;
   episode_release_date?: string | null;
-  is_promo?: boolean;
-  promo_origins?: Array<{
-    id: string;
-    name: string;
-    type: "sealed_product" | "event" | "retailer" | "other";
-    source_name: string;
-    source_url: string;
-    confidence: number;
-    product: ModalCardSealedProduct | null;
-  }>;
   sealed_product_count?: number;
   sealed_products?: ModalCardSealedProduct[];
   related_printings?: Array<{

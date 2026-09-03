@@ -52,7 +52,6 @@ import {
   CardModalHistorySection,
   CardModalMarketSignalPanel,
   CardModalOwnedCopyPanel,
-  CardModalPromoOriginsPanel,
   CardModalPreview,
   CardModalRecentPricesPanel,
   CardModalRelatedPrintingsPanel,
@@ -1072,10 +1071,6 @@ export default function CardModal({
       className="card-detail-section-grid card-detail-collection-grid"
       data-columns="2"
     >
-      <CardModalPromoOriginsPanel
-        card={modalCard}
-        onOpenSealedProduct={setSelectedSealedProduct}
-      />
       <CardModalOwnedCopyPanel
         card={modalCard}
         collectionItem={collectionItem}
