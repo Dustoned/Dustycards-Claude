@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.13.1",
+    releasedAt: "September 3, 2026",
+    title: "Print families now mean real reissues",
+    summary: "Rarity and artwork variants within one expansion no longer appear as separate print editions.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Cleaner related printings",
+        highlights: [
+          "Cards such as the three Surging Sparks Latias ex variants no longer form a false family.",
+          "Automatic matching now requires the related card to come from another expansion.",
+          "Explicitly reviewed exceptions stay linked and the review queue follows the same rule.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.13.0",
     releasedAt: "September 3, 2026",
     title: "Promo sealed links are simpler",

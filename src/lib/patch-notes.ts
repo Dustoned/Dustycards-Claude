@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.13.1",
+    releasedAt: "September 3, 2026",
+    title: "Print families stay between expansions",
+    summary: "Same-set rarity and artwork variants are no longer mislabeled as reprints.",
+    tone: "fixed",
+    highlights: [
+      "Double Rare, Ultra Rare and Special Illustration Rare variants from one set stay separate.",
+      "Real reissues across different expansions remain connected by their rules and artwork evidence.",
+      "Manually verified exceptions remain intact and same-set noise is removed from reprint review.",
+    ],
+  },
+  {
     version: "3.13.0",
     releasedAt: "September 3, 2026",
     title: "Cleaner promo sealed links",
