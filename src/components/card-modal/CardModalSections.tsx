@@ -13,7 +13,6 @@ import {
   ChevronRight,
   ExternalLink,
   Flag,
-  Gift,
   Globe2,
   Info,
   LineChart,
@@ -4145,115 +4144,6 @@ export function CardModalRelatedPrintingsPanel({
   );
 }
 
-const PROMO_ORIGIN_LABELS: Record<
-  NonNullable<ModalCardData["promo_origins"]>[number]["type"],
-  string
-> = {
-  sealed_product: "Box / product",
-  event: "Event distribution",
-  retailer: "Retail promotion",
-  other: "Other distribution",
-};
-
-export function CardModalPromoOriginsPanel({
-  card,
-  onOpenSealedProduct,
-}: {
-  card: ModalCardData;
-  onOpenSealedProduct?: (product: NonNullable<ModalCardData["sealed_products"]>[number]) => void;
-}) {
-  if (!card.is_promo) return null;
-  const origins = card.promo_origins ?? [];
-
-  return (
-    <section className={`${CARD_MODAL_SUPPORT_PANEL_CLASS} card-detail-promo-origin`}>
-      <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0">
-          <p className="card-detail-eyebrow">Promo origin</p>
-          <h2 className="mt-2 text-lg font-extrabold text-white/92">Where this promo came from</h2>
-          <p className="mt-1 text-[11px] font-medium leading-5 text-white/38">
-            The verified box, collection, event or retail distribution for this exact promo number.
-          </p>
-        </div>
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-sky-300/16 bg-sky-400/[0.07] text-sky-100/76">
-          <Gift className="h-4 w-4" />
-        </span>
-      </div>
-
-      {origins.length > 0 ? (
-        <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-          {origins.map((origin) => {
-            const content = (
-              <>
-                {origin.product?.image_url ? (
-                  <span className="relative h-14 w-14 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20">
-                    <CachedImage
-                      sourceUrl={origin.product.image_url}
-                      alt=""
-                      fill
-                      sizes="56px"
-                      className="object-contain p-1"
-                      unoptimized
-                    />
-                  </span>
-                ) : (
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-white/8 bg-black/16 text-white/28">
-                    <Gift className="h-4 w-4" />
-                  </span>
-                )}
-                <span className="min-w-0 flex-1">
-                  <span className="line-clamp-2 block text-xs font-bold leading-4 text-white/82">
-                    {origin.name}
-                  </span>
-                  <span className="mt-1.5 inline-flex rounded-full border border-sky-300/14 bg-sky-300/[0.06] px-2 py-0.5 text-[8px] font-black uppercase tracking-[0.09em] text-sky-100/72">
-                    {PROMO_ORIGIN_LABELS[origin.type]}
-                  </span>
-                </span>
-                {origin.product ? <ChevronRight className="h-4 w-4 shrink-0 text-white/28" /> : null}
-              </>
-            );
-
-            return (
-              <article
-                key={origin.id}
-                className="flex min-w-0 flex-col rounded-xl border border-white/[0.075] bg-black/16 p-2.5"
-              >
-                {origin.product && onOpenSealedProduct ? (
-                  <button
-                    type="button"
-                    onClick={() => onOpenSealedProduct(origin.product!)}
-                    className="flex min-w-0 items-center gap-3 text-left transition hover:text-white"
-                  >
-                    {content}
-                  </button>
-                ) : (
-                  <div className="flex min-w-0 items-center gap-3">{content}</div>
-                )}
-                <a
-                  href={origin.source_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="mt-2 inline-flex w-fit items-center gap-1 text-[9px] font-bold text-white/32 transition hover:text-sky-100/78 hover:underline"
-                >
-                  Verified via {origin.source_name}
-                  <ExternalLink className="h-2.5 w-2.5" />
-                </a>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <div className="mt-4 rounded-xl border border-dashed border-white/10 bg-black/10 px-4 py-5 text-center">
-          <p className="text-xs font-semibold text-white/48">Distribution source not verified yet.</p>
-          <p className="mt-1 text-[10px] leading-4 text-white/28">
-            This promo stays marked as unknown until a reliable source is available.
-          </p>
-        </div>
-      )}
-    </section>
-  );
-}
-
 export function CardModalActiveListingsPanel({
   card,
   onOpenSealedProduct,
@@ -4335,6 +4225,9 @@ export function CardModalActiveListingsPanel({
             if (!compact || !event.isPrimary || event.pointerType === "touch" || event.button !== 0) {
               return;
             }
+            if ((event.target as Element).closest("button, a")) {
+              return;
+            }
             const rail = event.currentTarget;
             const drag = sealedRailDragRef.current;
             drag.pointerId = event.pointerId;
@@ -4384,7 +4277,7 @@ export function CardModalActiveListingsPanel({
                 type="button"
                 onClick={() => onOpenSealedProduct?.(product)}
                 disabled={!onOpenSealedProduct}
-                className={`group flex min-w-0 items-center gap-3 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.76)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.62)] p-2.5 text-left transition-colors hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:bg-[rgb(var(--dc-primary-rgb)/0.055)] disabled:cursor-default ${compact ? "w-[min(15rem,76vw)] shrink-0 snap-start" : ""}`}
+                className={`group flex min-w-0 cursor-pointer items-center gap-3 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.76)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.62)] p-2.5 text-left transition-colors hover:border-[rgb(var(--dc-primary-rgb)/0.26)] hover:bg-[rgb(var(--dc-primary-rgb)/0.055)] disabled:cursor-default ${compact ? "w-[min(15rem,76vw)] shrink-0 snap-start" : ""}`}
               >
                 <span className="relative h-16 w-16 shrink-0 overflow-hidden rounded-lg border border-white/8 bg-black/20 2xl:h-[4.5rem] 2xl:w-[4.5rem]">
                   {product.image_url ? (

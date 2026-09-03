@@ -336,35 +336,6 @@ export async function getCardDetailPayload(id: string, userId: string) {
           fetched_at: true,
         },
       },
-      promoOrigins: {
-        orderBy: [{ origin_type: "asc" }, { origin_name: "asc" }],
-        select: {
-          id: true,
-          origin_name: true,
-          origin_type: true,
-          source_name: true,
-          source_url: true,
-          confidence: true,
-          product: {
-            select: {
-              id: true,
-              name: true,
-              image_url: true,
-              cardmarket_url: true,
-              release_date: true,
-              cm_lowest: true,
-              cm_lowest_eu: true,
-              cm_lowest_de: true,
-              cm_lowest_fr: true,
-              cm_lowest_es: true,
-              cm_lowest_it: true,
-              cm_avg_7d: true,
-              cm_avg_30d: true,
-              episode: { select: { id: true, name: true, code: true } },
-            },
-          },
-        },
-      },
     },
   });
 
@@ -698,36 +669,6 @@ export async function getCardDetailPayload(id: string, userId: string) {
     episode_code: card.episode.code,
     episode_series: card.episode.series,
     episode_release_date: card.episode.release_date,
-    is_promo: isPromoCard,
-    promo_origins: (card.promoOrigins ?? []).map((origin) => ({
-      id: origin.id,
-      name: origin.origin_name,
-      type: origin.origin_type as "sealed_product" | "event" | "retailer" | "other",
-      source_name: origin.source_name,
-      source_url: origin.source_url,
-      confidence: origin.confidence,
-      product: origin.product
-        ? {
-            id: origin.product.id,
-            name: origin.product.name,
-            image_url: origin.product.image_url,
-            cardmarket_url: origin.product.cardmarket_url,
-            release_date: origin.product.release_date?.toISOString() ?? null,
-            match_type: "included_promo" as const,
-            price: {
-              cm_lowest: origin.product.cm_lowest,
-              cm_lowest_eu: origin.product.cm_lowest_eu,
-              cm_lowest_de: origin.product.cm_lowest_de,
-              cm_lowest_fr: origin.product.cm_lowest_fr,
-              cm_lowest_es: origin.product.cm_lowest_es,
-              cm_lowest_it: origin.product.cm_lowest_it,
-              cm_avg_7d: origin.product.cm_avg_7d,
-              cm_avg_30d: origin.product.cm_avg_30d,
-            },
-            episode: origin.product.episode,
-          }
-        : null,
-    })),
     sealed_product_count: sealedProductCount,
     sealed_products: sealedProducts.map((product) => ({
       id: product.id,

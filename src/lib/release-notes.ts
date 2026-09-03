@@ -20,6 +20,22 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.13.0",
+    releasedAt: "September 3, 2026",
+    title: "Promo sealed links are simpler",
+    summary: "Verified promo products live in Find in Sealed and open their regular sealed detail.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "One clear place",
+        highlights: [
+          "Collection & Reprints no longer repeats promo-origin information.",
+          "Find in Sealed product cards remain fully clickable while the horizontal rail can still scroll.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.99",
     releasedAt: "September 3, 2026",
     title: "Promo cards now show their real origin",

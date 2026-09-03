@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.13.0",
+    releasedAt: "September 3, 2026",
+    title: "Cleaner promo sealed links",
+    summary: "Promo products now open reliably from Find in Sealed without a duplicate origin panel.",
+    tone: "fixed",
+    highlights: [
+      "Removed the duplicate promo-origin block from Collection & Reprints.",
+      "Made every Find in Sealed product tile open its normal sealed detail.",
+      "Kept the verified promo-to-product matching and weekly source refresh in place.",
+    ],
+  },
+  {
     version: "3.12.99",
     releasedAt: "September 3, 2026",
     title: "Verified promo origins",
