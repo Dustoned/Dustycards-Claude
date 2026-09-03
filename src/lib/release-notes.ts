@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.12.99",
+    releasedAt: "September 3, 2026",
+    title: "Promo cards now show their real origin",
+    summary: "Collection & Reprints identifies the product, event or retail distribution behind a promotional card.",
+    tone: "new",
+    sections: [
+      {
+        title: "Verified distribution details",
+        highlights: [
+          "Black Star promos show the box, collection, blister, event or retailer tied to their exact promo number.",
+          "Confident product matches open the existing sealed-product detail; uncertain names remain unlinked instead of being guessed.",
+          "The source tables refresh weekly and every saved origin keeps a direct source link.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.12.98",
     releasedAt: "August 23, 2026",
     title: "Authentication bodies are bounded while streaming",

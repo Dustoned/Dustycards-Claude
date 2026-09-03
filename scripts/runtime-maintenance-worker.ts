@@ -11,6 +11,7 @@ import {
 import { ALL_GAMES, ONE_PIECE_GAME, POKEMON_GAME } from "@/lib/games";
 import type { PriceSource } from "@/lib/user-settings";
 import { refreshSharedSealedSignalRadarData } from "@/lib/sealed-signal-radar-server";
+import { syncPromoOrigins, type PromoOriginSyncSummary } from "@/lib/promo-origin-sync";
 
 const ACTIVE_USER_WINDOW_MS = 3 * 60_000;
 const RECENT_DETAIL_DAYS = 14;
@@ -42,6 +43,7 @@ interface MaintenanceSummary {
     refreshed: string[];
     errors: string[];
   };
+  promoOrigins: PromoOriginSyncSummary | null;
 }
 
 interface CollectionMoversSnapshotTarget {
@@ -296,6 +298,7 @@ async function main(): Promise<MaintenanceSummary> {
     imageCache: null,
     moversSnapshots: { refreshed: [], errors: [] },
     sealedRadarSnapshots: { refreshed: [], errors: [] },
+    promoOrigins: null,
   };
   let protectedSourceUrls = new Set<string>();
   let collectionMoversSnapshotTargets: CollectionMoversSnapshotTarget[] = [];
@@ -307,6 +310,7 @@ async function main(): Promise<MaintenanceSummary> {
     }
 
     const now = new Date();
+    summary.promoOrigins = await syncPromoOrigins(database);
     for (const table of [
       "CardGradedPriceSnapshot",
       "CardEbaySoldGradedPriceSnapshot",
