@@ -1,6 +1,6 @@
 {
   "name": "dustycards",
-  "version": "3.12.98",
+  "version": "3.12.99",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -31,6 +31,7 @@
     "icons:generate": "node scripts/generate-app-icons.mjs",
     "sprites:characters": "node scripts/sync-character-sprites.mjs",
     "maintenance:runtime": "node --no-warnings scripts/runtime-maintenance-worker.mjs",
+    "sync:promo-origins": "node --no-warnings scripts/sync-promo-origins.mjs --force",
     "marktplaats:export": "node --no-warnings scripts/marktplaats-reference-export.mjs",
     "marktplaats:import": "node --no-warnings scripts/marktplaats-report-import.mjs"
   },

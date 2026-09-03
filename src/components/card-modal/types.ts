@@ -19,6 +19,30 @@ export type CardCharacterData = {
   pixelArt?: boolean;
 };
 
+export interface ModalCardSealedProduct {
+  id: string;
+  name: string;
+  image_url: string | null;
+  cardmarket_url: string | null;
+  release_date: string | null;
+  match_type: "set_product" | "mixed_pack" | "included_promo";
+  price: {
+    cm_lowest: number | null;
+    cm_lowest_eu: number | null;
+    cm_lowest_de: number | null;
+    cm_lowest_fr: number | null;
+    cm_lowest_es: number | null;
+    cm_lowest_it: number | null;
+    cm_avg_7d: number | null;
+    cm_avg_30d: number | null;
+  };
+  episode: {
+    id: string;
+    name: string;
+    code: string | null;
+  };
+}
+
 export interface ModalCardData {
   id: string;
   game: TradingCardGame;
@@ -93,30 +117,18 @@ export interface ModalCardData {
   episode_code: string | null;
   episode_series?: string | null;
   episode_release_date?: string | null;
-  sealed_product_count?: number;
-  sealed_products?: Array<{
+  is_promo?: boolean;
+  promo_origins?: Array<{
     id: string;
     name: string;
-    image_url: string | null;
-    cardmarket_url: string | null;
-    release_date: string | null;
-    match_type: "set_product" | "mixed_pack" | "included_promo";
-    price: {
-      cm_lowest: number | null;
-      cm_lowest_eu: number | null;
-      cm_lowest_de: number | null;
-      cm_lowest_fr: number | null;
-      cm_lowest_es: number | null;
-      cm_lowest_it: number | null;
-      cm_avg_7d: number | null;
-      cm_avg_30d: number | null;
-    };
-    episode: {
-      id: string;
-      name: string;
-      code: string | null;
-    };
+    type: "sealed_product" | "event" | "retailer" | "other";
+    source_name: string;
+    source_url: string;
+    confidence: number;
+    product: ModalCardSealedProduct | null;
   }>;
+  sealed_product_count?: number;
+  sealed_products?: ModalCardSealedProduct[];
   related_printings?: Array<{
     id: string;
     name: string;

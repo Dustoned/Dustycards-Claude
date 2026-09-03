@@ -8,6 +8,7 @@ import { getServerUserSettings } from "@/lib/user-settings-server";
 import { ONE_PIECE_GAME } from "@/lib/games";
 import type { CardSealedProductItem } from "@/lib/card-sealed-products";
 import CardSealedProductsBrowser from "./CardSealedProductsBrowser";
+import { isPromoExpansion } from "@/lib/episodes";
 
 export const dynamic = "force-dynamic";
 
@@ -33,15 +34,20 @@ export default async function CardSealedProductsPage({
   });
 
   if (!card || (card.game === ONE_PIECE_GAME && !settings.onePieceLibraryEnabled)) notFound();
+  const isPromoCard = isPromoExpansion(card.episode);
 
   const products = await db.sealedProduct.findMany({
     where: {
       game: card.game,
-      OR: [
-        { episode_id: card.episode.id },
-        { contentSets: { some: { episode_id: card.episode.id } } },
-        { includedCards: { some: { card_id: card.id } } },
-      ],
+      ...(isPromoCard
+        ? { includedCards: { some: { card_id: card.id } } }
+        : {
+            OR: [
+              { episode_id: card.episode.id },
+              { contentSets: { some: { episode_id: card.episode.id } } },
+              { includedCards: { some: { card_id: card.id } } },
+            ],
+          }),
     },
     orderBy: [{ release_date: "desc" }, { cm_lowest: "desc" }, { name: "asc" }],
     select: {

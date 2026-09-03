@@ -274,6 +274,7 @@ model SealedProduct {
   openingSessions           SealedOpeningSession[]
   contentSets               SealedProductContentSet[]
   includedCards             CardSealedProduct[]
+  promoOrigins              CardPromoOrigin[]
 
   @@index([episode_id])
   @@index([game, episode_id])
@@ -318,6 +319,29 @@ model CardSealedProduct {
   @@index([card_id])
   @@index([product_id])
   @@index([relation_type])
+}
+
+model CardPromoOrigin {
+  id              String   @id @default(cuid())
+  card_id         String
+  product_id      String?
+  origin_name     String
+  normalized_name String
+  origin_type     String
+  source_name     String
+  source_url      String
+  confidence      Float    @default(0.95)
+  created_at      DateTime @default(now())
+  updated_at      DateTime @updatedAt
+
+  card    Card           @relation(fields: [card_id], references: [id], onDelete: Cascade)
+  product SealedProduct? @relation(fields: [product_id], references: [id], onDelete: SetNull)
+
+  @@unique([card_id, normalized_name])
+  @@index([card_id])
+  @@index([product_id])
+  @@index([origin_type])
+  @@index([source_name])
 }
 
 model SealedReleaseWatch {
@@ -460,6 +484,7 @@ model Card {
   marktplaatsDeals              MarktplaatsDeal[]
   prices                       Price[]
   sealedProducts               CardSealedProduct[]
+  promoOrigins                 CardPromoOrigin[]
   cardSubmissions              CardSubmission[]                  @relation("SubmissionCreatedCard")
   officialCardSubmissions      CardSubmission[]                  @relation("SubmissionOfficialCard")
   printingEvidence             CardPrintingEvidence?

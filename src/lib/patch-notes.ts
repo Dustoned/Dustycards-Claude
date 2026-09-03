@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.12.99",
+    releasedAt: "September 3, 2026",
+    title: "Verified promo origins",
+    summary: "Promo cards now show the product, event or retail distribution they came from.",
+    tone: "new",
+    highlights: [
+      "Promo origin appears inside Collection & Reprints and stays out of the way for regular cards.",
+      "Matched boxes and collections open their normal sealed-product detail directly.",
+      "Event and retail promos keep their real distribution label instead of being forced into a box.",
+      "The source data refreshes weekly and unknown products are never guessed.",
+    ],
+  },
+  {
     version: "3.12.97",
     releasedAt: "August 23, 2026",
     title: "Encrypted off-server database backups",
