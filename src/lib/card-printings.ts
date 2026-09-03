@@ -106,17 +106,35 @@ export type CardPrintingMatch = {
 };
 
 /**
- * Print families describe a card being issued again in another expansion.
- * Same-expansion rarity and artwork variants are collector variants, not
- * automatic reprints. An explicit review decision may still link an unusual
- * same-expansion pair when that relationship has been verified manually.
+ * Cross-expansion matches keep the normal rules/artwork model. Within one
+ * expansion we only publish a verified near-identical artwork match or an
+ * explicit admin decision; matching rules alone can describe a rarity variant.
  */
 export function isEligiblePrintFamilyPair(
   sourceEpisodeId: string,
   targetEpisodeId: string,
   matchMethod: string
 ): boolean {
-  return matchMethod === "manual-include" || sourceEpisodeId !== targetEpisodeId;
+  return matchMethod === "manual-include" ||
+    matchMethod === "strong-art" ||
+    sourceEpisodeId !== targetEpisodeId;
+}
+
+export function qualifyPrintingMatchForEpisodes(
+  sourceEpisodeId: string,
+  targetEpisodeId: string,
+  match: CardPrintingMatch
+): CardPrintingMatch | null {
+  if (sourceEpisodeId !== targetEpisodeId || match.method === "manual-include") {
+    return match;
+  }
+  if (match.imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY) {
+    return { ...match, method: "strong-art" };
+  }
+  if (match.imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY) {
+    return { ...match, method: "likely-art" };
+  }
+  return null;
 }
 
 export type CardPrintingEvidenceResult = {

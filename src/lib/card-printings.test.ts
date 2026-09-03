@@ -9,6 +9,7 @@ import {
   getTcgdexCardId,
   haveSameKnownPrintingArtist,
   isEligiblePrintFamilyPair,
+  qualifyPrintingMatchForEpisodes,
   type TcgDexCardIdentity,
 } from "@/lib/card-printings";
 
@@ -41,16 +42,41 @@ const CHARIZARD_RULES: TcgDexCardIdentity = {
 };
 
 describe("card printings", () => {
-  it("does not automatically treat rarity variants from one expansion as reprints", () => {
+  it("does not publish same-set rarity variants from matching rules alone", () => {
     expect(isEligiblePrintFamilyPair("surging-sparks", "surging-sparks", "rules-exact"))
       .toBe(false);
   });
 
-  it("keeps cross-expansion reprints and explicit same-expansion approvals", () => {
+  it("keeps cross-expansion, strong-art and explicit same-set reprints", () => {
     expect(isEligiblePrintFamilyPair("fusion-strike", "lost-origin", "rules-exact"))
+      .toBe(true);
+    expect(isEligiblePrintFamilyPair("fusion-strike", "fusion-strike", "strong-art"))
       .toBe(true);
     expect(isEligiblePrintFamilyPair("fusion-strike", "fusion-strike", "manual-include"))
       .toBe(true);
+  });
+
+  it("requires artwork verification for automatic same-set print families", () => {
+    const exactRules: ReturnType<typeof getPrintingMatchDetails> = {
+      matchType: "reprint",
+      method: "rules-exact",
+      imageSimilarity: 0.95,
+    };
+    expect(qualifyPrintingMatchForEpisodes(
+      "surging-sparks",
+      "surging-sparks",
+      exactRules
+    )).toMatchObject({ method: "strong-art" });
+    expect(qualifyPrintingMatchForEpisodes(
+      "surging-sparks",
+      "surging-sparks",
+      { ...exactRules, imageSimilarity: 0.74 }
+    )).toMatchObject({ method: "likely-art" });
+    expect(qualifyPrintingMatchForEpisodes(
+      "surging-sparks",
+      "surging-sparks",
+      { ...exactRules, imageSimilarity: 0.45 }
+    )).toBeNull();
   });
 
   it("normalizes illustrator names before comparing print evidence", () => {

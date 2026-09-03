@@ -1,9 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
-import {
-  CARD_REPRINT_MODEL_VERSION,
-  isEligiblePrintFamilyPair,
-} from "@/lib/card-printings";
+import { CARD_REPRINT_MODEL_VERSION } from "@/lib/card-printings";
 import { db } from "@/lib/db";
 import { collapseReprintReviewCandidates } from "@/lib/reprint-review";
 
@@ -25,19 +22,15 @@ export async function GET() {
         orderBy: [{ image_similarity: "asc" }, { matched_at: "desc" }],
         take: 10_000,
         include: {
-          sourceCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { id: true, name: true } } } },
-          targetCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { id: true, name: true } } } },
+          sourceCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
+          targetCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
         },
       }),
       db.cardPrintingOverride.findMany({
         select: { source_card_id: true, target_card_id: true, decision: true },
       }),
     ]);
-    const candidates = relations.filter((relation) => isEligiblePrintFamilyPair(
-      relation.sourceCard.episode.id,
-      relation.targetCard.episode.id,
-      relation.match_method
-    )).map((relation) => {
+    const candidates = relations.map((relation) => {
       const [sourceId, targetId] = pair(relation.source_card_id, relation.target_card_id);
       const source = relation.source_card_id === sourceId ? relation.sourceCard : relation.targetCard;
       const target = relation.target_card_id === targetId ? relation.targetCard : relation.sourceCard;
