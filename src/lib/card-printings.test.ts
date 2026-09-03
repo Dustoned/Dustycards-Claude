@@ -43,17 +43,58 @@ const CHARIZARD_RULES: TcgDexCardIdentity = {
 
 describe("card printings", () => {
   it("does not publish same-set rarity variants from matching rules alone", () => {
-    expect(isEligiblePrintFamilyPair("surging-sparks", "surging-sparks", "rules-exact"))
+    expect(isEligiblePrintFamilyPair(
+      "surging-sparks",
+      "surging-sparks",
+      "Artist A",
+      "Artist A",
+      "rules-exact"
+    ))
       .toBe(false);
   });
 
   it("keeps cross-expansion, strong-art and explicit same-set reprints", () => {
-    expect(isEligiblePrintFamilyPair("fusion-strike", "lost-origin", "rules-exact"))
+    expect(isEligiblePrintFamilyPair(
+      "fusion-strike",
+      "lost-origin",
+      "Artist A",
+      "Artist B",
+      "rules-exact"
+    ))
       .toBe(true);
-    expect(isEligiblePrintFamilyPair("fusion-strike", "fusion-strike", "strong-art"))
+    expect(isEligiblePrintFamilyPair(
+      "fusion-strike",
+      "fusion-strike",
+      " 5ban Graphics ",
+      "5BAN GRAPHICS",
+      "strong-art"
+    ))
       .toBe(true);
-    expect(isEligiblePrintFamilyPair("fusion-strike", "fusion-strike", "manual-include"))
+    expect(isEligiblePrintFamilyPair(
+      "fusion-strike",
+      "fusion-strike",
+      "Artist A",
+      "Artist B",
+      "manual-include"
+    ))
       .toBe(true);
+  });
+
+  it("rejects automatic same-set matches by different or unknown illustrators", () => {
+    expect(isEligiblePrintFamilyPair(
+      "surging-sparks",
+      "surging-sparks",
+      "Artist A",
+      "Artist B",
+      "strong-art"
+    )).toBe(false);
+    expect(isEligiblePrintFamilyPair(
+      "surging-sparks",
+      "surging-sparks",
+      null,
+      null,
+      "strong-art"
+    )).toBe(false);
   });
 
   it("requires artwork verification for automatic same-set print families", () => {
@@ -65,17 +106,37 @@ describe("card printings", () => {
     expect(qualifyPrintingMatchForEpisodes(
       "surging-sparks",
       "surging-sparks",
+      "Artist A",
+      "Artist A",
       exactRules
     )).toMatchObject({ method: "strong-art" });
     expect(qualifyPrintingMatchForEpisodes(
       "surging-sparks",
       "surging-sparks",
+      "Artist A",
+      "Artist A",
       { ...exactRules, imageSimilarity: 0.74 }
     )).toMatchObject({ method: "likely-art" });
     expect(qualifyPrintingMatchForEpisodes(
       "surging-sparks",
       "surging-sparks",
+      "Artist A",
+      "Artist A",
       { ...exactRules, imageSimilarity: 0.45 }
+    )).toBeNull();
+  });
+
+  it("does not send different-illustrator same-set variants to review", () => {
+    expect(qualifyPrintingMatchForEpisodes(
+      "surging-sparks",
+      "surging-sparks",
+      "Artist A",
+      "Artist B",
+      {
+        matchType: "reprint",
+        method: "rules-exact",
+        imageSimilarity: 0.99,
+      }
     )).toBeNull();
   });
 

@@ -152,6 +152,13 @@ async function findPendingAnchor(now: Date): Promise<PendingAnchor | null> {
           AND candidate.game = c.game
           AND candidate.name = c.name
           AND coalesce(candidate.supertype, '') = coalesce(c.supertype, '')
+          AND (
+            candidate.episode_id <> c.episode_id
+            OR (
+              nullif(trim(candidate.artist), '') IS NOT NULL
+              AND lower(trim(candidate.artist)) = lower(trim(c.artist))
+            )
+          )
           AND candidate.image_url IS NOT NULL
       )
       AND (
@@ -201,6 +208,13 @@ export async function getCardReprintBacklogProgress(
           AND candidate.game = c.game
           AND candidate.name = c.name
           AND coalesce(candidate.supertype, '') = coalesce(c.supertype, '')
+          AND (
+            candidate.episode_id <> c.episode_id
+            OR (
+              nullif(trim(candidate.artist), '') IS NOT NULL
+              AND lower(trim(candidate.artist)) = lower(trim(c.artist))
+            )
+          )
           AND candidate.image_url IS NOT NULL
       )
       AND (
@@ -381,6 +395,8 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
       const match = baseMatch && qualifyPrintingMatchForEpisodes(
         cards[left].episode.id,
         cards[right].episode.id,
+        cards[left].artist,
+        cards[right].artist,
         baseMatch
       );
       if (!match) continue;
