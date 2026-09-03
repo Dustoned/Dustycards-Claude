@@ -9,7 +9,7 @@ import {
   CARD_REPRINT_MODEL_VERSION,
   getArtworkHashSimilarity,
   getPrintingMatchDetails,
-  isEligiblePrintFamilyPair,
+  qualifyPrintingMatchForEpisodes,
   type ArtworkHash,
   type CardPrintingMatchMethod,
   type PrintingLookupCard,
@@ -152,7 +152,6 @@ async function findPendingAnchor(now: Date): Promise<PendingAnchor | null> {
           AND candidate.game = c.game
           AND candidate.name = c.name
           AND coalesce(candidate.supertype, '') = coalesce(c.supertype, '')
-          AND candidate.episode_id <> c.episode_id
           AND candidate.image_url IS NOT NULL
       )
       AND (
@@ -202,7 +201,6 @@ export async function getCardReprintBacklogProgress(
           AND candidate.game = c.game
           AND candidate.name = c.name
           AND coalesce(candidate.supertype, '') = coalesce(c.supertype, '')
-          AND candidate.episode_id <> c.episode_id
           AND candidate.image_url IS NOT NULL
       )
       AND (
@@ -371,19 +369,19 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
         directMatches.set(`${left}:${right}`, { method: "manual-include", imageSimilarity: 1 });
         continue;
       }
-      if (!isEligiblePrintFamilyPair(
-        cards[left].episode.id,
-        cards[right].episode.id,
-        "rules-exact"
-      )) continue;
       const imageSimilarity = getArtworkHashSimilarity(
         evidence[left].artworkHash,
         evidence[right].artworkHash
       );
-      const match = getPrintingMatchDetails(
+      const baseMatch = getPrintingMatchDetails(
         evidence[left].identity,
         evidence[right].identity,
         imageSimilarity
+      );
+      const match = baseMatch && qualifyPrintingMatchForEpisodes(
+        cards[left].episode.id,
+        cards[right].episode.id,
+        baseMatch
       );
       if (!match) continue;
       // A likely-art match is only a review candidate and is deliberately not

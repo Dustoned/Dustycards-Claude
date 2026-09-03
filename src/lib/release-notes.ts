@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.13.2",
+    releasedAt: "September 3, 2026",
+    title: "Same-set reprints stay visible when the artwork proves it",
+    summary: "Print families now distinguish real same-set reprints from unrelated rarity artwork.",
+    tone: "fixed",
+    sections: [
+      {
+        title: "Artwork-aware verification",
+        highlights: [
+          "Near-identical card artwork can form a print family inside the same expansion.",
+          "Different artwork with identical attacks and effects is not automatically published as a reprint.",
+          "Borderline matches enter manual review instead of being silently accepted or discarded.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.13.1",
     releasedAt: "September 3, 2026",
     title: "Print families now mean real reissues",

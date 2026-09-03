@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.13.2",
+    releasedAt: "September 3, 2026",
+    title: "Same-set reprints use artwork verification",
+    summary: "Real reprints inside one expansion remain linked without grouping unrelated rarity artworks.",
+    tone: "fixed",
+    highlights: [
+      "Near-identical same-set artwork is accepted as a reprint even when both cards share one expansion.",
+      "Matching card rules alone no longer joins distinct Double Rare, Ultra Rare and SIR artwork.",
+      "Uncertain same-set artwork goes to reprint review and previous candidates are queued for rebuilding.",
+    ],
+  },
+  {
     version: "3.13.1",
     releasedAt: "September 3, 2026",
     title: "Print families stay between expansions",
