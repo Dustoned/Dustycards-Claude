@@ -8,6 +8,7 @@ import {
   getPrintingMatchType,
   getTcgdexCardId,
   haveSameKnownPrintingArtist,
+  isEligiblePrintFamilyPair,
   type TcgDexCardIdentity,
 } from "@/lib/card-printings";
 
@@ -40,6 +41,18 @@ const CHARIZARD_RULES: TcgDexCardIdentity = {
 };
 
 describe("card printings", () => {
+  it("does not automatically treat rarity variants from one expansion as reprints", () => {
+    expect(isEligiblePrintFamilyPair("surging-sparks", "surging-sparks", "rules-exact"))
+      .toBe(false);
+  });
+
+  it("keeps cross-expansion reprints and explicit same-expansion approvals", () => {
+    expect(isEligiblePrintFamilyPair("fusion-strike", "lost-origin", "rules-exact"))
+      .toBe(true);
+    expect(isEligiblePrintFamilyPair("fusion-strike", "fusion-strike", "manual-include"))
+      .toBe(true);
+  });
+
   it("normalizes illustrator names before comparing print evidence", () => {
     expect(haveSameKnownPrintingArtist(" 5ban Graphics ", "5BAN GRAPHICS")).toBe(true);
     expect(haveSameKnownPrintingArtist("5ban Graphics", "HYOGONOSUKE")).toBe(false);

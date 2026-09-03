@@ -9,6 +9,7 @@ import {
   CARD_REPRINT_MODEL_VERSION,
   getArtworkHashSimilarity,
   getPrintingMatchDetails,
+  isEligiblePrintFamilyPair,
   type ArtworkHash,
   type CardPrintingMatchMethod,
   type PrintingLookupCard,
@@ -151,6 +152,7 @@ async function findPendingAnchor(now: Date): Promise<PendingAnchor | null> {
           AND candidate.game = c.game
           AND candidate.name = c.name
           AND coalesce(candidate.supertype, '') = coalesce(c.supertype, '')
+          AND candidate.episode_id <> c.episode_id
           AND candidate.image_url IS NOT NULL
       )
       AND (
@@ -200,6 +202,7 @@ export async function getCardReprintBacklogProgress(
           AND candidate.game = c.game
           AND candidate.name = c.name
           AND coalesce(candidate.supertype, '') = coalesce(c.supertype, '')
+          AND candidate.episode_id <> c.episode_id
           AND candidate.image_url IS NOT NULL
       )
       AND (
@@ -323,10 +326,10 @@ async function prepareEvidence(
 async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
   if (cards.length < 2) return { cards: cards.length, relations: 0 };
 
-  // Treat every same-name printing as a candidate family. This deliberately
-  // favors recall (including promo/jumbo/gold/rainbow cards with changed HP or
-  // illustrator), while the identity + artwork matcher still decides which
-  // cards belong together. Small batches keep provider load predictable.
+  // Load every same-name card so cross-expansion reissues remain discoverable,
+  // including promos with changed metadata. Pair comparison below keeps
+  // same-expansion rarity/artwork variants out unless an admin approved them.
+  // Small batches keep provider load predictable.
   const evidence: PreparedEvidence[] = [];
   for (let offset = 0; offset < cards.length; offset += EVIDENCE_CONCURRENCY) {
     evidence.push(...await Promise.all(
@@ -368,6 +371,11 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
         directMatches.set(`${left}:${right}`, { method: "manual-include", imageSimilarity: 1 });
         continue;
       }
+      if (!isEligiblePrintFamilyPair(
+        cards[left].episode.id,
+        cards[right].episode.id,
+        "rules-exact"
+      )) continue;
       const imageSimilarity = getArtworkHashSimilarity(
         evidence[left].artworkHash,
         evidence[right].artworkHash
@@ -379,8 +387,7 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
       );
       if (!match) continue;
       // A likely-art match is only a review candidate and is deliberately not
-      // shown as a reprint until an admin accepts it. Keep same-set candidates
-      // too: alternate-number printings can be legitimate reprints.
+      // shown as a reprint until an admin accepts it.
       directMatches.set(`${left}:${right}`, {
         method: match.method,
         imageSimilarity,

@@ -105,6 +105,20 @@ export type CardPrintingMatch = {
   imageSimilarity: number;
 };
 
+/**
+ * Print families describe a card being issued again in another expansion.
+ * Same-expansion rarity and artwork variants are collector variants, not
+ * automatic reprints. An explicit review decision may still link an unusual
+ * same-expansion pair when that relationship has been verified manually.
+ */
+export function isEligiblePrintFamilyPair(
+  sourceEpisodeId: string,
+  targetEpisodeId: string,
+  matchMethod: string
+): boolean {
+  return matchMethod === "manual-include" || sourceEpisodeId !== targetEpisodeId;
+}
+
 export type CardPrintingEvidenceResult = {
   identity: TcgDexCardIdentity | null;
   artworkHash: ArtworkHash | null;
@@ -753,10 +767,17 @@ export async function loadRelatedCardPrintings(
     },
   });
   return relations
-    .filter((relation) =>
-      relation.match_method !== "rules-and-art" ||
-      haveSameKnownPrintingArtist(current.artist, relation.targetCard.artist)
-    )
+    .filter((relation) => {
+      const matchMethod = relation.match_method as CardPrintingMatchMethod;
+      return isEligiblePrintFamilyPair(
+        current.episode.id,
+        relation.targetCard.episode.id,
+        matchMethod
+      ) && (
+        matchMethod !== "rules-and-art" ||
+        haveSameKnownPrintingArtist(current.artist, relation.targetCard.artist)
+      );
+    })
     .map((relation): RelatedCardPrinting => {
       const card = relation.targetCard;
       const latestPrice = card.prices[0] ?? null;
