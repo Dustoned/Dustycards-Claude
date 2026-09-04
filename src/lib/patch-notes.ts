@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.13.4",
+    releasedAt: "September 4, 2026",
+    title: "Pokémon collection photo inspections",
+    summary: "A dedicated tab next to Marktplaats Deals for scheduled collection research.",
+    tone: "new",
+    highlights: [
+      "Separate asking prices, visible bids, gallery coverage and individual card crops.",
+      "Exact Pokémon matches open the shared card detail and use stored CardMarket EN NM references.",
+      "Photo condition estimates disclose uncertainty; duplicates, slabs and unknowns do not inflate values.",
+      "The scheduled external review supplies evidence; opening the tab never starts a paid scan.",
+    ],
+  },
+  {
     version: "3.13.3",
     releasedAt: "September 4, 2026",
     title: "Illustrator verification restored",

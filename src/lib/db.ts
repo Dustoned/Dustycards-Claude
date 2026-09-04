@@ -121,6 +121,7 @@ const REQUIRED_RUNTIME_FIELDS = {
     "listings_checked",
     "deals_found",
   ],
+  MarktplaatsCollectionInspection: ["external_id", "scan_run_id", "report_json", "observed_at", "removed_at"],
   MarktplaatsDeal: [
     "external_id",
     "scan_run_id",

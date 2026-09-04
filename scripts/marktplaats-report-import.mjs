@@ -42,6 +42,7 @@ if (!fs.existsSync(inputPath)) {
   throw new Error(`Marktplaats report not found: ${inputPath}`);
 }
 
+if (fs.statSync(inputPath).size > 15 * 1024 * 1024) throw new Error("Marktplaats report exceeds 15 MB.");
 const report = JSON.parse(fs.readFileSync(inputPath, "utf8"));
 const { importMarktplaatsReport } = await import(
   pathToFileURL(path.join(projectRoot, "src", "lib", "marktplaats-deals-store.ts")).href

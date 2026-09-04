@@ -530,6 +530,24 @@ function main() {
       : [];
 
     const gradedPrices = [...cardMarketGraded, ...ebaySoldGraded];
+    // Collection photo identification also needs printings with no current price.
+    const collectionCatalog = database.prepare(`
+      SELECT c.id, c.name, c.card_number AS cardNumber,
+        c.printed_card_number AS printedCardNumber, c.version, c.rarity,
+        c.image_url AS imageUrl, e.name AS expansionName, e.code AS expansionCode
+      FROM "Card" c JOIN "Episode" e ON e.id = c.episode_id
+      WHERE c.game = 'pokemon' ORDER BY e.name, c.name, c.card_number
+    `).all();
+    const hasInspections = database.prepare(`SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'MarktplaatsCollectionInspection'`).get();
+    const priorCollectionInspections = hasInspections ? database.prepare(`
+      SELECT external_id AS externalId, observed_at AS observedAt, report_json AS reportJson
+      FROM "MarktplaatsCollectionInspection" WHERE removed_at IS NULL ORDER BY observed_at ASC
+    `).all().flatMap((row) => {
+      try {
+        const report = JSON.parse(row.reportJson);
+        return [{ externalId: row.externalId, observedAt: row.observedAt, listingUrl: report.listingUrl, title: report.title }];
+      } catch { return []; }
+    }) : [];
     const radarSnapshot = loadSignalRadarSnapshot();
     const searchPlan = buildSearchPlan({
       cards,
@@ -553,11 +571,14 @@ function main() {
       gradedPrices,
       searchPlan,
       priorActiveDeals,
+      collectionCatalog,
+      priorCollectionInspections,
       reportContract: {
         path: "data/marktplaats/report-latest.json",
         command: "npm run marktplaats:import -- --in data/marktplaats/report-latest.json",
         schemaVersion: 1,
         dealKinds: ["raw", "graded", "expansion", "collection"],
+        collectionInspections: "Optional top-level collections array; bid-only adverts allowed here. Follow docs/marktplaats-collections.md. Inspect every original and crop. Prices are computed by the app, never supplied by the report. Use removedCollectionIds for unavailable m-ids.",
         note: "Open every candidate and read its full description. Every definitive match requires descriptionChecked=true plus a descriptionSummary and offerContents. Every matched raw deal must be explicitly English. Every matched graded deal needs an exact company and grade. Use matchStatus=review when uncertain. Recheck prior active URLs and put unavailable listing IDs in scan.removedExternalIds.",
       },
     };

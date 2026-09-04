@@ -1,9 +1,9 @@
 "use client";
 
-import { CheckCircle2, PackageSearch, Tag } from "lucide-react";
+import { CheckCircle2, PackageSearch, ScanSearch, Tag } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
-export type SellingInventoryView = "active" | "sold" | "marktplaats";
+export type SellingInventoryView = "active" | "sold" | "marktplaats" | "collections";
 
 export default function SellingInventoryTabs({
   activeCount,
@@ -14,6 +14,7 @@ export default function SellingInventoryTabs({
   activeContent,
   soldContent,
   marktplaatsContent,
+  collectionsContent,
 }: {
   activeCount: number;
   soldCount: number;
@@ -23,6 +24,7 @@ export default function SellingInventoryTabs({
   activeContent: ReactNode;
   soldContent: ReactNode;
   marktplaatsContent: ReactNode;
+  collectionsContent: ReactNode;
 }) {
   const fallbackView: SellingInventoryView =
     activeCount > 0 ? "active" : soldCount > 0 ? "sold" : "marktplaats";
@@ -31,11 +33,12 @@ export default function SellingInventoryTabs({
   const showingSold = view === "sold";
   const showingMarktplaats = view === "marktplaats";
   const showingActive = view === "active";
+  const showingCollections = view === "collections";
 
   return (
     <section className="overflow-hidden rounded-[var(--ui-page-header-radius)] border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[linear-gradient(145deg,rgb(var(--dc-surface-elevated-rgb)/0.94),rgb(var(--dc-surface-primary-rgb)/0.92))] shadow-[0_14px_36px_var(--dc-shadow-color)]">
       <div className="border-b border-[rgb(var(--dc-border-rgb)/0.82)] p-2.5 sm:p-3">
-        <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-3">
+        <div className="grid grid-cols-2 gap-1.5 lg:grid-cols-4">
           <button
             type="button"
             onClick={() => setView("active")}
@@ -80,9 +83,15 @@ export default function SellingInventoryTabs({
               {marktplaatsCount}
             </span>
           </button>
+          <button type="button" onClick={() => setView("collections")} aria-pressed={showingCollections}
+            className={`flex min-h-11 items-center justify-center gap-2 rounded-xl border px-2 text-xs font-black transition-colors ${showingCollections ? "border-[var(--dc-warning)] bg-[rgb(var(--dc-warning-rgb)/0.11)] text-[var(--dc-warning)]" : "border-[var(--dc-border)] text-[var(--dc-text-muted)] hover:text-[var(--dc-text-primary)]"}`}>
+            <ScanSearch className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />Pokémon Collecties
+          </button>
         </div>
         <p className="px-1 pt-2 text-[10px] leading-4 text-[var(--dc-text-muted)]">
-          {showingMarktplaats
+          {showingCollections
+            ? "Collection photo inspections, bids and condition-aware estimates from the scheduled Marktplaats scan."
+            : showingMarktplaats
             ? "Daily checked Marktplaats selection, with true below-market deals first. Shipping is shown separately."
             : showingSold
               ? "Completed sales only. The amount on each card is the saved sold price, not its current market value."
@@ -97,7 +106,9 @@ export default function SellingInventoryTabs({
         ) : null}
       </div>
       <div className="p-2.5 sm:p-3">
-        {showingMarktplaats ? (
+        {showingCollections ? (
+          <div key="marktplaats-collections">{collectionsContent}</div>
+        ) : showingMarktplaats ? (
           <div key="marktplaats-deals">{marktplaatsContent}</div>
         ) : showingSold ? (
           <div key="sold-ledger">{soldContent}</div>

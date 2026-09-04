@@ -830,6 +830,16 @@ model SecurityEvent {
   @@index([created_at])
 }
 
+model MarktplaatsCollectionInspection {
+  external_id String @id
+  scan_run_id String
+  report_json String
+  observed_at DateTime
+  removed_at DateTime?
+
+  @@index([removed_at, observed_at])
+}
+
 model MarktplaatsScanRun {
   id                  String    @id
   status              String
