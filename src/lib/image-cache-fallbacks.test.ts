@@ -2,6 +2,15 @@ import { describe, expect, it } from "vitest";
 import { getRemoteImageCandidates } from "@/lib/image-cache-fallbacks";
 
 describe("image-cache remote fallbacks", () => {
+  it.each([
+    ["21901/journey-together-logo.png", "sv09"],
+    ["2703/obsidian-flames-logo.png", "sv03"],
+  ])("provides replacement artwork for removed set logo %s", (path, set) => {
+    const source = new URL(`https://images.tcggo.com/tcggo/storage/${path}`);
+    expect(getRemoteImageCandidates(source).map((url) => url.href)).toEqual([
+      source.href, `https://assets.tcgdex.net/en/sv/${set}/logo.webp`,
+    ]);
+  });
   it("adds stable Pokemon and Bill's Archive candidates for 30th promo art", () => {
     const source = new URL(
       "https://www.pokemon.com/us/news/w_2000/f_auto/q_auto:best/v1/live/pcom-cms/static-assets/cms3/us/img/cards/full/MEP/MEP_EN_101_PC.png"

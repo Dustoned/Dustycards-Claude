@@ -61,3 +61,5 @@ Screenshots en meetbestanden staan lokaal onder `audits/2026-09-04/ui-polish`; d
 Twee extra browserregressies controleren vijf Market-routes en Account op 390 en 1440 px: bereikbare filters, actieve-filterteller, behoud na inklappen, reset, horizontale overflow en Account details. Screenshots: `audits/2026-09-05/ui-density`.
 
 Validatie van deze vervolgronde: **24 productiebrowserregressies**, **1.546 unittests**, ESLint, TypeScript en de webpack-productiebuild geslaagd. De twee extra tests leveren twaalf nieuwe desktop-/mobielscreenshots op.
+
+Vervolg: de drie hierboven genoemde oude detailtests en het 3D-laadgedrag zijn opnieuw onderzocht en gecontroleerd. Zie [auditvervolg van 5 september](audit-followup-2026-09-05.md) voor de oplossingen, 30 geslaagde gerichte productiebrowserchecks en de resterende live-toegangsgrenzen.

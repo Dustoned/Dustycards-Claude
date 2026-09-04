@@ -4,6 +4,8 @@ import { randomUUID } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import { hashSessionToken } from "@/lib/auth-crypto";
 import { DEFAULT_APPEARANCE_SETTINGS } from "@/lib/appearance-themes";
+import sharp from "sharp";
+import jsQR from "jsqr";
 
 const test = base.extend<{ accountSession: void }>({
   accountSession: async ({ context, baseURL }, provideSession) => {
@@ -27,6 +29,25 @@ const test = base.extend<{ accountSession: void }>({
       db.close();
     }
   },
+});
+
+test("authenticator setup displays a locally generated, decodable QR code", async ({ page, accountSession }) => {
+  void accountSession;
+  await page.setViewportSize({ width: 390, height: 900 });
+  await page.goto("/account?tab=security");
+  const prepared = page.waitForResponse((response) => response.url().endsWith("/api/auth/mfa") && response.request().method() === "POST");
+  await page.getByRole("button", { name: "Set up authenticator" }).click();
+  const response = await prepared;
+  expect(response.headers()["cache-control"]).toBe("no-store");
+  const { uri, qrCode } = await response.json();
+  const qr = page.getByRole("img", { name: "Authenticator setup QR code" });
+  await expect(qr).toBeVisible();
+  await expect(qr).toHaveAttribute("src", qrCode);
+  const { data, info } = await sharp(Buffer.from(qrCode.split(",")[1], "base64")).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+  expect(jsQR(new Uint8ClampedArray(data), info.width, info.height)?.data).toBe(uri);
+  await expect(page.getByRole("link", { name: "Open in authenticator app" })).toHaveAttribute("href", uri);
+  expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
+  if (process.env.AUDIT_FOLLOWUP_SCREENSHOTS) await page.screenshot({ path: `${process.env.AUDIT_FOLLOWUP_SCREENSHOTS}/390-authenticator-qr.png`, fullPage: true });
 });
 
 test("verification resend uses the edited address displayed to the user", async ({ page }) => {

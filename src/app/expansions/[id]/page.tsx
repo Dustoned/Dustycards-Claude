@@ -1,4 +1,4 @@
-﻿import Image from "next/image";
+﻿import CachedImage from "@/components/CachedImage";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Calendar, CalendarClock, Coins, Layers, Package, Radar } from "lucide-react";
@@ -22,7 +22,7 @@ import {
   buildEpisodeSetPriceHistory,
 } from "@/lib/price-history";
 import { PREFERRED_PULL_RATE_SOURCES, buildPullRateInfoFromRarity } from "@/lib/pull-rates";
-import { getCachedImageUrl } from "@/lib/image-cache";
+
 import { normalizeRarityLabel } from "@/lib/rarity";
 import {
   getActiveSealedGroup,
@@ -584,8 +584,8 @@ export default async function ExpansionDetailPage({
           <div className="hidden h-14 w-14 shrink-0 items-center justify-center rounded-[var(--ui-page-header-radius)] border border-white/10 bg-white/[0.06] p-2 text-center text-sm font-bold text-white/70 shadow-sm shadow-black/20 sm:flex lg:h-16 lg:w-16">
             {episode.logo_url ? (
               <div className="relative h-full w-full">
-                <Image
-                  src={getCachedImageUrl(episode.logo_url) ?? episode.logo_url}
+                <CachedImage
+                  sourceUrl={episode.logo_url}
                   alt={episode.name}
                   fill
                   className="object-contain drop-shadow"

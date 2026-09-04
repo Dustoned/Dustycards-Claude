@@ -315,6 +315,14 @@ export default function CardDetailShell({
     if (!pendingAnchor || !tabsShell) return;
 
     const { scrollElement } = pendingAnchor;
+    const panel = shellRef.current?.querySelector<HTMLElement>('[role="tabpanel"]');
+    // A short tab otherwise reduces maxScroll and the browser pulls the sticky
+    // tab rail down. Reserve only the height needed for this existing position.
+    panel?.style.removeProperty("--card-detail-panel-reserve");
+    const missingScroll = pendingAnchor.scrollTop - Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+    if (panel && missingScroll > 0) {
+      panel.style.setProperty("--card-detail-panel-reserve", `${panel.getBoundingClientRect().height + missingScroll}px`);
+    }
     let cancelled = false;
     let animationFrame = 0;
     let frameCount = 0;

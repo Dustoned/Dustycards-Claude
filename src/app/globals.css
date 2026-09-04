@@ -1994,9 +1994,9 @@ html.widescreen .settings-page {
 .card-detail-primary-actions {
   position: fixed;
   z-index: 220;
-  right: max(0.75rem, calc(env(safe-area-inset-right, 0px) + 0.25rem));
+  right: max(0.75rem, calc(var(--card-detail-safe-area-right, env(safe-area-inset-right, 0px)) + 0.25rem));
   bottom: calc(0.7rem + env(safe-area-inset-bottom, 0px));
-  left: max(0.75rem, calc(env(safe-area-inset-left, 0px) + 0.25rem));
+  left: max(0.75rem, calc(var(--card-detail-safe-area-left, env(safe-area-inset-left, 0px)) + 0.25rem));
   display: grid;
   grid-auto-flow: column;
   grid-auto-columns: minmax(0, 1fr);
@@ -3134,7 +3134,7 @@ html.widescreen .settings-page {
   }
 
   [data-card-detail-shell] .card-detail-panel {
-    min-height: 0;
+    min-height: var(--card-detail-panel-reserve, 0px);
   }
 
 }

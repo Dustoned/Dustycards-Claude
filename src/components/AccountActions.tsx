@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
 import { Copy, Download, KeyRound, LogOut, ShieldCheck } from "lucide-react";
 
 export default function AccountActions({
@@ -22,6 +23,7 @@ export default function AccountActions({
   const [mfaEnabled, setMfaEnabled] = useState(initialMfaEnabled);
   const [mfaSecret, setMfaSecret] = useState<string | null>(null);
   const [mfaUri, setMfaUri] = useState<string | null>(null);
+  const [mfaQrCode, setMfaQrCode] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [mfaLoading, setMfaLoading] = useState(false);
@@ -92,10 +94,11 @@ export default function AccountActions({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "prepare" }),
       });
-      const data = (await response.json()) as { error?: string; secret?: string; uri?: string };
+      const data = (await response.json()) as { error?: string; secret?: string; uri?: string; qrCode?: string };
       if (!response.ok || !data.secret || !data.uri) throw new Error(data.error ?? "Could not start MFA setup");
       setMfaSecret(data.secret);
       setMfaUri(data.uri);
+      setMfaQrCode(data.qrCode ?? null);
     } catch (caught) {
       setMfaError(caught instanceof Error ? caught.message : "Could not start MFA setup");
     } finally {
@@ -119,6 +122,7 @@ export default function AccountActions({
       setMfaEnabled(true);
       setMfaSecret(null);
       setMfaUri(null);
+      setMfaQrCode(null);
       setRecoveryCodes(data.recoveryCodes ?? []);
       setRecoveryCodesSaved(false);
       setMfaCode("");
@@ -204,7 +208,8 @@ export default function AccountActions({
 
       {!mfaEnabled && mfaSecret && mfaUri ? (
         <form onSubmit={enableMfa} className="mt-4 grid gap-3 rounded-xl border border-violet-300/15 bg-violet-500/[0.06] p-4">
-          <p className="text-sm text-white/65">Add this key to Google Authenticator, Microsoft Authenticator, 1Password or another TOTP app.</p>
+          <p className="text-sm text-white/65">Scan with your authenticator app, or add the setup key manually.</p>
+          {mfaQrCode ? <Image src={mfaQrCode} alt="Authenticator setup QR code" width={256} height={256} unoptimized className="mx-auto h-auto max-w-full rounded-lg" /> : null}
           <code className="break-all rounded-lg bg-black/25 p-3 text-sm font-bold tracking-[0.12em] text-violet-100">{mfaSecret}</code>
           <div className="flex flex-wrap items-center gap-2">
             <button type="button" onClick={() => copyMfaValue(mfaSecret, "Setup key copied.")} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm font-semibold text-white hover:bg-white/8"><Copy className="size-4" aria-hidden="true" />Copy setup key</button>

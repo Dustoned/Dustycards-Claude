@@ -51,6 +51,8 @@ jobs:
         run: npx playwright install --with-deps chromium
       - name: Mobile, desktop and account UI regressions
         run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/ui-polish.spec.ts tests/smoke/account-ui.spec.ts --workers=1 --timeout=120000
+      - name: Card, Radar and sealed detail regressions
+        run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/app.spec.ts --grep "card detail uses an aligned|Signal Radar detail shares|sealed detail aligns" --workers=1 --timeout=120000
       - name: Production build
         env:
           NEXT_PUBLIC_APP_BUILD: ci-${{ github.sha }}

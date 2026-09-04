@@ -13,6 +13,8 @@ const test = base.extend<{ uiAccount: string }>({
     db.pragma("foreign_keys=ON");
     const id = `ui-polish-${randomUUID()}`;
     const token = randomUUID();
+    const address = randomUUID().replaceAll("-", "").slice(0, 16).match(/.{4}/g)!.join(":");
+    await context.setExtraHTTPHeaders({ "x-forwarded-for": `2001:db8:${address}::1` });
     const now = new Date().toISOString();
     try {
       db.prepare("INSERT INTO User (id,email,password_hash,role,disabled,email_verified_at,created_at,updated_at) VALUES (?,?,'test-only','admin',0,?,?,?)")
@@ -36,6 +38,33 @@ const test = base.extend<{ uiAccount: string }>({
 // Fault-injection routes must reach Playwright, including in production builds.
 test.use({ serviceWorkers: "block" });
 
+test("3D texture failure ends loading and can be retried", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  let attempts = 0;
+  await page.route("**/assets/pokemon-card-back.jpg", (route) => ++attempts === 1 ? route.abort() : route.continue());
+  await page.goto("/search?q=charizard");
+  await page.getByText("Charizard", { exact: true }).first().click();
+  const shell = page.locator("[data-card-detail-shell]");
+  await shell.getByRole("button", { name: "3D", exact: true }).click();
+  const viewer = shell.locator(".card-detail-inline-three-viewer");
+  await expect(viewer).toHaveAttribute("data-card-holo-mask", "error", { timeout: 20_000 });
+  await expect(viewer.getByText("Loading 3D view...")).toHaveCount(0);
+  if (process.env.AUDIT_FOLLOWUP_SCREENSHOTS) await viewer.screenshot({ path: `${process.env.AUDIT_FOLLOWUP_SCREENSHOTS}/3d-error.png` });
+  await viewer.getByRole("button", { name: "Retry 3D view" }).click();
+  await expect(viewer).toHaveAttribute("data-card-holo-mask", "ready", { timeout: 20_000 });
+  await expect(viewer.locator("canvas")).toBeVisible();
+  await expect(viewer.getByText("3D view unavailable")).toHaveCount(0);
+  if (process.env.AUDIT_FOLLOWUP_SCREENSHOTS) await viewer.screenshot({ path: `${process.env.AUDIT_FOLLOWUP_SCREENSHOTS}/3d-recovered.png` });
+});
+
+test("broken artwork ends the loading placeholder with an accessible fallback", async ({ page }) => {
+  await page.route("**/*", (route) => route.request().resourceType() === "image" ? route.abort() : route.continue());
+  await page.goto("/search?q=charizard");
+  const fallback = page.getByRole("img", { name: /image unavailable/i }).first();
+  await expect(fallback).toBeVisible();
+  await expect(fallback).toHaveText("Image unavailable");
+});
+
 for (const width of [390, 1440]) {
   test(`market filters stay usable with a quieter layout at ${width}px`, async ({ page }) => {
     test.setTimeout(120_000);
@@ -43,7 +72,7 @@ for (const width of [390, 1440]) {
     const routes = ["/movers?scope=all", "/movers?scope=graded", "/movers?scope=sealed", "/movers/discount-watch?scope=all", "/movers/cheap-high-rarity?scope=all"];
     for (let index = 0; index < routes.length; index++) {
       await page.goto(routes[index]);
-      const toolbar = page.locator("[data-market-filter-toolbar]");
+      const toolbar = page.locator("[data-market-filter-toolbar]:visible");
       await expect(toolbar.getByLabel("Search", { exact: true })).toBeVisible();
       await expect(toolbar.getByLabel("Sort", { exact: true })).toBeVisible();
       // Use fixed options so this also exercises empty market snapshots.
