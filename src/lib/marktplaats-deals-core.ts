@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { normalizeCollectionInspection, type CollectionInspection } from "@/lib/marktplaats-collections";
 
 export const MARKTPLAATS_REPORT_SCHEMA_VERSION = 1 as const;
 export const MARKTPLAATS_DEAL_KINDS = ["raw", "graded", "expansion", "collection"] as const;
@@ -48,6 +49,8 @@ export interface NormalizedMarktplaatsReport {
     warning: string | null;
   };
   deals: MarktplaatsReportDeal[];
+  collections: CollectionInspection[];
+  removedCollectionIds: string[];
 }
 
 export class MarktplaatsReportError extends Error {
@@ -250,6 +253,18 @@ export function normalizeMarktplaatsReport(value: unknown): NormalizedMarktplaat
   }
 
   const deals = value.deals.map(normalizeDeal);
+  if (value.collections !== undefined && (!Array.isArray(value.collections) || value.collections.length > 50)) {
+    throw new MarktplaatsReportError("collections must contain at most 50 inspections.");
+  }
+  const collections = ((value.collections ?? []) as unknown[]).map(normalizeCollectionInspection);
+  if (new Set(collections.map((item) => item.externalId)).size !== collections.length) {
+    throw new MarktplaatsReportError("Duplicate collection advert.");
+  }
+  const removedCollectionIds = Array.isArray(value.removedCollectionIds)
+    ? value.removedCollectionIds.map((id) => requiredString(id, "removedCollectionIds", 40)) : [];
+  if (removedCollectionIds.some((id) => !/^m\d+$/.test(id) || collections.some((item) => item.externalId === id))) {
+    throw new MarktplaatsReportError("Invalid or conflicting removed collection ID.");
+  }
   const uniqueDeals = new Map<string, MarktplaatsReportDeal>();
   for (const deal of deals) uniqueDeals.set(deal.externalId, deal);
   const removedExternalIds = Array.isArray(value.scan.removedExternalIds)
@@ -276,6 +291,8 @@ export function normalizeMarktplaatsReport(value: unknown): NormalizedMarktplaat
       warning: optionalString(value.scan.warning, 1_000),
     },
     deals: [...uniqueDeals.values()],
+    collections,
+    removedCollectionIds: [...new Set(removedCollectionIds)],
   };
 }
 

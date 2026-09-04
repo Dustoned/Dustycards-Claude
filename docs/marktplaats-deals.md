@@ -1,5 +1,8 @@
 # Marktplaats deals
 
+For the adjacent Pokémon collection/photo/bid tab, follow [collection inspections](marktplaats-collections.md).
+Its optional `collections` payload is independent of the fixed-price deal list below.
+
 DustyCards keeps the web request path out of the marketplace scan. Codex performs
 the browser work externally; the app only exports a read-only reference snapshot
 and imports the final compact report.

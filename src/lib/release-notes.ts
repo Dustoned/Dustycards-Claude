@@ -20,6 +20,18 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.13.4",
+    releasedAt: "September 4, 2026",
+    title: "Look inside Pokémon collections",
+    summary: "Scheduled Marktplaats collection research now has its own photo-first workspace.",
+    tone: "new",
+    sections: [{ title: "Photos, bids and evidence", highlights: [
+      "Open For Sale → Pokémon Collecties for gallery coverage, card crops and visible bidding activity.",
+      "Compare exact cards with our stored CardMarket EN NM references and transparent photo-based estimate ranges.",
+      "Missing backs, unreadable printings and duplicate photos stay explicit; no invented total collection value.",
+    ] }],
+  },
+  {
     version: "3.13.3",
     releasedAt: "September 4, 2026",
     title: "Same-set families verify the illustrator again",

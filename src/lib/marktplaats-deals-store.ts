@@ -14,6 +14,7 @@ export interface ImportedMarktplaatsReport {
   newDealsFound: number;
   removedDeals: number;
   completeCoverage: boolean;
+  collectionsInspected: number;
 }
 
 async function assertReferencedCatalogRecords(report: NormalizedMarktplaatsReport): Promise<void> {
@@ -52,6 +53,11 @@ export async function importMarktplaatsReport(
 ): Promise<ImportedMarktplaatsReport> {
   const report = normalizeMarktplaatsReport(input);
   await assertReferencedCatalogRecords(report);
+  const inspectionCardIds = [...new Set(report.collections.flatMap((item) => item.cards.map((card) => card.cardId)).filter((id): id is string => Boolean(id)))];
+  if (inspectionCardIds.length) {
+    const cards = await db.card.findMany({ where: { id: { in: inspectionCardIds }, game: "pokemon" }, select: { id: true } });
+    if (cards.length !== inspectionCardIds.length) throw new MarktplaatsReportError("Collection inspections must reference existing Pokémon cards; use cardId: null for unknown printings.");
+  }
 
   const externalIds = report.deals.map((deal) => deal.externalId);
   const existingRows = externalIds.length
@@ -149,6 +155,19 @@ export async function importMarktplaatsReport(
     }
 
     let removedDeals = 0;
+    // A separate catalogue permits bid-only/unknown-value collections without weakening deal validation.
+    for (const collection of report.collections) {
+      await tx.marktplaatsCollectionInspection.upsert({
+        where: { external_id: collection.externalId },
+        create: { external_id: collection.externalId, scan_run_id: report.scan.id, report_json: JSON.stringify(collection), observed_at: report.scan.finishedAt },
+        update: { scan_run_id: report.scan.id, report_json: JSON.stringify(collection), observed_at: report.scan.finishedAt, removed_at: null },
+      });
+    }
+    if (report.removedCollectionIds.length) {
+      await tx.marktplaatsCollectionInspection.updateMany({
+        where: { external_id: { in: report.removedCollectionIds } }, data: { removed_at: report.scan.finishedAt },
+      });
+    }
     if (report.scan.removedExternalIds.length) {
       const explicitRemoval = await tx.marktplaatsDeal.updateMany({
         where: {
@@ -184,6 +203,7 @@ export async function importMarktplaatsReport(
       newDealsFound,
       removedDeals,
       completeCoverage: report.scan.completeCoverage,
+      collectionsInspected: report.collections.length,
     };
   });
 }

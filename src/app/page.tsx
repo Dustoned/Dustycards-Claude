@@ -47,6 +47,7 @@ import SellingValueSummary from "@/components/SellingValueSummary";
 import MarktplaatsDealsPanel, {
   getLatestMarktplaatsSelectionCount,
 } from "@/components/MarktplaatsDealsPanelServer";
+import MarktplaatsCollectionsPanel from "@/components/MarktplaatsCollectionsPanelServer";
 import { buildSellingInventoryTabsKey } from "@/lib/marktplaats-filter-navigation";
 
 const CollectionCardsView = nextDynamic(() => import("@/components/CollectionCardsView"));
@@ -848,7 +849,9 @@ async function HomePageContent({
             marktplaatsCount={marktplaatsDealCount}
             repeatedSoldPrice={repeatedSoldPrice}
             initialView={
-              sellingView === "marktplaats"
+              sellingView === "collections"
+                ? "collections"
+                : sellingView === "marktplaats"
                 ? "marktplaats"
                 : sellingView === "sold"
                   ? "sold"
@@ -883,6 +886,7 @@ async function HomePageContent({
               />
             }
             marktplaatsContent={<MarktplaatsDealsPanel />}
+            collectionsContent={<MarktplaatsCollectionsPanel />}
           />
         </div>
         ) : null
