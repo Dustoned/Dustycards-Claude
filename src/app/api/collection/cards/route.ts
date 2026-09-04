@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
+import { ValidationError, validationErrorResponse } from "@/lib/api-validation";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
@@ -448,17 +449,18 @@ export async function PATCH(req: NextRequest) {
 
   const updated = await db.$transaction(async (tx) => {
     const result = await tx.collectionCard.updateMany({
-      where: { id: { in: itemIds }, user_id: user.id },
+      where: { id: { in: itemIds }, user_id: user.id, sold_at: null },
       data: {
         binder_id: binderId,
         for_sale: forSale,
-        sale_price: null,
-        sold_at: null,
         ...(perItemPurchasePrice != null && purchasePricesByItemId.size === 0
           ? { purchase_price: perItemPurchasePrice }
           : {}),
       },
     });
+    if (result.count !== itemIds.length) {
+      throw new ValidationError("One or more cards were sold or removed. Reload your collection before editing them.", 409);
+    }
 
     for (const [itemId, price] of purchasePricesByItemId) {
       await tx.collectionCard.updateMany({
@@ -489,6 +491,7 @@ export async function PATCH(req: NextRequest) {
     return (
       authErrorResponse(error) ??
       malformedJsonBodyResponse(error) ??
+      validationErrorResponse(error) ??
       NextResponse.json({ error: "Failed to update cards" }, { status: 500 })
     );
   }

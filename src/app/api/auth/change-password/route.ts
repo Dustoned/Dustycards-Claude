@@ -60,6 +60,7 @@ export async function POST(req: NextRequest) {
         data: { password_hash: await hashPassword(newPassword) },
       }),
       db.session.deleteMany({ where: { user_id: user.id } }),
+      db.passwordResetToken.deleteMany({ where: { user_id: user.id } }),
     ]);
 
     const session = await createUserSession(user.id, {

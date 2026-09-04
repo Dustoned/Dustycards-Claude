@@ -15,9 +15,10 @@ const PUBLIC_API_PREFIXES = [
 const SAFE_REQUEST_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
 
 export function buildContentSecurityPolicy(nonce: string): string {
+  const developmentEval = process.env.NODE_ENV === "development" ? " 'unsafe-eval'" : "";
   return [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic'${developmentEval}`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob: https:",
     "font-src 'self' data:",

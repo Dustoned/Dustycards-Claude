@@ -668,7 +668,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
                     <button
                       type="button"
                       onClick={() => setNavigationEditorOpen(true)}
-                      className="text-[10px] font-black text-[var(--dc-primary-soft)]"
+                      className="inline-flex min-h-11 min-w-11 items-center justify-center px-2 text-[10px] font-black text-[var(--dc-primary-soft)]"
                     >
                       Edit
                     </button>

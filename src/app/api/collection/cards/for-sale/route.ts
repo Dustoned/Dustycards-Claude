@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
+import { ValidationError, validationErrorResponse } from "@/lib/api-validation";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { syncMissingBinderWantsAfterCollectionChange } from "@/lib/wantlist-planner";
@@ -75,15 +76,19 @@ export async function POST(req: NextRequest) {
         ? Number((totalPurchasePriceInput / items.length).toFixed(2))
         : null;
 
-    const updated = await db.collectionCard.updateMany({
-      where: { id: { in: items.map((item) => item.id) }, user_id: user.id },
-      data: {
-        binder_id: null,
-        for_sale: true,
-        sale_price: null,
-        sold_at: null,
-        ...(perItemPurchasePrice != null ? { purchase_price: perItemPurchasePrice } : {}),
-      },
+    const updated = await db.$transaction(async (tx) => {
+      const result = await tx.collectionCard.updateMany({
+        where: { id: { in: items.map((item) => item.id) }, user_id: user.id, sold_at: null, for_sale: false },
+        data: {
+          binder_id: null,
+          for_sale: true,
+          ...(perItemPurchasePrice != null ? { purchase_price: perItemPurchasePrice } : {}),
+        },
+      });
+      if (result.count !== items.length) {
+        throw new ValidationError("One or more cards changed. Reload your collection before listing them for sale.", 409);
+      }
+      return result;
     });
 
     await syncMissingBinderWantsAfterCollectionChange(user.id);
@@ -92,6 +97,7 @@ export async function POST(req: NextRequest) {
   } catch (error) {
     return (
       authErrorResponse(error) ??
+      validationErrorResponse(error) ??
       malformedJsonBodyResponse(error) ??
       NextResponse.json({ error: "Failed to mark cards for sale" }, { status: 500 })
     );

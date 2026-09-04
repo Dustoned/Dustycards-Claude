@@ -12,7 +12,7 @@ import {
 import { db } from "@/lib/db";
 import { sendVerificationEmailForUser } from "@/lib/email-verification";
 import { getMailPublicOrigin, getPublicOrigin } from "@/lib/public-origin";
-import { getClientIp, isRateLimited, recordRateLimitHit } from "@/lib/rate-limit";
+import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import { consumeRecoveryCode, decryptMfaSecret, verifyTotp } from "@/lib/mfa";
 import { recordSecurityEvent } from "@/lib/security-events";
 import { getSafeNextPath } from "@/lib/safe-next-path";
@@ -58,9 +58,12 @@ export async function POST(req: NextRequest) {
 
   const ipKey = `login:ip:${clientIp}`;
   const emailKey = email ? `login:email:${email}` : null;
+  // Reserve before password verification: concurrent requests must not all see
+  // the same unused budget. Every submission counts, including successful
+  // logins and the initial MFA challenge; success never resets other attempts.
   if (
-    (await isRateLimited(ipKey, LOGIN_RATE_LIMIT_PER_IP, LOGIN_RATE_WINDOW_MS)) ||
-    (emailKey && (await isRateLimited(emailKey, LOGIN_RATE_LIMIT_PER_EMAIL, LOGIN_RATE_WINDOW_MS)))
+    (await consumeRateLimit(ipKey, LOGIN_RATE_LIMIT_PER_IP, LOGIN_RATE_WINDOW_MS)) ||
+    (emailKey && (await consumeRateLimit(emailKey, LOGIN_RATE_LIMIT_PER_EMAIL, LOGIN_RATE_WINDOW_MS)))
   ) {
     if (isFormPost) {
       const redirectUrl = new URL("/login", getPublicOrigin(req));
@@ -93,8 +96,6 @@ export async function POST(req: NextRequest) {
     : null;
 
   if (!user || !(await verifyPassword(password, user.password_hash))) {
-    await recordRateLimitHit(ipKey, LOGIN_RATE_WINDOW_MS);
-    if (emailKey) await recordRateLimitHit(emailKey, LOGIN_RATE_WINDOW_MS);
     await recordSecurityEvent({
       eventType: "auth.login.failed",
       severity: "warning",
@@ -202,16 +203,22 @@ export async function POST(req: NextRequest) {
       }
       const remaining = consumeRecoveryCode(mfaCode, hashes);
       if (remaining) {
-        valid = true;
-        await db.user.update({
-          where: { id: user.id },
+        // Compare-and-swap consumes the exact stored list only once, even when
+        // several logins read it before any of them reaches this update.
+        const consumed = await db.user.updateMany({
+          where: {
+            id: user.id,
+            disabled: false,
+            password_hash: user.password_hash,
+            mfa_enabled_at: { not: null },
+            mfa_recovery_codes_json: user.mfa_recovery_codes_json,
+          },
           data: { mfa_recovery_codes_json: JSON.stringify(remaining) },
         });
+        valid = consumed.count === 1;
       }
     }
     if (!valid) {
-      await recordRateLimitHit(ipKey, LOGIN_RATE_WINDOW_MS);
-      if (emailKey) await recordRateLimitHit(emailKey, LOGIN_RATE_WINDOW_MS);
       await recordSecurityEvent({
         eventType: "auth.mfa.failed",
         severity: "warning",

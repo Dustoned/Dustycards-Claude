@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { malformedJsonBodyResponse, readJsonBody } from "@/lib/api-json";
+import { ValidationError, validationErrorResponse } from "@/lib/api-validation";
 import { authErrorResponse, requireUser } from "@/lib/auth";
 import { parseCollectionTags } from "@/lib/collection";
 import { db } from "@/lib/db";
@@ -153,13 +154,11 @@ export async function PATCH(
     gradingCompany?.toUpperCase() === "BGS" ? serializeBgsSubgrades(body.gradingSubgrades) : null;
 
   await db.$transaction(async (tx) => {
-    await tx.collectionCard.update({
-      where: { id },
+    const updated = await tx.collectionCard.updateMany({
+      where: { id, user_id: user.id, sold_at: null },
       data: {
         binder_id: binderId,
         for_sale: forSale,
-        sale_price: null,
-        sold_at: null,
         purchase_price: purchasePrice,
         condition,
         language,
@@ -171,6 +170,9 @@ export async function PATCH(
         purchase_price_source: rawPurchasePriceSource,
       },
     });
+    if (updated.count !== 1) {
+      throw new ValidationError("This card was sold or removed. Reload your collection before editing it.", 409);
+    }
 
     await tx.collectionCardTag.deleteMany({
       where: { collection_card_id: id },
@@ -201,6 +203,7 @@ export async function PATCH(
   } catch (error) {
     return (
       authErrorResponse(error) ??
+      validationErrorResponse(error) ??
       malformedJsonBodyResponse(error) ??
       NextResponse.json({ error: "Failed to update collection item" }, { status: 500 })
     );

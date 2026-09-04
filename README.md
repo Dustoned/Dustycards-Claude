@@ -56,6 +56,20 @@ npm run db:snapshot:sanitize -- --database data/dustycards.app.db \
   --backup backups/dustycards.app.before-sanitize.db --apply
 ```
 
+The HTTP security regression tests in `tests/smoke/security.spec.ts` require
+`DUSTYCARDS_DATABASE_PATH` to point to a migrated, disposable test database shared
+with the local server. Set the same test-only `AUTH_MFA_ENCRYPTION_KEY` on the server
+and test runner to include the recovery-code case. Run them with
+`npm run smoke -- tests/smoke/security.spec.ts --workers=1`; they use HTTP requests
+and do not require a browser installation. CI prepares this database and runs them
+automatically. Never point these tests at the production database.
+
 ## Docs
+
+New logins persist on the device for 90 days (30 days for administrators),
+including across browser restarts. Existing sessions keep their original expiry
+until the next login. Logging out revokes that device; password changes revoke
+all existing sessions and issue a replacement for the current device. Sensitive
+administrator actions still require authentication within the last 15 minutes.
 
 - [Roadmap](docs/app-improvements-roadmap.md) — prioritized fixes and planned features.
