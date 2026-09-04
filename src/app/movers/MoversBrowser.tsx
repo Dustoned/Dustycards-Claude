@@ -15,6 +15,7 @@ import {
   CardListTileMedia,
 } from "@/components/CardListTile";
 import { CollectionCardQuickActionsPlaceholder } from "@/components/CollectionCardQuickActions";
+import MarketFilterToolbar from "@/components/MarketFilterToolbar";
 import { SectionHeader } from "@/components/PageHeader";
 import type { ModalCardData } from "@/components/card-modal/types";
 import type { BuySignalLabel } from "@/lib/buy-signal";
@@ -84,6 +85,7 @@ interface Props {
   metricWindowLabel?: string;
   cardQuickActions: CardQuickActionMap;
   parallelLayout?: boolean;
+  hideHeading?: boolean;
 }
 
 interface DeferredMoversPayload {
@@ -266,6 +268,7 @@ export default function MoversBrowser({
   metricWindowLabel,
   cardQuickActions,
   parallelLayout = false,
+  hideHeading = false,
 }: Props) {
   const router = useRouter();
   const pathname = usePathname();
@@ -727,7 +730,7 @@ export default function MoversBrowser({
       ) : null}
 
       <section className={parallelLayout ? "sudden-drops-panel" : undefined}>
-        <SectionHeader
+        {hideHeading ? <p className="mb-3 text-sm text-[var(--dc-text-secondary)]">{visibleMoverGroups.length.toLocaleString("en-US")} / {allMoverGroupCount.toLocaleString("en-US")} cards</p> : <SectionHeader
           eyebrow={eyebrow}
           title={title}
           description={description}
@@ -738,7 +741,7 @@ export default function MoversBrowser({
             </p>
           }
           className={parallelLayout ? "sudden-drops-section-header" : ""}
-        />
+        />}
 
         {detailError ? (
           <div className="mb-4 rounded-2xl border border-rose-400/20 bg-rose-400/[0.08] px-4 py-3 text-sm text-rose-700 dark:text-rose-200">
@@ -747,21 +750,17 @@ export default function MoversBrowser({
         ) : null}
 
         <div className={`binder-panel mb-4 rounded-2xl px-3 py-3 sm:px-4 sm:py-4 ${parallelLayout ? "sudden-drops-toolbar" : ""}`}>
-          <div
-            className={`grid gap-3 lg:items-end ${
-              isSuddenDropMode
-                ? "lg:grid-cols-[minmax(16rem,1fr)_repeat(3,minmax(8rem,11rem))_auto]"
-                : "lg:grid-cols-[minmax(16rem,1fr)_repeat(5,minmax(8rem,11rem))_auto]"
-            }`}
-          >
-            <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+          <MarketFilterToolbar
+            activeFilterCount={Number(hasDirectionFilter) + Number(activeFocusFilter !== "all") + Number(buySignalFilter !== "all") + Number(activeReleaseYear !== "all")}
+            search={<label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                 Search
               </span>
               <span className="relative block">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-white/35" />
                 <input
                   type="text"
+                  aria-label="Search"
                   placeholder="Card, set, number"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -778,14 +777,42 @@ export default function MoversBrowser({
                   </button>
                 ) : null}
               </span>
-            </label>
+            </label>}
+            sort={<label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
+                Sort
+              </span>
+              <select
+                aria-label="Sort"
+                value={sortKey}
+                onChange={(event) => setSortKey(event.target.value as SortKey)}
+                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
+              >
+                {sortOptions.map((option) => (
+                  <option className={SELECT_OPTION_CLASS} key={option.key} value={option.key}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>}
+            reset={hasActiveControls ? (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="h-11 rounded-xl border border-white/8 bg-white/[0.05] px-4 text-sm font-semibold text-white/62 transition-colors hover:border-white/16 hover:text-white"
+              >
+                Reset
+              </button>
+            ) : null}
+          >
 
             {showBuySignalFilter ? (
               <label className="block">
-                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+                <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                   Buy Signal
                 </span>
                 <select
+                  aria-label="Buy Signal"
                   value={buySignalFilter}
                   onChange={(event) => setBuySignalFilter(event.target.value as BuySignalFilter)}
                   className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
@@ -801,10 +828,11 @@ export default function MoversBrowser({
 
             {showTrendFilter ? (
               <label className="block">
-                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+                <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                   Trend
                 </span>
                 <select
+                  aria-label="Trend"
                   value={direction}
                   onChange={(event) => setDirection(event.target.value as DirectionFilter)}
                   className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
@@ -818,10 +846,11 @@ export default function MoversBrowser({
 
             {releaseYears.length > 1 ? (
               <label className="block">
-                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+                <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                   Year
                 </span>
                 <select
+                  aria-label="Year"
                   value={activeReleaseYear}
                   onChange={(event) => setReleaseYear(event.target.value)}
                   className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
@@ -835,27 +864,11 @@ export default function MoversBrowser({
             ) : null}
 
             <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
-                Sort
-              </span>
-              <select
-                value={sortKey}
-                onChange={(event) => setSortKey(event.target.value as SortKey)}
-                className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
-              >
-                {sortOptions.map((option) => (
-                  <option className={SELECT_OPTION_CLASS} key={option.key} value={option.key}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-white/35">
+              <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                 Focus
               </span>
               <select
+                aria-label="Focus"
                 value={activeFocusFilter}
                 onChange={(event) => setFocusFilter(event.target.value as FocusFilter)}
                 className="h-11 w-full rounded-xl border border-white/8 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/16"
@@ -868,16 +881,7 @@ export default function MoversBrowser({
               </select>
             </label>
 
-            {hasActiveControls ? (
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="h-11 rounded-xl border border-white/8 bg-white/[0.05] px-4 text-sm font-semibold text-white/62 transition-colors hover:border-white/16 hover:text-white"
-              >
-                Reset
-              </button>
-            ) : null}
-          </div>
+          </MarketFilterToolbar>
         </div>
 
         {visibleMoverGroups.length === 0 ? (

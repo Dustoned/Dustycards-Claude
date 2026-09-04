@@ -37,6 +37,48 @@ const test = base.extend<{ uiAccount: string }>({
 test.use({ serviceWorkers: "block" });
 
 for (const width of [390, 1440]) {
+  test(`market filters stay usable with a quieter layout at ${width}px`, async ({ page }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width, height: 900 });
+    const routes = ["/movers?scope=all", "/movers?scope=graded", "/movers?scope=sealed", "/movers/discount-watch?scope=all", "/movers/cheap-high-rarity?scope=all"];
+    for (let index = 0; index < routes.length; index++) {
+      await page.goto(routes[index]);
+      const toolbar = page.locator("[data-market-filter-toolbar]");
+      await expect(toolbar.getByLabel("Search", { exact: true })).toBeVisible();
+      await expect(toolbar.getByLabel("Sort", { exact: true })).toBeVisible();
+      // Use fixed options so this also exercises empty market snapshots.
+      const filter = toolbar.getByLabel(index === 2 ? "Trend" : "Buy Signal", { exact: true });
+      if (width === 390) {
+        await expect(filter).toBeHidden();
+        await toolbar.getByRole("button", { name: "More filters", exact: true }).click();
+      }
+      await expect(filter).toBeVisible();
+      const value = await filter.locator("option").last().getAttribute("value");
+      await filter.selectOption(value!);
+      if (width === 390) {
+        await toolbar.getByRole("button", { name: "Fewer filters (1)", exact: true }).click();
+        await expect(filter).toBeHidden();
+        await toolbar.getByRole("button", { name: "More filters (1)", exact: true }).click();
+        await expect(filter).toHaveValue(value!);
+      }
+      await toolbar.getByRole("button", { name: "Reset", exact: true }).click();
+      await expect(filter).toHaveValue("all");
+      if (width === 390) await toolbar.getByRole("button", { name: "Fewer filters", exact: true }).click();
+      expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(width);
+      if (process.env.UI_DENSITY_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.UI_DENSITY_SCREENSHOT_DIR}/${width}-market-${index}.png` });
+    }
+    await page.goto("/account");
+    await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
+    await expect(page.getByText("Account ID", { exact: true })).toBeHidden();
+    await page.getByText("Account details", { exact: true }).click();
+    await expect(page.getByText("Account ID", { exact: true })).toBeVisible();
+    await page.getByText("Account details", { exact: true }).click();
+    if (width === 390) expect((await page.getByRole("tab", { name: "Security", exact: true }).boundingBox())!.y).toBeLessThan(300);
+    if (process.env.UI_DENSITY_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.UI_DENSITY_SCREENSHOT_DIR}/${width}-account.png` });
+  });
+}
+
+for (const width of [390, 1440]) {
   test(`all Home widgets can be configured and persist at ${width}px`, async ({ page }) => {
     test.setTimeout(120_000);
     await page.setViewportSize({ width, height: 900 });

@@ -64,14 +64,13 @@ export default async function DiscountWatchPage({
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="flex w-full flex-col gap-8">
+      <div className="flex w-full flex-col gap-5">
         <PageHeroHeader
-          eyebrow="Discount Watch"
-          title="High rarity cards that fell hard"
+          title="Discount Watch"
           description={
             isAllScope
-              ? "A focused view for high-rarity cards across all tracked cards that sit far below their previous peak."
-              : "A focused view for high-rarity cards in your collection that sit far below their previous peak."
+              ? "High-rarity cards below their previous peak."
+              : "High-rarity cards in your collection below their previous peak."
           }
           stats={headerStats}
           backLinks={
@@ -113,22 +112,8 @@ export default async function DiscountWatchPage({
           }
         />
 
-        <div className="flex flex-wrap gap-3 text-sm">
-          <span className="inline-flex items-center gap-2 rounded-full border border-rose-400/20 bg-rose-400/[0.08] px-3 py-1.5 text-rose-700 dark:text-rose-200">
-            <TrendingDown className="h-4 w-4" />
-            Deep pullbacks
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-3 py-1.5 text-amber-700 dark:text-amber-200">
-            <BadgePercent className="h-4 w-4" />
-            Peak gap focus
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/[0.08] px-3 py-1.5 text-sky-700 dark:text-sky-200">
-            <TriangleAlert className="h-4 w-4" />
-            Weak recent momentum
-          </span>
-        </div>
-
         <MoversBrowser
+          hideHeading
           movers={movers}
           cardQuickActions={cardQuickActions}
           activeScope={cardScope}

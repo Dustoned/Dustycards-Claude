@@ -50,3 +50,14 @@ Dit is geen claim dat iedere kaart, browser, externe gegevensbron en toestand fo
 De uitgebreide oudere kaartdetail-smokes zijn niet als groen meegerekend: de Radar-test verwacht nog een verdwenen aparte shell, de Sealed-test verwacht 24 kaarten waar de compacte preview er 8 toont, en een 3D-holomasker bleef tijdens de lokale productiecheck op loading. De nieuwe tabregressies testen de huidige gedeelde shell; volledige 3D-assetvalidatie blijft een afzonderlijke controle.
 
 Screenshots en meetbestanden staan lokaal onder `audits/2026-09-04/ui-polish`; de oorspronkelijke beelden blijven onder `ui-review` beschikbaar.
+
+## Vervolg — 5 september: minder visuele drukte
+
+- Market heeft op mobiel zoeken en sorteren direct in beeld. Extra filters staan onder More filters met het aantal actieve filters. In-/uitklappen behoudt de selectie; Reset wist de filters. Desktop houdt alle filters direct beschikbaar. Dit geldt voor raw, graded, sealed, Discount Watch en Cheap Rarity.
+- Discount Watch en Cheap Rarity tonen één hoofdkop, kortere uitleg en geen drie decoratieve labels boven de resultaten. De aantallen, bron en scope blijven zichtbaar.
+- Account toont de tabs direct onder de kop, zonder vier herhaalde statistiekkaarten. Het profiel heeft minder kaders, het e-mailadres de volledige breedte en technische datums/ID staan onder Account details.
+- De uitleg bij raw en graded Market is korter.
+
+Twee extra browserregressies controleren vijf Market-routes en Account op 390 en 1440 px: bereikbare filters, actieve-filterteller, behoud na inklappen, reset, horizontale overflow en Account details. Screenshots: `audits/2026-09-05/ui-density`.
+
+Validatie van deze vervolgronde: **24 productiebrowserregressies**, **1.546 unittests**, ESLint, TypeScript en de webpack-productiebuild geslaagd. De twee extra tests leveren twaalf nieuwe desktop-/mobielscreenshots op.

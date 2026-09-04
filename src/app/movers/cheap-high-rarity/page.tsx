@@ -68,14 +68,13 @@ export default async function CheapHighRarityMoversPage({
 
   return (
     <div className="page-container mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-      <div className="flex w-full flex-col gap-8">
+      <div className="flex w-full flex-col gap-5">
         <PageHeroHeader
-          eyebrow="Secondary Pocket"
-          title="Cheap rarity market"
+          title="Cheap Rarity"
           description={
             isAllScope
-              ? "A focused view for affordable high-rarity cards across all tracked cards that already show price movement."
-              : "A focused view for affordable high-rarity cards in your collection that already show price movement."
+              ? "Affordable high-rarity cards with recent price movement."
+              : "Affordable high-rarity cards in your collection with recent price movement."
           }
           stats={headerStats}
           backLinks={
@@ -117,22 +116,8 @@ export default async function CheapHighRarityMoversPage({
           }
         />
 
-        <div className="flex flex-wrap gap-3 text-sm">
-          <span className="inline-flex items-center gap-2 rounded-full border border-amber-400/20 bg-amber-400/[0.08] px-3 py-1.5 text-amber-700 dark:text-amber-200">
-            <Sparkles className="h-4 w-4" />
-            High rarity focus
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-emerald-400/20 bg-emerald-400/[0.08] px-3 py-1.5 text-emerald-700 dark:text-emerald-200">
-            <TrendingUp className="h-4 w-4" />
-            Positive moves first
-          </span>
-          <span className="inline-flex items-center gap-2 rounded-full border border-sky-400/20 bg-sky-400/[0.08] px-3 py-1.5 text-sky-700 dark:text-sky-200">
-            <Gem className="h-4 w-4" />
-            Cheap price bands
-          </span>
-        </div>
-
         <MoversBrowser
+          hideHeading
           movers={movers}
           cardQuickActions={cardQuickActions}
           activeScope={cardScope}

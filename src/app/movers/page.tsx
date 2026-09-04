@@ -942,8 +942,8 @@ export default async function MoversPage({
               isGradingScope
                 ? "Raw cards ranked by estimated grade upside after grading cost, grade odds, and a lower-grade fallback."
                 : isGradedScope
-                  ? "Already graded cards only. Every company and grade label is listed separately with its own slab price movement."
-                  : "Raw cards grouped around risers, drops, and market pockets with the relevant switches nearby."
+                  ? "Price movement by grading company and grade."
+                  : "Compare recent price movement."
             }
           />
         ) : null}

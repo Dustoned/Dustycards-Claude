@@ -19,6 +19,7 @@ import {
   CardListTileMetrics,
   CardListTilePrice,
 } from "@/components/CardListTile";
+import MarketFilterToolbar from "@/components/MarketFilterToolbar";
 import { SectionHeader } from "@/components/PageHeader";
 import CachedImage from "@/components/CachedImage";
 import type { SealedModalProductData } from "@/components/sealed-modal/types";
@@ -453,15 +454,17 @@ export default function SealedMoversBrowser({ movers }: Props) {
         />
 
         <div className="glass mb-4 rounded-2xl border border-black/8 px-4 py-4 shadow-sm shadow-black/5 dark:border-white/8">
-          <div className="grid gap-3 lg:grid-cols-[minmax(16rem,1fr)_repeat(4,minmax(8rem,11rem))_auto] lg:items-end">
-            <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+          <MarketFilterToolbar
+            activeFilterCount={Number(direction !== "all") + Number(focusFilter !== "all") + Number(categoryFilter !== "all")}
+            search={<label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                 Search
               </span>
               <span className="relative block">
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 dark:text-white/35" />
                 <input
                   type="text"
+                  aria-label="Search"
                   placeholder="Product, set, type"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
@@ -478,28 +481,13 @@ export default function SealedMoversBrowser({ movers }: Props) {
                   </button>
                 ) : null}
               </span>
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
-                Trend
-              </span>
-              <select
-                value={direction}
-                onChange={(event) => setDirection(event.target.value as DirectionFilter)}
-                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
-              >
-                <option className={SELECT_OPTION_CLASS} value="all">All moves</option>
-                <option className={SELECT_OPTION_CLASS} value="risers">Risers</option>
-                <option className={SELECT_OPTION_CLASS} value="fallers">Fallers</option>
-              </select>
-            </label>
-
-            <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+            </label>}
+            sort={<label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                 Sort
               </span>
               <select
+                aria-label="Sort"
                 value={sortKey}
                 onChange={(event) => setSortKey(event.target.value as SealedSortKey)}
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
@@ -510,13 +498,40 @@ export default function SealedMoversBrowser({ movers }: Props) {
                   </option>
                 ))}
               </select>
+            </label>}
+            reset={hasActiveControls ? (
+              <button
+                type="button"
+                onClick={clearAllFilters}
+                className="h-11 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/62 transition-colors hover:border-white/16 hover:text-white dark:border-white/8 dark:bg-white/[0.05] dark:text-white/62 dark:hover:border-white/16 dark:hover:text-white"
+              >
+                Reset
+              </button>
+            ) : null}
+          >
+
+            <label className="block">
+              <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
+                Trend
+              </span>
+              <select
+                aria-label="Trend"
+                  value={direction}
+                onChange={(event) => setDirection(event.target.value as DirectionFilter)}
+                className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
+              >
+                <option className={SELECT_OPTION_CLASS} value="all">All moves</option>
+                <option className={SELECT_OPTION_CLASS} value="risers">Risers</option>
+                <option className={SELECT_OPTION_CLASS} value="fallers">Fallers</option>
+              </select>
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                 Focus
               </span>
               <select
+                aria-label="Focus"
                 value={focusFilter}
                 onChange={(event) => setFocusFilter(event.target.value as SealedFocusFilter)}
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
@@ -528,11 +543,12 @@ export default function SealedMoversBrowser({ movers }: Props) {
             </label>
 
             <label className="block">
-              <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.16em] text-gray-400 dark:text-white/35">
+              <span className="mb-1 block text-xs font-medium text-[var(--dc-text-secondary)]">
                 Type
               </span>
               <select
-                value={categoryFilter}
+                aria-label="Type"
+                  value={categoryFilter}
                 onChange={(event) => setCategoryFilter(event.target.value)}
                 className="h-11 w-full rounded-xl border border-white/10 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none transition-colors focus:border-white/14 dark:border-white/8 dark:bg-white/[0.05] dark:text-white dark:focus:border-white/14"
               >
@@ -545,16 +561,7 @@ export default function SealedMoversBrowser({ movers }: Props) {
               </select>
             </label>
 
-            {hasActiveControls ? (
-              <button
-                type="button"
-                onClick={clearAllFilters}
-                className="h-11 rounded-xl border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/62 transition-colors hover:border-white/16 hover:text-white dark:border-white/8 dark:bg-white/[0.05] dark:text-white/62 dark:hover:border-white/16 dark:hover:text-white"
-              >
-                Reset
-              </button>
-            ) : null}
-          </div>
+          </MarketFilterToolbar>
         </div>
 
         {visibleMovers.length === 0 ? (
