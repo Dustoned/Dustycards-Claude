@@ -54,6 +54,8 @@ const SettingsContext = createContext<{
   isLoaded: boolean;
   isMobileViewport: boolean;
   currentUserRole: "admin" | "user" | null;
+  accountSaveIssue: "error" | "retrying" | null;
+  retryAccountSettingsSave: () => void;
   set: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void;
   setDisplay: <K extends keyof UserSettings>(key: K, value: UserSettings[K]) => void;
 }>({
@@ -62,12 +64,39 @@ const SettingsContext = createContext<{
   isLoaded: false,
   isMobileViewport: false,
   currentUserRole: null,
+  accountSaveIssue: null,
+  retryAccountSettingsSave: () => {},
   set: () => {},
   setDisplay: () => {},
 });
 
 export function useSettings() {
   return useContext(SettingsContext);
+}
+
+export function SettingsSaveFeedback({ inline = false }: { inline?: boolean }) {
+  const { accountSaveIssue, retryAccountSettingsSave } = useSettings();
+  if (!accountSaveIssue) return null;
+
+  return (
+    <div
+      className={`${inline ? "mx-4 mt-4 shrink-0 sm:mx-6" : "fixed inset-x-4 bottom-[calc(6rem+env(safe-area-inset-bottom))] z-[300] md:bottom-6 md:left-auto md:max-w-md [body:has([data-dashboard-customizer])_&]:hidden"} flex flex-wrap items-center gap-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950 shadow-xl`}
+      role="status"
+      aria-live="polite"
+    >
+      <p className="min-w-0 flex-1 text-sm leading-5">
+        {accountSaveIssue === "retrying" ? "Retrying your account settings…" : "Your latest settings could not be saved to your account. Keep this page open and retry."}
+      </p>
+      <button
+        type="button"
+        disabled={accountSaveIssue === "retrying"}
+        onClick={retryAccountSettingsSave}
+        className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--dc-primary)] px-4 text-sm font-semibold text-[var(--dc-on-primary)] disabled:opacity-60"
+      >
+        {accountSaveIssue === "retrying" ? "Retrying…" : "Retry saving settings"}
+      </button>
+    </div>
+  );
 }
 
 function getInitialSettings(initialSettings?: UserSettings | null): UserSettings {
@@ -162,15 +191,35 @@ export default function SettingsProvider({
   const [settings, setSettings] = useState<UserSettings>(() => getInitialSettings(initialSettings));
   const [isLoaded, setIsLoaded] = useState(false);
   const [isMobileViewport, setIsMobileViewport] = useState(initialMobileViewport);
+  const [accountSaveIssue, setAccountSaveIssue] = useState<"error" | "retrying" | null>(null);
   const didSyncInitialSettingsRef = useRef(false);
   const settingsRef = useRef(settings);
   const settingsSaveQueueRef = useRef<ReturnType<typeof createLatestSettingsSaveQueue> | null>(
     null
   );
   if (settingsSaveQueueRef.current === null) {
-    settingsSaveQueueRef.current = createLatestSettingsSaveQueue(saveToAccount);
+    settingsSaveQueueRef.current = createLatestSettingsSaveQueue(saveToAccount, (status) => {
+      setAccountSaveIssue((current) => status === "error" ? "error" : status === "saved" ? null : current ? "retrying" : null);
+    });
   }
   const displaySettings = getDisplaySettings(settings, isMobileViewport);
+
+  useEffect(() => {
+    if (!syncToAccount) return;
+    const retry = () => { void settingsSaveQueueRef.current?.retry(); };
+    window.addEventListener("online", retry);
+    return () => window.removeEventListener("online", retry);
+  }, [syncToAccount]);
+
+  useEffect(() => {
+    if (!accountSaveIssue) return;
+    function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
+  }, [accountSaveIssue]);
 
   useEffect(() => {
     // Signed-in accounts are authoritative. Browser storage is only a fast
@@ -289,11 +338,14 @@ export default function SettingsProvider({
         isLoaded,
         isMobileViewport,
         currentUserRole,
+        accountSaveIssue,
+        retryAccountSettingsSave: () => { void settingsSaveQueueRef.current?.retry(); },
         set,
         setDisplay,
       }}
     >
       {children}
+      <SettingsSaveFeedback />
     </SettingsContext.Provider>
   );
 }

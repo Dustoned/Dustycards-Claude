@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   useEffect,
   useMemo,
@@ -27,6 +27,7 @@ export default function SettingsTabs({
   defaultKey?: string;
 }) {
   const searchParams = useSearchParams();
+  const router = useRouter();
   const requestedKey = searchParams.get("section");
   const initialKey = useMemo(
     () =>
@@ -84,8 +85,18 @@ export default function SettingsTabs({
 
   return (
     <div className="space-y-4">
+      <label className="grid gap-1.5 text-xs font-semibold text-[var(--dc-text-secondary)] md:hidden">
+        Settings section
+        <select
+          value={selected.key}
+          onChange={(event) => router.push(`/settings?section=${encodeURIComponent(event.target.value)}`, { scroll: false })}
+          className="min-h-11 w-full rounded-xl border border-[var(--dc-border)] bg-[var(--dc-surface-primary)] px-3 text-base text-[var(--dc-text-primary)]"
+        >
+          {tabs.map((tab) => <option key={tab.key} value={tab.key}>{tab.label}</option>)}
+        </select>
+      </label>
       <div
-        className={`min-w-0 overflow-x-auto rounded-2xl border border-white/8 bg-white/[0.035] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
+        className={`hidden min-w-0 overflow-x-auto rounded-2xl border border-white/8 bg-white/[0.035] md:block [scrollbar-width:none] [&::-webkit-scrollbar]:hidden ${
           denseTabs ? "p-0.5 sm:p-1" : "p-1"
         }`}
         role="tablist"

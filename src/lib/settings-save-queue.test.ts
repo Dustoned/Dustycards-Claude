@@ -79,4 +79,34 @@ describe("latest settings save queue", () => {
 
     expect(savedPresets).toEqual(["rose-quartz", "custom"]);
   });
+
+  it("keeps a failed final snapshot for explicit retry and reports recovery", async () => {
+    const savedPresets: string[] = [];
+    const statuses: string[] = [];
+    const queue = createLatestSettingsSaveQueue(async (settings) => {
+      savedPresets.push(settings.appearance.preset);
+      if (savedPresets.length === 1) throw new Error("offline");
+    }, (status) => statuses.push(status));
+
+    await queue.enqueue(withAppearance("rose-quartz"));
+    expect(statuses).toEqual(["saving", "error"]);
+    expect(savedPresets).toEqual(["rose-quartz"]);
+    await queue.retry();
+    expect(savedPresets).toEqual(["rose-quartz", "rose-quartz"]);
+    expect(statuses).toEqual(["saving", "error", "saving", "saved"]);
+    await queue.retry();
+    expect(savedPresets).toHaveLength(2);
+  });
+
+  it("retries the newest failed edit instead of restoring an older snapshot", async () => {
+    const savedPresets: string[] = [];
+    const queue = createLatestSettingsSaveQueue(async (settings) => {
+      savedPresets.push(settings.appearance.preset);
+      if (savedPresets.length < 3) throw new Error("offline");
+    });
+    await queue.enqueue(withAppearance("rose-quartz"));
+    await queue.enqueue(withAppearance("ocean-sapphire"));
+    await queue.retry();
+    expect(savedPresets).toEqual(["rose-quartz", "ocean-sapphire", "ocean-sapphire"]);
+  });
 });

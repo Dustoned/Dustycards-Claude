@@ -3,6 +3,7 @@ import { ArrowDownRight, ChevronDown, Clock3, Gem, SlidersHorizontal, Sparkles, 
 import CollectionValueDrivers from "@/components/CollectionValueDrivers";
 import GameFilterSwitch, { SegmentedNavLinks } from "@/components/GameFilterSwitch";
 import { HeaderStatCard, type HeaderStat } from "@/components/PageHeader";
+import MobileSummaryDisclosure from "@/components/MobileSummaryDisclosure";
 import PriceHistoryPanel, { type PriceHistoryValuePoint } from "@/components/PriceHistoryPanel";
 import MoversBrowser from "@/app/movers/MoversBrowser";
 import SealedMoversBrowser from "@/app/movers/SealedMoversBrowser";
@@ -745,6 +746,7 @@ export default async function MoversPage({
           </p>
         </div>
 
+        <MobileSummaryDisclosure title="Market overview" summary={metrics.slice(0, 2).map((metric) => `${metric.value} ${metric.label.toLowerCase()}`).join(" · ")}>
         <section className={`grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${hasPulseHistory ? "xl:items-stretch" : "xl:items-start"}`}>
           <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
             <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
@@ -783,6 +785,7 @@ export default async function MoversPage({
           </div>
         </section>
 
+        </MobileSummaryDisclosure>
         <section className="binder-subpanel w-full overflow-hidden rounded-[var(--ui-page-header-radius)] p-2.5 sm:p-3">
           <div className="flex min-w-0 flex-col gap-1.5 md:hidden">
             {settings.onePieceLibraryEnabled ? (

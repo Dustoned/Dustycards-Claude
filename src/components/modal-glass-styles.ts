@@ -29,7 +29,7 @@ export const modalActionRowClass =
   "dc-modal-surface mt-6 flex gap-3 rounded-[22px] border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-primary)] p-2.5 shadow-[inset_0_1px_0_var(--dc-sheen)] max-[640px]:mt-4 max-[640px]:gap-2 max-[640px]:rounded-2xl max-[640px]:p-2";
 
 export const modalCloseButtonClass =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-elevated)] text-[rgb(var(--dc-text-primary-rgb)/0.66)] transition-colors hover:bg-[var(--dc-surface-hover)] hover:text-[var(--dc-text-primary)] max-[640px]:h-8 max-[640px]:w-8";
+  "inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-elevated)] text-[rgb(var(--dc-text-primary-rgb)/0.66)] transition-colors hover:bg-[var(--dc-surface-hover)] hover:text-[var(--dc-text-primary)]";
 
 export const modalInputClass =
   "dc-modal-field w-full rounded-2xl border border-[rgb(var(--dc-border-rgb)/0.86)] bg-[var(--dc-surface-elevated)] px-3 py-2.5 text-[var(--dc-text-primary)] outline-none transition-colors placeholder:text-[rgb(var(--dc-text-muted-rgb)/0.72)] focus:border-[rgb(var(--dc-primary-rgb)/0.55)] max-[640px]:rounded-xl max-[640px]:px-2.5 max-[640px]:py-2 max-[640px]:text-[16px]";

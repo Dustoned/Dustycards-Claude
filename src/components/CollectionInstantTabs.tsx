@@ -1,7 +1,7 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CollectionPricePrivacyProvider } from "@/components/CollectionPricePrivacy";
 import { emitCollectionUrlChange } from "@/components/useLiveCollectionTab";
 import type { CollectionPageTab } from "@/lib/collection-data";
@@ -79,6 +79,16 @@ export default function CollectionInstantTabs({
   emptySlot = null,
 }: Props) {
   const [activeTab, setActiveTab] = useState<CollectionPageTab>(() => normalizeTab(initialTab));
+  const sectionNavRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const strip = sectionNavRef.current;
+    const selected = strip?.querySelector<HTMLElement>('[aria-current="page"]');
+    if (!strip || !selected) return;
+    const parent = strip.getBoundingClientRect();
+    const child = selected.getBoundingClientRect();
+    if (child.left < parent.left) strip.scrollLeft -= parent.left - child.left;
+    if (child.right > parent.right) strip.scrollLeft += child.right - parent.right;
+  }, [activeTab]);
   const activeMeta = useMemo(
     () => tabs.find((tab) => tab.key === activeTab) ?? tabs[0],
     [activeTab, tabs]
@@ -197,14 +207,15 @@ export default function CollectionInstantTabs({
                       className="relative min-w-0 max-w-full overflow-hidden rounded-[1.15rem] border border-white/10 bg-white/[0.055] p-1 shadow-sm shadow-black/20 sm:rounded-[1.35rem]"
                     >
                       <div
-                        className="grid min-w-0 gap-1"
+                        ref={sectionNavRef}
+                        className="flex min-w-0 gap-1 overflow-x-auto py-0.5 [scrollbar-width:thin] sm:grid"
                         style={{ gridTemplateColumns: `repeat(${tabs.length}, minmax(0, 1fr))` }}
                       >
                         {tabs.map((tab) => {
                           const active = activeTab === tab.key;
                           const instant = canSelectInstant(tab.key);
                           const tabClassName = cx(
-                            "inline-flex h-7 min-w-0 items-center justify-center rounded-full px-1 text-[10px] font-bold leading-none transition-colors min-[390px]:px-1.5 min-[390px]:text-[11px] sm:h-8 sm:px-4 sm:text-[12px]",
+                            "inline-flex min-h-11 shrink-0 items-center justify-center whitespace-nowrap rounded-full px-3 text-xs font-semibold leading-none transition-colors sm:min-w-0 sm:px-4",
                             active
                               ? "border border-violet-400/40 bg-violet-600 text-white"
                               : "text-white/58 hover:bg-white/[0.07] hover:text-white"
@@ -219,7 +230,7 @@ export default function CollectionInstantTabs({
                                 scroll={false}
                                 className={tabClassName}
                               >
-                                <span className="truncate">{tab.label}</span>
+                                <span>{tab.label}</span>
                               </Link>
                             );
                           }
@@ -232,7 +243,7 @@ export default function CollectionInstantTabs({
                               onClick={() => selectTab(tab)}
                               className={tabClassName}
                             >
-                              <span className="truncate">{tab.label}</span>
+                              <span>{tab.label}</span>
                             </button>
                           );
                         })}

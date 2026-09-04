@@ -261,6 +261,7 @@ export default function HomeFeaturedCardsPanel({
 }) {
   const [selectedCard, setSelectedCard] = useState<ModalCardData | null>(null);
   const [openingItemKey, setOpeningItemKey] = useState<string | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
   const [desktopColumnCount, setDesktopColumnCount] = useState(DEFAULT_DESKTOP_FEATURED_COLUMNS);
   const gridRef = useRef<HTMLDivElement | null>(null);
   const { settings, displaySettings, isMobileViewport } = useSettings();
@@ -325,13 +326,16 @@ export default function HomeFeaturedCardsPanel({
     if (openingItemKey === openingKey) return;
 
     setOpeningItemKey(openingKey);
+    setDetailError(null);
     try {
       const response = await fetch(`/api/cards/${encodeURIComponent(item.card_id)}`, {
         cache: "no-store",
       });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error("Card details unavailable");
       const data: ModalCardData = await response.json();
       setSelectedCard(mergeCollectionItem(data, item, readOnlyCollectionItems));
+    } catch {
+      setDetailError(`Could not open ${item.name}. Select the card to try again.`);
     } finally {
       setOpeningItemKey(null);
     }
@@ -348,11 +352,17 @@ export default function HomeFeaturedCardsPanel({
         <Link
           href={viewAllHref}
           prefetch={false}
-          className="shrink-0 text-[12px] font-semibold text-violet-300 transition-colors hover:text-violet-200"
+          aria-label="View all featured cards"
+          className="inline-flex min-h-11 shrink-0 items-center px-2 text-[12px] font-semibold text-violet-300 transition-colors hover:text-violet-200"
         >
           View all
         </Link>
       </div>
+      {detailError ? (
+        <p role="alert" className="mb-3 rounded-xl border border-rose-300/20 bg-rose-300/[0.06] px-3 py-2 text-sm text-rose-200">
+          {detailError}
+        </p>
+      ) : null}
       <div
         ref={gridRef}
         className={viewMode === "grid" ? `grid ${gridGapClass}` : "grid gap-1.5 sm:grid-cols-2"}

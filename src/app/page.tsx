@@ -771,10 +771,11 @@ async function HomePageContent({
         <div className="space-y-4">
           {data.binders.length === 0 ? (
             <div className="binder-panel rounded-2xl px-5 py-7 text-center sm:rounded-3xl sm:px-8 sm:py-9">
-              <p className="mb-1 font-medium text-white/76">No binders yet</p>
-              <p className="mx-auto max-w-xl text-sm leading-6 text-white/42">
-                Type a set name for an automatic set binder, or create a custom binder.
+              <h2 className="mb-1 text-lg font-semibold text-white">Create your first binder</h2>
+              <p className="mx-auto max-w-xl text-sm leading-6 text-white/56">
+                Track a full set with a set binder, or group your favourites in a custom binder.
               </p>
+              <CreateBinderButton className="mt-4 min-h-11 w-full justify-center sm:w-auto" />
             </div>
           ) : (
             <BinderOverviewGrid binders={data.binders} />

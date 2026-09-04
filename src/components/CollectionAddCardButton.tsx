@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Check, Plus, ShoppingBag, X } from "lucide-react";
@@ -35,6 +35,7 @@ import {
   modalSecondaryButtonClass,
   modalSelectClass as modalSelectClasses,
 } from "@/components/modal-glass-styles";
+import useModalA11y from "@/lib/useModalA11y";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import type {
   CollectionCardAddDestination,
@@ -111,6 +112,8 @@ export default function CollectionAddCardButton({
   const [open, setOpen] = useState(false);
   const [binders, setBinders] = useState<BinderOption[]>([]);
   const [bindersLoading, setBindersLoading] = useState(false);
+  const [bindersError, setBindersError] = useState<string | null>(null);
+  const [binderLoadAttempt, setBinderLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [flashDestination, setFlashDestination] =
@@ -133,6 +136,8 @@ export default function CollectionAddCardButton({
   const [purchasePriceSource, setPurchasePriceSource] = useState<string | null>(null);
   const binderLocked = Boolean(initialBinderId && lockedBinderName);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y({ dialogRef, enabled: open, initialFocus: "dialog", onClose: () => setOpen(false) });
   useBodyScrollLock(open);
 
   useEffect(() => {
@@ -154,7 +159,7 @@ export default function CollectionAddCardButton({
         setBinders(Array.isArray(data.binders) ? data.binders : []);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setBinders([]);
+          setBindersError("Could not load binders. Your selected location has been kept.");
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -164,7 +169,7 @@ export default function CollectionAddCardButton({
     })();
 
     return () => controller.abort();
-  }, [open]);
+  }, [open, binderLoadAttempt]);
 
   useEffect(() => {
     if (!flashDestination) return;
@@ -244,6 +249,7 @@ export default function CollectionAddCardButton({
     if (stopPropagation) {
       event.stopPropagation();
     }
+    setBindersError(null);
     setBindersLoading(true);
     setSaveError(null);
     setShowAdvanced(false);
@@ -291,6 +297,8 @@ export default function CollectionAddCardButton({
             }}
           >
             <div
+              ref={dialogRef}
+              tabIndex={-1}
               role="dialog"
               aria-modal="true"
               aria-label={`Add ${card.name} to DustyCards`}
@@ -339,6 +347,7 @@ export default function CollectionAddCardButton({
                       </div>
                     </div>
                   ) : (
+                    <>
                     <label className={`${modalLabelClasses} col-span-2`}>
                       <span className="text-white/60">Save to</span>
                       <select
@@ -358,6 +367,9 @@ export default function CollectionAddCardButton({
                       >
                         <option value="__for_sale__" className={modalOptionClasses}>For sale</option>
                         <option value="" className={modalOptionClasses}>Singles</option>
+                        {binderId && !availableBinders.some((binder) => binder.id === binderId) && (
+                          <option value={binderId} className={modalOptionClasses}>{lockedBinderName ?? "Selected binder"}</option>
+                        )}
                         {availableBinders.map((binder) => (
                           <option key={binder.id} value={binder.id} className={modalOptionClasses}>
                             {binder.name}
@@ -366,7 +378,19 @@ export default function CollectionAddCardButton({
                         ))}
                       </select>
                       {bindersLoading && <p className="text-xs text-white/35">Loading binders...</p>}
+
                     </label>
+                    {bindersError && (
+                      <div role="alert" className="text-sm text-rose-300">
+                        <p>{bindersError}</p>
+                        <button type="button" className="min-h-11 underline underline-offset-4" onClick={() => {
+                          setBindersError(null);
+                          setBindersLoading(true);
+                          setBinderLoadAttempt((attempt) => attempt + 1);
+                        }}>Retry loading binders</button>
+                      </div>
+                    )}
+                    </>
                   )}
 
                   <label className="space-y-1.5 text-sm max-[640px]:col-span-2 max-[640px]:text-[12px]">

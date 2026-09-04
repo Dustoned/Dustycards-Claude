@@ -13,6 +13,7 @@ export default function ProgressiveTradeOpportunitiesPanel({
   game: TradingCardGameFilter;
 }) {
   const [requested, setRequested] = useState(false);
+  const [hasOpened, setHasOpened] = useState(false);
   const [opportunities, setOpportunities] = useState<SocialTradeOpportunity[] | null>(null);
 
   useEffect(() => {
@@ -39,11 +40,21 @@ export default function ProgressiveTradeOpportunitiesPanel({
   }, [endpoint, requested]);
 
   return (
-    <TradeOpportunitiesPanel
+    <details
+      className="binder-panel rounded-2xl p-3 sm:p-4"
+      onToggle={(event) => {
+        if (event.currentTarget.open) setHasOpened(true);
+      }}
+    >
+      <summary className="min-h-11 cursor-pointer content-center text-sm font-semibold text-[var(--dc-text-primary)] marker:text-[var(--dc-primary-soft)]">
+        Compare cards &amp; find trades
+      </summary>
+      {hasOpened ? <div className="pt-3"><TradeOpportunitiesPanel
       opportunities={opportunities ?? []}
       game={game}
       friendsPending={requested && opportunities == null}
       onFriendsOpen={() => setRequested(true)}
-    />
+      /></div> : null}
+    </details>
   );
 }

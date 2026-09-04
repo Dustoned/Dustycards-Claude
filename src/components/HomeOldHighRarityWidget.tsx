@@ -65,15 +65,17 @@ export function HomeOldHighRarityWidgetContent({
             </p>
             <h2 className="mt-0.5 truncate text-base font-black tracking-tight text-white">
               Old High-Rarity
+              <span className="ml-1.5 text-xs font-semibold text-white/45">{total.toLocaleString("en-US")}</span>
             </h2>
           </div>
         </div>
         <Link
           href={viewAllHref}
           prefetch={false}
-          className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg border border-amber-300/14 bg-amber-300/[0.055] px-2.5 text-[10px] font-bold text-amber-100/80 transition-colors hover:border-amber-300/28 hover:text-amber-50"
+          aria-label="View all old high-rarity cards"
+          className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-amber-300/14 bg-amber-300/[0.055] px-2.5 text-xs font-bold text-amber-100/80 transition-colors hover:border-amber-300/28 hover:text-amber-50"
         >
-          {total.toLocaleString("en-US")}
+          View all
           <ChevronRight className="h-3 w-3" aria-hidden="true" />
         </Link>
       </div>
@@ -258,7 +260,7 @@ export default function HomeOldHighRarityWidget({
           {state === "error" ? (
             <div className="mt-3 flex items-center justify-between gap-3 rounded-xl border border-amber-300/12 bg-amber-300/[0.04] px-3 py-4">
               <span className="text-[11px] font-semibold text-white/45">The old-card shortlist could not be loaded.</span>
-              <button type="button" onClick={retry} className="min-h-9 rounded-lg border border-amber-300/16 px-3 text-[10px] font-black text-amber-100">
+              <button type="button" onClick={retry} className="min-h-11 rounded-lg border border-amber-300/16 px-3 text-xs font-black text-amber-100">
                 Retry
               </button>
             </div>

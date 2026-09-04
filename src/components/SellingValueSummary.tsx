@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import VendorBuyEstimate from "@/components/VendorBuyEstimate";
+import MobileSummaryDisclosure from "@/components/MobileSummaryDisclosure";
 import { useSettings } from "@/components/SettingsProvider";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { formatCurrency } from "@/lib/format";
@@ -32,7 +33,8 @@ export default function SellingValueSummary({ items, investment, pricedCards, so
     : estimatedValue,
   [estimatedValue, items, source]);
   return (
-    <section className="binder-subpanel grid gap-2.5 rounded-[var(--ui-page-header-radius)] p-3 sm:grid-cols-2 xl:grid-cols-4">
+    <MobileSummaryDisclosure title="Sales overview" summary={`${items.length} cards · ${formatCollectionCurrency(estimatedValue)} estimated · ${formatCollectionCurrency(soldNet)} net sold`}>
+    <section className="binder-subpanel grid grid-cols-2 gap-3 rounded-[var(--ui-page-header-radius)] p-3 xl:grid-cols-4">
       <div className="min-w-0">
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-white/35">Estimated Sale Value · {source === "tcp" ? "TCGPlayer" : "CardMarket"}</p>
         <p className="mt-1 text-xl font-black tabular-nums text-white">
@@ -54,5 +56,6 @@ export default function SellingValueSummary({ items, investment, pricedCards, so
         <p className="mt-0.5 truncate text-[11px] font-semibold tabular-nums text-white/42">{soldCount.toLocaleString("en-US")} sold · gross {formatCollectionCurrency(soldTotal)} · fees {formatCollectionCurrency(soldFees)} · P&amp;L <span className={soldPnl >= 0 ? "text-emerald-300" : "text-rose-300"}>{soldPnl > 0 ? "+" : soldPnl < 0 ? "-" : ""}{formatCollectionCurrency(Math.abs(soldPnl))}</span></p>
       </div>
     </section>
+    </MobileSummaryDisclosure>
   );
 }

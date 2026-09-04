@@ -234,7 +234,7 @@ function FullAccessControls({
           <span className="truncate">Full Access</span>
         </span>
         <span
-          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black ${statusClass}`}
+          className={`inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-0.5 text-[12px] font-black ${statusClass}`}
         >
           {friend.hasFullAccess ? (
             <ShieldCheck className="h-3 w-3" />
@@ -254,7 +254,7 @@ function FullAccessControls({
             onUpdate(friend.connectionId, "revoke_full_access", "Full Access turned off.")
           }
           disabled={disabled}
-          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.035] px-2 text-[11px] font-black text-white/68 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
+          className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.035] px-2 text-[11px] font-black text-white/68 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
         >
           {isPendingAction(pendingAction, "revoke_full_access", friend.connectionId) ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -271,7 +271,7 @@ function FullAccessControls({
               onUpdate(friend.connectionId, "accept_full_access", "Full Access accepted.")
             }
             disabled={disabled}
-            className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-emerald-300/18 bg-emerald-500/[0.10] px-2 text-[10px] font-black text-emerald-100 transition-colors hover:bg-emerald-500/[0.15] disabled:cursor-wait disabled:opacity-55"
+            className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-emerald-300/18 bg-emerald-500/[0.10] px-2 text-[12px] font-black text-emerald-100 transition-colors hover:bg-emerald-500/[0.15] disabled:cursor-wait disabled:opacity-55"
           >
             {isPendingAction(pendingAction, "accept_full_access", friend.connectionId) ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -286,7 +286,7 @@ function FullAccessControls({
               onUpdate(friend.connectionId, "revoke_full_access", "Full Access declined.")
             }
             disabled={disabled}
-            className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/[0.035] px-2 text-[10px] font-black text-white/58 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
+            className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/[0.035] px-2 text-[12px] font-black text-white/58 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
           >
             <X className="h-3.5 w-3.5" />
             Decline
@@ -299,7 +299,7 @@ function FullAccessControls({
             onUpdate(friend.connectionId, "revoke_full_access", "Full Access request canceled.")
           }
           disabled={disabled}
-          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.035] px-2 text-[11px] font-black text-white/68 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
+          className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.035] px-2 text-[11px] font-black text-white/68 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
         >
           {isPendingAction(pendingAction, "revoke_full_access", friend.connectionId) ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -315,7 +315,7 @@ function FullAccessControls({
             onUpdate(friend.connectionId, "request_full_access", "Full Access requested.")
           }
           disabled={disabled}
-          className="mt-2 inline-flex h-8 w-full items-center justify-center gap-1.5 rounded-lg border border-violet-300/22 bg-violet-500/[0.15] px-2 text-[11px] font-black text-violet-50 transition-colors hover:bg-violet-500/[0.22] disabled:cursor-wait disabled:opacity-55"
+          className="mt-2 inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg border border-violet-300/22 bg-violet-500/[0.15] px-2 text-[11px] font-black text-violet-50 transition-colors hover:bg-violet-500/[0.22] disabled:cursor-wait disabled:opacity-55"
         >
           {isPendingAction(pendingAction, "request_full_access", friend.connectionId) ? (
             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -494,7 +494,7 @@ export default function SocialPageClient({
             </p>
           </div>
         </div>
-        <span className="rounded-full border border-white/10 bg-black/18 px-2 py-0.5 text-[10px] font-black text-white/48">
+        <span className="rounded-full border border-white/10 bg-black/18 px-2 py-0.5 text-[12px] font-black text-white/48">
           {formatCount(people.length)}
         </span>
       </div>
@@ -521,7 +521,7 @@ export default function SocialPageClient({
                     : "border-white/8 bg-white/[0.03]"
                 }`}
               >
-                <div className="grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-2">
+                <div className="grid grid-cols-[auto_minmax(0,1fr)] items-center gap-2">
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-black/18 text-sm font-black text-white">
                     {person.initial}
                   </span>
@@ -530,11 +530,11 @@ export default function SocialPageClient({
                       {person.displayName}
                     </span>
                     <span className="mt-1 flex flex-wrap items-center gap-1.5">
-                      <span className="truncate text-[10px] font-semibold text-white/40">
+                      <span className="truncate text-[12px] font-semibold text-white/40">
                         {getPersonMeta(person)}
                       </span>
                       <span
-                        className={`inline-flex shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-black ${getRelationshipClass(
+                        className={`inline-flex shrink-0 rounded-full border px-1.5 py-0.5 text-[11px] font-black ${getRelationshipClass(
                           person,
                           active
                         )}`}
@@ -542,7 +542,7 @@ export default function SocialPageClient({
                         {getRelationshipLabel(person, active)}
                       </span>
                       {person.friend?.hasFullAccess ? (
-                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-300/18 bg-emerald-500/[0.10] px-1.5 py-0.5 text-[9px] font-black text-emerald-100">
+                        <span className="inline-flex shrink-0 items-center gap-1 rounded-full border border-emerald-300/18 bg-emerald-500/[0.10] px-1.5 py-0.5 text-[11px] font-black text-emerald-100">
                           <ShieldCheck className="h-2.5 w-2.5" />
                           Full
                         </span>
@@ -550,18 +550,18 @@ export default function SocialPageClient({
                     </span>
                   </span>
 
-                  <span className="flex shrink-0 items-center justify-end gap-1">
+                  <span className="col-span-2 flex flex-wrap items-center justify-end gap-2 border-t border-white/8 pt-2">
                     {person.relationship === "friend" && friend ? (
                       <>
                         {active ? (
-                          <span className="inline-flex h-8 items-center justify-center rounded-lg border border-violet-300/22 bg-violet-500/[0.16] px-2 text-[10px] font-black text-violet-50">
+                          <span className="inline-flex min-h-11 items-center justify-center rounded-lg border border-violet-300/22 bg-violet-500/[0.16] px-2 text-[12px] font-black text-violet-50">
                             Open
                           </span>
                         ) : (
                           <Link
                             href={buildFriendHref(person.id, gameParam)}
                             prefetch={false}
-                            className="inline-flex h-8 items-center justify-center rounded-lg border border-emerald-300/18 bg-emerald-500/[0.10] px-2 text-[10px] font-black text-emerald-100 transition-colors hover:bg-emerald-500/[0.16]"
+                            className="inline-flex min-h-11 items-center justify-center rounded-lg border border-emerald-300/18 bg-emerald-500/[0.10] px-2 text-[12px] font-black text-emerald-100 transition-colors hover:bg-emerald-500/[0.16]"
                           >
                             Open
                           </Link>
@@ -570,7 +570,7 @@ export default function SocialPageClient({
                           type="button"
                           onClick={() => removeConnection(friend.connectionId)}
                           disabled={Boolean(pendingAction)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/18 text-white/42 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-black/18 text-white/42 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
                           aria-label={`Remove ${person.displayName}`}
                           title="Remove friend"
                         >
@@ -587,7 +587,7 @@ export default function SocialPageClient({
                           type="button"
                           onClick={() => acceptRequest(person.connectionId as string)}
                           disabled={Boolean(pendingAction)}
-                          className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-emerald-300/18 bg-emerald-500/[0.10] px-2 text-[10px] font-black text-emerald-100 transition-colors hover:bg-emerald-500/[0.16] disabled:cursor-wait disabled:opacity-55"
+                          className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-emerald-300/18 bg-emerald-500/[0.10] px-2 text-[12px] font-black text-emerald-100 transition-colors hover:bg-emerald-500/[0.16] disabled:cursor-wait disabled:opacity-55"
                         >
                           {isAccepting ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -600,7 +600,7 @@ export default function SocialPageClient({
                           type="button"
                           onClick={() => removeConnection(person.connectionId as string)}
                           disabled={Boolean(pendingAction)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-white/10 bg-black/18 text-white/42 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
+                          className="flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-black/18 text-white/42 transition-colors hover:border-rose-300/18 hover:bg-rose-500/[0.08] hover:text-rose-100 disabled:cursor-wait disabled:opacity-55"
                           aria-label={`Decline ${person.displayName}`}
                           title="Decline"
                         >
@@ -612,7 +612,7 @@ export default function SocialPageClient({
                         type="button"
                         onClick={() => removeConnection(person.connectionId as string)}
                         disabled={Boolean(pendingAction)}
-                        className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-amber-300/18 bg-amber-500/[0.10] px-2 text-[10px] font-black text-amber-100 transition-colors hover:bg-amber-500/[0.16] disabled:cursor-wait disabled:opacity-55"
+                        className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-amber-300/18 bg-amber-500/[0.10] px-2 text-[12px] font-black text-amber-100 transition-colors hover:bg-amber-500/[0.16] disabled:cursor-wait disabled:opacity-55"
                       >
                         {isRemoving ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -626,7 +626,7 @@ export default function SocialPageClient({
                         type="button"
                         onClick={() => addCollector(person.collector as SocialCollectorSummary)}
                         disabled={Boolean(pendingAction)}
-                        className="inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-violet-300/22 bg-violet-500/[0.16] px-2 text-[10px] font-black text-violet-50 transition-colors hover:bg-violet-500/[0.22] disabled:cursor-wait disabled:opacity-55"
+                        className="inline-flex min-h-11 items-center justify-center gap-1 rounded-lg border border-violet-300/22 bg-violet-500/[0.16] px-2 text-[12px] font-black text-violet-50 transition-colors hover:bg-violet-500/[0.22] disabled:cursor-wait disabled:opacity-55"
                       >
                         {isAdding ? (
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -654,17 +654,21 @@ export default function SocialPageClient({
       ) : (
         <div className="rounded-xl border border-white/8 bg-white/[0.025] px-3 py-6 text-center">
           <UsersRound className="mx-auto h-5 w-5 text-white/24" />
-          <p className="mt-2 text-sm font-black text-white/74">No collectors with cards yet</p>
+          <p className="mt-2 text-sm font-bold text-white/80">No collectors to discover yet</p>
+          <p className="mt-2 text-sm leading-6 text-white/55">
+            Collectors appear here after verifying their email and adding a card to their collection.
+            Cards marked for sale do not count.
+          </p>
         </div>
       )}
 
       {message ? (
-        <p className="mt-2 rounded-xl border border-emerald-300/14 bg-emerald-500/[0.07] px-3 py-2 text-[11px] font-semibold text-emerald-100">
+        <p role="status" className="mt-2 rounded-xl border border-emerald-300/14 bg-emerald-500/[0.07] px-3 py-2 text-[11px] font-semibold text-emerald-100">
           {message}
         </p>
       ) : null}
       {error ? (
-        <p className="mt-2 rounded-xl border border-rose-300/16 bg-rose-500/[0.08] px-3 py-2 text-[11px] font-semibold text-rose-100">
+        <p role="alert" className="mt-2 rounded-xl border border-rose-300/16 bg-rose-500/[0.08] px-3 py-2 text-[11px] font-semibold text-rose-100">
           {error}
         </p>
       ) : null}

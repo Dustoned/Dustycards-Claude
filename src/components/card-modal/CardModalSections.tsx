@@ -3777,7 +3777,7 @@ export function CardModalRecentPricesPanel({
           ))
         ) : (
           <p className="rounded-xl border border-dashed border-white/10 px-3 py-6 text-center text-sm text-white/42">
-            No recent market points yet.
+            No recent prices yet.
           </p>
         )}
       </div>
@@ -3879,7 +3879,7 @@ export function CardModalRelatedPrintingsPanel({
           <p className="card-detail-eyebrow">Print family</p>
           <h2 className="card-detail-surface-title mt-1.5">Related printings</h2>
           <p className="card-detail-surface-copy">
-            Pre-matched from card rules, artwork and print variants.
+            Compare editions with matching artwork or card rules.
           </p>
         </div>
         <span className="inline-flex shrink-0 items-center rounded-full border border-violet-300/16 bg-violet-400/[0.07] px-2.5 py-1 text-[11px] font-bold text-violet-100/72">

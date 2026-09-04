@@ -62,7 +62,8 @@ export default function HomeFeaturedSealedPanel({
         <Link
           href={viewAllHref}
           prefetch={false}
-          className="shrink-0 text-[12px] font-semibold text-violet-300 transition-colors hover:text-violet-200"
+          aria-label="View all featured sealed products"
+          className="inline-flex min-h-11 shrink-0 items-center px-2 text-[12px] font-semibold text-violet-300 transition-colors hover:text-violet-200"
         >
           View all
         </Link>

@@ -177,15 +177,17 @@ function WidgetHeader({
           </p>
           <h2 className="mt-0.5 truncate text-base font-black tracking-tight text-white">
             {title}
+            {count != null ? <span className="ml-1.5 text-xs font-semibold text-white/45">{count.toLocaleString("en-US")}</span> : null}
           </h2>
         </div>
       </div>
       <Link
         href={href}
         prefetch={false}
-        className="inline-flex min-h-8 shrink-0 items-center gap-1 rounded-lg border border-white/9 bg-white/[0.035] px-2.5 text-[10px] font-bold text-white/68 transition-colors hover:border-white/16 hover:text-white"
+        aria-label={`View all ${title}`}
+        className="inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border border-white/9 bg-white/[0.035] px-2.5 text-xs font-bold text-white/68 transition-colors hover:border-white/16 hover:text-white"
       >
-        {count != null ? count.toLocaleString("en-US") : "Open"}
+        View all
         <ChevronRight className="h-3 w-3" aria-hidden="true" />
       </Link>
     </div>
@@ -222,7 +224,7 @@ export function HomeMarketMoversWidget({
     <section className="binder-panel home-widget-panel home-widget-panel--market h-full rounded-[var(--ui-page-header-radius)] p-3">
       <WidgetHeader eyebrow="Live market" title="Market Movers" href={viewAllHref} icon={ArrowUpRight} tone="market" />
       {items.length === 0 ? (
-        <EmptyWidget>No current mover snapshot is available yet.</EmptyWidget>
+        <EmptyWidget>No recent price movements yet.</EmptyWidget>
       ) : gridView ? (
         <div className="home-widget-tile-grid mt-2 grid gap-2">
           {visibleItems.map((item) => {
@@ -314,7 +316,7 @@ function HomeGradedWidget({
   return (
     <section className={`binder-panel home-widget-panel home-widget-panel--${targets ? "radar" : "market"} h-full rounded-[var(--ui-page-header-radius)] p-3`}>
       <WidgetHeader
-        eyebrow={targets ? "Risk-adjusted upside" : "Slab market"}
+        eyebrow={targets ? "Estimated grading gain" : "Slab market"}
         title={targets ? "Grading Targets" : "Graded Movers"}
         count={items.length}
         href={viewAllHref}
@@ -322,7 +324,7 @@ function HomeGradedWidget({
         tone={targets ? "radar" : "market"}
       />
       {items.length === 0 ? (
-        <EmptyWidget>{targets ? "No positive-value grading targets are available yet." : "No graded mover snapshot is available yet."}</EmptyWidget>
+        <EmptyWidget>{targets ? "No grading targets with a positive estimated gain yet." : "No recent graded price movements yet."}</EmptyWidget>
       ) : gridView ? (
         <div className="home-widget-tile-grid mt-2 grid gap-2">
           {visibleItems.map((item, index) => (
@@ -612,9 +614,12 @@ function HomeCardListWidget({
       )}
       {data.totalValue != null ? (
         <div className="mt-2 flex items-center justify-between gap-3 rounded-xl border border-[rgb(var(--dc-primary-rgb)/0.18)] bg-[rgb(var(--dc-primary-rgb)/0.07)] px-3 py-2">
-          <span className="text-[9px] font-black uppercase tracking-[0.13em] text-white/48">Total asking value</span>
+          <span className="text-[11px] font-bold text-white/48">{kind === "sale" ? "Asking / estimated value" : "Estimated total"}</span>
           <span className="text-[15px] font-black tabular-nums text-[var(--dc-primary)]">{formatCollectionCurrency(data.totalValue)}</span>
         </div>
+      ) : null}
+      {kind === "sale" && data.items.length > 0 ? (
+        <p className="mt-2 text-xs leading-5 text-white/45">Uses market price where no asking price is set.</p>
       ) : null}
     </section>
   );
@@ -641,7 +646,7 @@ export function HomeForSaleWidget({ data, viewAllHref, viewMode = "grid" }: { da
       title="For Sale"
       data={data}
       viewAllHref={viewAllHref}
-      emptyLabel="No cards are currently listed for sale."
+      emptyLabel="No cards listed for sale."
       kind="sale"
       viewMode={viewMode}
     />
@@ -670,7 +675,7 @@ export function HomeUpcomingWidget({
     >
       <WidgetHeader eyebrow="Release calendar" title="Upcoming Sealed" count={items.length} href={viewAllHref} icon={CalendarClock} tone="upcoming" />
       {items.length === 0 ? (
-        <EmptyWidget>No upcoming sealed releases are scheduled.</EmptyWidget>
+        <EmptyWidget>No upcoming sealed releases found.</EmptyWidget>
       ) : gridView ? (
         <div className={`home-widget-tile-grid home-widget-tile-grid--releases mt-2 grid auto-rows-max gap-2 ${compact ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1" : ""}`}>
           {visibleItems.map((item) => {
@@ -764,7 +769,7 @@ export function HomeUpcomingSinglesWidget({
     >
       <WidgetHeader eyebrow="Reveals & releases" title="Upcoming Singles" count={total} href={viewAllHref} icon={Sparkles} tone="upcoming" />
       {visibleGroups.length === 0 ? (
-        <EmptyWidget>No upcoming singles or recent reveals are available.</EmptyWidget>
+        <EmptyWidget>No upcoming singles or recent reveals found.</EmptyWidget>
       ) : (
         <div className={`mt-2 grid auto-rows-max gap-2.5 ${compact ? "min-h-0 flex-1 content-start overflow-y-auto overscroll-contain pr-1" : ""}`}>
           {visibleGroups.map((group) => {
@@ -774,7 +779,7 @@ export function HomeUpcomingSinglesWidget({
               : group.statuses.reveal
                 ? `${group.statuses.reveal} revealed`
                 : group.statuses.leak
-                  ? `${group.statuses.leak} early`
+                  ? `${group.statuses.leak} unconfirmed`
                   : `${group.total} upcoming`;
 
             return (

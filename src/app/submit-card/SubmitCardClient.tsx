@@ -589,6 +589,10 @@ export default function SubmitCardClient() {
 
   return (
     <div className="grid gap-4">
+      <details className="rounded-2xl border border-white/10 bg-white/[0.035]">
+        <summary className="min-h-14 cursor-pointer content-center px-4 py-3 text-sm font-semibold text-white/75">
+          Preview allowance <span className="ml-2 text-xs font-normal text-white/56">Usage and availability</span>
+        </summary>
       <section className="glass min-w-0 rounded-2xl border border-white/8 bg-white/[0.035] p-5 shadow-md shadow-black/20">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div>
@@ -656,6 +660,12 @@ export default function SubmitCardClient() {
           </p>
         ) : null}
       </section>
+      </details>
+      {firecrawlUsage && !firecrawlUsage.configured ? (
+        <p role="status" className="rounded-xl border border-amber-300/20 bg-amber-300/[0.055] px-4 py-3 text-sm text-[var(--dc-text-primary)]">
+          Card preview is currently unavailable. You can still browse your saved submissions below.
+        </p>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
         <form

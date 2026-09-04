@@ -1,7 +1,7 @@
 ﻿"use client";
 
-import { type ReactNode } from "react";
-import { Search, SlidersHorizontal, X } from "lucide-react";
+import { type ReactNode, useId, useState } from "react";
+import { Search, SlidersHorizontal, PanelsTopLeft, X } from "lucide-react";
 
 const ACTIVE_SEGMENT_CLASS =
   "border-violet-400/40 bg-violet-600 text-white";
@@ -88,7 +88,7 @@ function controlsStripClass(): string {
 }
 
 function sectionLabelClass(): string {
-  return "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/42 max-[767px]:w-auto max-[767px]:text-[10px]";
+  return "w-12 shrink-0 text-[10px] font-semibold uppercase tracking-[0.12em] text-white/55 max-[767px]:w-auto max-[767px]:text-xs max-[767px]:normal-case max-[767px]:tracking-normal";
 }
 
 function compactSegmentedShellClass(): string {
@@ -120,7 +120,7 @@ function mobileSegmentedShellClass(): string {
 }
 
 function mobileSegmentedButtonClass(active: boolean): string {
-  return `min-h-10 min-w-0 rounded-full border border-transparent px-1.5 text-[11px] font-black leading-none transition-colors ${
+  return `min-h-11 min-w-0 rounded-full border border-transparent px-1.5 text-xs font-semibold leading-none transition-colors ${
     active
       ? ACTIVE_SEGMENT_CLASS
       : "text-white/56 hover:bg-white/[0.07] hover:text-white"
@@ -152,6 +152,7 @@ function MobileSegmentedControl({
             key={option.value}
             type="button"
             title={option.title}
+            aria-pressed={value === option.value}
             onClick={() => onChange(option.value)}
             className={mobileSegmentedButtonClass(value === option.value)}
           >
@@ -164,7 +165,7 @@ function MobileSegmentedControl({
 }
 
 function toolbarFilterButtonClass(className: string): string {
-  return `${className} max-w-full whitespace-nowrap outline-none ring-0 shadow-none focus:outline-none focus:ring-0 focus-visible:outline-none focus-visible:ring-0`;
+  return `${className} max-w-full whitespace-nowrap shadow-none focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-violet-400`;
 }
 
 function filterIndicatorClass(active: boolean): string {
@@ -201,6 +202,8 @@ export default function CardBrowserToolbar({
   selectionSlot = null,
   warnings = [],
 }: Props) {
+  const [displayExpanded, setDisplayExpanded] = useState(false);
+  const displayId = useId();
   const normalizedPriceSourceLabel = priceSourceLabel?.trim().toLowerCase() ?? "";
   const normalizedSortSummary = sortSummary.trim().toLowerCase();
   const summaryLabel =
@@ -238,6 +241,16 @@ export default function CardBrowserToolbar({
           Clear all
         </button>
       )}
+      <button
+        type="button"
+        className={`${actionButtonClass(displayExpanded)} md:hidden`}
+        aria-expanded={displayExpanded}
+        aria-controls={displayId}
+        onClick={() => setDisplayExpanded((expanded) => !expanded)}
+      >
+        <PanelsTopLeft className="h-3.5 w-3.5" aria-hidden="true" />
+        Display
+      </button>
       {selectionSlot}
     </div>
   );
@@ -328,6 +341,7 @@ export default function CardBrowserToolbar({
             <input
               type="text"
               placeholder={searchPlaceholder}
+              aria-label={searchPlaceholder}
               value={searchValue}
               onChange={(event) => onSearchChange(event.target.value)}
               className="w-full rounded-2xl border border-white/10 bg-black/30 py-2.5 pl-10 pr-10 text-sm text-white outline-none transition-colors placeholder:text-white/42 focus:border-white/20 focus:bg-black/20 max-[767px]:h-11 max-[767px]:rounded-xl max-[767px]:py-2 max-[767px]:text-sm"
@@ -336,7 +350,7 @@ export default function CardBrowserToolbar({
               <button
                 type="button"
                 onClick={() => onSearchChange("")}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-white/38 transition-colors hover:text-white"
+                className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-white/38 transition-colors hover:text-white"
                 aria-label="Clear search"
               >
                 <X className="h-4 w-4" />
@@ -354,7 +368,7 @@ export default function CardBrowserToolbar({
             : ""
         }`}
       >
-        <div className={`grid gap-2 ${sizeOptions.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
+        <div id={displayId} className={`${displayExpanded ? "grid" : "hidden"} gap-2 ${sizeOptions.length > 0 ? "grid-cols-2" : "grid-cols-1"}`}>
           <MobileSegmentedControl
             label="View"
             options={viewOptions}

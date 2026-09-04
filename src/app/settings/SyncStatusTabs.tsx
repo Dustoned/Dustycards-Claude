@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 import { MetricCell, StatusPill } from "./SyncStatusCards";
 import type { AutoRefreshStatus } from "./sync-status-utils";
 import {
@@ -11,7 +11,7 @@ import {
 } from "./sync-status-utils";
 
 const ACTIVE_SEGMENT_CLASS =
-  "border border-violet-400/40 bg-violet-600 text-white";
+  "border border-[var(--dc-primary)] bg-[var(--dc-primary)] text-[var(--dc-on-primary)]";
 
 type AutoRefreshStatusKey = AutoRefreshStatus["key"];
 
@@ -70,7 +70,7 @@ function DetailRow({
 
   return (
     <div className="min-w-0">
-      <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-400">
+      <p className="text-xs font-semibold text-gray-500 dark:text-gray-400">
         {label}
       </p>
       <p
@@ -89,6 +89,7 @@ export default function SyncStatusTabs({
   statuses: AutoRefreshStatus[];
 }) {
   const [selectedKey, setSelectedKey] = useState<AutoRefreshStatusKey>("all");
+  const tabsId = useId();
   const selected = statuses.find((status) => status.key === selectedKey) ?? statuses[0] ?? null;
 
   const progress = useMemo(
@@ -155,13 +156,28 @@ export default function SyncStatusTabs({
               key={status.key}
               type="button"
               role="tab"
+              id={`${tabsId}-${status.key}`}
+              aria-controls={`${tabsId}-panel`}
               aria-selected={isSelected}
-              className={`min-h-9 min-w-0 rounded-md px-1.5 text-[11px] font-semibold leading-none transition sm:px-3 sm:text-sm ${
+              tabIndex={isSelected ? 0 : -1}
+              className={`min-h-11 min-w-0 rounded-md px-1.5 text-xs font-semibold leading-snug transition sm:px-3 sm:text-sm ${
                 isSelected
                   ? ACTIVE_SEGMENT_CLASS
-                  : "text-white/55 hover:bg-white/8 hover:text-white"
+                  : "text-[var(--dc-text-secondary)] hover:bg-[var(--dc-surface-hover)]"
               }`}
               onClick={() => setSelectedKey(status.key)}
+              onKeyDown={(event) => {
+                const index = statuses.findIndex((item) => item.key === status.key);
+                const nextIndex = event.key === "ArrowRight" ? (index + 1) % statuses.length
+                  : event.key === "ArrowLeft" ? (index - 1 + statuses.length) % statuses.length
+                  : event.key === "Home" ? 0
+                  : event.key === "End" ? statuses.length - 1 : null;
+                if (nextIndex == null) return;
+                event.preventDefault();
+                const next = statuses[nextIndex];
+                setSelectedKey(next.key);
+                document.getElementById(`${tabsId}-${next.key}`)?.focus();
+              }}
             >
               {status.label}
             </button>
@@ -169,7 +185,7 @@ export default function SyncStatusTabs({
         })}
       </div>
 
-      <div className="mt-3 overflow-hidden rounded-lg border border-black/6 dark:border-white/8">
+      <div id={`${tabsId}-panel`} role="tabpanel" aria-labelledby={`${tabsId}-${selected.key}`} className="mt-3 overflow-hidden rounded-lg border border-black/6 dark:border-white/8">
         <div className="grid grid-cols-2 bg-white/45 dark:bg-white/[0.03] md:grid-cols-6">
           <MetricCell
             label="Queue"

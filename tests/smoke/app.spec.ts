@@ -1171,6 +1171,12 @@ async function pullToRefreshFromMobileViewport(page: Page) {
 }
 
 async function openSettingsTab(page: Page, name: string) {
+  const sectionPicker = page.getByRole("combobox", { name: "Settings section" });
+  if (await sectionPicker.isVisible()) {
+    await sectionPicker.selectOption({ label: name });
+    await expect(page.getByRole("tabpanel", { name, exact: true })).toBeVisible();
+    return;
+  }
   const tab = page.getByRole("tab", { name, exact: true });
   await expect(tab).toBeVisible();
   await tab.click();
@@ -1509,7 +1515,7 @@ test.describe("DustyCards smoke", () => {
     await page.goto("/settings");
 
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Preferences" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Settings section" })).toHaveValue("preferences");
     const preferencesPanel = page.getByRole("tabpanel", { name: "Preferences" });
     await expect(preferencesPanel.getByText("Phone overrides", { exact: true })).toBeVisible();
     await expect(preferencesPanel.getByText("Default view", { exact: true })).toBeVisible();
@@ -2073,7 +2079,7 @@ test.describe("DustyCards smoke", () => {
     expect(await tabs.allTextContents()).toEqual([
       "Overview",
       "Market",
-      "Collection",
+      "Collection & Reprints",
       "Forecast",
       "Analysis",
       "Evidence",
@@ -2103,7 +2109,7 @@ test.describe("DustyCards smoke", () => {
     await expect(shell.getByRole("heading", { name: "Sealed and scarcity", exact: true })).toBeVisible();
     await evidenceTab.click();
     await expect(shell).toHaveAttribute("data-active-tab", "evidence");
-    await expect(shell.getByRole("heading", { name: "External proof", exact: true })).toBeVisible();
+    await expect(shell.getByRole("heading", { name: "Tournament evidence", exact: true })).toBeVisible();
     await expect(shell.locator("[data-card-detail-research]:visible")).toHaveCount(1);
     await captureCardDetailScreenshot(page, shell, "standard-evidence-1920x1080.png");
     await marketTab.click();
@@ -2253,7 +2259,7 @@ test.describe("DustyCards smoke", () => {
     await expectMobileDetailTabsKeepScrollAnchor(page, shell, [
       "Overview",
       "Market",
-      "Collection",
+      "Collection & Reprints",
       "Evidence",
       "Market",
     ]);

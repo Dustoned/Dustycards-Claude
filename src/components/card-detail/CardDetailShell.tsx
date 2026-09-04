@@ -527,7 +527,7 @@ export default function CardDetailShell({
                 aria-label="Market summary"
               >
                 {visibleKpis.map((item, index) => (
-                  <KpiCard key={`${item.label}-${index}`} item={item} />
+                  <KpiCard key={`${item.label}-${index}`} item={item} onNavigate={navigateToKpiTab} />
                 ))}
               </div>
             ) : null}

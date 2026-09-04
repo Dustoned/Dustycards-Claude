@@ -219,18 +219,18 @@ export default function OpeningSessionsClient({ owned, sessions }: { owned: Owne
   }
 
   return (
-    <main className="page-container mx-auto px-3 pb-24 pt-6 sm:px-6 lg:px-8">
+    <main className="page-container mx-auto max-w-7xl px-4 pb-24 pt-5 sm:px-6 sm:pt-8 lg:px-8">
       <header className="rounded-[var(--ui-page-header-radius)] border border-white/8 bg-white/[0.03] p-4 sm:p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
-          <div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-violet-200/58">Collection workflow</p><h1 className="mt-1 text-2xl font-black text-white">Sealed openings</h1><p className="mt-1 max-w-xl text-sm text-white/42">Keep sealed cost, every pull and the live result together.</p></div>
-          <button type="button" onClick={() => setCreateOpen((current) => !current)} className="inline-flex h-10 items-center gap-2 rounded-xl border border-violet-300/18 bg-violet-500/[0.12] px-3 text-xs font-black text-violet-50"><Plus className="h-4 w-4" /> New opening</button>
+          <div><h1 className="text-[length:var(--ui-page-header-title-size)] font-bold leading-tight tracking-tight text-white">Sealed openings</h1><p className="mt-1 max-w-xl text-sm text-white/56">Keep sealed cost, every pull and the live result together.</p></div>
+          <button type="button" aria-expanded={createOpen} aria-controls="new-opening-form" onClick={() => setCreateOpen((current) => !current)} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-violet-300/18 bg-violet-500/[0.12] px-3 text-sm font-semibold text-violet-50"><Plus className="h-4 w-4" aria-hidden="true" />{createOpen ? "Close form" : "New opening"}</button>
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {totals.sessions > 0 ? <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
           {[["Sessions", totals.sessions], ["Pulls", totals.cards], ["Opened cost", formatCollectionCurrency(totals.cost)], ["Current result", formatCollectionCurrency(totals.value - totals.cost)]].map(([label, value]) => <div key={String(label)} className="rounded-xl border border-white/7 bg-black/16 px-3 py-2"><p className="text-[9px] font-bold uppercase tracking-[0.1em] text-white/30">{label}</p><p className="mt-1 text-sm font-black tabular-nums text-white/82">{value}</p></div>)}
-        </div>
+        </div> : null}
       </header>
 
-      {createOpen ? <section className="mt-3 rounded-2xl border border-violet-300/14 bg-violet-500/[0.04] p-4">
+      {createOpen ? <section id="new-opening-form" className="mt-3 rounded-2xl border border-violet-300/14 bg-violet-500/[0.04] p-4">
         <div className="mb-3">
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-violet-200/52">New opening</p>
           <p className="mt-1 text-xs text-white/38">Choose from your collection or the full sealed catalogue. Best price and pack count are filled automatically when known.</p>

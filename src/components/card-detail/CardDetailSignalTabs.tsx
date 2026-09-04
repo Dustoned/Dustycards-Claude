@@ -181,7 +181,7 @@ function buildForecastPanel(
           <SignalState
             kind="loading"
             title="Building the forecast"
-            copy="Market, scarcity and demand inputs are being combined for this printing."
+            copy="Checking prices, scarcity and demand."
           />
         </DetailSurface>
       </div>
@@ -195,7 +195,7 @@ function buildForecastPanel(
           <SignalState
             kind="empty"
             title="No reliable forecast yet"
-            copy="Forecast targets appear once this printing has enough connected market and scarcity evidence."
+            copy="More market and scarcity data is needed for this printing."
           />
         </DetailSurface>
       </div>
@@ -236,7 +236,7 @@ function buildForecastPanel(
         title="Forecast targets"
         copy={
           scenario?.outlook === "flat"
-            ? "No clear direction detected: the model expects the price to hold near current levels. The ranges show how uncertainty widens over time."
+            ? "Prices are expected to stay near current levels. Ranges widen with uncertainty over time."
             : "A directional model, not a guaranteed price target."
         }
       >
@@ -276,18 +276,15 @@ function buildForecastPanel(
           <SignalState
             kind="empty"
             title="No reliable scenario yet"
-            copy="The current evidence is not strong enough to publish responsible price targets."
+            copy="Not enough evidence for reliable price targets."
           />
         )}
       </DetailSurface>
 
       <DetailSurface
         eyebrow="Live model validation"
-        title="Learning from finished predictions"
-        copy={
-          signal?.forecast?.modelVersion ??
-          "Hits and misses improve the model after comparable signals finish their horizon."
-        }
+        title="Past prediction results"
+        copy="Results are measured after each prediction period ends."
       >
         <LiveForecastDataStatus forecast={signal.forecast} className="mb-3" />
         {!signal.forecast?.tracking ? (
@@ -307,7 +304,7 @@ function buildForecastPanel(
                       ? `${Math.round(interval.estimate * 100)}% · ${summary.hits}/${summary.samples} hits`
                       : (summary?.samples ?? 0) > 0
                         ? `${summary?.hits ?? 0} correct · ${Math.max(0, (summary?.samples ?? 0) - (summary?.hits ?? 0))} missed`
-                        : "Tracking starts after the next model scan"}
+                        : "Tracking starts after the next scan"}
                   </span>
                 </div>
               );
@@ -342,7 +339,7 @@ function buildAnalysisPanel(
           <SignalState
             kind="loading"
             title="Building the analysis"
-            copy="Supply, collector demand and grading context are being checked together."
+            copy="Checking supply, collector demand and grading."
           />
         </DetailSurface>
       </div>
@@ -352,11 +349,11 @@ function buildAnalysisPanel(
   if (!market) {
     return (
       <div data-card-detail-signal-panel="analysis">
-        <DetailSurface eyebrow="Signal analysis" title="Analysis is still building">
+        <DetailSurface eyebrow="Signal analysis" title="Analysis unavailable">
           <SignalState
             kind="empty"
-            title="Not enough connected market evidence"
-            copy="Scarcity, sealed supply and graded demand will appear here when the model can support them."
+            title="Not enough market evidence"
+            copy="More data is needed on scarcity, sealed supply and graded demand."
           />
         </DetailSurface>
       </div>
@@ -446,8 +443,8 @@ function buildAnalysisPanel(
         ) : (
           <SignalState
             kind="empty"
-            title="No active driver is confirmed"
-            copy="The model has market context, but no concise thesis is strong enough to highlight."
+            title="No confirmed drivers"
+            copy="Market data does not yet support a clear price driver."
           />
         )}
       </DetailSurface>
@@ -490,14 +487,14 @@ function buildEvidencePanel({
     >
       <DetailSurface
         eyebrow="Source evidence"
-        title="External proof"
-        copy={signal?.horizon ?? "Printing-specific sources and verifiable market context."}
+        title="Tournament evidence"
+        copy={signal?.horizon ?? "Deck usage and tournament sources for this printing."}
       >
         {loading && !signal ? (
           <SignalState
             kind="loading"
             title="Checking external evidence"
-            copy="Trusted sources are being matched to this exact printing."
+            copy="Matching sources to this printing."
           />
         ) : evidence.length ? (
           <div className="space-y-3">
@@ -523,13 +520,13 @@ function buildEvidencePanel({
         ) : (
           <SignalState
             kind="empty"
-            title="No tournament proof linked"
-            copy="This profile currently relies on structural market, sealed and collector evidence."
+            title="No tournament sources yet"
+            copy="This profile uses market, sealed and collector data."
           />
         )}
       </DetailSurface>
 
-      <DetailSurface eyebrow="Daily scan" title="Catalysts and focused research">
+      <DetailSurface eyebrow="Daily scan" title="News and research">
         <button
           type="button"
           onClick={onResearch}
@@ -543,9 +540,9 @@ function buildEvidencePanel({
             <Search className="h-4 w-4" />
           )}
           {isResearching
-            ? "Researching this card..."
+            ? "Researching..."
             : researchResults.length
-              ? "Refresh focused research"
+              ? "Refresh research"
               : "Research this card"}
         </button>
 
@@ -553,7 +550,7 @@ function buildEvidencePanel({
           <div className="mt-4">
             <SignalState
               kind="error"
-              title="Research could not be completed"
+              title="Research failed"
               copy={researchError ?? "Try again when the external research service is available."}
             />
           </div>
@@ -633,7 +630,7 @@ function buildEvidencePanel({
           <div className="mt-4 flex gap-3 rounded-2xl border border-white/8 bg-black/16 p-4">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-white/28" />
             <p className="text-sm leading-5 text-white/42">
-              No fresh trusted catalyst or focused research result is linked yet.
+              No recent news or research sources found.
             </p>
           </div>
         ) : null}

@@ -4,9 +4,23 @@ import {
   getMobilePinnedNavigation,
   getMobilePrimaryNavigation,
   getMoreMenuSections,
+  getActiveMobilePrimaryKey,
 } from "./MobileBottomNav";
 
 describe("mobile navigation model", () => {
+  it("keeps collection subpages under Collection unless a specific shortcut is configured", () => {
+    const defaults = ["home", "complete", "wants", "market-raw"];
+    expect(getActiveMobilePrimaryKey(defaults, "/", "singles", null)).toBe("complete");
+    expect(getActiveMobilePrimaryKey(defaults, "/binders/test", null, null)).toBe("complete");
+    expect(getActiveMobilePrimaryKey(["home", "complete", "binders", "wants"], "/binders/test", null, null)).toBe("binders");
+    expect(getActiveMobilePrimaryKey(["home", "wants"], "/", "singles", null)).toBeNull();
+  });
+
+  it("keeps market subpages under Market while respecting specific market shortcuts", () => {
+    expect(getActiveMobilePrimaryKey(["home", "market-raw"], "/movers", null, "sealed")).toBe("market-raw");
+    expect(getActiveMobilePrimaryKey(["market-raw", "market-sealed"], "/movers", null, "sealed")).toBe("market-sealed");
+    expect(getActiveMobilePrimaryKey(["home", "complete"], "/account", null, null)).toBeNull();
+  });
   it("keeps four configurable quick-bar destinations in their chosen order", () => {
     const items = getMobilePrimaryNavigation(
       ["market-sealed", "home", "openings", "wants"],

@@ -47,6 +47,10 @@ jobs:
         run: npm test
       - name: Account and collection regression tests
         run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/security.spec.ts --workers=1 --timeout=120000
+      - name: Install browser for UI regressions
+        run: npx playwright install --with-deps chromium
+      - name: Mobile, desktop and account UI regressions
+        run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/ui-polish.spec.ts tests/smoke/account-ui.spec.ts --workers=1 --timeout=120000
       - name: Production build
         env:
           NEXT_PUBLIC_APP_BUILD: ci-${{ github.sha }}
