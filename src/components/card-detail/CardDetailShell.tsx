@@ -18,6 +18,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -25,6 +26,10 @@ import { createPortal } from "react-dom";
 
 const MOBILE_CARD_DETAIL_MAX_WIDTH = 767;
 const MOBILE_ACTION_PORTAL_MAX_WIDTH = 640;
+
+const subscribeToHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
 
 interface PendingTabScrollAnchor {
   scrollElement: HTMLElement;
@@ -244,6 +249,8 @@ export default function CardDetailShell({
   mobileChartAlwaysVisible = false,
   className = "",
 }: CardDetailShellProps) {
+  // Server-rendered tabs must not accept input before their handlers attach.
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const fallbackTab = tabs[0]?.id ?? "overview";
   const [activeTab, setActiveTab] = useState<CardDetailTabId>(() =>
     tabs.some((tab) => tab.id === initialTab) ? initialTab : fallbackTab
@@ -476,7 +483,7 @@ export default function CardDetailShell({
           className="card-detail-tabs-shell"
           aria-label={sectionsAriaLabel}
         >
-          <div ref={tabListRef} className="card-detail-tabs" role="tablist">
+          <div ref={tabListRef} className="card-detail-tabs" role="tablist" aria-busy={!hydrated}>
             {tabs.map((tab, index) => {
               const selected = tab.id === active?.id;
               const Icon = tab.icon ?? DEFAULT_TAB_ICONS[tab.id];
@@ -486,6 +493,7 @@ export default function CardDetailShell({
                   id={`${reactId}-tab-${tab.id}`}
                   type="button"
                   role="tab"
+                  disabled={!hydrated}
                   aria-selected={selected}
                   aria-controls={`${reactId}-panel-${tab.id}`}
                   tabIndex={selected ? 0 : -1}

@@ -2853,7 +2853,45 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("Signal Radar tabs wait for hydration before accepting keyboard input", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    let releaseScripts!: () => void;
+    const scriptsReady = new Promise<void>((resolve) => { releaseScripts = resolve; });
+    await page.route("**/_next/static/**/*.js*", async (route) => {
+      await scriptsReady;
+      await route.continue();
+    });
+    try {
+      await page.goto("/movers/signal-radar/18530?game=pokemon", { waitUntil: "commit" });
+      const shell = page.locator("[data-card-detail-shell]");
+      const overview = shell.getByRole("tab", { name: "Overview", exact: true });
+      await expect(overview).toBeVisible();
+      await expect(overview).toBeDisabled();
+      releaseScripts();
+      await expect(overview).toBeEnabled();
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await overview.focus();
+        for (const [key, name] of [
+          ["End", "Evidence"], ["ArrowRight", "Overview"],
+          ["ArrowLeft", "Evidence"], ["Home", "Overview"],
+        ]) {
+          await page.keyboard.press(key);
+          const selected = shell.getByRole("tab", { name, exact: true });
+          await expect(selected).toBeFocused();
+          await expect(selected).toHaveAttribute("aria-selected", "true");
+        }
+      }
+      expect(pageErrors).toEqual([]);
+    } finally {
+      releaseScripts();
+    }
+  });
+
   test("Signal Radar detail shares the responsive card detail shell", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
     await applyDisplaySettings(page, { widescreen: true, modalSize: "medium" });
@@ -2863,6 +2901,7 @@ test.describe("DustyCards smoke", () => {
     await expect(shell.locator("[data-card-detail-back]")).toContainText("Back to Signal Radar");
     const names = ["Overview", "Market", "Collection & Reprints", "Forecast", "Analysis", "Evidence"];
     await expect(shell.getByRole("tab")).toHaveText(names);
+    await expect(shell.getByRole("tab", { name: "Overview", exact: true })).toBeEnabled();
     await shell.getByRole("tab", { name: "Overview", exact: true }).focus();
     await page.keyboard.press("End");
     await expect(shell.getByRole("tab", { name: "Evidence", exact: true })).toBeFocused();
@@ -2890,6 +2929,7 @@ test.describe("DustyCards smoke", () => {
     }
     await shell.locator("[data-card-detail-back]").click();
     await expect(page).toHaveURL(/\/movers\/signal-radar\?game=pokemon$/);
+    expect(pageErrors).toEqual([]);
   });
 
   test("sealed detail aligns left and embeds featured set cards", async ({ page }) => {

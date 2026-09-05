@@ -2292,8 +2292,8 @@ export default function CardThreeViewer({
         textureAbort.abort();
         for (const texture of loadedTextures) texture.dispose();
         loadedTextures.clear();
-        console.error("Failed to initialize 3D card viewer", error);
         if (mounted) {
+          console.error("Failed to initialize 3D card viewer", error);
           if (rootElement) rootElement.dataset.cardHoloMask = "error";
           setHasError(true);
         }

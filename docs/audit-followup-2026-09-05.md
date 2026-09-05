@@ -28,3 +28,11 @@ De geslaagde servicestatussen bewijzen dat de jobs eindigden; ze bewijzen niet a
 - De eerdere onduidelijke 3D-fout is in de productietrace teruggevonden als HTTP 429: de snelle suite deelde één afbeeldingsbudget. Browserfixtures hebben nu afzonderlijke gesimuleerde clientadressen; productielimieten zijn behouden. Afzonderlijke foutinjectie test de nieuwe foutmelding en herstartknop.
 
 Dit sluit de drie expliciet genoemde oudere detailtests af. Het is geen claim dat elke bestaande smoke-test, externe provider of fysieke browser/apparaatcombinatie is getest.
+
+## Aanvulling: vroege toetsenbordinvoer
+
+De eerste CI-run van deze aanvulling faalde op End in de Radar-tabs. Met geblokkeerde JavaScript-downloads is bevestigd dat de server-HTML al actieve tabknoppen toonde voordat er handlers waren. De gedeelde kaarttabs blijven nu disabled en aria-busy totdat React de bediening heeft aangesloten. De regressie controleert vertraagd laden, focus, selectie, Home/End en rondlopende pijltjestoetsen op desktop en mobiel. Deze test faalde voor de wijziging en slaagt erna.
+
+Normaal verlaten van de 3D-viewer meldt een afgebroken texture-download niet langer als initialisatiefout. Werkelijke fouten in een geopende viewer blijven zichtbaar en herstartbaar.
+
+De vier gerichte detailtests slagen tegen de nieuwe productiebuild, inclusief controles op onverwachte browserfouten. De ontwikkelserver vertoonde daarnaast een metadata-hydratiemismatch; die is niet gereproduceerd in de productiebuild. CI bouwt voortaan eerst en draait alle browserregressies met `next start`, zodat de releasecontrole dezelfde uitvoermodus gebruikt als productie. Dit is geen claim dat de ontwikkelserver-mismatch is verholpen.
