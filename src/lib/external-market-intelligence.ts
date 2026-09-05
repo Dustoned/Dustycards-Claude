@@ -25,6 +25,7 @@ import {
   calculateSealedPressure,
   calculateSetRarityPosition,
   classifySealedProduct,
+  countPsa10HistoryDays,
   getGradedSupplyLabel,
   hasActiveReprintRisk,
   type ExtendedPriceHistoryFeatures,
@@ -49,7 +50,7 @@ import type { SetLifecycleStatus } from "@/lib/set-lifecycle-core";
 const DAY_MS = 86_400_000;
 const CARD_CHUNK_SIZE = 50;
 const marketIntelligenceCache = createSwrCache<ExternalCardSignal[]>(5 * 60_000, 30 * 60_000);
-const FORECAST_MODEL_VERSION = "signed-market-v7-post-launch";
+const FORECAST_MODEL_VERSION = "signed-market-v8-evidence-quality";
 
 const LIFECYCLE_COPY: Record<
   SetLifecycleStatus,
@@ -770,8 +771,12 @@ async function enrichSignalsWithMarketIntelligenceUncached(
         : pull.psa_avg_gem_pct <= 1
           ? Number((pull.psa_avg_gem_pct * 100).toFixed(1))
           : Number(pull.psa_avg_gem_pct.toFixed(1));
-    let psa10 = chooseLatestGrade(card.ebaySoldGradedPrices, "10");
-    let psa9 = chooseLatestGrade(card.ebaySoldGradedPrices, "9");
+    const usableSoldPrices = card.ebaySoldGradedPrices.filter((price) =>
+      ["EUR", "USD"].includes(price.currency.trim().toUpperCase()) &&
+      Number.isFinite(price.median_price) && price.median_price > 0
+    );
+    let psa10 = chooseLatestGrade(usableSoldPrices, "10");
+    let psa9 = chooseLatestGrade(usableSoldPrices, "9");
     // Sanity guard: a PSA 9 median above the PSA 10 median is an inverted
     // grade ladder (tiny eBay samples produce these). The side with the
     // smaller sample is treated as noise so it cannot poison the grade
@@ -792,7 +797,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     }
     const cardMarketPsa10 = chooseCardMarketPsa10(card.gradedPrices);
     const gradedCurrent = psa10?.median_price ?? cardMarketPsa10?.price ?? null;
-    const gradedCurrency = psa10 ? (psa10.currency === "EUR" ? "EUR" : "USD") : "EUR";
+    const gradedCurrency = psa10 ? (psa10.currency.trim().toUpperCase() === "EUR" ? "EUR" : "USD") : "EUR";
     // Compare graded vs raw in one currency. On a mismatch the USD side is
     // converted with the 12h-cached USD->EUR rate (values below are marked
     // FX-converted and used only for this ratio; displayed graded prices keep
@@ -825,6 +830,8 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       available: gradedCurrent != null,
       label: psa10?.label ?? cardMarketPsa10?.label ?? null,
       currentPrice: gradedCurrent,
+      currentPriceEur: gradedCurrent == null || gradedCurrency === "EUR"
+        ? gradedCurrent : convertUsdToEur(gradedCurrent, usdToEurRate),
       currency: gradedCurrency,
       sampleSize: psa10?.sample_size ?? null,
       psa9Price: psa9?.median_price ?? null,
@@ -1069,8 +1076,8 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       scarcityScore: scarcity.score,
       gemRatePct,
       riskScore: signal.riskScore ?? 0,
-      evidenceCount: gradedEvidenceCount + (graded.sampleSize != null ? 1 : 0),
-      historyPoints: card.ebaySoldGradedPriceSnapshots.length,
+      evidenceCount: gradedEvidenceCount + ((graded.sampleSize ?? 0) >= 2 ? 1 : 0),
+      historyPoints: psa10 ? countPsa10HistoryDays(card.ebaySoldGradedPriceSnapshots, graded.currency, now) : 0,
       ebayDemandAdjustment: gradedEbayDemand.scoreAdjustment,
       competitiveScore:
         signal.sourceMode === "competitive" || signal.sourceMode === "hybrid"
@@ -1116,7 +1123,10 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       rawScenario,
       gradedScenario,
     };
-    return { ...signal, marketIntelligence: intelligence };
+    return { ...signal, marketIntelligence: intelligence,
+      currentPriceEur: signal.currentPrice == null || signal.currency === "EUR"
+        ? signal.currentPrice : convertUsdToEur(signal.currentPrice, usdToEurRate),
+    };
   });
 }
 
@@ -1157,7 +1167,7 @@ async function loadCards(cardIds: string[], now: Date) {
       ebaySoldGradedPriceSnapshots: {
         orderBy: { fetched_at: "desc" },
         take: 60,
-        select: { fetched_at: true },
+        select: { fetched_at: true, company: true, grade: true, currency: true, median_price: true },
       },
     },
   });

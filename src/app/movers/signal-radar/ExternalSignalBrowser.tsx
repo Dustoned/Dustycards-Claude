@@ -77,6 +77,7 @@ import {
 } from "@/lib/popular-pokemon";
 import {
   getSignalRadarSortOptions,
+  getComparableRadarPrice,
   resolveSignalRadarSortKey,
   type SignalRadarSortKey,
 } from "@/lib/signal-radar-sort-options";
@@ -1775,6 +1776,7 @@ export default function ExternalSignalBrowser({
           {
             ...signal,
             currentPrice: displayPrice.value,
+            currentPriceEur: displayPrice.convertedEur,
             currency: displayPrice.currency,
           },
         ];
@@ -1832,18 +1834,14 @@ export default function ExternalSignalBrowser({
       })
       .sort((left, right) => {
         if (activeSortKey === "price_asc" || activeSortKey === "price_desc") {
-          const leftPrice =
-            origin === "older-high-rarity"
-              ? left.currentPrice
-              : (marketMode === "graded"
-                  ? left.marketIntelligence?.gradedScenario?.currentPrice
-                  : left.marketIntelligence?.rawScenario?.currentPrice) ?? left.currentPrice;
-          const rightPrice =
-            origin === "older-high-rarity"
-              ? right.currentPrice
-              : (marketMode === "graded"
-                  ? right.marketIntelligence?.gradedScenario?.currentPrice
-                  : right.marketIntelligence?.rawScenario?.currentPrice) ?? right.currentPrice;
+          const leftPrice = getComparableRadarPrice(
+            origin !== "older-high-rarity" && marketMode === "graded"
+              ? left.marketIntelligence?.graded ?? left : left
+          );
+          const rightPrice = getComparableRadarPrice(
+            origin !== "older-high-rarity" && marketMode === "graded"
+              ? right.marketIntelligence?.graded ?? right : right
+          );
           if (leftPrice == null && rightPrice == null) return left.rank - right.rank;
           if (leftPrice == null) return 1;
           if (rightPrice == null) return -1;

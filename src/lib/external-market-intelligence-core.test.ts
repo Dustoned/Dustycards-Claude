@@ -10,6 +10,7 @@ import {
   calculateSealedPressure,
   calculateSetRarityPosition,
   classifySealedProduct,
+  countPsa10HistoryDays,
   type ExtendedPriceHistoryFeatures,
   hasActiveReprintRisk,
   isActionablePriceScenario,
@@ -18,6 +19,23 @@ import {
 import type { ExternalPriceScenario } from "@/lib/external-signal-radar";
 
 describe("external market intelligence", () => {
+  it("counts independent days of the selected grade and currency, not repeated refreshes or other grades", () => {
+    const quote = { company: "PSA", grade: "10", currency: "EUR", median_price: 100, fetched_at: new Date("2026-01-01T10:00:00Z") };
+    expect(countPsa10HistoryDays([
+      quote, { ...quote, fetched_at: new Date("2026-01-01T18:00:00Z") },
+      { ...quote, grade: "9" }, { ...quote, company: "CGC" },
+      { ...quote, currency: "USD" }, { ...quote, median_price: 0 },
+      { ...quote, fetched_at: new Date("2026-03-01T00:00:00Z") },
+      { ...quote, fetched_at: new Date("2026-01-02T00:00:00Z") },
+    ], "EUR", new Date("2026-02-01T00:00:00Z"))).toBe(2);
+  });
+
+  it.each([NaN, Infinity, -1, 0])("does not publish a scenario with unusable price %s", (currentPrice) => {
+    expect(buildPriceScenario({ marketMode: "raw", currentPrice, currency: "EUR", ageYears: 5,
+      opportunityScore: 70, sealedTrendPct: null, rawTrend90dPct: 10, scarcityScore: 70,
+      gemRatePct: null, riskScore: 0, evidenceCount: 3, historyPoints: 20,
+    })).toBeNull();
+  });
   it("separates packs, booster boxes and collection products", () => {
     expect(classifySealedProduct("Dragons Exalted Booster Pack")).toBe("pack");
     expect(classifySealedProduct("Dragons Exalted Booster")).toBe("pack");

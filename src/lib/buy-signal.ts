@@ -4,6 +4,7 @@ import type {
   CardPriceHistoryPoint,
 } from "@/lib/price-history";
 import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
+import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 
 export type BuySignalLabel = "strong_sell" | "sell" | "hold" | "buy" | "strong_buy";
 export type BuySignalConfidence = "low" | "medium" | "high";
@@ -166,6 +167,10 @@ function isFiniteNumber(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function usablePrice(value: number | null | undefined): number | null {
+  return isFiniteNumber(value) && value > 0 && value !== 9001 ? value : null;
+}
+
 function parseTimestamp(value: string | Date | null | undefined): number | null {
   if (!value) return null;
   const timestamp = value instanceof Date ? value.getTime() : new Date(value).getTime();
@@ -174,7 +179,7 @@ function parseTimestamp(value: string | Date | null | undefined): number | null 
 
 function getRawCardMarketValue(price: BuySignalPriceSnapshot | null): number | null {
   if (!price) return null;
-  return price.cm_en_lowest_nm ?? null;
+  return getCurrentRawCardmarketValue(price);
 }
 
 function normalizeGradedLookupValue(value: string | null | undefined): string {
@@ -268,13 +273,13 @@ function findHistorySeries(
 
 function getEbaySoldValueEur(price: BuySignalEbaySoldGradedPrice | null): number | null {
   if (!price) return null;
-  if (isFiniteNumber(price.median_price_eur)) return price.median_price_eur;
-  return price.currency.toUpperCase() === "EUR" ? price.median_price : null;
+  return usablePrice(price.median_price_eur) ??
+    (price.currency.toUpperCase() === "EUR" ? usablePrice(price.median_price) : null);
 }
 
 function buildRawSelection(input: BuildBuySignalInput): MarketSelection {
   const cardMarketValue = getRawCardMarketValue(input.price);
-  const tcgPlayerValue = input.price?.tcp_market ?? null;
+  const tcgPlayerValue = usablePrice(input.price?.tcp_market);
   const historyPoints = input.price_history.map((point) => ({
     date: point.date,
     value: point.cm_market_en,
@@ -286,8 +291,8 @@ function buildRawSelection(input: BuildBuySignalInput): MarketSelection {
     current_value: cardMarketValue,
     currency: "EUR",
     history_points: historyPoints,
-    average_7d: input.price?.cm_en_avg_7d ?? null,
-    average_30d: input.price?.cm_en_avg_30d ?? null,
+    average_7d: usablePrice(input.price?.cm_en_avg_7d),
+    average_30d: usablePrice(input.price?.cm_en_avg_30d),
     comparison_value: tcgPlayerValue,
     comparison_label: tcgPlayerValue != null ? "TCGPlayer" : null,
     ebay_sample_size: null,
@@ -307,7 +312,7 @@ function buildMarketSelection(input: BuildBuySignalInput): MarketSelection {
     collectionItem
   );
   const ebayValue = getEbaySoldValueEur(matchedEbay);
-  const cardMarketGradedValue = matchedCardMarketGraded?.price ?? null;
+  const cardMarketGradedValue = usablePrice(matchedCardMarketGraded?.price);
 
   if (getSavedGrading(collectionItem) && (ebayValue != null || cardMarketGradedValue != null)) {
     const useEbay = ebayValue != null;
@@ -353,7 +358,7 @@ function getValidPoints(points: SignalValuePoint[]): Array<{ timestamp: number; 
     }))
     .filter(
       (point): point is { timestamp: number; value: number } =>
-        point.timestamp != null && isFiniteNumber(point.value)
+        point.timestamp != null && usablePrice(point.value) != null
     )
     .sort((a, b) => a.timestamp - b.timestamp);
 }
@@ -367,6 +372,9 @@ function getWindowChange(points: SignalValuePoint[], days: number): WindowChange
   const baseline =
     [...valid].reverse().find((point) => point.timestamp <= targetTimestamp) ?? valid[0];
   const coveredDays = Math.max(1, Math.round((latest.timestamp - baseline.timestamp) / DAY_MS));
+  // Do not label a short launch spike as a full weekly/monthly move, or use
+  // an ancient baseline across a gap as if it were a recent observation.
+  if (coveredDays < days * 0.7 || coveredDays > days * 1.5) return null;
   const change = latest.value - baseline.value;
   const changePct = baseline.value > 0 ? (change / baseline.value) * 100 : null;
 
@@ -638,9 +646,8 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
       ? ((currentValue - costBasis) / costBasis) * 100
       : null;
   const sourceCount =
-    1 +
-    (selection.raw_has_secondary_source || selection.comparison_value != null ? 1 : 0) +
-    (selection.market_mode === "graded" && selection.ebay_sample_size != null ? 1 : 0);
+    (currentValue != null ? 1 : 0) +
+    (selection.raw_has_secondary_source || (currentValue != null && selection.comparison_value != null) ? 1 : 0);
   const dataAgeDays = getDataAgeDays(selection.data_fetched_at, now);
   const warnings: string[] = [];
   const reasons: string[] = [];
@@ -917,7 +924,7 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
     evidence,
     metrics: {
       history_points: validHistory.length,
-      source_count: Math.max(1, sourceCount),
+      source_count: sourceCount,
       data_age_days: dataAgeDays,
       change_7d_pct: change7d?.change_pct ?? null,
       change_30d_pct: change30d?.change_pct ?? null,

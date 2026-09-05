@@ -226,12 +226,14 @@ export function buildSealedSignalRadarScore(
     stalePenalty;
   if (history === "learning") score = Math.min(score, 58);
   if (history === "building") score = Math.min(score, 75);
+  if (input.staleDays > 7) score = Math.min(score, 61);
+  else if (input.staleDays > 3) score = Math.min(score, 77);
   score = Math.round(clamp(score, 0, 100));
 
   const pressureLabel: SealedSignalPressure =
     score >= 78 ? "Breakout" : score >= 62 ? "Strong" : "Watch";
   const confidence: SealedSignalConfidence =
-    history === "established" && input.staleDays <= 3
+    history === "established" && input.staleDays <= 3 && volatilityPenalty === 0
       ? "High"
       : history === "learning" || input.staleDays > 7
         ? "Emerging"

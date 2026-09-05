@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildCardMarketStats, type BuildCardMarketStatsInput } from "@/lib/card-market-stats";
+import { buildCardMarketStats, getCardMarketRankingMetrics, type BuildCardMarketStatsInput } from "@/lib/card-market-stats";
 import type { EbayDemandPayload } from "@/lib/ebay-demand";
 import type { CardPriceHistoryPoint } from "@/lib/price-history";
 
@@ -25,7 +25,7 @@ function history(values: number[]): CardPriceHistoryPoint[] {
 
 function demand(overrides: Partial<EbayDemandPayload["summary"]> = {}): EbayDemandPayload {
   return {
-    updatedAt: "2026-01-30T12:00:00.000Z",
+    updatedAt: "2026-02-14T10:00:00.000Z",
     marketplaceId: "EBAY_NL",
     mode: "raw",
     sample: { observed: 24, clean: 18, capped: false },
@@ -43,7 +43,7 @@ function demand(overrides: Partial<EbayDemandPayload["summary"]> = {}): EbayDema
       ...overrides,
     },
     history: Array.from({ length: 10 }, (_, index) => ({
-      date: `2026-01-${String(index + 21).padStart(2, "0")}`,
+      date: `2026-02-${String(index + 5).padStart(2, "0")}`,
       activeCount: 18,
       newCount: index % 3 === 0 ? 1 : 0,
       removedCount: index % 2,
@@ -68,11 +68,51 @@ function buildInput(overrides: Partial<BuildCardMarketStatsInput> = {}): BuildCa
     ebaySoldGradedPrices: [],
     demand: demand(),
     updatedAt: "2026-02-14T10:00:00.000Z",
+    now: new Date("2026-02-14T12:00:00.000Z"),
     ...overrides,
   };
 }
 
 describe("buildCardMarketStats", () => {
+  it.each(["stale", "capped", "invalid-date"])("keeps %s eBay samples out of market scoring", (kind) => {
+    const sample = demand();
+    if (kind === "stale") sample.updatedAt = "2025-12-01T00:00:00Z";
+    if (kind === "capped") sample.sample.capped = true;
+    if (kind === "invalid-date") sample.updatedAt = "invalid";
+    const actual = buildCardMarketStats(buildInput({ demand: sample }));
+    const without = buildCardMarketStats(buildInput({ demand: null }));
+    expect(actual.score).toBe(without.score);
+    expect(actual.confidence).toBe(without.confidence);
+    expect(actual.metric_sources).toEqual(without.metric_sources);
+  });
+
+  it("does not infer a week of demand from two snapshots or capped history", () => {
+    const sample = demand();
+    sample.history = sample.history.slice(-2);
+    const thin = buildCardMarketStats(buildInput({ demand: sample }));
+    expect(thin.metric_sources.liquidity).toBe("ebay_inventory");
+    expect(thin.metric_sources.demand).toBe("price_proxy");
+    const cappedHistory = demand();
+    cappedHistory.history[7] = { ...cappedHistory.history[7], capped: true };
+    expect(buildCardMarketStats(buildInput({ demand: cappedHistory })).metric_sources.demand).toBe("price_proxy");
+  });
+
+  it("does not persist proxy bars as verified market interest", () => {
+    const stats = buildCardMarketStats(buildInput({ demand: null }));
+    expect(stats.metrics.liquidity).not.toBeNull();
+    expect(getCardMarketRankingMetrics(stats)).toEqual({
+      momentum: stats.metrics.momentum, liquidity: null, demand: null,
+    });
+  });
+
+  it("keeps old price history low-confidence even after a fresh inventory update", () => {
+    const sample = demand();
+    sample.updatedAt = "2026-06-01T00:00:00Z";
+    const stats = buildCardMarketStats(buildInput({
+      demand: sample, now: new Date("2026-06-01T12:00:00Z"),
+    }));
+    expect(stats.confidence).toBe("low");
+  });
   it("scores sustained price direction and calculates RSI, ATH and ATL", () => {
     const stats = buildCardMarketStats(buildInput());
 

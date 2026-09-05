@@ -1,10 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
   getSignalRadarSortOptions,
+  getComparableRadarPrice,
   resolveSignalRadarSortKey,
 } from "@/lib/signal-radar-sort-options";
 
 describe("Signal Radar sort options", () => {
+  it("compares EUR and USD quotes in EUR and leaves unknown conversions unpriced", () => {
+    const usd = getComparableRadarPrice({ currentPrice: 100, currency: "USD", currentPriceEur: 85 });
+    const eur = getComparableRadarPrice({ currentPrice: 90, currency: "EUR" });
+    expect(usd).toBeLessThan(eur!);
+    expect(getComparableRadarPrice({ currentPrice: 100, currency: "USD" })).toBeNull();
+  });
   it("keeps Radar intelligence sorts for the regular signal cohort", () => {
     const values = getSignalRadarSortOptions(false).map((option) => option.value);
     expect(values).toContain("sealed");

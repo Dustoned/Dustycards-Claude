@@ -1,7 +1,7 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { buildCardMarketStats } from "@/lib/card-market-stats";
+import { buildCardMarketStats, getCardMarketRankingMetrics } from "@/lib/card-market-stats";
 import { buildCardPriceHistory } from "@/lib/price-history";
 import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
@@ -115,6 +115,7 @@ async function runMarketScoreBatch(now: Date): Promise<number> {
       null;
     const demand = await getEbayDemandPayload({ cardId: card.id, mode: "raw" }).catch(() => null);
     const stats = buildCardMarketStats({
+      now,
       history: buildCardPriceHistory(safePriceRows),
       currentLanguagePrices: {
         en: latestEnglishNmSnapshot?.cm_en_lowest_nm,
@@ -148,13 +149,14 @@ async function runMarketScoreBatch(now: Date): Promise<number> {
       updatedAt: latestEnglishNmSnapshot?.fetched_at ?? latestSourceSnapshot?.fetched_at ?? null,
     });
 
+    const ranking = getCardMarketRankingMetrics(stats);
     await db.card.update({
       where: { id: card.id },
       data: {
         market_score: stats.score,
-        market_score_momentum: stats.metrics.momentum,
-        market_score_liquidity: stats.metrics.liquidity,
-        market_score_demand: stats.metrics.demand,
+        market_score_momentum: ranking.momentum,
+        market_score_liquidity: ranking.liquidity,
+        market_score_demand: ranking.demand,
         market_score_updated_at: new Date(nowIso),
       },
     });

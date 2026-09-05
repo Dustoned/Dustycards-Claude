@@ -12,6 +12,19 @@ import { KNOWN_RARITY_ORDER, normalizeRarityLabel } from "@/lib/rarity";
 
 const SCENARIO_DAYS = [30, 90, 180] as const;
 
+export function countPsa10HistoryDays(
+  rows: readonly { company: string; grade: string; currency: string; median_price: number; fetched_at: Date }[],
+  currency: "EUR" | "USD",
+  now: Date,
+): number {
+  return new Set(rows.filter((row) =>
+    row.company.trim().toUpperCase() === "PSA" && Number(row.grade) === 10 &&
+    row.currency.trim().toUpperCase() === currency &&
+    Number.isFinite(row.median_price) && row.median_price > 0 &&
+    Number.isFinite(row.fetched_at.getTime()) && row.fetched_at <= now
+  ).map((row) => row.fetched_at.toISOString().slice(0, 10))).size;
+}
+
 export interface ExtendedPriceHistoryFeatures {
   volatilityDaily90Pct: number | null;
   athDistancePct: number | null;
@@ -629,8 +642,9 @@ export function buildPriceScenario(input: {
 }): ExternalPriceScenario | null {
   if (
     input.currentPrice == null ||
+    !Number.isFinite(input.currentPrice) ||
     input.currentPrice <= 0 ||
-    input.opportunityScore == null
+    input.opportunityScore == null || !Number.isFinite(input.opportunityScore)
   ) {
     return null;
   }
@@ -1003,6 +1017,7 @@ export function buildPriceScenario(input: {
         ? "post-release stabilization"
         : null,
   ].filter((value): value is string => Boolean(value));
+  if (!points.every((point) => [point.low, point.base, point.high].every((value) => Number.isFinite(value) && value > 0))) return null;
   return {
     marketMode: input.marketMode,
     currentPrice,
