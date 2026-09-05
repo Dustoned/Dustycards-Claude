@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Plus, X } from "lucide-react";
@@ -21,6 +21,7 @@ import {
   modalSecondaryButtonClass,
 } from "@/components/modal-glass-styles";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
+import useModalA11y from "@/lib/useModalA11y";
 
 interface EpisodeOption {
   id: string;
@@ -51,6 +52,8 @@ export default function CreateBinderButton({
   const [episodes, setEpisodes] = useState<EpisodeOption[]>([]);
   const [episodesLoaded, setEpisodesLoaded] = useState(false);
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y({ dialogRef, enabled: open, initialFocus: "dialog", onClose: () => setOpen(false) });
   useBodyScrollLock(open);
 
   useEffect(() => {
@@ -156,6 +159,8 @@ export default function CreateBinderButton({
             onClick={() => setOpen(false)}
           >
             <div
+              ref={dialogRef}
+              tabIndex={-1}
               role="dialog"
               aria-modal="true"
               aria-label="Create binder"

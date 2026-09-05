@@ -15,6 +15,19 @@ function day(start: Date, offset: number, hour = 12): Date {
 }
 
 describe("external signal outcome evaluation", () => {
+  it("does not expose observations from after the evaluation time", () => {
+    const entryAt = new Date("2026-01-01T00:00:00Z");
+    const result = evaluateSignalOutcome({ entryAt, entryPrice: 10, horizonDays: 30,
+      now: day(entryAt, 5), prices: [
+        { observedAt: day(entryAt, 2), value: 11 },
+        { observedAt: day(entryAt, 20), value: 100 },
+        { observedAt: day(entryAt, 20), sourcePriceAt: day(entryAt, 3), value: 200 },
+      ],
+    });
+    expect(result.status).toBe("pending");
+    expect(result.observedDays).toBe(1);
+    expect(result.maxReferencePrice).toBe(11);
+  });
   it("keeps the last valid price for every UTC day", () => {
     const start = new Date("2026-01-01T00:00:00.000Z");
     expect(

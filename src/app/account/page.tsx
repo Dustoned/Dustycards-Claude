@@ -1,15 +1,11 @@
 import {
-  BadgeCheck,
   Boxes,
-  Heart,
-  LockKeyhole,
-  ShieldCheck,
   UserRound,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import AccountActions from "@/components/AccountActions";
 import AdminUsersPanel, { type AdminUserSummary } from "@/components/AdminUsersPanel";
-import { PageHeroHeader, type HeaderStat } from "@/components/PageHeader";
+import { PageHeroHeader } from "@/components/PageHeader";
 import { db } from "@/lib/db";
 import { requirePageUser } from "@/lib/page-auth";
 import AccountTabs from "./AccountTabs";
@@ -30,10 +26,6 @@ function formatDateTime(value: Date | string | null | undefined): string {
 
 function formatCount(value: number): string {
   return NUMBER_FORMATTER.format(value);
-}
-
-function shortId(value: string): string {
-  return value.length > 12 ? `${value.slice(0, 6)}...${value.slice(-4)}` : value;
 }
 
 function StatusBadge({
@@ -67,11 +59,11 @@ function InfoTile({
   hint?: ReactNode;
 }) {
   return (
-    <div className="min-w-0 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2.5">
-      <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-white/36">
+    <div className="min-w-0 border-b border-white/8 py-2.5">
+      <p className="text-xs font-medium text-[var(--dc-text-secondary)]">
         {label}
       </p>
-      <p className="mt-1 truncate text-sm font-bold text-white" title={String(value)}>
+      <p className="mt-1 break-words text-sm font-semibold text-white" title={String(value)}>
         {value}
       </p>
       {hint ? (
@@ -119,12 +111,9 @@ function AccountOverview({
             <div className="flex items-center gap-2">
               <UserRound className="h-4 w-4 text-white/40" />
               <h2 className="text-base font-semibold text-white">
-                Account Identity
+                Profile
               </h2>
             </div>
-            <p className="mt-1 text-sm text-white/45">
-              Login, role, verification, and session state.
-            </p>
           </div>
           <div className="flex flex-wrap gap-1.5">
             <StatusBadge tone={account.disabled ? "amber" : "emerald"}>
@@ -136,18 +125,23 @@ function AccountOverview({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
-          <InfoTile label="Email" value={account.email} hint="Primary login" />
-          <InfoTile label="Role" value={account.role === "admin" ? "Admin" : "User"} hint="Access level" />
-          <InfoTile label="Account ID" value={shortId(account.id)} hint="Internal reference" />
-          <InfoTile label="Created" value={formatDateTime(account.created_at)} />
-          <InfoTile label="Updated" value={formatDateTime(account.updated_at)} />
-          <InfoTile
-            label="Verified"
-            value={account.email_verified_at ? formatDateTime(account.email_verified_at) : "--"}
-            hint={verified ? "Email confirmed" : "Email not confirmed"}
-          />
+        <div className="grid grid-cols-2 gap-x-4 [&>div:first-child]:col-span-2">
+          <InfoTile label="Email" value={account.email} />
+          <InfoTile label="Role" value={account.role === "admin" ? "Admin" : "User"} />
+          <InfoTile label="Active sessions" value={formatCount(activeSessionCount)} />
         </div>
+        <details className="mt-3">
+          <summary className="min-h-11 cursor-pointer content-center text-sm font-medium text-[var(--dc-text-secondary)]">Account details</summary>
+          <div className="grid grid-cols-2 gap-x-4">
+            <InfoTile label="Account ID" value={account.id} />
+            <InfoTile label="Created" value={formatDateTime(account.created_at)} />
+            <InfoTile label="Updated" value={formatDateTime(account.updated_at)} />
+            <InfoTile
+              label="Verified"
+              value={account.email_verified_at ? formatDateTime(account.email_verified_at) : "--"}
+            />
+          </div>
+        </details>
       </section>
 
       <section className="binder-panel rounded-2xl p-4 sm:p-5">
@@ -156,11 +150,11 @@ function AccountOverview({
             <div className="flex items-center gap-2">
               <Boxes className="h-4 w-4 text-white/40" />
               <h2 className="text-base font-semibold text-white">
-                Account Footprint
+                Your library
               </h2>
             </div>
             <p className="mt-1 text-sm text-white/45">
-              Your saved library, sessions, and synced preferences.
+              Saved cards, binders and wants.
             </p>
           </div>
           <StatusBadge tone={account.settings_json ? "emerald" : "slate"}>
@@ -173,11 +167,6 @@ function AccountOverview({
           <InfoTile label="Sealed items" value={formatCount(account._count.sealedItems)} />
           <InfoTile label="Binders" value={formatCount(account._count.binders)} />
           <InfoTile label="Wants" value={formatCount(account._count.wants)} />
-          <InfoTile
-            label="Active sessions"
-            value={formatCount(activeSessionCount)}
-            hint={`${formatCount(account._count.sessions)} stored total`}
-          />
           <InfoTile label="Saved records" value={formatCount(collectionTotal)} hint="cards, sealed, wants" />
         </div>
       </section>
@@ -269,8 +258,6 @@ export default async function AccountPage({
         }))
       : [];
 
-  const totalSavedItems =
-    account._count.collectionCards + account._count.sealedItems + account._count.wants;
   const requestedUserId =
     typeof requested.user === "string" && managedUsers.some((managedUser) => managedUser.id === requested.user)
       ? requested.user
@@ -281,41 +268,13 @@ export default async function AccountPage({
       : requested.tab === "users" && user.role === "admin"
         ? "users"
         : "overview";
-  const headerStats = [
-    {
-      label: "Role",
-      value: account.role === "admin" ? "Admin" : "User",
-      Icon: ShieldCheck,
-      tone: account.role === "admin" ? "violet" : "slate",
-    },
-    {
-      label: "Verified",
-      value: account.email_verified_at ? "Yes" : "No",
-      Icon: BadgeCheck,
-      tone: account.email_verified_at ? "emerald" : "amber",
-    },
-    {
-      label: "Active sessions",
-      value: formatCount(activeSessionCount),
-      Icon: LockKeyhole,
-      tone: "sky",
-    },
-    {
-      label: "Saved items",
-      value: formatCount(totalSavedItems),
-      Icon: Heart,
-      tone: "rose",
-    },
-  ] satisfies HeaderStat[];
 
   return (
     <div className="page-container page-readable binder-bottom-safe mx-auto max-w-6xl px-3 py-3 sm:px-6 sm:py-5 lg:px-8">
       <PageHeroHeader
-        eyebrow="DustyCards Account"
         title="Account"
-        description={`Signed in as ${account.email}. Manage your profile, security, sessions, and access.`}
-        className="mb-8"
-        stats={headerStats}
+        description="Manage your profile and security."
+        className="mb-5"
       />
 
       <AccountTabs
@@ -324,7 +283,6 @@ export default async function AccountPage({
           {
             key: "overview",
             label: "Overview",
-            description: "Account identity, activity footprint, and saved library stats.",
             content: <AccountOverview account={account} activeSessionCount={activeSessionCount} />,
           },
           {

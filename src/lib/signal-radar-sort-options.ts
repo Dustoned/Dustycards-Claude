@@ -1,3 +1,12 @@
+export function getComparableRadarPrice(quote: {
+  currentPrice: number | null;
+  currency: "EUR" | "USD";
+  currentPriceEur?: number | null;
+}): number | null {
+  const value = quote.currency === "EUR" ? quote.currentPrice : quote.currentPriceEur;
+  return value != null && Number.isFinite(value) && value > 0 ? value : null;
+}
+
 export type SignalRadarSortKey =
   | "opportunity"
   | "price_asc"

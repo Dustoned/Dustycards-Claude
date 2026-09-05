@@ -338,6 +338,7 @@ export default function ProgressiveHomeOverviewInsights({
     settings.onePieceLibraryEnabled
   );
   const [showCustomizer, setShowCustomizer] = useState(false);
+  const [widgetSearch, setWidgetSearch] = useState("");
   const [payloadState, setPayloadState] = useState<{
     endpoint: string;
     payload: HomeOverviewInsightsPayload | null;
@@ -640,7 +641,7 @@ export default function ProgressiveHomeOverviewInsights({
           type="button"
           onClick={() => setShowCustomizer((current) => !current)}
           aria-expanded={showCustomizer}
-          className={`inline-flex h-9 items-center gap-1.5 rounded-xl border px-3 text-[11px] font-bold transition-colors ${
+          className={`inline-flex min-h-11 items-center gap-1.5 rounded-xl border px-3 text-xs font-bold transition-colors ${
             showCustomizer
               ? "border-[rgb(var(--dc-primary-rgb)/0.38)] bg-[rgb(var(--dc-primary-rgb)/0.12)] text-[var(--dc-primary)]"
               : "border-white/9 bg-white/[0.035] text-white/55 hover:border-white/16 hover:text-white"
@@ -654,21 +655,31 @@ export default function ProgressiveHomeOverviewInsights({
       {showCustomizer ? (
         <DashboardCustomizerDialog
           title="Customize Home"
-          description="Use Hide to remove a widget completely or Collapse to keep only its title bar. You can also arrange the order, choose Grid or List, and resize modules. Changes save automatically."
+          description="Choose widgets, change their order and set their view. Changes save automatically."
           onClose={() => setShowCustomizer(false)}
         >
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center gap-3">
+            <input
+              type="search"
+              aria-label="Find a Home widget"
+              placeholder="Find a widget..."
+              value={widgetSearch}
+              onChange={(event) => setWidgetSearch(event.target.value)}
+              className="min-h-11 min-w-0 flex-1 rounded-xl border border-white/15 bg-white/5 px-3 text-sm text-[var(--dc-text-primary)]"
+            />
             <button
               type="button"
               onClick={resetModules}
-              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/9 px-3 text-[11px] font-bold text-white/58 transition-colors hover:border-white/16 hover:text-white"
+              className="inline-flex min-h-11 items-center gap-1.5 rounded-xl border border-white/9 px-3 text-xs font-bold text-[var(--dc-text-secondary)] transition-colors hover:border-white/16 hover:text-white"
             >
               <RotateCcw className="h-3.5 w-3.5" />
-              Reset
+              Reset layout
             </button>
           </div>
           <div className="mt-3 grid gap-2.5 md:grid-cols-2">
             {moduleOrder.map((moduleKey, index) => {
+              const meta = HOME_MODULE_LABELS[moduleKey];
+              if (!`${meta.label} ${meta.description}`.toLowerCase().includes(widgetSearch.trim().toLowerCase())) return null;
               const hidden = hiddenModules.has(moduleKey);
               const collapsed = collapsedModules.has(moduleKey);
               const compact = compactModules.has(moduleKey);
@@ -678,20 +689,20 @@ export default function ProgressiveHomeOverviewInsights({
               const previewSpanClass = compactable && compact
                 ? "md:col-span-1"
                 : "md:col-span-2";
-              const meta = HOME_MODULE_LABELS[moduleKey];
               return (
                 <div
                   key={moduleKey}
+                  data-home-widget-setting={moduleKey}
                   className={`${previewSpanClass} flex min-w-0 flex-wrap items-center gap-2 rounded-2xl border p-3 transition-colors ${
                     hidden
-                      ? "border-white/6 bg-black/10 text-white/38"
+                      ? "border-white/6 bg-black/10 text-[var(--dc-text-secondary)]"
                       : "border-white/10 bg-white/[0.045] text-white"
                   }`}
                 >
                   <button
                     type="button"
                     onClick={() => toggleModule(moduleKey)}
-                    className={`inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-[10px] font-bold transition-colors ${
+                    className={`inline-flex min-h-11 shrink-0 items-center gap-1.5 rounded-lg border px-2.5 text-xs font-bold transition-colors ${
                       hidden
                         ? "border-emerald-300/20 bg-emerald-400/[0.08] text-emerald-200"
                         : "border-rose-300/16 bg-rose-400/[0.055] text-rose-200/80 hover:bg-rose-400/[0.1]"
@@ -703,20 +714,20 @@ export default function ProgressiveHomeOverviewInsights({
                     {hidden ? "Show" : "Hide"}
                   </button>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-xs font-bold">{meta.label}</span>
-                    <span className="mt-0.5 block truncate text-[10px] font-semibold text-white/34">
+                    <span className="block text-sm font-bold">{meta.label}</span>
+                    <span className="mt-0.5 block text-xs font-medium text-[var(--dc-text-secondary)]">
                       {meta.description}
                     </span>
                   </span>
-                  <div className="flex basis-full items-center justify-end gap-1.5 pl-10 sm:basis-auto sm:pl-0">
+                  <div className="flex basis-full flex-wrap items-center gap-2">
                     <button
                       type="button"
                       onClick={() => toggleModuleCollapsed(moduleKey)}
                       disabled={hidden}
-                      className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
+                      className={`inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border px-2 text-xs font-bold transition-colors disabled:cursor-not-allowed disabled:opacity-35 ${
                         collapsed
                           ? "border-amber-300/22 bg-amber-400/[0.08] text-amber-100"
-                          : "border-white/8 bg-black/12 text-white/45 hover:text-white"
+                          : "border-white/8 bg-black/12 text-[var(--dc-text-secondary)] hover:text-white"
                       }`}
                       aria-label={`${collapsed ? "Expand" : "Collapse"} ${meta.label}`}
                       aria-pressed={collapsed}
@@ -728,28 +739,30 @@ export default function ProgressiveHomeOverviewInsights({
                     <button
                       type="button"
                       onClick={() => toggleModuleSize(moduleKey)}
-                      className={`inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border px-2 text-[10px] font-bold transition-colors ${
+                      className={`inline-flex min-h-11 shrink-0 items-center gap-1 rounded-lg border px-2 text-xs font-bold transition-colors ${
                         compact
                           ? "border-[rgb(var(--dc-primary-rgb)/0.32)] bg-[rgb(var(--dc-primary-rgb)/0.10)] text-[var(--dc-primary)]"
-                          : "border-white/8 bg-black/12 text-white/45 hover:text-white"
+                          : "border-white/8 bg-black/12 text-[var(--dc-text-secondary)] hover:text-white"
                       }`}
                       aria-label={`Use ${compact ? "wide" : "compact"} size for ${meta.label}`}
+                      aria-pressed={compact}
+                      title="Width on large desktop screens. Phones use one widget per row."
                     >
                       {compact ? <Minimize2 className="h-3 w-3" /> : <Maximize2 className="h-3 w-3" />}
                       {compact ? "Compact" : "Wide"}
                     </button>
                   ) : (
-                    <span className="hidden shrink-0 rounded-lg border border-white/6 px-2 py-1 text-[9px] font-bold text-white/28 sm:inline">
+                    <span className="hidden shrink-0 rounded-lg border border-white/6 px-2 py-1 text-xs font-bold text-white/28 sm:inline">
                       Wide
                     </span>
                   )}
                   {viewSelectable ? (
-                    <span className="inline-flex h-8 shrink-0 items-center rounded-lg border border-white/8 bg-black/12 p-0.5" aria-label={`${meta.label} view`}>
+                    <span className="inline-flex min-h-11 shrink-0 items-center rounded-lg border border-white/8 bg-black/12 p-0.5" aria-label={`${meta.label} view`}>
                       <button
                         type="button"
                         onClick={() => setModuleView(moduleKey, "grid")}
                         aria-pressed={viewMode === "grid"}
-                        className={`inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[9px] font-bold transition-colors ${viewMode === "grid" ? "bg-[rgb(var(--dc-primary-rgb)/0.18)] text-[var(--dc-primary)]" : "text-white/38 hover:text-white"}`}
+                        className={`inline-flex min-h-11 items-center gap-1 rounded-md px-1.5 text-xs font-bold transition-colors ${viewMode === "grid" ? "bg-[rgb(var(--dc-primary-rgb)/0.18)] text-[var(--dc-primary)]" : "text-[var(--dc-text-secondary)] hover:text-white"}`}
                       >
                         <Grid2X2 className="h-3 w-3" /> Grid
                       </button>
@@ -757,7 +770,7 @@ export default function ProgressiveHomeOverviewInsights({
                         type="button"
                         onClick={() => setModuleView(moduleKey, "list")}
                         aria-pressed={viewMode === "list"}
-                        className={`inline-flex h-6 items-center gap-1 rounded-md px-1.5 text-[9px] font-bold transition-colors ${viewMode === "list" ? "bg-[rgb(var(--dc-primary-rgb)/0.18)] text-[var(--dc-primary)]" : "text-white/38 hover:text-white"}`}
+                        className={`inline-flex min-h-11 items-center gap-1 rounded-md px-1.5 text-xs font-bold transition-colors ${viewMode === "list" ? "bg-[rgb(var(--dc-primary-rgb)/0.18)] text-[var(--dc-primary)]" : "text-[var(--dc-text-secondary)] hover:text-white"}`}
                       >
                         <List className="h-3 w-3" /> List
                       </button>
@@ -768,7 +781,7 @@ export default function ProgressiveHomeOverviewInsights({
                       type="button"
                       onClick={() => moveModule(moduleKey, -1)}
                       disabled={index === 0}
-                      className="flex h-8 w-7 items-center justify-center rounded-lg text-white/48 hover:bg-white/7 hover:text-white disabled:opacity-20"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--dc-text-secondary)] hover:bg-white/7 hover:text-white disabled:opacity-20"
                       aria-label={`Move ${meta.label} up`}
                     >
                       <ArrowUp className="h-3.5 w-3.5" />
@@ -777,7 +790,7 @@ export default function ProgressiveHomeOverviewInsights({
                       type="button"
                       onClick={() => moveModule(moduleKey, 1)}
                       disabled={index === moduleOrder.length - 1}
-                      className="flex h-8 w-7 items-center justify-center rounded-lg text-white/48 hover:bg-white/7 hover:text-white disabled:opacity-20"
+                      className="flex h-11 w-11 items-center justify-center rounded-lg text-[var(--dc-text-secondary)] hover:bg-white/7 hover:text-white disabled:opacity-20"
                       aria-label={`Move ${meta.label} down`}
                     >
                       <ArrowDown className="h-3.5 w-3.5" />
@@ -788,8 +801,11 @@ export default function ProgressiveHomeOverviewInsights({
               );
             })}
           </div>
-          <p className="mt-4 text-[11px] font-semibold leading-5 text-white/35">
-            Hide removes a widget completely; Collapse keeps a small title bar so it can be reopened quickly. Mobile always keeps one readable module per row.
+          {widgetSearch.trim() && !moduleOrder.some((key) => `${HOME_MODULE_LABELS[key].label} ${HOME_MODULE_LABELS[key].description}`.toLowerCase().includes(widgetSearch.trim().toLowerCase())) ? (
+            <p role="status" className="mt-4 text-sm text-[var(--dc-text-secondary)]">No widgets match your search.</p>
+          ) : null}
+          <p className="mt-4 text-xs font-semibold leading-5 text-[var(--dc-text-secondary)]">
+            Hide removes a widget; Collapse keeps its title. Width applies on large desktop screens; phones use one widget per row.
           </p>
         </DashboardCustomizerDialog>
       ) : null}
@@ -801,7 +817,7 @@ export default function ProgressiveHomeOverviewInsights({
             const compact =
               COMPACTABLE_HOME_MODULES.has(moduleKey) && compactModules.has(moduleKey);
             return (
-              <div key={moduleKey} className={`${compact ? "2xl:col-span-1" : "2xl:col-span-2"} h-full`}>
+              <div key={moduleKey} data-home-widget={moduleKey} className={`${compact ? "2xl:col-span-1" : "2xl:col-span-2"} h-full`}>
                 <CollapsibleHomeModule
                   collapsed={collapsedModules.has(moduleKey)}
                   label={HOME_MODULE_LABELS[moduleKey].label}

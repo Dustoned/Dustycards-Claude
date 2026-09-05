@@ -55,6 +55,7 @@ export const EXTERNAL_FORECAST_TARGETS = [
  * usingPreviousModelCohort) instead of restarting calibration from zero.
  */
 export const FORECAST_MODEL_VERSION_FALLBACKS: Readonly<Record<string, string>> = {
+  "v13-evidence-quality": "v12-hype-reset-calibrated",
   "v12-hype-reset-calibrated": "v11-hype-reset-support",
   "v11-hype-reset-support": "v10-consistent-live-prices",
   "v10-consistent-live-prices": "v9-calibrated-inputs",

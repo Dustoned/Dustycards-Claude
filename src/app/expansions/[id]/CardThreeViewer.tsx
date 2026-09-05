@@ -35,6 +35,7 @@ import {
   type BgsCanvasKind,
 } from "@/lib/graded-slab-canvas";
 import { getTextureImageUrl, isTcggoStorageImageUrl } from "@/lib/image-cache";
+import { loadCardTexture } from "@/lib/load-card-texture";
 import {
   buildCardHoloMask,
   getCardHoloMaskDimensions,
@@ -1313,6 +1314,7 @@ export default function CardThreeViewer({
   const autoRotateRef = useRef(true);
   const [isReady, setIsReady] = useState(false);
   const [hasError, setHasError] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const filteredCardMarketUrl = cardMarketUrl ? withCardMarketFilters(cardMarketUrl) : null;
   const gradingCompanyLabel = normalizeGradingCompanyLabel(card.collection_item?.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(card.collection_item?.grading_grade);
@@ -1368,6 +1370,8 @@ export default function CardThreeViewer({
     dragStateRef.current = { active: false, pointerIds: new Set<number>() };
 
     let mounted = true;
+    const textureAbort = new AbortController();
+    const loadedTextures = new Set<import("three").Texture>();
     let animationFrameId = 0;
     let renderer: import("three").WebGLRenderer | null = null;
     let resizeHandler: (() => void) | null = null;
@@ -1432,25 +1436,19 @@ export default function CardThreeViewer({
         const textureLoader = new THREE.TextureLoader();
         textureLoader.setCrossOrigin("anonymous");
 
-        const loadTexture = (url: string) =>
-          new Promise<import("three").Texture>((resolve, reject) => {
-            textureLoader.load(
-              url,
-              (texture) => {
-                texture.colorSpace = THREE.SRGBColorSpace;
-                const availableAnisotropy = renderer?.capabilities.getMaxAnisotropy() ?? 1;
-                texture.anisotropy = isMobileViewport
-                  ? Math.min(availableAnisotropy, 4)
-                  : availableAnisotropy;
-                texture.generateMipmaps = true;
-                texture.minFilter = THREE.LinearMipmapLinearFilter;
-                texture.magFilter = THREE.LinearFilter;
-                resolve(texture);
-              },
-              undefined,
-              reject
-            );
-          });
+        const loadTexture = async (url: string) => {
+          const texture = await loadCardTexture(textureLoader, url, textureAbort.signal);
+          loadedTextures.add(texture);
+          texture.colorSpace = THREE.SRGBColorSpace;
+          const availableAnisotropy = renderer?.capabilities.getMaxAnisotropy() ?? 1;
+          texture.anisotropy = isMobileViewport
+            ? Math.min(availableAnisotropy, 4)
+            : availableAnisotropy;
+          texture.generateMipmaps = true;
+          texture.minFilter = THREE.LinearMipmapLinearFilter;
+          texture.magFilter = THREE.LinearFilter;
+          return texture;
+        };
 
         const [loadedFrontTexture, backTexture, stlLoaderModule] = await Promise.all([
           loadTexture(getTextureImageUrl(frontImageUrl) ?? frontImageUrl),
@@ -2291,8 +2289,12 @@ export default function CardThreeViewer({
         document.addEventListener("visibilitychange", visibilityChangeHandler);
         requestAnimationLoop();
       } catch (error) {
-        console.error("Failed to initialize 3D card viewer", error);
+        textureAbort.abort();
+        for (const texture of loadedTextures) texture.dispose();
+        loadedTextures.clear();
         if (mounted) {
+          console.error("Failed to initialize 3D card viewer", error);
+          if (rootElement) rootElement.dataset.cardHoloMask = "error";
           setHasError(true);
         }
       }
@@ -2302,6 +2304,7 @@ export default function CardThreeViewer({
 
     return () => {
       mounted = false;
+      textureAbort.abort();
       stopAnimationLoop();
       if (resizeHandler) {
         window.removeEventListener("resize", resizeHandler);
@@ -2318,6 +2321,8 @@ export default function CardThreeViewer({
         window.clearTimeout(autoRotateResumeTimer);
       }
       cleanupTextures?.();
+      if (!cleanupTextures) for (const texture of loadedTextures) texture.dispose();
+      loadedTextures.clear();
       if (renderer && renderHost.contains(renderer.domElement)) {
         renderHost.removeChild(renderer.domElement);
       }
@@ -2345,6 +2350,7 @@ export default function CardThreeViewer({
     card3dSize,
     isInline,
     isMobileViewport,
+    loadAttempt,
   ]);
 
   const cardMarketPriceRows = [
@@ -3045,6 +3051,7 @@ export default function CardThreeViewer({
           <div className="max-w-sm rounded-3xl border border-white/12 bg-black/55 px-5 py-4 text-center backdrop-blur-xl">
             <p className="text-lg font-semibold text-white">3D view unavailable</p>
             <p className="mt-2 text-sm text-white/55">This card image could not be loaded as a texture.</p>
+            <button type="button" data-viewer-keepopen="true" onClick={(event) => { event.stopPropagation(); setLoadAttempt((attempt) => attempt + 1); }} className="pointer-events-auto mt-3 min-h-11 rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white">Retry 3D view</button>
           </div>
         </div>
       )}

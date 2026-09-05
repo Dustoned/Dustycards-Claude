@@ -24,7 +24,13 @@ export default function AccountTabs({
     [defaultKey, tabs]
   );
   const [selectedKey, setSelectedKey] = useState(initialKey);
+  const [securityVisited, setSecurityVisited] = useState(initialKey === "security");
   const selected = tabs.find((tab) => tab.key === selectedKey) ?? tabs[0] ?? null;
+
+  function selectTab(key: string) {
+    if (key === "security") setSecurityVisited(true);
+    setSelectedKey(key);
+  }
 
   function selectFromKeyboard(event: KeyboardEvent<HTMLButtonElement>, index: number) {
     let nextIndex: number | null = null;
@@ -36,7 +42,7 @@ export default function AccountTabs({
 
     event.preventDefault();
     const next = tabs[nextIndex];
-    setSelectedKey(next.key);
+    selectTab(next.key);
     window.requestAnimationFrame(() => {
       document.getElementById(`account-tab-button-${next.key}`)?.focus();
     });
@@ -67,7 +73,7 @@ export default function AccountTabs({
                 aria-selected={active}
                 aria-controls={`account-tab-${tab.key}`}
                 tabIndex={active ? 0 : -1}
-                onClick={() => setSelectedKey(tab.key)}
+                onClick={() => selectTab(tab.key)}
                 onKeyDown={(event) => selectFromKeyboard(event, tabs.indexOf(tab))}
                 className={`min-h-11 min-w-[7rem] rounded-xl px-3 text-xs font-semibold leading-none transition md:min-w-0 md:px-4 md:text-sm ${
                   active
@@ -86,13 +92,17 @@ export default function AccountTabs({
         <p className="text-sm text-white/45">{selected.description}</p>
       ) : null}
 
-      <div
-        id={`account-tab-${selected.key}`}
-        role="tabpanel"
-        aria-labelledby={`account-tab-button-${selected.key}`}
-      >
-        {selected.content}
-      </div>
+      {tabs.filter((tab) => tab.key === selected.key || (tab.key === "security" && securityVisited)).map((tab) => (
+        <div
+          key={tab.key}
+          id={`account-tab-${tab.key}`}
+          role="tabpanel"
+          aria-labelledby={`account-tab-button-${tab.key}`}
+          hidden={tab.key !== selected.key}
+        >
+          {tab.content}
+        </div>
+      ))}
     </div>
   );
 }

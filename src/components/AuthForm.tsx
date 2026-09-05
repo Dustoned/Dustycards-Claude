@@ -37,6 +37,7 @@ export default function AuthForm({
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const isRegister = mode === "register";
+  const verificationTargetEmail = email.trim();
   const approvalDialogRef = useRef<HTMLDivElement | null>(null);
   useModalA11y({
     dialogRef: approvalDialogRef,
@@ -123,7 +124,7 @@ export default function AuthForm({
   }
 
   async function resendVerificationEmail() {
-    const targetEmail = verificationEmail || email;
+    const targetEmail = verificationTargetEmail;
     if (!targetEmail) return;
 
     setResending(true);
@@ -144,7 +145,7 @@ export default function AuthForm({
       }
 
       setVerificationEmail(targetEmail);
-      setNotice("Verification email sent. Check your inbox and spam folder.");
+      setNotice(`Verification email sent to ${targetEmail}. Check your inbox and spam folder.`);
     } catch {
       setError("Could not send verification email. Please try again.");
     } finally {
@@ -274,13 +275,13 @@ export default function AuthForm({
       {!isRegister && (showVerificationRecovery || verificationEmail) && (
         <div className="grid gap-2 rounded-xl border border-violet-300/15 bg-violet-500/[0.07] p-3">
           <p className="text-xs leading-5 text-white/58">
-            {email
-              ? `Send a fresh verification link to ${email}.`
+            {verificationTargetEmail
+              ? `Send a fresh verification link to ${verificationTargetEmail}.`
               : "Enter your email above to request a fresh verification link."}
           </p>
           <button
             type="button"
-            disabled={resending || !(verificationEmail || email)}
+            disabled={resending || !verificationTargetEmail}
             onClick={resendVerificationEmail}
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.06] px-4 py-2.5 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/[0.1] disabled:cursor-not-allowed disabled:opacity-45"
           >

@@ -51,6 +51,29 @@ function historyPoint(date: string, value: number) {
 }
 
 describe("buy signal", () => {
+  it("counts a graded sold source once regardless of its sample size", () => {
+    const signal = buildBuySignal(rawInput({
+      collection_item: { purchase_price: null, cost_basis_value: null, grading_company: "PSA", grading_grade: "10" },
+      ebay_sold_graded_prices: [{ label: "PSA 10", company: "PSA", grade: "10", median_price: 200, currency: "EUR", sample_size: 20 }],
+    }));
+    expect(signal.metrics.source_count).toBe(1);
+    expect(buildBuySignal(rawInput({ price: null, price_history: [] })).metrics.source_count).toBe(0);
+  });
+
+  it("does not present a one-day move as a weekly or monthly trend", () => {
+    const signal = buildBuySignal(rawInput({ price_history: [historyPoint("2026-05-19", 40), historyPoint("2026-05-20", 80)] }));
+    expect(signal.metrics.change_7d_pct).toBeNull();
+    expect(signal.metrics.change_30d_pct).toBeNull();
+  });
+
+  it.each([0, -10, 9001, Number.NaN, Number.POSITIVE_INFINITY])("treats invalid current price %s as unavailable", (value) => {
+    const input = rawInput();
+    input.price!.cm_en_lowest_nm = value;
+    const signal = buildBuySignal(input);
+    expect(signal.current_value).toBeNull();
+    expect(signal.label).toBe("hold");
+    expect(signal.confidence).toBe("low");
+  });
   it("maps score thresholds to signal labels", () => {
     expect(getBuySignalLabelForScore(0)).toBe("strong_sell");
     expect(getBuySignalLabelForScore(19)).toBe("strong_sell");

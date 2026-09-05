@@ -412,7 +412,7 @@ export default function HomeSuddenDropsPanel({
           <Link
             href={viewAllHref}
             prefetch={false}
-            className="inline-flex h-8 items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.045] px-2.5 text-[12px] font-bold text-violet-200 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.045] px-2.5 text-[12px] font-bold text-violet-200 transition-colors hover:border-white/16 hover:bg-white/[0.075] hover:text-white"
           >
             Open movers
             <ArrowUpRight className="h-3.5 w-3.5" />

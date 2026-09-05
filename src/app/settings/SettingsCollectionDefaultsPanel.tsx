@@ -304,7 +304,7 @@ export default function SettingsCollectionDefaultsPanel() {
             </div>
             <label className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_9rem] sm:items-center">
               <span className="text-sm text-gray-500 dark:text-white/45">
-                Minimum card value shown on Home
+                Minimum binder card value (€)
               </span>
               <input
                 type="number"
@@ -321,10 +321,11 @@ export default function SettingsCollectionDefaultsPanel() {
               />
             </label>
             <p className="mt-2 text-xs text-gray-400">
-              Current threshold:{" "}
+              Home shows binder cards worth{" "}
               <span className="font-semibold text-gray-700 dark:text-white/70">
                 {formatCollectionCurrency(settings.binderWatchMinPrice)}
               </span>
+              {" "}or more.
             </p>
           </div>
         </div>

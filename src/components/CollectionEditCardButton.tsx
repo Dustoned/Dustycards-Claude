@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { FolderInput, Pencil, X } from "lucide-react";
@@ -37,6 +37,7 @@ import {
   modalSecondaryButtonClass,
   modalSelectClass as modalSelectClasses,
 } from "@/components/modal-glass-styles";
+import useModalA11y from "@/lib/useModalA11y";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
 type BinderOption = InlineBinderOption;
@@ -114,6 +115,8 @@ export default function CollectionEditCardButton({
   const [open, setOpen] = useState(false);
   const [binders, setBinders] = useState<BinderOption[]>([]);
   const [bindersLoading, setBindersLoading] = useState(false);
+  const [bindersError, setBindersError] = useState<string | null>(null);
+  const [binderLoadAttempt, setBinderLoadAttempt] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(
@@ -139,6 +142,8 @@ export default function CollectionEditCardButton({
     item.purchase_price_source ?? null
   );
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y({ dialogRef, enabled: open, initialFocus: "dialog", onClose: () => setOpen(false) });
   useBodyScrollLock(open);
 
   useEffect(() => {
@@ -161,7 +166,7 @@ export default function CollectionEditCardButton({
         setBinders(Array.isArray(data.binders) ? data.binders : []);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
-          setBinders([]);
+          setBindersError("Could not load binders. Your selected location has been kept.");
         }
       } finally {
         if (!controller.signal.aborted) {
@@ -171,7 +176,7 @@ export default function CollectionEditCardButton({
     })();
 
     return () => controller.abort();
-  }, [open]);
+  }, [open, binderLoadAttempt]);
 
   const availableBinders = useMemo(
     () =>
@@ -258,6 +263,7 @@ export default function CollectionEditCardButton({
     setPurchasePriceSource(item.purchase_price_source ?? null);
     setCardKind(getInitialCardKind(item));
     setShowAdvanced(Boolean(item.notes || item.tags.length > 0));
+    setBindersError(null);
     setBindersLoading(true);
     setSaveError(null);
     setOpen(true);
@@ -295,6 +301,8 @@ export default function CollectionEditCardButton({
             }}
           >
             <div
+              ref={dialogRef}
+              tabIndex={-1}
               role="dialog"
               aria-modal="true"
               aria-label={`Edit ${card.name} in collection`}
@@ -372,6 +380,9 @@ export default function CollectionEditCardButton({
                         Singles
                         {!item.for_sale && !item.binder_id ? " - Current" : ""}
                       </option>
+                      {binderId && !availableBinders.some((binder) => binder.id === binderId) && (
+                        <option value={binderId} className={modalOptionClasses}>{item.binder_name ?? "Current binder"}</option>
+                      )}
                       {availableBinders.map((binder) => (
                         <option key={binder.id} value={binder.id} className={modalOptionClasses}>
                           {binder.name}
@@ -381,7 +392,18 @@ export default function CollectionEditCardButton({
                       ))}
                     </select>
                     {bindersLoading && <p className="text-xs text-white/35">Loading binders...</p>}
+
                   </label>
+                    {bindersError && (
+                      <div role="alert" className="text-sm text-rose-300">
+                        <p>{bindersError}</p>
+                        <button type="button" className="min-h-11 underline underline-offset-4" onClick={() => {
+                          setBindersError(null);
+                          setBindersLoading(true);
+                          setBinderLoadAttempt((attempt) => attempt + 1);
+                        }}>Retry loading binders</button>
+                      </div>
+                    )}
                 </div>
 
                 <div className="grid grid-cols-2 gap-3 sm:gap-4">

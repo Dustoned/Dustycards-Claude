@@ -112,7 +112,7 @@ export default async function WantsPage({
           ) : null}
         </div>
 
-        <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
+        {data.totalCards > 0 ? <section className="grid min-w-0 gap-3 xl:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] xl:items-stretch">
           <div className="binder-panel relative flex w-full min-w-0 flex-col overflow-hidden rounded-[var(--ui-page-header-radius)] p-3 sm:p-4 lg:p-5">
             <div className="min-w-0 flex-1 [&>section]:h-full [&>section]:w-full">
               <PriceHistoryPanel
@@ -132,7 +132,7 @@ export default async function WantsPage({
               <HeaderStatCard key={stat.label} {...stat} />
             ))}
           </div>
-        </section>
+        </section> : null}
 
         <WantsPageContent
           plannerGroups={data.plannerGroups}

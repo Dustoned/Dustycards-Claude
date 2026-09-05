@@ -13,6 +13,7 @@ import {
   verifyTotp,
 } from "@/lib/mfa";
 import { recordSecurityEvent } from "@/lib/security-events";
+import { buildMfaQrCode } from "@/lib/mfa-qr";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
 import {
   AUTH_REQUEST_BODY_LIMIT_BYTES,
@@ -59,6 +60,8 @@ export async function POST(request: NextRequest) {
     if (action === "prepare") {
       if (record.mfa_enabled_at) return NextResponse.json({ enabled: true });
       const secret = generateMfaSecret();
+      const uri = buildTotpUri(record.email, secret);
+      const qrCode = await buildMfaQrCode(uri);
       await db.user.update({
         where: { id: user.id },
         data: { mfa_secret_encrypted: encryptMfaSecret(secret), mfa_recovery_codes_json: null },
@@ -66,8 +69,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({
         enabled: false,
         secret,
-        uri: buildTotpUri(record.email, secret),
-      });
+        uri,
+        qrCode,
+      }, { headers: { "Cache-Control": "no-store" } });
     }
 
     const code = typeof body.code === "string" ? body.code : "";

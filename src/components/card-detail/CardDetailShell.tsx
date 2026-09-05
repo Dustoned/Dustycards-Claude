@@ -18,6 +18,7 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  useSyncExternalStore,
   type KeyboardEvent,
   type ReactNode,
 } from "react";
@@ -25,6 +26,10 @@ import { createPortal } from "react-dom";
 
 const MOBILE_CARD_DETAIL_MAX_WIDTH = 767;
 const MOBILE_ACTION_PORTAL_MAX_WIDTH = 640;
+
+const subscribeToHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
 
 interface PendingTabScrollAnchor {
   scrollElement: HTMLElement;
@@ -244,6 +249,8 @@ export default function CardDetailShell({
   mobileChartAlwaysVisible = false,
   className = "",
 }: CardDetailShellProps) {
+  // Server-rendered tabs must not accept input before their handlers attach.
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
   const fallbackTab = tabs[0]?.id ?? "overview";
   const [activeTab, setActiveTab] = useState<CardDetailTabId>(() =>
     tabs.some((tab) => tab.id === initialTab) ? initialTab : fallbackTab
@@ -315,6 +322,14 @@ export default function CardDetailShell({
     if (!pendingAnchor || !tabsShell) return;
 
     const { scrollElement } = pendingAnchor;
+    const panel = shellRef.current?.querySelector<HTMLElement>('[role="tabpanel"]');
+    // A short tab otherwise reduces maxScroll and the browser pulls the sticky
+    // tab rail down. Reserve only the height needed for this existing position.
+    panel?.style.removeProperty("--card-detail-panel-reserve");
+    const missingScroll = pendingAnchor.scrollTop - Math.max(0, scrollElement.scrollHeight - scrollElement.clientHeight);
+    if (panel && missingScroll > 0) {
+      panel.style.setProperty("--card-detail-panel-reserve", `${panel.getBoundingClientRect().height + missingScroll}px`);
+    }
     let cancelled = false;
     let animationFrame = 0;
     let frameCount = 0;
@@ -468,7 +483,7 @@ export default function CardDetailShell({
           className="card-detail-tabs-shell"
           aria-label={sectionsAriaLabel}
         >
-          <div ref={tabListRef} className="card-detail-tabs" role="tablist">
+          <div ref={tabListRef} className="card-detail-tabs" role="tablist" aria-busy={!hydrated}>
             {tabs.map((tab, index) => {
               const selected = tab.id === active?.id;
               const Icon = tab.icon ?? DEFAULT_TAB_ICONS[tab.id];
@@ -478,6 +493,7 @@ export default function CardDetailShell({
                   id={`${reactId}-tab-${tab.id}`}
                   type="button"
                   role="tab"
+                  disabled={!hydrated}
                   aria-selected={selected}
                   aria-controls={`${reactId}-panel-${tab.id}`}
                   tabIndex={selected ? 0 : -1}
@@ -527,7 +543,7 @@ export default function CardDetailShell({
                 aria-label="Market summary"
               >
                 {visibleKpis.map((item, index) => (
-                  <KpiCard key={`${item.label}-${index}`} item={item} />
+                  <KpiCard key={`${item.label}-${index}`} item={item} onNavigate={navigateToKpiTab} />
                 ))}
               </div>
             ) : null}

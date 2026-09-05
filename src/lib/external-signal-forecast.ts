@@ -168,8 +168,12 @@ export function evaluateSignalOutcome(input: {
   const now = input.now ?? new Date();
   const horizonDays = Math.max(1, Math.floor(input.horizonDays));
   const horizonEndsAt = new Date(input.entryAt.getTime() + horizonDays * DAY_MS);
-  const windowPrices = collapseSignalPricesByUtcDay(input.prices).filter(
-    (item) => item.observedAt > input.entryAt && item.observedAt <= horizonEndsAt
+  const knownPrices = input.prices.filter((item) => {
+    const observedAt = toDate(item.observedAt);
+    return observedAt != null && observedAt <= now;
+  });
+  const windowPrices = collapseSignalPricesByUtcDay(knownPrices).filter(
+    (item) => item.observedAt > input.entryAt && item.observedAt <= horizonEndsAt && item.observedAt <= now
   );
   const observedDays = windowPrices.length;
   const coverageRatio = clamp(observedDays / horizonDays, 0, 1);

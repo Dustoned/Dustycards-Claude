@@ -22,6 +22,16 @@ const ESTABLISHED_INPUT: SealedSignalRadarScoreInput = {
 };
 
 describe("buildSealedSignalRadarScore", () => {
+  it("does not call an old quote a current breakout", () => {
+    const stale = buildSealedSignalRadarScore({ ...ESTABLISHED_INPUT, staleDays: 30 });
+    expect(stale.pressureLabel).toBe("Watch");
+    expect(stale.confidence).toBe("Emerging");
+    expect(stale.riskLabel).toBe("Price update overdue");
+  });
+
+  it("does not give volatile history high confidence", () => {
+    expect(buildSealedSignalRadarScore({ ...ESTABLISHED_INPUT, volatilityDaily90Pct: 15 }).confidence).not.toBe("High");
+  });
   it("rewards confirmed history and steady supply pressure", () => {
     const result = buildSealedSignalRadarScore(ESTABLISHED_INPUT);
 

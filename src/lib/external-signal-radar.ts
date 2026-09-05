@@ -85,6 +85,7 @@ export interface ExternalGradedIntelligence {
   available: boolean;
   label: string | null;
   currentPrice: number | null;
+  currentPriceEur?: number | null;
   currency: "EUR" | "USD";
   sampleSize: number | null;
   psa9Price: number | null;
@@ -209,6 +210,7 @@ export interface ExternalCardSignal {
   episodeReleaseDate?: string | null;
   rarity: string | null;
   currentPrice: number | null;
+  currentPriceEur?: number | null;
   currency: "EUR" | "USD";
   externalScore: number;
   competitiveScore?: number;

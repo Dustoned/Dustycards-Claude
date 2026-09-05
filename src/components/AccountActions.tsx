@@ -1,8 +1,9 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { KeyRound, LogOut, ShieldCheck } from "lucide-react";
+import Image from "next/image";
+import { Copy, Download, KeyRound, LogOut, ShieldCheck } from "lucide-react";
 
 export default function AccountActions({
   initialMfaEnabled,
@@ -22,25 +23,84 @@ export default function AccountActions({
   const [mfaEnabled, setMfaEnabled] = useState(initialMfaEnabled);
   const [mfaSecret, setMfaSecret] = useState<string | null>(null);
   const [mfaUri, setMfaUri] = useState<string | null>(null);
+  const [mfaQrCode, setMfaQrCode] = useState<string | null>(null);
   const [mfaCode, setMfaCode] = useState("");
   const [recoveryCodes, setRecoveryCodes] = useState<string[]>([]);
   const [mfaLoading, setMfaLoading] = useState(false);
+  const [mfaError, setMfaError] = useState<string | null>(null);
+  const [mfaMessage, setMfaMessage] = useState<string | null>(null);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+  const [recoveryCodesSaved, setRecoveryCodesSaved] = useState(false);
+
+  useEffect(() => {
+    if (recoveryCodes.length === 0 || recoveryCodesSaved) return;
+    function warnBeforeLeaving(event: BeforeUnloadEvent) {
+      event.preventDefault();
+      event.returnValue = "";
+    }
+    function warnBeforeNavigation(event: MouseEvent) {
+      if (!(event.target instanceof Element)) return;
+      const link = event.target.closest<HTMLAnchorElement>("a[href]");
+      if (!link || link.target === "_blank" || link.hasAttribute("download")) return;
+      const target = new URL(link.href, window.location.href);
+      if (target.pathname === window.location.pathname && target.search === window.location.search) return;
+      if (!window.confirm("Your recovery codes are shown only once. Leave without confirming you saved them?")) {
+        event.preventDefault();
+        event.stopPropagation();
+      }
+    }
+    window.addEventListener("beforeunload", warnBeforeLeaving);
+    document.addEventListener("click", warnBeforeNavigation, true);
+    return () => {
+      window.removeEventListener("beforeunload", warnBeforeLeaving);
+      document.removeEventListener("click", warnBeforeNavigation, true);
+    };
+  }, [recoveryCodes.length, recoveryCodesSaved]);
+
+  async function copyMfaValue(value: string, successMessage: string) {
+    setMfaError(null);
+    try {
+      await navigator.clipboard.writeText(value);
+      setMfaMessage(successMessage);
+    } catch {
+      setMfaError("Could not copy automatically. Select and copy the text below, or download your recovery codes.");
+    }
+  }
+
+  function downloadRecoveryCodes() {
+    const file = new Blob([
+      "DustyCards recovery codes\nKeep these somewhere private. Each code can be used once.\n\n",
+      recoveryCodes.join("\n"),
+      "\n",
+    ], { type: "text/plain;charset=utf-8" });
+    const url = URL.createObjectURL(file);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "dustycards-recovery-codes.txt";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+    setMfaMessage("Recovery code download started. Confirm below once you have saved them somewhere private.");
+  }
 
   async function prepareMfa() {
     setMfaLoading(true);
-    setError(null);
+    setMfaError(null);
+    setMfaMessage(null);
     try {
       const response = await fetch("/api/auth/mfa", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "prepare" }),
       });
-      const data = (await response.json()) as { error?: string; secret?: string; uri?: string };
+      const data = (await response.json()) as { error?: string; secret?: string; uri?: string; qrCode?: string };
       if (!response.ok || !data.secret || !data.uri) throw new Error(data.error ?? "Could not start MFA setup");
       setMfaSecret(data.secret);
       setMfaUri(data.uri);
+      setMfaQrCode(data.qrCode ?? null);
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not start MFA setup");
+      setMfaError(caught instanceof Error ? caught.message : "Could not start MFA setup");
     } finally {
       setMfaLoading(false);
     }
@@ -49,7 +109,8 @@ export default function AccountActions({
   async function enableMfa(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setMfaLoading(true);
-    setError(null);
+    setMfaError(null);
+    setMfaMessage(null);
     try {
       const response = await fetch("/api/auth/mfa", {
         method: "POST",
@@ -61,12 +122,14 @@ export default function AccountActions({
       setMfaEnabled(true);
       setMfaSecret(null);
       setMfaUri(null);
+      setMfaQrCode(null);
       setRecoveryCodes(data.recoveryCodes ?? []);
+      setRecoveryCodesSaved(false);
       setMfaCode("");
-      setMessage("Authenticator protection is now enabled.");
+      setMfaMessage("Authenticator protection is now enabled. Save your recovery codes before leaving this page.");
       router.refresh();
     } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Could not enable MFA");
+      setMfaError(caught instanceof Error ? caught.message : "Could not enable MFA");
     } finally {
       setMfaLoading(false);
     }
@@ -74,14 +137,14 @@ export default function AccountActions({
 
   async function logout() {
     setLoggingOut(true);
-    setError(null);
+    setLogoutError(null);
     try {
       const response = await fetch("/api/auth/logout", { method: "POST" });
       if (!response.ok) throw new Error("Logout failed");
       router.replace("/login");
       router.refresh();
     } catch {
-      setError("Could not log out. Check your connection and try again.");
+      setLogoutError("Could not log out. Check your connection and try again.");
       setLoggingOut(false);
     }
   }
@@ -133,7 +196,7 @@ export default function AccountActions({
           </p>
         </div>
         <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${mfaEnabled ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200" : "border-amber-400/20 bg-amber-400/[0.08] text-amber-200"}`}>
-          {mfaEnabled ? "Enabled" : "Setup required"}
+          {mfaEnabled ? "Enabled" : isAdmin ? "Setup required" : "Not enabled"}
         </span>
       </div>
 
@@ -145,23 +208,38 @@ export default function AccountActions({
 
       {!mfaEnabled && mfaSecret && mfaUri ? (
         <form onSubmit={enableMfa} className="mt-4 grid gap-3 rounded-xl border border-violet-300/15 bg-violet-500/[0.06] p-4">
-          <p className="text-sm text-white/65">Add this key to Google Authenticator, Microsoft Authenticator, 1Password or another TOTP app.</p>
+          <p className="text-sm text-white/65">Scan with your authenticator app, or add the setup key manually.</p>
+          {mfaQrCode ? <Image src={mfaQrCode} alt="Authenticator setup QR code" width={256} height={256} unoptimized className="mx-auto h-auto max-w-full rounded-lg" /> : null}
           <code className="break-all rounded-lg bg-black/25 p-3 text-sm font-bold tracking-[0.12em] text-violet-100">{mfaSecret}</code>
-          <a href={mfaUri} className="text-xs font-semibold text-violet-200 underline underline-offset-4">Open in authenticator app</a>
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={() => copyMfaValue(mfaSecret, "Setup key copied.")} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm font-semibold text-white hover:bg-white/8"><Copy className="size-4" aria-hidden="true" />Copy setup key</button>
+            <a href={mfaUri} className="inline-flex min-h-11 items-center px-2 text-sm font-semibold text-violet-200 underline underline-offset-4">Open in authenticator app</a>
+          </div>
           <label className="grid gap-1.5 text-sm font-medium text-white/75">
             Six-digit code
-            <input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" className="min-h-11 rounded-xl border border-white/10 bg-black/20 px-3 font-mono tracking-[0.2em] text-white outline-none focus:border-violet-300/40" />
+            <input value={mfaCode} onChange={(event) => setMfaCode(event.target.value)} inputMode="numeric" autoComplete="one-time-code" required pattern="[0-9]{6}" aria-invalid={Boolean(mfaError)} aria-describedby={mfaError ? "account-mfa-error" : undefined} className="min-h-11 rounded-xl border border-white/10 bg-black/20 px-3 font-mono tracking-[0.2em] text-white outline-none focus:border-violet-300/40" />
           </label>
           <button type="submit" disabled={mfaLoading} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-violet-600 px-4 text-sm font-semibold text-white hover:bg-violet-500 disabled:opacity-60">Verify and enable</button>
         </form>
       ) : null}
 
+      {mfaError && <p id="account-mfa-error" role="alert" className="mt-3 text-sm font-medium text-red-600 dark:text-red-300">{mfaError}</p>}
+      {mfaMessage && <p role="status" aria-live="polite" className="mt-3 text-sm font-medium text-emerald-600 dark:text-emerald-300">{mfaMessage}</p>}
+
       {recoveryCodes.length > 0 ? (
         <div className="mt-4 rounded-xl border border-amber-300/20 bg-amber-500/[0.07] p-4">
           <p className="text-sm font-semibold text-amber-100">Save these one-time recovery codes now. They are shown only once.</p>
-          <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-xs text-white/75 sm:grid-cols-5">
-            {recoveryCodes.map((code) => <code key={code}>{code}</code>)}
+          <div className="mt-3 grid grid-cols-1 gap-2 font-mono text-sm text-white/75 min-[360px]:grid-cols-2 lg:grid-cols-5">
+            {recoveryCodes.map((code) => <code className="select-all" key={code}>{code}</code>)}
           </div>
+          <div className="mt-4 flex flex-wrap gap-2">
+            <button type="button" onClick={() => copyMfaValue(recoveryCodes.join("\n"), "Recovery codes copied. Store them somewhere private before leaving.")} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm font-semibold text-white hover:bg-white/8"><Copy className="size-4" aria-hidden="true" />Copy recovery codes</button>
+            <button type="button" onClick={downloadRecoveryCodes} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-white/10 px-3 text-sm font-semibold text-white hover:bg-white/8"><Download className="size-4" aria-hidden="true" />Download codes</button>
+          </div>
+          <label className="mt-3 flex min-h-11 cursor-pointer items-center gap-3 text-sm text-white/75">
+            <input type="checkbox" checked={recoveryCodesSaved} onChange={(event) => setRecoveryCodesSaved(event.target.checked)} className="size-4 accent-violet-600" />
+            I have saved my recovery codes somewhere private.
+          </label>
         </div>
       ) : null}
     </section>
@@ -233,20 +311,22 @@ export default function AccountActions({
           <button
             type="submit"
             disabled={loading}
-            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-white px-4 py-2.5 text-sm font-semibold text-gray-950 transition hover:bg-white/90 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--dc-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--dc-on-primary)] transition hover:brightness-95 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {loading ? "Saving..." : "Save password"}
           </button>
           <button
             type="button"
             onClick={logout}
-            disabled={loggingOut}
+            disabled={loggingOut || (recoveryCodes.length > 0 && !recoveryCodesSaved)}
+            aria-describedby={logoutError ? "account-logout-error" : undefined}
             className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/8 px-4 py-2.5 text-sm font-semibold text-white transition hover:border-white/20 hover:bg-white/12 disabled:cursor-wait disabled:opacity-60"
           >
             <LogOut className="h-4 w-4" />
             {loggingOut ? "Logging out..." : "Log out"}
           </button>
         </div>
+        {logoutError && <p id="account-logout-error" role="alert" className="text-sm font-medium text-red-600 dark:text-red-300">{logoutError}</p>}
       </form>
     </section>
     </div>

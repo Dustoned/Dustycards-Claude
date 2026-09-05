@@ -287,7 +287,7 @@ export function HeaderStatCard({
     <div className="flex h-full min-w-0 flex-col rounded-[var(--ui-header-stat-radius)] border border-white/9 bg-white/[0.045] p-[var(--ui-header-stat-padding)] shadow-sm shadow-black/20 sm:min-h-[var(--ui-header-stat-min-height)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="line-clamp-2 text-[length:var(--ui-header-stat-label-size)] font-semibold uppercase leading-tight tracking-[0.12em] text-white/40">
+          <p className="line-clamp-2 text-[length:max(0.75rem,var(--ui-header-stat-label-size))] font-medium leading-snug text-white/62">
             {label}
           </p>
           <p className="mt-1.5 whitespace-nowrap text-[length:var(--ui-header-stat-value-size)] font-bold leading-tight tracking-tight text-white">
@@ -307,7 +307,7 @@ export function HeaderStatCard({
         ) : null}
       </div>
       {hint ? (
-        <p className="mt-2 line-clamp-2 text-[length:var(--ui-header-stat-hint-size)] leading-snug text-white/48">
+        <p className="mt-2 line-clamp-2 text-[length:max(0.75rem,var(--ui-header-stat-hint-size))] leading-snug text-white/56">
           {hint}
         </p>
       ) : null}

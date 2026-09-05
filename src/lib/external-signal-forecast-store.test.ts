@@ -223,6 +223,7 @@ describe("external signal forecast store helpers", () => {
   });
 
   it("walks the whole model fallback chain from v12 down to v8", () => {
+    expect(getForecastModelVersionChain("v13-evidence-quality")[0]).toBe("v12-hype-reset-calibrated");
     expect(getForecastModelVersionChain("v12-hype-reset-calibrated")).toEqual([
       "v11-hype-reset-support",
       "v10-consistent-live-prices",

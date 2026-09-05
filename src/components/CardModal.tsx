@@ -976,9 +976,6 @@ export default function CardModal({
     >
       <section className="card-detail-surface card-detail-profile-overview">
         <h2 className="card-detail-surface-title">Card profile</h2>
-        <p className="card-detail-surface-copy">
-          The essential printing details, kept in one predictable place.
-        </p>
         <dl
           className="card-detail-info-grid mt-4"
           data-has-character-subject={
@@ -1016,7 +1013,7 @@ export default function CardModal({
           <div className="min-w-0">
             <p className="card-detail-eyebrow">Collector snapshot</p>
             <h2 className="mt-2 text-lg font-extrabold text-white/92">
-              {collectionItem ? "A saved copy with context" : "Ready for your collection"}
+              {collectionItem ? (collectionItem.read_only ? "Shared copy" : "Your saved copy") : "Not in your collection"}
             </h2>
           </div>
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-violet-300/16 bg-violet-400/[0.07] text-violet-100/76">
@@ -1038,7 +1035,7 @@ export default function CardModal({
           </div>
           <div className="card-detail-info-cell">
             <dt>Location</dt>
-            <dd>{collectionItem?.for_sale ? "For sale" : collectionItem?.binder_name ?? "Singles"}</dd>
+            <dd>{collectionItem ? (collectionItem.for_sale ? "For sale" : collectionItem.binder_name ?? "Singles") : "--"}</dd>
           </div>
         </dl>
       </aside>
@@ -1205,10 +1202,15 @@ export default function CardModal({
                   label: collectionItem?.cost_basis_label ?? "Collection",
                   value: collectionItem ? formatCurrency(costBasis, "EUR") : "Not owned",
                   hint:
-                    ownedChange == null
+                    !collectionItem
                       ? "Add a copy to track value"
-                      : `${ownedChange >= 0 ? "+" : ""}${formatCurrency(ownedChange, "EUR")} market change`,
+                      : costBasis == null
+                        ? "Purchase price not set"
+                        : ownedChange == null
+                          ? "No market price yet"
+                          : `${ownedChange >= 0 ? "+" : ""}${formatCurrency(ownedChange, "EUR")} market change`,
                   tone: ownedChange != null && ownedChange >= 0 ? "positive" : "neutral",
+                  targetTab: "collection",
                 },
                 {
                   label: "Market score",

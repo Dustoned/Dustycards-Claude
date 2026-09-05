@@ -530,10 +530,11 @@ async function captureCardDetailMarketHeroScreenshot(
 
 async function expectDetailHeroLayout(
   shell: Locator,
-  layout: "single" | "double" | "triple"
+  layout: "single" | "double" | "split" | "triple"
 ) {
   await resetDetailScroll(shell);
 
+  await expect(async () => {
   const media = shell.locator('[data-card-detail-region="media"]');
   const identity = shell.locator('[data-card-detail-region="identity"]');
   const chart = shell.locator('[data-card-detail-region="chart"]');
@@ -559,8 +560,15 @@ async function expectDetailHeroLayout(
     return;
   }
 
+  if (layout === "split") {
+    expect(Math.abs(chartBounds.x - identityBounds.x)).toBeLessThanOrEqual(4);
+    expect(chartBounds.y).toBeGreaterThan(identityBounds.y + identityBounds.height - 2);
+    return;
+  }
+
   expect(identityBounds.x).toBeLessThan(chartBounds.x);
   expect(Math.abs(identityBounds.y - chartBounds.y)).toBeLessThanOrEqual(4);
+  }).toPass({ timeout: 8_000 });
 }
 
 async function expectMobileChartPriorityLayout(shell: Locator) {
@@ -593,7 +601,9 @@ async function expectMobileChartPriorityLayout(shell: Locator) {
     chartBounds.y + chartBounds.height - 1
   );
   expect(tabsBounds.y).toBeGreaterThanOrEqual(chartBounds.y + chartBounds.height - 2);
-  expect(tabsBounds.y - (chartBounds.y + chartBounds.height)).toBeLessThanOrEqual(20);
+  const supplement = await shell.locator(".card-detail-hero-supplement").boundingBox();
+  const contentBottom = Math.max(chartBounds.y + chartBounds.height, supplement ? supplement.y + supplement.height : 0);
+  expect(tabsBounds.y - contentBottom).toBeLessThanOrEqual(20);
 }
 
 interface MobileMarketHeroGeometry {
@@ -820,7 +830,7 @@ async function expectDetailScrollLayersClear(
 
   if (viewport!.width <= 767) {
     await expect(page.locator("[data-mobile-bottom-nav]")).toBeHidden();
-    const primaryActions = shell.locator("[data-card-detail-primary-actions]");
+    const primaryActions = shell.page().locator("[data-card-detail-primary-actions]");
     const actionsBounds = await requiredBounds(primaryActions);
     const actionsPosition = await primaryActions.evaluate(
       (element) => window.getComputedStyle(element).position
@@ -845,7 +855,7 @@ async function expectMobileActionClusterNeverCoversDetail(
   expect(viewport).not.toBeNull();
   if (viewport!.width > 767) return;
 
-  const primaryActions = shell.locator("[data-card-detail-primary-actions]:visible");
+  const primaryActions = shell.page().locator("[data-card-detail-primary-actions]:visible");
   await expect(primaryActions).toHaveCount(1);
   const reachedScrollPositions: number[] = [];
   let availableScroll = 0;
@@ -878,7 +888,7 @@ async function expectMobileActionClusterNeverCoversDetail(
 
     const overlapState = await shell.evaluate((element) => {
       const actionsCandidates = Array.from(
-        element.querySelectorAll<HTMLElement>("[data-card-detail-primary-actions]")
+        document.querySelectorAll<HTMLElement>("[data-card-detail-primary-actions]")
       ).filter((candidate) => {
         const bounds = candidate.getBoundingClientRect();
         const style = window.getComputedStyle(candidate);
@@ -1171,6 +1181,12 @@ async function pullToRefreshFromMobileViewport(page: Page) {
 }
 
 async function openSettingsTab(page: Page, name: string) {
+  const sectionPicker = page.getByRole("combobox", { name: "Settings section" });
+  if (await sectionPicker.isVisible()) {
+    await sectionPicker.selectOption({ label: name });
+    await expect(page.getByRole("tabpanel", { name, exact: true })).toBeVisible();
+    return;
+  }
   const tab = page.getByRole("tab", { name, exact: true });
   await expect(tab).toBeVisible();
   await tab.click();
@@ -1291,6 +1307,10 @@ function samplePng(buffer: Buffer) {
 
 test.describe("DustyCards smoke", () => {
   test.beforeEach(async ({ context }) => {
+    // Each simulated device gets its own image-request budget. A fast suite
+    // must not exhaust the previous test's production rate-limit bucket.
+    const address = crypto.randomBytes(8).toString("hex").match(/.{4}/g)!.join(":");
+    await context.setExtraHTTPHeaders({ "x-forwarded-for": `2001:db8:${address}::1` });
     const session = createAuthenticatedSmokeSession();
     activeSessionIds.push(session.id);
 
@@ -1509,7 +1529,7 @@ test.describe("DustyCards smoke", () => {
     await page.goto("/settings");
 
     await expect(page.getByRole("heading", { name: "Settings" })).toBeVisible();
-    await expect(page.getByRole("tab", { name: "Preferences" })).toBeVisible();
+    await expect(page.getByRole("combobox", { name: "Settings section" })).toHaveValue("preferences");
     const preferencesPanel = page.getByRole("tabpanel", { name: "Preferences" });
     await expect(preferencesPanel.getByText("Phone overrides", { exact: true })).toBeVisible();
     await expect(preferencesPanel.getByText("Default view", { exact: true })).toBeVisible();
@@ -2073,7 +2093,7 @@ test.describe("DustyCards smoke", () => {
     expect(await tabs.allTextContents()).toEqual([
       "Overview",
       "Market",
-      "Collection",
+      "Collection & Reprints",
       "Forecast",
       "Analysis",
       "Evidence",
@@ -2103,7 +2123,7 @@ test.describe("DustyCards smoke", () => {
     await expect(shell.getByRole("heading", { name: "Sealed and scarcity", exact: true })).toBeVisible();
     await evidenceTab.click();
     await expect(shell).toHaveAttribute("data-active-tab", "evidence");
-    await expect(shell.getByRole("heading", { name: "External proof", exact: true })).toBeVisible();
+    await expect(shell.getByRole("heading", { name: "Tournament evidence", exact: true })).toBeVisible();
     await expect(shell.locator("[data-card-detail-research]:visible")).toHaveCount(1);
     await captureCardDetailScreenshot(page, shell, "standard-evidence-1920x1080.png");
     await marketTab.click();
@@ -2147,13 +2167,13 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page, shell);
 
     await page.setViewportSize({ width: 1280, height: 900 });
-    await expectDetailHeroLayout(shell, "double");
+    await expectDetailHeroLayout(shell, "triple");
     await captureCardDetailScreenshot(page, shell, "standard-1280x900.png");
     await expectSingleVisibleActionCluster(shell);
     await expectNoHorizontalOverflow(page, shell);
 
     await page.setViewportSize({ width: 1024, height: 900 });
-    await expectDetailHeroLayout(shell, "double");
+    await expectDetailHeroLayout(shell, "split");
     await captureCardDetailScreenshot(page, shell, "standard-1024x900.png");
     await expectSingleVisibleActionCluster(shell);
     await expectNoHorizontalOverflow(page, shell);
@@ -2197,7 +2217,7 @@ test.describe("DustyCards smoke", () => {
     await expectMobileMarketKpis(shell, [
       "Selected grade",
       "Market source",
-      "Paid",
+      "Collection",
       "Market score",
     ]);
     await expectSingleChartGradeSelector(shell);
@@ -2253,7 +2273,7 @@ test.describe("DustyCards smoke", () => {
     await expectMobileDetailTabsKeepScrollAnchor(page, shell, [
       "Overview",
       "Market",
-      "Collection",
+      "Collection & Reprints",
       "Evidence",
       "Market",
     ]);
@@ -2267,9 +2287,9 @@ test.describe("DustyCards smoke", () => {
     await expectSingleVisibleActionCluster(shell);
     await expect(shell.locator(".card-detail-media-actions")).toBeHidden();
     await expect(
-      shell.locator("[data-card-detail-primary-actions]").getByText("CardMarket", { exact: true })
+      shell.page().locator("[data-card-detail-primary-actions]").getByText("CardMarket", { exact: true })
     ).toHaveCount(1);
-    const mobileMarketAction = shell.locator("[data-card-detail-mobile-market]");
+    const mobileMarketAction = page.locator("[data-card-detail-mobile-market]");
     const mobileMarketTrigger = mobileMarketAction.locator(
       '[aria-label="Open CardMarket. Hold for eBay Deals."]'
     );
@@ -2310,8 +2330,7 @@ test.describe("DustyCards smoke", () => {
     const mobilePriceAlertBounds = await requiredBounds(priceAlertTrigger);
     expect(Math.abs(mobileBackBounds.y - mobileOverflowBounds.y)).toBeLessThanOrEqual(4);
     expect(Math.abs(mobileBackBounds.y - mobilePriceAlertBounds.y)).toBeLessThanOrEqual(4);
-    const mobilePrimaryActionStyle = await shell
-      .locator("[data-card-detail-primary-actions]")
+    const mobilePrimaryActionStyle = await shell.page().locator("[data-card-detail-primary-actions]")
       .evaluate((element) => {
         const style = getComputedStyle(element);
         return {
@@ -2329,8 +2348,7 @@ test.describe("DustyCards smoke", () => {
     expect(mobilePrimaryActionStyle.borderRadius).toBeGreaterThanOrEqual(16);
     expect(mobilePrimaryActionStyle.boxShadow).not.toBe("none");
     expect(mobilePrimaryActionStyle.position).toBe("fixed");
-    const mobileActionHostStyle = await shell
-      .locator("[data-card-detail-mobile-actions-host]")
+    const mobileActionHostStyle = await page.locator("[data-card-detail-mobile-actions-host]")
       .evaluate((element) => {
         const style = getComputedStyle(element);
         return {
@@ -2340,24 +2358,23 @@ test.describe("DustyCards smoke", () => {
       });
     expect(mobileActionHostStyle.backgroundColor).toBe("rgba(0, 0, 0, 0)");
     expect(mobileActionHostStyle.pointerEvents).toBe("none");
-    const mobilePrimaryButtons = shell
-      .locator("[data-card-detail-primary-actions]")
+    const mobilePrimaryButtons = shell.page().locator("[data-card-detail-primary-actions]")
       .locator("button, a[href]");
     await expect(mobilePrimaryButtons).toHaveCount(3);
     const mobilePrimaryWidths = await mobilePrimaryButtons.evaluateAll((elements) =>
       elements.map((element) => element.getBoundingClientRect().width)
     );
     expect(Math.max(...mobilePrimaryWidths) - Math.min(...mobilePrimaryWidths)).toBeLessThanOrEqual(2);
-    await shell.evaluate((element) => {
+    await page.locator("[data-card-detail-mobile-actions-host]").evaluate((element) => {
       (element as HTMLElement).style.setProperty("--card-detail-safe-area-left", "31px");
       (element as HTMLElement).style.setProperty("--card-detail-safe-area-right", "5px");
     });
     const asymmetricDockBounds = await requiredBounds(
-      shell.locator("[data-card-detail-primary-actions]:visible")
+      shell.page().locator("[data-card-detail-primary-actions]:visible")
     );
     expect(asymmetricDockBounds.x).toBeCloseTo(35, 0);
     expect(390 - asymmetricDockBounds.x - asymmetricDockBounds.width).toBeCloseTo(12, 0);
-    await shell.evaluate((element) => {
+    await page.locator("[data-card-detail-mobile-actions-host]").evaluate((element) => {
       (element as HTMLElement).style.removeProperty("--card-detail-safe-area-left");
       (element as HTMLElement).style.removeProperty("--card-detail-safe-area-right");
     });
@@ -2836,258 +2853,83 @@ test.describe("DustyCards smoke", () => {
     await expectNoHorizontalOverflow(page);
   });
 
+  test("Signal Radar tabs wait for hydration before accepting keyboard input", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
+    let releaseScripts!: () => void;
+    const scriptsReady = new Promise<void>((resolve) => { releaseScripts = resolve; });
+    await page.route("**/_next/static/**/*.js*", async (route) => {
+      await scriptsReady;
+      await route.continue();
+    });
+    try {
+      await page.goto("/movers/signal-radar/18530?game=pokemon", { waitUntil: "commit" });
+      const shell = page.locator("[data-card-detail-shell]");
+      const overview = shell.getByRole("tab", { name: "Overview", exact: true });
+      await expect(overview).toBeVisible();
+      await expect(overview).toBeDisabled();
+      releaseScripts();
+      await expect(overview).toBeEnabled();
+      for (const width of [1440, 390]) {
+        await page.setViewportSize({ width, height: 900 });
+        await overview.focus();
+        for (const [key, name] of [
+          ["End", "Evidence"], ["ArrowRight", "Overview"],
+          ["ArrowLeft", "Evidence"], ["Home", "Overview"],
+        ]) {
+          await page.keyboard.press(key);
+          const selected = shell.getByRole("tab", { name, exact: true });
+          await expect(selected).toBeFocused();
+          await expect(selected).toHaveAttribute("aria-selected", "true");
+        }
+      }
+      expect(pageErrors).toEqual([]);
+    } finally {
+      releaseScripts();
+    }
+  });
+
   test("Signal Radar detail shares the responsive card detail shell", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     test.setTimeout(180_000);
     await page.setViewportSize({ width: 1920, height: 1080 });
-    await applyDisplaySettings(page, {
-      widescreen: true,
-      modalSize: "medium",
-    });
-    await page.addInitScript(() => {
-      window.localStorage.setItem("dustycards-card-detail-media-mode", "3d");
-    });
-    await page.goto("/movers/signal-radar/18530?game=pokemon", {
-      waitUntil: "domcontentloaded",
-      timeout: 60_000,
-    });
-
-    const shell = page.locator(
-      '[data-card-detail-shell][data-card-detail-mode="radar"]'
-    );
-    await expect(shell).toBeVisible({ timeout: 60_000 });
-    await expect(
-      shell.getByRole("heading", { name: "Shining Gyarados", exact: true })
-    ).toBeVisible();
-    await expect(shell.locator("[data-card-detail-back]")).toContainText(
-      "Back to Signal Radar"
-    );
-    const radarVerdict = shell.getByTestId("signal-radar-verdict");
-    await expect(radarVerdict).toBeVisible();
-    await expect(radarVerdict).toContainText("Radar verdict");
-    await expect(radarVerdict).toContainText(/Strong watch|Building|Cooling|Price discovery|Data stale|Stable - wait/);
-    await expect(shell.getByText("Collector snapshot", { exact: true })).toHaveCount(0);
-    await expectSingleVisibleActionCluster(shell);
-
-    const radarMarketControls = shell.locator("[data-card-detail-market-mode]");
-    const radarRawMode = radarMarketControls.getByRole("button", {
-      name: "Raw",
-      exact: true,
-    });
-    const radarGradedMode = radarMarketControls.getByRole("button", {
-      name: "Graded",
-      exact: true,
-    });
-    const radarHeroPriceLabel = shell.locator(".card-detail-price-label");
-    const radarHeroPrice = shell.locator(".card-detail-price");
-    const radarMarketToggle = shell.locator("[data-card-detail-market-toggle]");
-    const radarIdentityRegion = shell.locator('[data-card-detail-region="identity"]');
-    const radarRawLanguageControl = shell.locator(
-      '[data-card-detail-chart-series-control="language"]'
-    );
-    const radarRawHeroPrice = (await radarHeroPrice.textContent())?.trim() ?? "";
-    expect(radarRawHeroPrice).not.toBe("");
-    await expect(radarRawMode).toHaveAttribute("aria-pressed", "true");
-    await expect(
-      shell.getByRole("combobox", { name: "Select graded slab", exact: true })
-    ).toHaveCount(0);
-    const [radarRawToggleBounds, radarRawIdentityBounds, radarRawLanguageBounds] =
-      await Promise.all([
-        requiredBounds(radarMarketToggle),
-        requiredBounds(radarIdentityRegion),
-        requiredBounds(radarRawLanguageControl),
-      ]);
-
-    await radarGradedMode.click();
-    await expect(radarGradedMode).toHaveAttribute("aria-pressed", "true");
-    const radarGradeSelector = await expectSingleChartGradeSelector(shell);
-    expectBoundsToMatch(await requiredBounds(radarMarketToggle), radarRawToggleBounds);
-    expectBoundsToMatch(await requiredBounds(radarIdentityRegion), radarRawIdentityBounds);
-    expectBoundsToMatch(
-      await requiredBounds(shell.locator('[data-card-detail-chart-series-control="grade"]')),
-      radarRawLanguageBounds
-    );
-    const radarSelectedGrade = await radarGradeSelector.inputValue();
-    expect(radarSelectedGrade).toMatch(/(?:BGS|CGC|PSA|graded)/i);
-    await expect(radarHeroPriceLabel).toHaveText(`${radarSelectedGrade} market`);
-    await expect(radarHeroPrice).not.toHaveText(radarRawHeroPrice);
-    await expect(shell.locator('[data-card-detail-region="chart"]')).toContainText(
-      radarSelectedGrade
-    );
-    await expect(
-      shell.getByRole("combobox", { name: "Select graded slab", exact: true })
-    ).toHaveCount(1);
-    await captureCardDetailScreenshot(page, shell, "radar-graded-1920x1080.png");
-
-    await radarRawMode.click();
-    await expect(radarRawMode).toHaveAttribute("aria-pressed", "true");
-    await expect(
-      shell.getByRole("combobox", { name: "Select graded slab", exact: true })
-    ).toHaveCount(0);
-
-    const radarMediaSwitcher = shell.locator(".card-detail-media-switcher");
-    const radarMediaSwitch = radarMediaSwitcher.locator("[data-card-detail-media-switch]");
-    await expect(radarMediaSwitch).toBeVisible();
-    await expect(radarMediaSwitcher).toHaveAttribute("data-card-detail-media-mode", "3d");
-    const radarInlineCanvas = radarMediaSwitcher.locator(".card-detail-inline-three-viewer canvas");
-    await expect(radarInlineCanvas).toBeVisible({ timeout: 15_000 });
-    await expectReadyCardHoloMask(radarMediaSwitcher.locator(".card-detail-inline-three-viewer"));
-    await page.waitForTimeout(750);
-    await expectCanvasHasPixels(page, radarInlineCanvas, 350);
-    await radarMediaSwitch.getByRole("button", { name: "2D", exact: true }).click();
-    await expect(radarMediaSwitcher).toHaveAttribute("data-card-detail-media-mode", "2d");
-
-    const tabs = shell.getByRole("tab");
-    await expect(tabs).toHaveCount(6);
-    expect(await tabs.allTextContents()).toEqual([
-      "Overview",
-      "Market",
-      "Collection",
-      "Forecast",
-      "Analysis",
-      "Evidence",
-    ]);
-    const overviewTab = shell.getByRole("tab", { name: "Overview", exact: true });
-    const marketTab = shell.getByRole("tab", { name: "Market", exact: true });
-    const forecastTab = shell.getByRole("tab", { name: "Forecast", exact: true });
-    const evidenceTab = shell.getByRole("tab", { name: "Evidence", exact: true });
-    await expect(overviewTab).toHaveAttribute("aria-selected", "true");
-    await overviewTab.focus();
+    await applyDisplaySettings(page, { widescreen: true, modalSize: "medium" });
+    await page.goto("/movers/signal-radar/18530?game=pokemon");
+    const shell = page.locator('[data-card-detail-shell][data-card-detail-mode="standard"]');
+    await expect(shell.getByRole("heading", { name: "Shining Gyarados", exact: true })).toBeVisible();
+    await expect(shell.locator("[data-card-detail-back]")).toContainText("Back to Signal Radar");
+    const names = ["Overview", "Market", "Collection & Reprints", "Forecast", "Analysis", "Evidence"];
+    await expect(shell.getByRole("tab")).toHaveText(names);
+    await expect(shell.getByRole("tab", { name: "Overview", exact: true })).toBeEnabled();
+    await shell.getByRole("tab", { name: "Overview", exact: true }).focus();
     await page.keyboard.press("End");
-    await expect(evidenceTab).toHaveAttribute("aria-selected", "true");
-    await expect(evidenceTab).toBeFocused();
+    await expect(shell.getByRole("tab", { name: "Evidence", exact: true })).toBeFocused();
     await page.keyboard.press("Home");
-    await expect(overviewTab).toHaveAttribute("aria-selected", "true");
-    await expect(overviewTab).toBeFocused();
-    await page.keyboard.press("ArrowRight");
-    await expect(marketTab).toHaveAttribute("aria-selected", "true");
-    await expect(marketTab).toBeFocused();
-    await forecastTab.click();
-    await expect(shell).toHaveAttribute("data-active-tab", "forecast");
-    await captureCardDetailScreenshot(page, shell, "radar-forecast-1920x1080.png");
-    await evidenceTab.click();
-    await captureCardDetailScreenshot(page, shell, "radar-evidence-1920x1080.png");
-
-    await overviewTab.click();
-    await captureCardDetailScreenshot(page, shell, "radar-1920x1080.png");
-    await expectDetailHeroLayout(shell, "triple");
-    await expectWideDetailTabsBesideMedia(shell);
-    await expectDetailScrollLayersClear(page, shell, "radar");
-    await expectSingleVisibleActionCluster(shell);
-    await expectNoHorizontalOverflow(page, shell);
-
-    await page.setViewportSize({ width: 1280, height: 900 });
-    await expectDetailHeroLayout(shell, "double");
-    await captureCardDetailScreenshot(page, shell, "radar-1280x900.png");
-    await expectSingleVisibleActionCluster(shell);
-    await expectNoHorizontalOverflow(page, shell);
-
-    await page.setViewportSize({ width: 1024, height: 900 });
-    await expectDetailHeroLayout(shell, "double");
-    await captureCardDetailScreenshot(page, shell, "radar-1024x900.png");
-    await expectSingleVisibleActionCluster(shell);
-    await expectNoHorizontalOverflow(page, shell);
-
-    await page.setViewportSize({ width: 768, height: 900 });
-    await captureCardDetailScreenshot(page, shell, "radar-768x900.png");
-    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeHidden();
-    await expect(shell.locator('[data-card-detail-kpis="hero"]')).toBeVisible();
-    await expect(shell.locator('[data-card-detail-kpis="market"]')).toHaveCount(0);
-    await forecastTab.click();
-    await expectDetailHeroLayout(shell, "double");
-    await expectSingleVisibleActionCluster(shell);
-    await expectNoHorizontalOverflow(page, shell);
-
-    await page.setViewportSize({ width: 390, height: 844 });
-    await radarGradedMode.click();
-    await expect(radarGradedMode).toHaveAttribute("aria-pressed", "true");
-    await marketTab.click();
-    await expectMobileChartPriorityLayout(shell);
-    const radarGradedMobileGeometry = await getMobileMarketHeroGeometry(shell);
-    await captureCardDetailMarketHeroScreenshot(
-      page,
-      shell,
-      "radar-price-chart-join-390x844.png"
-    );
-    await expectMobileMarketKpis(shell, [
-      "Opportunity",
-      "Setup strength",
-      "Confidence",
-      "180-day model",
-    ]);
+    await expect(shell.getByRole("tab", { name: "Overview", exact: true })).toBeFocused();
+    const media = shell.locator(".card-detail-media-switcher");
+    await media.getByRole("button", { name: "3D", exact: true }).click();
+    await expectReadyCardHoloMask(media.locator(".card-detail-inline-three-viewer"));
+    await expectCanvasHasPixels(page, media.locator("canvas"), 350);
+    await media.getByRole("button", { name: "2D", exact: true }).click();
+    const market = shell.locator("[data-card-detail-market-mode]");
+    await market.getByRole("button", { name: "Graded", exact: true }).click();
     await expectSingleChartGradeSelector(shell);
-    await expectMobileActionClusterNeverCoversDetail(page, shell, {
-      requireScrollable: false,
-    });
-    await expectNoHorizontalOverflow(page, shell);
-    await captureCardDetailScreenshot(page, shell, "radar-graded-390x844.png");
-    await radarRawMode.click();
-    await expect(radarRawMode).toHaveAttribute("aria-pressed", "true");
-    await expect(
-      shell.locator('[data-card-detail-chart-series-control="language"]')
-    ).toBeVisible();
-    const radarRawMobileGeometry = await getMobileMarketHeroGeometry(shell);
-    expectMobileModeGeometryStable(radarGradedMobileGeometry, radarRawMobileGeometry);
-    await overviewTab.click();
-    await expectMobileChartPriorityLayout(shell);
-    await expect(shell.locator('[data-card-detail-kpis="market"]')).toHaveCount(0);
-    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
-    await expect(
-      shell.locator('[data-card-detail-chart-series-control="language"]')
-    ).toBeVisible();
-    await expectTouchChartTooltipOpposesPointer(shell, "right");
-    await expectNoHorizontalOverflow(page, shell);
-    await captureCardDetailScreenshot(page, shell, "radar-390x844.png");
-    await expectMobileActionClusterNeverCoversDetail(page, shell);
-    await forecastTab.click();
-    await expect(shell.locator('[data-card-detail-region="chart"]')).toBeVisible();
-    await expectMobileDetailTabsKeepScrollAnchor(page, shell, [
-      "Overview",
-      "Market",
-      "Collection",
-      "Evidence",
-      "Forecast",
-    ]);
-    await expectMobileActionClusterNeverCoversDetail(page, shell, {
-      requireScrollable: false,
-    });
-    await expectDetailHeroLayout(shell, "single");
-    await expectDetailScrollLayersClear(page, shell, "radar");
-    await expectTouchSizedDetailControls(shell);
-    await expectSingleVisibleActionCluster(shell);
-    await expect(shell.locator(".card-detail-media-actions")).toBeHidden();
-    await expect(
-      shell.locator("[data-card-detail-primary-actions]").getByText("CardMarket", { exact: true })
-    ).toHaveCount(1);
-    const radarMobileBackBounds = await requiredBounds(shell.locator("[data-card-detail-back]"));
-    const radarMobileOverflowBounds = await requiredBounds(
-      shell.locator("[data-card-detail-overflow-actions] > summary")
-    );
-    expect(Math.abs(radarMobileBackBounds.y - radarMobileOverflowBounds.y)).toBeLessThanOrEqual(4);
-    await expectNoHorizontalOverflow(page, shell);
-    await captureCardDetailPanelScreenshot(page, shell, "radar-forecast-390x844.png");
-    await evidenceTab.click();
-    await captureCardDetailPanelScreenshot(page, shell, "radar-evidence-390x844.png");
-    await expectMobileActionClusterNeverCoversDetail(page, shell, {
-      requireScrollable: false,
-    });
-
-    await page.setViewportSize({ width: 5120, height: 1440 });
-    await overviewTab.click();
-    await expectDetailHeroLayout(shell, "triple");
-    await expectBoundedCenteredDetailCanvas(shell);
-    await expectWideDetailTabsBesideMedia(shell);
-    await expectSingleVisibleActionCluster(shell);
-    await expectNoHorizontalOverflow(page, shell);
-    await captureCardDetailScreenshot(page, shell, "radar-5120x1440.png");
-
-    const backLink = shell.locator("[data-card-detail-back]");
-    await Promise.all([
-      page.waitForURL(/\/movers\/signal-radar\?game=pokemon$/, {
-        waitUntil: "commit",
-        timeout: 60_000,
-      }),
-      backLink.click(),
-    ]);
+    await market.getByRole("button", { name: "Raw", exact: true }).click();
+    for (const width of [1920, 1280, 1024, 768, 390, 5120]) {
+      await page.setViewportSize({ width, height: width === 5120 ? 1440 : 900 });
+      for (const name of names) {
+        const tab = shell.getByRole("tab", { name, exact: true });
+        await tab.click();
+        await expect(tab).toHaveAttribute("aria-selected", "true");
+        await expect(shell.getByRole("tabpanel")).toBeVisible();
+        await expectNoHorizontalOverflow(page, shell);
+      }
+      await captureCardDetailScreenshot(page, shell, `radar-current-${width}.png`);
+    }
+    await shell.locator("[data-card-detail-back]").click();
+    await expect(page).toHaveURL(/\/movers\/signal-radar\?game=pokemon$/);
+    expect(pageErrors).toEqual([]);
   });
 
   test("sealed detail aligns left and embeds featured set cards", async ({ page }) => {
@@ -3134,10 +2976,15 @@ test.describe("DustyCards smoke", () => {
     expect(backBounds!.x - dialogBounds!.x).toBeLessThanOrEqual(40);
 
     await expect(dialog.getByRole("heading", { name: "Featured Cards" })).toBeVisible();
-    await expect(dialog.locator("[data-featured-card]")).toHaveCount(detail.featured_cards.length);
-    await expect(dialog.getByRole("tab")).toHaveCount(0);
-    const desktopModalHeight = await dialog.evaluate((element) => element.scrollHeight);
-    expect(desktopModalHeight).toBeLessThanOrEqual(1082);
+    await expect(dialog.locator("[data-sealed-featured-cards]")).toHaveAttribute("data-compact", "true");
+    await expect(dialog.locator("[data-featured-card]")).toHaveCount(Math.min(8, detail.featured_cards.length));
+    await expect(dialog.getByRole("tab")).toHaveText(["Overview", "Market", "Collection", "Featured cards"]);
+    await dialog.getByRole("tab", { name: "Featured cards", exact: true }).click();
+    await expect(dialog.getByRole("tabpanel").locator("[data-featured-card]")).toHaveCount(detail.featured_cards.length);
+    await dialog.getByRole("tab", { name: "Overview", exact: true }).click();
+    const overlay = page.locator(".dc-modal-overlay");
+    expect((await requiredBounds(overlay)).height).toBeLessThanOrEqual(1082);
+    await expect(overlay).toHaveCSS("overflow-y", "auto");
     await expectNoHorizontalOverflow(page);
 
     await dialog.locator("[data-featured-card]").first().click();
@@ -3154,9 +3001,8 @@ test.describe("DustyCards smoke", () => {
     const visibleUltrawideCards = await dialog.locator("[data-featured-card]").evaluateAll((cards) =>
       cards.filter((card) => window.getComputedStyle(card).display !== "none").length
     );
-    expect(visibleUltrawideCards).toBe(24);
-    const ultrawideModalHeight = await dialog.evaluate((element) => element.scrollHeight);
-    expect(ultrawideModalHeight).toBeLessThanOrEqual(1442);
+    expect(visibleUltrawideCards).toBe(Math.min(8, detail.featured_cards.length));
+    expect((await requiredBounds(overlay)).height).toBeLessThanOrEqual(1442);
     await expectNoHorizontalOverflow(page);
 
     await page.setViewportSize({ width: 390, height: 844 });

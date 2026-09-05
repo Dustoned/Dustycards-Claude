@@ -3,7 +3,7 @@
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { Pencil, X } from "lucide-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import {
   modalActionRowClass,
   modalBodyClass,
@@ -15,6 +15,7 @@ import {
   modalPrimaryButtonClass,
   modalSecondaryButtonClass,
 } from "@/components/modal-glass-styles";
+import useModalA11y from "@/lib/useModalA11y";
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 
 interface CollectionSealedRef {
@@ -81,6 +82,8 @@ export default function CollectionEditSealedButton({
   const [tags, setTags] = useState(item.tags.join(", "));
   const [notes, setNotes] = useState(item.notes ?? "");
 
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalA11y({ dialogRef, enabled: open, initialFocus: "dialog", onClose: () => setOpen(false) });
   useBodyScrollLock(open);
 
   function openModal(event: React.MouseEvent<HTMLButtonElement>) {
@@ -139,6 +142,8 @@ export default function CollectionEditSealedButton({
             }}
           >
             <div
+              ref={dialogRef}
+              tabIndex={-1}
               role="dialog"
               aria-modal="true"
               aria-label={`Edit ${product.name} in collection`}

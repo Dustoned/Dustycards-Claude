@@ -13,7 +13,8 @@ import {
   type TradingCardGameFilter,
 } from "@/lib/games";
 
-const SNAPSHOT_VERSION = 1;
+// Prior snapshots can contain confidence and breakout labels from old evidence rules.
+const SNAPSHOT_VERSION = 2;
 const SNAPSHOT_DIRECTORY_NAME = "signal-radar-snapshots";
 
 interface StoredSignalRadarSnapshot {

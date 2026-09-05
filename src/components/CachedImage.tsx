@@ -63,7 +63,7 @@ function CachedImageInner({
       <span
         aria-hidden="true"
         className={`pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit] transition-opacity duration-200 ${
-          loaded ? "opacity-0" : "opacity-100"
+          loaded || failed ? "opacity-0" : "opacity-100"
         }`}
       >
         <span className="absolute inset-0 animate-pulse bg-[linear-gradient(110deg,rgba(255,255,255,0.025),rgba(124,92,255,0.10),rgba(255,255,255,0.025))]" />
@@ -96,7 +96,7 @@ function CachedImageInner({
             setFailed(true);
           }}
         />
-      ) : null}
+      ) : <span role="img" aria-label={alt ? `${alt} — image unavailable` : "Image unavailable"} className="absolute inset-0 flex items-center justify-center rounded-[inherit] bg-[var(--dc-surface-primary)] p-2 text-center text-xs text-[var(--dc-text-secondary)]">Image unavailable</span>}
     </>
   );
 }

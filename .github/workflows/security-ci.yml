@@ -22,6 +22,8 @@ jobs:
       DATABASE_URL: file:./dustycards.db
       AUTH_MFA_ENCRYPTION_KEY: ci-only-security-key-that-is-long-enough
       SECURITY_EVENT_HASH_KEY: ci-only-event-hash-key-that-is-long-enough
+      NEXT_PUBLIC_APP_BUILD: ci-${{ github.sha }}
+      PLAYWRIGHT_SERVER_MODE: production
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -45,9 +47,13 @@ jobs:
         run: npm run lint
       - name: Tests
         run: npm test
+      - name: Production build
+        run: npm run build -- --webpack
       - name: Account and collection regression tests
         run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/security.spec.ts --workers=1 --timeout=120000
-      - name: Production build
-        env:
-          NEXT_PUBLIC_APP_BUILD: ci-${{ github.sha }}
-        run: npm run build -- --webpack
+      - name: Install browser for UI regressions
+        run: npx playwright install --with-deps chromium
+      - name: Mobile, desktop and account UI regressions
+        run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/ui-polish.spec.ts tests/smoke/account-ui.spec.ts --workers=1 --timeout=120000
+      - name: Card, Radar and sealed detail regressions
+        run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/app.spec.ts --grep "card detail uses an aligned|Signal Radar detail shares|Signal Radar tabs wait|sealed detail aligns" --workers=1 --timeout=120000

@@ -47,6 +47,18 @@ type MobileNavItem = Omit<NavigationItem, "badge"> & {
   badge?: "binders" | "sealed" | "selling";
 };
 
+export function getActiveMobilePrimaryKey(
+  keys: readonly string[], pathname: string, tab: string | null, scope: string | null
+): string | null {
+  const exact = keys.find((key) => isNavigationItemActive(pathname, tab, key, scope));
+  if (exact) return exact;
+  const inCollection = pathname.startsWith("/binders/") ||
+    (pathname === "/" && ["complete", "cards", "singles", "binders", "sealed", "graded"].includes(tab ?? ""));
+  if (inCollection && keys.includes("complete")) return "complete";
+  if (pathname.startsWith("/movers") && keys.includes("market-raw")) return "market-raw";
+  return null;
+}
+
 type MobileNavSection = {
   label: string;
   items: readonly MobileNavItem[];
@@ -285,7 +297,8 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
   const moreSections = getMoreMenuSections(settings.onePieceLibraryEnabled);
   const itemActive = (item: MobileNavItem) =>
     isNavigationItemActive(pathname, collectionTab, item.key, moverScope);
-  const primaryRouteActive = primaryNavItems.some(itemActive);
+  const primaryActiveKey = getActiveMobilePrimaryKey(primaryNavItems.map((item) => item.key), pathname, collectionTab, moverScope);
+  const primaryRouteActive = primaryActiveKey !== null;
   const moreRouteActive =
     !primaryRouteActive &&
     (moreSections.flatMap((section) => section.items).some(itemActive) ||
@@ -840,7 +853,7 @@ export default function MobileBottomNav({ summary }: { summary: DesktopSidebarSu
       >
         <div className="mx-auto grid max-w-md grid-cols-5 gap-1">
           {primaryNavItems.map((item) => {
-            const active = !moreOpen && itemActive(item);
+            const active = !moreOpen && primaryActiveKey === item.key;
             const Icon = item.icon;
 
             return (

@@ -102,6 +102,7 @@ interface CardMarketGradedPriceInput {
 }
 
 export interface BuildCardMarketStatsInput {
+  now?: Date;
   history: CardPriceHistoryPoint[];
   currentLanguagePrices: Record<string, number | null | undefined>;
   rawPrice: number | null | undefined;
@@ -284,7 +285,13 @@ function calculateEbayLiquidity(demand: EbayDemandPayload | null): number | null
 }
 
 function calculateEbayDemand(demand: EbayDemandPayload | null): number | null {
-  if (!demand || demand.history.length < 2) return null;
+  if (!demand) return null;
+  const latestDay = Date.parse(demand.updatedAt.slice(0, 10));
+  const completeDays = new Set(demand.history.filter((point) => {
+    const day = Date.parse(point.date);
+    return !point.capped && day <= latestDay && day >= latestDay - 6 * DAY_MS;
+  }).map((point) => point.date));
+  if (completeDays.size < 7) return null;
 
   const activeCount = Math.max(demand.summary.activeCount, 1);
   const removed = Math.max(0, demand.summary.removed7d);
@@ -629,6 +636,14 @@ function normalizeTcggo(input: TcggoScoreInput | null | undefined): CardMarketSt
 }
 
 export function buildCardMarketStats(input: BuildCardMarketStatsInput): CardMarketStats {
+  const now = input.now ?? new Date();
+  const demandUpdatedAt = Date.parse(input.demand?.updatedAt ?? "");
+  const demandAge = now.getTime() - demandUpdatedAt;
+  // Incomplete or old inventory is still visible in its source panel, but is
+  // not evidence of today's liquidity, demand, depth or confidence.
+  const usableDemand = input.demand && !input.demand.sample.capped &&
+    Number.isFinite(demandAge) && demandAge >= 0 && demandAge <= 3 * DAY_MS
+    ? input.demand : null;
   const observations = buildObservations(input.history);
   const volatility = calculateVolatility(observations);
   const languageValues = Object.values(input.currentLanguagePrices)
@@ -643,14 +658,14 @@ export function buildCardMarketStats(input: BuildCardMarketStatsInput): CardMark
   const rsi = calculateRsi(observations);
   const momentum = calculateMomentum(observations);
   const liquidity = calculateLiquidityMetric({
-    demand: input.demand,
+    demand: usableDemand,
     ebaySoldGradedPrices: input.ebaySoldGradedPrices,
     history: input.history,
     observations,
     languageCount: languageValues.length,
   });
   const demand = calculateDemandMetric({
-    demand: input.demand,
+    demand: usableDemand,
     ebaySoldGradedPrices: input.ebaySoldGradedPrices,
     history: input.history,
     momentum,
@@ -663,7 +678,7 @@ export function buildCardMarketStats(input: BuildCardMarketStatsInput): CardMark
     demand: demand.value,
     market_depth: calculateMarketDepth({
       languageCount: languageValues.length,
-      demand: input.demand,
+      demand: usableDemand,
       gradedCandidateCount: candidates.length,
     }),
   };
@@ -684,10 +699,12 @@ export function buildCardMarketStats(input: BuildCardMarketStatsInput): CardMark
     model: "dustycards-market-v2",
     score,
     tier: getTier(score),
-    confidence: getConfidence({
+    confidence: observations.length > 0 &&
+      now.getTime() - observations[observations.length - 1].timestamp > 30 * DAY_MS
+      ? "low" : getConfidence({
       historyCount: observations.length,
       languageCount: languageValues.length,
-      demand: input.demand,
+      demand: usableDemand,
       candidates,
       metrics: scoringMetrics,
     }),
@@ -723,5 +740,13 @@ export function buildCardMarketStats(input: BuildCardMarketStatsInput): CardMark
       ...input.ebaySoldGradedPrices.map((price) => price.fetched_at),
     ]),
     tcggo: normalizeTcggo(input.tcggo),
+  };
+}
+
+export function getCardMarketRankingMetrics(stats: CardMarketStats) {
+  return {
+    momentum: stats.metrics.momentum,
+    liquidity: stats.metric_sources.liquidity === "ebay_inventory" ? stats.metrics.liquidity : null,
+    demand: stats.metric_sources.demand === "ebay_lifecycle" ? stats.metrics.demand : null,
   };
 }

@@ -654,13 +654,36 @@ export default async function SocialPage({
               ) : null}
             </div>
           ) : (
-            <div className="binder-panel hidden rounded-[var(--ui-page-header-radius)] px-5 py-12 text-center lg:block">
-              <UsersRound className="mx-auto h-8 w-8 text-white/24" />
-              <h2 className="mt-3 text-lg font-black text-white">No friend selected</h2>
-              <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-white/45">
-                Choose a friend from the list to explore the collection they share with you.
+            <section className="binder-panel rounded-[var(--ui-page-header-radius)] px-5 py-7 sm:px-8 sm:py-10">
+              <span className="inline-flex h-12 w-12 items-center justify-center rounded-2xl border border-violet-300/20 bg-violet-500/10 text-violet-200">
+                <UsersRound className="h-6 w-6" aria-hidden="true" />
+              </span>
+              <h2 className="mt-4 text-xl font-bold tracking-tight text-white">
+                {socialData.incomingRequests.length > 0
+                  ? "A collector wants to connect"
+                  : socialData.outgoingRequests.length > 0
+                    ? "Your next connection is on its way"
+                    : "Explore collections together"}
+              </h2>
+              <p className="mt-2 max-w-lg text-sm leading-6 text-white/60">
+                {socialData.incomingRequests.length > 0
+                  ? "Accept a request in People to start exploring your friend's collection."
+                  : socialData.outgoingRequests.length > 0
+                    ? "Your request is waiting for a response. Once it is accepted, your friend's collection will appear here."
+                    : "Choose Add next to a collector in People to send a friend request. Once it is accepted, you can explore their collection here."}
               </p>
-            </div>
+              <p className="mt-3 max-w-lg text-sm leading-6 text-white/50">
+                In the meantime, keep building your own collection or find your next card.
+              </p>
+              <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:flex-wrap">
+                <Link href="/?tab=complete" prefetch={false} className="inline-flex min-h-11 items-center justify-center rounded-xl bg-[var(--dc-primary)] px-4 py-2 text-sm font-semibold text-[var(--dc-on-primary)] transition-colors hover:bg-[var(--dc-primary-hover)]">
+                  My collection
+                </Link>
+                <Link href="/search" prefetch={false} className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/15 bg-white/5 px-4 py-2 text-sm font-semibold text-white/80 transition-colors hover:bg-white/10">
+                  Find cards
+                </Link>
+              </div>
+            </section>
           )}
         </main>
       </div>

@@ -5,6 +5,7 @@ export type EbayDemandMode = "raw" | "graded";
 
 export interface EbayDemandHistoryPoint {
   date: string;
+  capped?: boolean;
   activeCount: number;
   newCount: number;
   removedCount: number;
@@ -259,6 +260,7 @@ export function buildEbayDemandPayload(input: {
     },
     history: last30d.map((snapshot) => ({
       date: snapshot.snapshot_date.toISOString().slice(0, 10),
+      capped: snapshot.capped,
       activeCount: snapshot.active_count,
       newCount: snapshot.new_count,
       removedCount: snapshot.removed_count,
