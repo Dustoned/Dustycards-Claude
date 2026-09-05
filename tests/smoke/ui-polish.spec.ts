@@ -38,6 +38,38 @@ const test = base.extend<{ uiAccount: string }>({
 // Fault-injection routes must reach Playwright, including in production builds.
 test.use({ serviceWorkers: "block" });
 
+test("reprint review can undo multiple saved decisions after reloading", async ({ page, uiAccount }) => {
+  const db = new Database(process.env.DUSTYCARDS_DATABASE_PATH!);
+  const id = `undo-${randomUUID()}`;
+  const cardIds = [0, 1, 2, 3].map((index) => `${id}-${index}`);
+  try {
+    db.prepare("INSERT INTO Episode (id,game,name,release_date) VALUES (?,'pokemon','Undo test set','2026-01-01')").run(id);
+    for (const cardId of cardIds) db.prepare("INSERT INTO Card (id,game,name,artist,episode_id,updated_at) VALUES (?,'pokemon','Undo test card','Test Artist',?,?)").run(cardId, id, new Date().toISOString());
+    for (let index = 1; index <= 3; index++) {
+      const response = await page.request.post("/api/admin/reprint-review", { data: { sourceCardId: cardIds[0], targetCardId: cardIds[index], decision: index === 3 ? "include" : "exclude" } });
+      expect(response.ok()).toBe(true);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/settings?section=feedback");
+    for (let remaining = 2; remaining >= 0; remaining--) {
+      await page.getByRole("button", { name: "Undo last", exact: true }).click();
+      await expect.poll(() => (db.prepare("SELECT count(*) AS n FROM CardPrintingOverride WHERE user_id=? AND decision IN ('include','exclude')").get(uiAccount) as { n: number }).n).toBe(remaining);
+      await expect(page.getByRole("status").filter({ hasText: "returned to the top" })).toBeVisible();
+      await page.reload();
+    }
+    await expect(page.getByRole("button", { name: "Undo last", exact: true })).toBeDisabled();
+    expect((db.prepare("SELECT count(*) AS n FROM CardPrintingOverride WHERE user_id=? AND decision='review'").get(uiAccount) as { n: number }).n).toBe(3);
+    expect((db.prepare("SELECT count(*) AS n FROM CardPrintingRelation WHERE source_card_id=? OR target_card_id=?").get(cardIds[0], cardIds[0]) as { n: number }).n).toBe(0);
+    await expect(page.getByText("Returned for review · choose again", { exact: true }).filter({ visible: true })).toHaveCount(3);
+  } finally {
+    db.prepare("DELETE FROM CardPrintingOverride WHERE user_id=?").run(uiAccount);
+    db.prepare("DELETE FROM CardPrintingRelation WHERE source_card_id=? OR target_card_id=?").run(cardIds[0], cardIds[0]);
+    for (const cardId of cardIds) db.prepare("DELETE FROM Card WHERE id=?").run(cardId);
+    db.prepare("DELETE FROM Episode WHERE id=?").run(id);
+    db.close();
+  }
+});
+
 test("One Piece Radar detail accepts scoped card IDs", async ({ page, uiAccount }) => {
   const db = new Database(process.env.DUSTYCARDS_DATABASE_PATH!);
   const id = `one-piece:radar-${randomUUID()}`;

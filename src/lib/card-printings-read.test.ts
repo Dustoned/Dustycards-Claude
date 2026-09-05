@@ -1,6 +1,6 @@
 import { beforeEach, expect, it, vi } from "vitest";
-const { findMany } = vi.hoisted(() => ({ findMany: vi.fn() }));
-vi.mock("@/lib/db", () => ({ db: { cardPrintingRelation: { findMany } } }));
+const { findMany, overrides } = vi.hoisted(() => ({ findMany: vi.fn(), overrides: vi.fn() }));
+vi.mock("@/lib/db", () => ({ db: { cardPrintingRelation: { findMany }, cardPrintingOverride: { findMany: overrides } } }));
 import { loadRelatedCardPrintings, type PrintingLookupCard } from "./card-printings";
 
 const source: PrintingLookupCard = {
@@ -15,7 +15,7 @@ function row(id: string, artist: string | null, method = "rules-exact", similari
     episode: { id: "phantasmal", name: "Phantasmal Flames", code: null, release_date: "2025-11-14" },
   } };
 }
-beforeEach(() => findMany.mockReset());
+beforeEach(() => { findMany.mockReset(); overrides.mockResolvedValue([]); });
 it("removes legacy Mega Gengar different-illustrator and weak-artwork rows at read time", async () => {
   findMany.mockResolvedValue([
     row("24063", "5ban Graphics"), row("manual-conflict", "5ban Graphics", "manual-include"),
@@ -27,4 +27,10 @@ it("removes legacy Mega Gengar different-illustrator and weak-artwork rows at re
 it("retains verified same-illustrator regular reissues across sets", async () => {
   findMany.mockResolvedValue([row("24063", "5ban Graphics", "strong-art", 0.98)]);
   expect((await loadRelatedCardPrintings({ ...source, id: "31576", artist: "5ban Graphics" })).map(card => card.id)).toEqual(["24063"]);
+});
+it("does not republish an undone pair from a stale worker relation", async () => {
+  findMany.mockResolvedValue([row("returned", "Taiga Kasai", "manual-include")]);
+  overrides.mockResolvedValue([{ source_card_id: "returned", target_card_id: source.id }]);
+  expect(await loadRelatedCardPrintings(source)).toEqual([]);
+  expect(overrides).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ decision: { in: ["exclude", "review"] } }) }));
 });

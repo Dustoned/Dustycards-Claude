@@ -379,7 +379,7 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
         await yieldToWebTraffic();
       }
       const override = overrideByPair.get([cards[left].id, cards[right].id].sort().join("\u0000"));
-      if (override === "exclude") continue;
+      if (override === "exclude" || override === "review") continue;
       if (override === "include") {
         if (!haveSameKnownPrintingArtist(cards[left].artist, cards[right].artist)) continue;
         directMatches.set(`${left}:${right}`, { method: "manual-include", imageSimilarity: 1 });
