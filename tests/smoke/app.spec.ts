@@ -1310,11 +1310,17 @@ test.describe("DustyCards smoke", () => {
   });
 
   test("core pages render without scraper requests", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (error) => pageErrors.push(error.message));
     for (const path of ["/", "/wants", "/settings", "/movers", "/expansions"]) {
       await page.goto(path);
       await expect(page.locator("body")).toBeVisible();
       await expect(page.locator("body")).not.toContainText("Application error");
     }
+    await page.goto("/account");
+    await page.getByRole("tab", { name: "Security", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Authenticator protection", exact: true })).toBeVisible();
+    expect(pageErrors).toEqual([]);
   });
 
   test("mobile route progress never restarts or cancels an in-flight destination", async ({ page }) => {
@@ -1400,7 +1406,7 @@ test.describe("DustyCards smoke", () => {
         .getByRole("dialog", { name: "Seismitoad", exact: true })
         .locator('[data-card-detail-shell][data-card-detail-mode="standard"]');
       await expect(shell).toBeVisible({ timeout: 15_000 });
-      const dock = shell.locator("[data-card-detail-primary-actions]:visible");
+      const dock = touchPage.locator("[data-card-detail-mobile-actions-host] [data-card-detail-primary-actions]:visible");
       await expect(dock).toHaveCount(1);
 
       const layout = await dock.evaluate((element) => {
@@ -3199,7 +3205,7 @@ test.describe("DustyCards smoke", () => {
     await expect(resumedSearch).toBeVisible();
   });
 
-  test("mobile More hub stays accessible, contained, and free of primary-nav duplicates", async ({ page }) => {
+  test("mobile More hub keeps grouped and quick navigation accessible and contained", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.goto("/");
 
@@ -3218,15 +3224,18 @@ test.describe("DustyCards smoke", () => {
     await expect(dialog).toHaveAttribute("aria-modal", "true");
     await expect(bottomNav).toBeVisible();
     await expect(closeButton).toBeFocused();
-    await expect(sheet.locator('a[href="/movers/signal-radar"]')).toBeVisible();
-    await expect(sheet.getByRole("link", { name: /Submit card/ })).toBeVisible();
-    await expect(sheet.getByRole("link", { name: /For sale/ })).toBeVisible();
+    await expect(sheet.locator('a[data-mobile-more-link][href="/movers/signal-radar"]')).toBeVisible();
+    await expect(sheet.locator('a[data-mobile-more-link][href="/submit-card"]')).toBeVisible();
+    await expect(sheet.locator('a[data-mobile-more-link][href="/?tab=selling"]')).toBeVisible();
     await expect(sheet.getByRole("link", { name: "Account", exact: true })).toBeVisible();
     await expect(sheet.getByRole("link", { name: "Settings", exact: true })).toBeVisible();
 
-    for (const primaryHref of ["/", "/?tab=complete", "/wants", "/movers"]) {
-      await expect(sheet.locator(`a[href="${primaryHref}"]`)).toHaveCount(0);
+    // More is a full directory as well as a customizable quick-access area.
+    // A pinned destination may occur in both, but only once within each area.
+    for (const route of ["/?tab=complete", "/wants", "/movers?scope=all", "/movers/signal-radar"]) {
+      await expect(sheet.locator(`a[data-mobile-more-link][href="${route}"]`)).toHaveCount(1);
     }
+    await expect(sheet.locator('a[data-mobile-more-quick-link][href="/movers/signal-radar"]')).toHaveCount(1);
 
     const undersizedTargets = await dialog.locator("a, button").evaluateAll((targets) =>
       targets

@@ -45,6 +45,8 @@ jobs:
         run: npm run lint
       - name: Tests
         run: npm test
+      - name: Account and collection regression tests
+        run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/security.spec.ts --workers=1 --timeout=120000
       - name: Production build
         env:
           NEXT_PUBLIC_APP_BUILD: ci-${{ github.sha }}

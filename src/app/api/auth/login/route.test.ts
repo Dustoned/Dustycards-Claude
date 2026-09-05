@@ -25,8 +25,7 @@ const { authMock, cryptoMock, dbMock, mailMock, originMock, rateLimitMock } = vi
   },
   rateLimitMock: {
     getClientIp: vi.fn(() => "127.0.0.1"),
-    isRateLimited: vi.fn(() => false),
-    recordRateLimitHit: vi.fn(),
+    consumeRateLimit: vi.fn(() => false),
   },
 }));
 
@@ -53,7 +52,7 @@ const pendingUser = {
 describe("login account approval", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    rateLimitMock.isRateLimited.mockReturnValue(false);
+    rateLimitMock.consumeRateLimit.mockReturnValue(false);
     dbMock.user.findUnique.mockResolvedValue(pendingUser);
     cryptoMock.verifyPassword.mockResolvedValue(true);
     dbMock.user.updateMany.mockResolvedValue({ count: 1 });
@@ -75,7 +74,7 @@ describe("login account approval", () => {
     });
     expect(authMock.createUserSession).not.toHaveBeenCalled();
     expect(mailMock.sendVerificationEmailForUser).not.toHaveBeenCalled();
-    expect(rateLimitMock.recordRateLimitHit).not.toHaveBeenCalled();
+    expect(rateLimitMock.consumeRateLimit).toHaveBeenCalledTimes(2);
     expect(dbMock.user.updateMany).toHaveBeenCalledWith({
       where: {
         id: pendingUser.id,
@@ -99,7 +98,7 @@ describe("login account approval", () => {
 
     expect(response.status).toBe(401);
     await expect(response.json()).resolves.toEqual({ error: "Invalid email or password" });
-    expect(rateLimitMock.recordRateLimitHit).toHaveBeenCalledTimes(2);
+    expect(rateLimitMock.consumeRateLimit).toHaveBeenCalledTimes(2);
     expect(dbMock.user.updateMany).not.toHaveBeenCalled();
   });
 
@@ -137,6 +136,18 @@ describe("login account approval", () => {
 
     expect(response.status).toBe(413);
     await expect(response.json()).resolves.toEqual({ error: "Request body too large" });
+    expect(dbMock.user.findUnique).not.toHaveBeenCalled();
+    expect(cryptoMock.verifyPassword).not.toHaveBeenCalled();
+  });
+
+  it("rejects a reserved account budget before doing password work", async () => {
+    rateLimitMock.consumeRateLimit.mockReturnValueOnce(false).mockReturnValueOnce(true);
+    const response = await POST(new NextRequest("http://localhost:3000/api/auth/login", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email: pendingUser.email, password: "wrong-password" }),
+    }));
+    expect(response.status).toBe(429);
     expect(dbMock.user.findUnique).not.toHaveBeenCalled();
     expect(cryptoMock.verifyPassword).not.toHaveBeenCalled();
   });

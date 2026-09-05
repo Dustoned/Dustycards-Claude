@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import {
   buildContentSecurityPolicy,
@@ -77,7 +77,10 @@ describe("cross-site mutation protection", () => {
 });
 
 describe("content security policy", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
   it("allows scripts only through a request nonce and blocks object embedding", () => {
+    vi.stubEnv("NODE_ENV", "production");
     const policy = buildContentSecurityPolicy("requestnonce123");
     expect(policy).toContain("script-src 'self' 'nonce-requestnonce123' 'strict-dynamic'");
     expect(policy).not.toContain("'unsafe-eval'");
@@ -85,6 +88,16 @@ describe("content security policy", () => {
     expect(policy).toContain("object-src 'none'");
     expect(policy).toContain("frame-ancestors 'none'");
     expect(policy).toContain("base-uri 'self'");
+  });
+
+  it("permits React debugging only in development", () => {
+    vi.stubEnv("NODE_ENV", "development");
+    const policy = buildContentSecurityPolicy("devnonce");
+    expect(policy).toContain("script-src 'self' 'nonce-devnonce' 'strict-dynamic' 'unsafe-eval'");
+    expect(policy).toContain("object-src 'none'");
+    expect(policy).toContain("frame-ancestors 'none'");
+    vi.stubEnv("NODE_ENV", "test");
+    expect(buildContentSecurityPolicy("testnonce")).not.toContain("'unsafe-eval'");
   });
 });
 
