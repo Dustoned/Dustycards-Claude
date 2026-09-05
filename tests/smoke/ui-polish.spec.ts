@@ -44,7 +44,7 @@ test("3D texture failure ends loading and can be retried", async ({ page }) => {
   await page.route("**/assets/pokemon-card-back.jpg", (route) => ++attempts === 1 ? route.abort() : route.continue());
   await page.goto("/search?q=charizard");
   await page.getByText("Charizard", { exact: true }).first().click();
-  const shell = page.locator("[data-card-detail-shell]");
+  const shell = page.locator("[data-card-detail-shell]:not([data-detail-loading])");
   await shell.getByRole("button", { name: "3D", exact: true }).click();
   const viewer = shell.locator(".card-detail-inline-three-viewer");
   await expect(viewer).toHaveAttribute("data-card-holo-mask", "error", { timeout: 20_000 });
@@ -266,7 +266,7 @@ for (const width of [390, 1440]) {
     for (const route of ["/search?q=charizard", "/movers/signal-radar/18530?game=pokemon"]) {
       await page.goto(route);
       if (route.startsWith("/search")) await page.getByText("Charizard", { exact: true }).first().click();
-      const shell = page.locator("[data-card-detail-shell]");
+      const shell = page.locator("[data-card-detail-shell]:not([data-detail-loading])");
       await expect(shell).toBeVisible();
       const tabs = shell.getByRole("tab");
       await expect(tabs).toHaveCount(6);
