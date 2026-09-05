@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { PasskeyLogin } from "@/components/AccountPasskeys";
 import AuthForm from "@/components/AuthForm";
 import AuthShell from "@/components/AuthShell";
 import { getCurrentUser } from "@/lib/auth";
@@ -56,6 +57,7 @@ export default async function LoginPage({
             {resetMessage ?? verifyMessage}
           </p>
         )}
+        <PasskeyLogin nextPath={nextPath} />
         <AuthForm
           mode="login"
           nextPath={nextPath}

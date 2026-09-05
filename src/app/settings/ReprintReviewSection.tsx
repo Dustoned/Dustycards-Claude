@@ -9,6 +9,7 @@ type ReviewCard = {
   id: string;
   name: string;
   card_number: string | null;
+  artist?: string | null;
   image_url: string | null;
   episode: { name: string };
 };
@@ -59,6 +60,7 @@ function ReviewCardView({
       </button>
       <span className="mt-3 min-w-0 max-w-full text-center">
         <strong className="block truncate text-sm text-white/88">{card.name}</strong>
+        <span className="block text-xs text-white/60">{card.artist || "Illustrator unknown — verify metadata"}</span>
         <span className="mt-1 block truncate text-[10px] text-white/40">{card.episode.name} {card.card_number ? `#${card.card_number}` : ""}</span>
       </span>
     </div>

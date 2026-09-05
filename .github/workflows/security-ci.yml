@@ -53,6 +53,8 @@ jobs:
         run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/security.spec.ts --workers=1 --timeout=120000
       - name: Install browser for UI regressions
         run: npx playwright install --with-deps chromium
+      - name: Passkey registration and sign-in regressions
+        run: APP_URL="http://localhost:3000" DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/passkeys.spec.ts --workers=1 --timeout=120000
       - name: Mobile, desktop and account UI regressions
         run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/ui-polish.spec.ts tests/smoke/account-ui.spec.ts --workers=1 --timeout=120000
       - name: Card, Radar and sealed detail regressions

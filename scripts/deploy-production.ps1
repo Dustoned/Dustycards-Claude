@@ -99,6 +99,13 @@ RemoteAppPath=__REMOTE_APP_PATH__
 DeploySha="${1:-${DUSTYCARDS_DEPLOY_SHA:-}}"
 DeployArchive="${DUSTYCARDS_DEPLOY_ARCHIVE:-/tmp/dustycards-deploy.tar.gz}"
 
+# Read-only aggregate inspection of public card relationships; no account data.
+if [ "${1:-}" = "--audit-reprints" ]; then
+  cd "$RemoteAppPath"
+  exec /usr/bin/node --no-warnings scripts/audit-reprint-families.mjs
+fi
+
+
 mkdir -p /opt/dustycards /opt/dustycards/backups /opt/dustycards/cache
 install -d -o dustycards -g dustycards -m 0700 /opt/dustycards/backups
 install -d -o dustycards -g dustycards -m 0755 /opt/dustycards/cache

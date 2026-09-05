@@ -32,6 +32,7 @@ export default defineConfig({
     timeout: 120_000,
     env: {
       ...process.env,
+      APP_URL: process.env.APP_URL ?? baseURL,
       DUSTYCARDS_DISABLE_SCRAPER_REQUESTS: "1",
     },
   },

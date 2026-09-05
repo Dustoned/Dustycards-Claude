@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { requireUser, authErrorResponse } from "@/lib/auth";
-import { SESSION_COOKIE_NAME } from "@/lib/auth-constants";
+import { SESSION_COOKIE_NAME, ADMIN_REAUTH_MAX_AGE_MS } from "@/lib/auth-constants";
 import { hashSessionToken, verifyPassword } from "@/lib/auth-crypto";
 import { db } from "@/lib/db";
 import {
@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
       throw error;
     }
     const user = await requireUser();
+    if (user.mfaEnabled && (!user.mfaVerified || Date.now() - user.sessionCreatedAt.getTime() > ADMIN_REAUTH_MAX_AGE_MS)) {
+      return NextResponse.json({ error: "Sign in with your existing passkey or authenticator before changing sign-in protection." }, { status: 403 });
+    }
     const throttled = await rejectThrottledMfa(request, user.id);
     if (throttled) return throttled;
     const action = body.action === "enable" ? "enable" : "prepare";

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
-import { CARD_REPRINT_MODEL_VERSION } from "@/lib/card-printings";
+import { CARD_REPRINT_MODEL_VERSION, haveSameKnownPrintingArtist, isEligiblePrintFamilyPair } from "@/lib/card-printings";
 import { db } from "@/lib/db";
 import { collapseReprintReviewCandidates } from "@/lib/reprint-review";
 
@@ -16,21 +16,23 @@ export async function GET() {
     const [relations, overrides] = await Promise.all([
       db.cardPrintingRelation.findMany({
         where: {
-          model_version: CARD_REPRINT_MODEL_VERSION,
-          match_method: "likely-art",
+          match_method: { not: "manual-include" },
         },
         orderBy: [{ image_similarity: "asc" }, { matched_at: "desc" }],
-        take: 10_000,
         include: {
-          sourceCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
-          targetCard: { select: { id: true, name: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
+          sourceCard: { select: { id: true, name: true, artist: true, episode_id: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
+          targetCard: { select: { id: true, name: true, artist: true, episode_id: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
         },
       }),
       db.cardPrintingOverride.findMany({
         select: { source_card_id: true, target_card_id: true, decision: true },
       }),
     ]);
-    const candidates = relations.map((relation) => {
+    const candidates = relations.filter(relation => {
+      const source = relation.sourceCard, target = relation.targetCard;
+      const conflict = source.artist?.trim() && target.artist?.trim() && !haveSameKnownPrintingArtist(source.artist, target.artist);
+      return !conflict && (![CARD_REPRINT_MODEL_VERSION, "reprint-v13-artwork-family", "reprint-v12-exact-rules"].includes(relation.model_version) || !isEligiblePrintFamilyPair(source.episode_id, target.episode_id, source.artist, target.artist, relation.match_method, relation.image_similarity));
+    }).map((relation) => {
       const [sourceId, targetId] = pair(relation.source_card_id, relation.target_card_id);
       const source = relation.source_card_id === sourceId ? relation.sourceCard : relation.targetCard;
       const target = relation.target_card_id === targetId ? relation.targetCard : relation.sourceCard;
@@ -77,9 +79,12 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Two cards and a valid decision are required" }, { status: 400 });
     }
     const [sourceCardId, targetCardId] = pair(sourceRaw, targetRaw);
-    const cardCount = await db.card.count({ where: { id: { in: [sourceCardId, targetCardId] } } });
-    if (cardCount !== 2) return NextResponse.json({ error: "Card pair not found" }, { status: 404 });
+    const cards = await db.card.findMany({ where: { id: { in: [sourceCardId, targetCardId] } }, select: { artist: true, name: true, game: true } });
+    if (cards.length !== 2) return NextResponse.json({ error: "Card pair not found" }, { status: 404 });
 
+    if (decision === "include" && (cards[0].name !== cards[1].name || cards[0].game !== cards[1].game || !haveSameKnownPrintingArtist(cards[0].artist, cards[1].artist))) {
+      return NextResponse.json({ error: "Matching illustrator information is required before confirming this artwork family. Correct missing or conflicting card metadata first." }, { status: 400 });
+    }
     await db.$transaction(async (tx) => {
       await tx.cardPrintingOverride.upsert({
         where: { source_card_id_target_card_id: { source_card_id: sourceCardId, target_card_id: targetCardId } },

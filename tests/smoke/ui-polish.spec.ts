@@ -43,8 +43,8 @@ test("3D texture failure ends loading and can be retried", async ({ page }) => {
   let attempts = 0;
   await page.route("**/assets/pokemon-card-back.jpg", (route) => ++attempts === 1 ? route.abort() : route.continue());
   await page.goto("/search?q=charizard");
-  await page.getByText("Charizard", { exact: true }).first().click();
-  const shell = page.locator("[data-card-detail-shell]");
+  await page.getByText("Charizard", { exact: true }).filter({ visible: true }).first().click();
+  const shell = page.locator("[data-card-detail-shell]:not([data-detail-loading]):visible");
   await shell.getByRole("button", { name: "3D", exact: true }).click();
   const viewer = shell.locator(".card-detail-inline-three-viewer");
   await expect(viewer).toHaveAttribute("data-card-holo-mask", "error", { timeout: 20_000 });
@@ -98,10 +98,10 @@ for (const width of [390, 1440]) {
     }
     await page.goto("/account");
     await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
-    await expect(page.getByText("Account ID", { exact: true })).toBeHidden();
-    await page.getByText("Account details", { exact: true }).click();
-    await expect(page.getByText("Account ID", { exact: true })).toBeVisible();
-    await page.getByText("Account details", { exact: true }).click();
+    await expect(page.getByText("Account ID", { exact: true }).filter({ visible: true })).toHaveCount(0);
+    await page.getByText("Account details", { exact: true }).filter({ visible: true }).click();
+    await expect(page.getByText("Account ID", { exact: true }).filter({ visible: true })).toHaveCount(1);
+    await page.getByText("Account details", { exact: true }).filter({ visible: true }).click();
     if (width === 390) expect((await page.getByRole("tab", { name: "Security", exact: true }).boundingBox())!.y).toBeLessThan(300);
     if (process.env.UI_DENSITY_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.UI_DENSITY_SCREENSHOT_DIR}/${width}-account.png` });
   });
@@ -167,7 +167,7 @@ for (const width of [390, 1440]) {
   test(`nested collection forms keep focus and only close the top dialog at ${width}px`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/search?q=charizard");
-    await page.getByText("Charizard", { exact: true }).first().click();
+    await page.getByText("Charizard", { exact: true }).filter({ visible: true }).first().click();
     await expect(page.getByRole("dialog", { name: "Charizard", exact: true })).toBeVisible();
     let binderAttempts = 0;
     await page.route("**/api/collection/binders", (route) => route.fulfill({
@@ -265,8 +265,8 @@ for (const width of [390, 1440]) {
     await page.setViewportSize({ width, height: 900 });
     for (const route of ["/search?q=charizard", "/movers/signal-radar/18530?game=pokemon"]) {
       await page.goto(route);
-      if (route.startsWith("/search")) await page.getByText("Charizard", { exact: true }).first().click();
-      const shell = page.locator("[data-card-detail-shell]");
+      if (route.startsWith("/search")) await page.getByText("Charizard", { exact: true }).filter({ visible: true }).first().click();
+      const shell = page.locator("[data-card-detail-shell]:not([data-detail-loading]):visible");
       await expect(shell).toBeVisible();
       const tabs = shell.getByRole("tab");
       await expect(tabs).toHaveCount(6);
@@ -296,11 +296,11 @@ test("phone sales and market results precede optional overviews", async ({ page 
   await expect(search).toBeVisible();
   expect((await search.boundingBox())!.y).toBeLessThan(780);
   await expect(page.getByRole("heading", { name: "Trade center" })).toHaveCount(0);
-  await page.getByText("Compare cards & find trades", { exact: true }).click();
+  await page.getByText("Compare cards & find trades", { exact: true }).filter({ visible: true }).click();
   await expect(page.getByRole("heading", { name: "Trade center" })).toBeVisible();
-  await page.getByText("Compare cards & find trades", { exact: true }).click();
+  await page.getByText("Compare cards & find trades", { exact: true }).filter({ visible: true }).click();
   await expect(page.getByRole("heading", { name: "Trade center" })).toBeHidden();
-  await page.getByText("Compare cards & find trades", { exact: true }).click();
+  await page.getByText("Compare cards & find trades", { exact: true }).filter({ visible: true }).click();
   await expect(page.getByRole("heading", { name: "Trade center" })).toBeVisible();
   await page.goto("/movers?scope=all");
   const overview = page.getByRole("button", { name: /^Market overview/ });
@@ -312,8 +312,8 @@ test("phone sales and market results precede optional overviews", async ({ page 
 test("empty wants stay compact and every phone settings section is directly selectable", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/wants");
-  await expect(page.getByText("No wants yet", { exact: true })).toBeVisible();
-  expect((await page.getByText("No wants yet", { exact: true }).boundingBox())!.y).toBeLessThan(500);
+  await expect(page.getByText("No wants yet", { exact: true }).filter({ visible: true })).toBeVisible();
+  expect((await page.getByText("No wants yet", { exact: true }).filter({ visible: true }).boundingBox())!.y).toBeLessThan(500);
   await page.goto("/settings");
   const picker = page.getByRole("combobox", { name: "Settings section" });
   await expect(picker.locator("option")).toHaveCount(7);
