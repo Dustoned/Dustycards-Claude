@@ -5,7 +5,7 @@ import { generateRegistrationOptions, verifyRegistrationResponse, generateAuthen
 import { db } from "@/lib/db";
 import { requireUser, authErrorResponse, setSessionCookie, clearSessionCookie } from "@/lib/auth";
 import { generateSessionToken, hashSessionToken, verifyPassword } from "@/lib/auth-crypto";
-import { SESSION_COOKIE_NAME, SESSION_DURATION_MS, ADMIN_SESSION_DURATION_MS } from "@/lib/auth-constants";
+import { SESSION_COOKIE_NAME, SESSION_DURATION_MS, ADMIN_SESSION_DURATION_MS, ADMIN_REAUTH_MAX_AGE_MS } from "@/lib/auth-constants";
 import { decryptMfaSecret, verifyTotp } from "@/lib/mfa";
 import { getPublicOrigin } from "@/lib/public-origin";
 import { consumeRateLimit, getClientIp } from "@/lib/rate-limit";
@@ -33,7 +33,7 @@ async function currentSessionHash() {
 async function authorizeManagement(body: Record<string, unknown>) {
   const auth = await requireUser();
   const user = await db.user.findUniqueOrThrow({ where: { id: auth.id } });
-  if (!user.mfa_enabled_at && auth.mfaEnabled && !auth.mfaVerified) {
+  if (!user.mfa_enabled_at && auth.mfaEnabled && (!auth.mfaVerified || Date.now() - auth.sessionCreatedAt.getTime() > ADMIN_REAUTH_MAX_AGE_MS)) {
     throw new PasskeyError("Sign in with your existing passkey before managing passkeys.", 403);
   }
   const password = typeof body.password === "string" ? body.password : "";
