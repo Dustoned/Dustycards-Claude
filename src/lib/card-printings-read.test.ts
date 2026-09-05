@@ -34,3 +34,8 @@ it("does not republish an undone pair from a stale worker relation", async () =>
   expect(await loadRelatedCardPrintings(source)).toEqual([]);
   expect(overrides).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ decision: { in: ["exclude", "review"] } }) }));
 });
+
+it("shows manually verified missing-artist pairs but keeps automatic ones hidden", async () => {
+  findMany.mockResolvedValue([row("manual", null, "manual-include"), row("automatic", null, "strong-art")]);
+  expect((await loadRelatedCardPrintings(source)).map(card => card.id)).toEqual(["manual"]);
+});
