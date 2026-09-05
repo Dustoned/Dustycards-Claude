@@ -9,6 +9,7 @@ import {
   CARD_REPRINT_MODEL_VERSION,
   getArtworkHashSimilarity,
   getPrintingMatchDetails,
+  haveSameKnownPrintingArtist,
   qualifyPrintingMatchForEpisodes,
   type ArtworkHash,
   type CardPrintingMatchMethod,
@@ -339,8 +340,8 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
   if (cards.length < 2) return { cards: cards.length, relations: 0 };
 
   // Load every same-name card so cross-expansion reissues remain discoverable,
-  // including promos with changed metadata. Pair comparison below keeps
-  // same-expansion rarity/artwork variants out unless an admin approved them.
+  // including promos with changed metadata. Every pair needs the same known
+  // illustrator and strong artwork evidence, regardless of expansion.
   // Small batches keep provider load predictable.
   const evidence: PreparedEvidence[] = [];
   for (let offset = 0; offset < cards.length; offset += EVIDENCE_CONCURRENCY) {
@@ -380,6 +381,7 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
       const override = overrideByPair.get([cards[left].id, cards[right].id].sort().join("\u0000"));
       if (override === "exclude") continue;
       if (override === "include") {
+        if (!haveSameKnownPrintingArtist(cards[left].artist, cards[right].artist)) continue;
         directMatches.set(`${left}:${right}`, { method: "manual-include", imageSimilarity: 1 });
         continue;
       }

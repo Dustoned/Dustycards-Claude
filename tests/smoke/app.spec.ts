@@ -2104,6 +2104,9 @@ test.describe("DustyCards smoke", () => {
     const analysisTab = shell.getByRole("tab", { name: "Analysis", exact: true });
     const evidenceTab = shell.getByRole("tab", { name: "Evidence", exact: true });
     await expect(overviewTab).toHaveAttribute("aria-selected", "true");
+    await expect(shell.getByRole("heading", { name: "Card profile", exact: true })).toBeVisible();
+    await expect(shell.getByText("Collector snapshot", { exact: true })).toHaveCount(0);
+    await expect(shell.getByText("Your saved copy", { exact: true })).toHaveCount(0);
     await overviewTab.focus();
     await page.keyboard.press("ArrowRight");
     await expect(marketTab).toHaveAttribute("aria-selected", "true");
