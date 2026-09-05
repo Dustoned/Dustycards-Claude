@@ -98,10 +98,10 @@ for (const width of [390, 1440]) {
     }
     await page.goto("/account");
     await expect(page.getByRole("heading", { name: "Profile", exact: true })).toBeVisible();
-    await expect(page.getByText("Account ID", { exact: true })).toBeHidden();
-    await page.getByText("Account details", { exact: true }).click();
-    await expect(page.getByText("Account ID", { exact: true })).toBeVisible();
-    await page.getByText("Account details", { exact: true }).click();
+    await expect(page.getByText("Account ID", { exact: true }).filter({ visible: true })).toHaveCount(0);
+    await page.getByText("Account details", { exact: true }).filter({ visible: true }).click();
+    await expect(page.getByText("Account ID", { exact: true }).filter({ visible: true })).toHaveCount(1);
+    await page.getByText("Account details", { exact: true }).filter({ visible: true }).click();
     if (width === 390) expect((await page.getByRole("tab", { name: "Security", exact: true }).boundingBox())!.y).toBeLessThan(300);
     if (process.env.UI_DENSITY_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.UI_DENSITY_SCREENSHOT_DIR}/${width}-account.png` });
   });
