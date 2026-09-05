@@ -177,7 +177,7 @@ export default function ReprintReviewSection() {
         <summary className="cursor-pointer py-1 font-semibold text-white/70">Your recent decisions ({history.length})</summary>
         <ul className="mt-2 space-y-2">{history.map((review) => <li key={review.id} className="flex items-center justify-between gap-3 border-t border-white/5 pt-2">
           <span className="min-w-0 text-white/60"><strong className="text-white/85">{review.source.name}</strong> · {review.decision === "include" ? "Same card" : "Not a reprint"}<span className="block">{review.source.episode.name} #{review.source.card_number} / {review.target.episode.name} #{review.target.card_number}</span></span>
-          <button type="button" onClick={() => void undo(review)} disabled={busyKey !== null || loading} aria-label={`Undo review for ${review.source.name}, ${review.source.id} and ${review.target.id}`} className="min-h-11 shrink-0 rounded-lg border border-white/15 px-3 font-bold disabled:opacity-40">Undo</button>
+          <button type="button" onClick={() => void undo(review)} disabled={busyKey !== null || loading} data-review-id={review.id} aria-label={`Undo review for ${review.source.name}, ${review.source.episode.name} #${review.source.card_number} and ${review.target.episode.name} #${review.target.card_number}`} className="min-h-11 shrink-0 rounded-lg border border-white/15 px-3 font-bold disabled:opacity-40">Undo</button>
         </li>)}</ul>
       </details> : null}
       {error ? <p role="alert" className="mt-3 rounded-xl border border-rose-300/14 bg-rose-500/[0.07] px-3 py-2 text-xs text-rose-100">{error}</p> : null}
