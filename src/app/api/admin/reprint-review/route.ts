@@ -1,3 +1,4 @@
+import { canManuallyConfirmPrintingArtists } from "@/lib/print-family-policy";
 import { NextRequest, NextResponse } from "next/server";
 import { authErrorResponse, requireAdmin } from "@/lib/auth";
 import { CARD_REPRINT_MODEL_VERSION, haveSameKnownPrintingArtist, isEligiblePrintFamilyPair } from "@/lib/card-printings";
@@ -125,8 +126,8 @@ export async function POST(request: NextRequest) {
     const cards = await db.card.findMany({ where: { id: { in: [sourceCardId, targetCardId] } }, select: { artist: true, name: true, game: true } });
     if (cards.length !== 2) return NextResponse.json({ error: "Card pair not found" }, { status: 404 });
 
-    if (decision === "include" && (cards[0].name !== cards[1].name || cards[0].game !== cards[1].game || !haveSameKnownPrintingArtist(cards[0].artist, cards[1].artist))) {
-      return NextResponse.json({ error: "Matching illustrator information is required before confirming this artwork family. Correct missing or conflicting card metadata first." }, { status: 400 });
+    if (decision === "include" && (cards[0].name !== cards[1].name || cards[0].game !== cards[1].game || !canManuallyConfirmPrintingArtists(cards[0].artist, cards[1].artist))) {
+      return NextResponse.json({ error: "Cards must have the same name and game, without conflicting known illustrators." }, { status: 400 });
     }
     await db.$transaction(async (tx) => {
       await tx.cardPrintingOverride.upsert({

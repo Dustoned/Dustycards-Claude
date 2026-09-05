@@ -1,3 +1,4 @@
+import { canManuallyConfirmPrintingArtists } from "@/lib/print-family-policy";
 import "server-only";
 
 import { statSync } from "node:fs";
@@ -9,7 +10,6 @@ import {
   CARD_REPRINT_MODEL_VERSION,
   getArtworkHashSimilarity,
   getPrintingMatchDetails,
-  haveSameKnownPrintingArtist,
   qualifyPrintingMatchForEpisodes,
   type ArtworkHash,
   type CardPrintingMatchMethod,
@@ -381,7 +381,7 @@ async function processCandidateGroup(cards: ReprintCandidateCard[], now: Date) {
       const override = overrideByPair.get([cards[left].id, cards[right].id].sort().join("\u0000"));
       if (override === "exclude" || override === "review") continue;
       if (override === "include") {
-        if (!haveSameKnownPrintingArtist(cards[left].artist, cards[right].artist)) continue;
+        if (!canManuallyConfirmPrintingArtists(cards[left].artist, cards[right].artist)) continue;
         directMatches.set(`${left}:${right}`, { method: "manual-include", imageSimilarity: 1 });
         continue;
       }

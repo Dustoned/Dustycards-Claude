@@ -113,6 +113,9 @@ export function qualifyPrintingMatchForEpisodes(
   targetArtist: string | null | undefined,
   match: CardPrintingMatch
 ): CardPrintingMatch | null {
+  if (match.method === "manual-include") {
+    return isEligiblePrintFamilyPair(sourceEpisodeId, targetEpisodeId, sourceArtist, targetArtist, match.method, match.imageSimilarity) ? match : null;
+  }
   if (!haveSameKnownPrintingArtist(sourceArtist, targetArtist)) {
     if (normalizeText(sourceArtist) && normalizeText(targetArtist)) return null;
     return Number.isFinite(match.imageSimilarity) && match.imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY && match.imageSimilarity <= 1
@@ -120,7 +123,7 @@ export function qualifyPrintingMatchForEpisodes(
   }
   if (isEligiblePrintFamilyPair(sourceEpisodeId, targetEpisodeId, sourceArtist, targetArtist,
       match.method, match.imageSimilarity)) {
-    return match.method === "manual-include" ? match : { ...match, method: "strong-art" };
+    return { ...match, method: "strong-art" };
   }
   if (Number.isFinite(match.imageSimilarity) && match.imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY &&
       match.imageSimilarity <= 1) {

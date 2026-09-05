@@ -1,13 +1,13 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest, NextResponse } from "next/server";
-const mocks = vi.hoisted(() => ({ admin: vi.fn(), find: vi.fn(), update: vi.fn(), remove: vi.fn(), relations: vi.fn(), overrides: vi.fn() }));
+const mocks = vi.hoisted(() => ({ cards: vi.fn(), upsert: vi.fn(), create: vi.fn(), admin: vi.fn(), find: vi.fn(), update: vi.fn(), remove: vi.fn(), relations: vi.fn(), overrides: vi.fn() }));
 vi.mock("@/lib/auth", () => ({ requireAdmin: mocks.admin, authErrorResponse: () => NextResponse.json({ error: "Forbidden" }, { status: 403 }) }));
 vi.mock("@/lib/card-printings", () => ({ CARD_REPRINT_MODEL_VERSION: "current", haveSameKnownPrintingArtist: () => true, isEligiblePrintFamilyPair: () => false }));
 vi.mock("@/lib/db", () => ({ db: {
-  cardPrintingRelation: { findMany: mocks.relations }, cardPrintingOverride: { findMany: mocks.overrides },
-  $transaction: (fn: (tx: unknown) => unknown) => fn({ cardPrintingOverride: { findFirst: mocks.find, updateMany: mocks.update }, cardPrintingRelation: { deleteMany: mocks.remove } }),
+  card: { findMany: mocks.cards }, cardPrintingRelation: { findMany: mocks.relations }, cardPrintingOverride: { findMany: mocks.overrides },
+  $transaction: (fn: (tx: unknown) => unknown) => fn({ cardPrintingOverride: { upsert: mocks.upsert, findFirst: mocks.find, updateMany: mocks.update }, cardPrintingRelation: { createMany: mocks.create, deleteMany: mocks.remove } }),
 } }));
-import { DELETE, GET } from "./route";
+import { DELETE, GET, POST } from "./route";
 const date = new Date("2026-09-05T14:38:25.940Z");
 const record = { id: "review1", user_id: "admin1", source_card_id: "a", target_card_id: "b", decision: "include", updated_at: date };
 const request = (body: unknown = { id: "review1", updatedAt: date.toISOString() }) => new NextRequest("http://localhost/api/admin/reprint-review", { method: "DELETE", body: JSON.stringify(body) });
@@ -41,4 +41,17 @@ it("keeps undone pairs in the queue without automated relations and omits them f
   const body = await (await GET()).json();
   expect(body.count).toBe(1); expect(body.reviewedCount).toBe(0); expect(body.history).toEqual([]);
   expect(body.items[0].matchMethod).toBe("returned-for-review");
+});
+
+it.each([null, "", "   "])("allows manual confirmation with missing artist %s", async (artist) => {
+  mocks.cards.mockResolvedValue([{ name: "Grass Energy", game: "pokemon", artist }, { name: "Grass Energy", game: "pokemon", artist: "Keiji Kinebuchi" }]);
+  const response = await POST(new NextRequest("http://localhost/api/admin/reprint-review", { method: "POST", body: JSON.stringify({ sourceCardId: "a", targetCardId: "b", decision: "include" }) }));
+  expect(response.status).toBe(200);
+  expect(mocks.upsert).toHaveBeenCalled();
+  expect(mocks.create).toHaveBeenCalledWith({ data: expect.arrayContaining([expect.objectContaining({ match_method: "manual-include" })]) });
+});
+it("rejects conflicting known illustrators without saving", async () => {
+  mocks.cards.mockResolvedValue([{ name: "Card", game: "pokemon", artist: "Artist A" }, { name: "Card", game: "pokemon", artist: "Artist B" }]);
+  expect((await POST(new NextRequest("http://localhost/api/admin/reprint-review", { method: "POST", body: JSON.stringify({ sourceCardId: "a", targetCardId: "b", decision: "include" }) }))).status).toBe(400);
+  expect(mocks.upsert).not.toHaveBeenCalled();
 });
