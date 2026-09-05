@@ -67,13 +67,13 @@ function toAuthUser(user: {
   role: string;
   disabled: boolean;
   mfa_enabled_at: Date | null;
-}, session: { created_at: Date; mfa_verified_at: Date | null }): AuthUser {
+}, session: { created_at: Date; mfa_verified_at: Date | null; passkey_id?: string | null }): AuthUser {
   return {
     id: user.id,
     email: user.email,
     role: user.role === "admin" ? "admin" : "user",
     disabled: user.disabled,
-    mfaEnabled: Boolean(user.mfa_enabled_at),
+    mfaEnabled: Boolean(user.mfa_enabled_at || session.passkey_id),
     mfaVerified: Boolean(session.mfa_verified_at),
     sessionCreatedAt: session.created_at,
   };
@@ -92,6 +92,7 @@ function sessionCookieOptions(expires?: Date) {
 export async function createUserSession(userId: string, options?: {
   isAdmin?: boolean;
   mfaVerified?: boolean;
+  passkeyId?: string;
 }): Promise<{
   token: string;
   expiresAt: Date;
@@ -105,6 +106,7 @@ export async function createUserSession(userId: string, options?: {
       token_hash: hashSessionToken(token),
       expires_at: expiresAt,
       mfa_verified_at: options?.mfaVerified ? new Date() : null,
+      ...(options?.passkeyId ? { passkey_id: options.passkeyId } : {}),
     },
   });
 
@@ -148,6 +150,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Aut
       id: true,
       created_at: true,
       mfa_verified_at: true,
+      passkey_id: true,
       expires_at: true,
       last_seen_at: true,
       user: {

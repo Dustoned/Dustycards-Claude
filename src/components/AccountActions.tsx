@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
+import AccountPasskeys from "@/components/AccountPasskeys";
 import { Copy, Download, KeyRound, LogOut, ShieldCheck } from "lucide-react";
 
 export default function AccountActions({
@@ -184,6 +185,7 @@ export default function AccountActions({
 
   return (
     <div className="grid gap-4">
+    <AccountPasskeys mfaEnabled={mfaEnabled} />
     <section className="binder-panel rounded-2xl p-4 sm:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>

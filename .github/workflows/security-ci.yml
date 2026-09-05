@@ -57,3 +57,5 @@ jobs:
         run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/ui-polish.spec.ts tests/smoke/account-ui.spec.ts --workers=1 --timeout=120000
       - name: Card, Radar and sealed detail regressions
         run: DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/app.spec.ts --grep "card detail uses an aligned|Signal Radar detail shares|Signal Radar tabs wait|sealed detail aligns" --workers=1 --timeout=120000
+      - name: Passkey registration and sign-in regressions
+        run: APP_URL="http://localhost:3000" DUSTYCARDS_DATABASE_PATH="$PWD/dustycards.db" npm run smoke -- tests/smoke/passkeys.spec.ts --workers=1 --timeout=120000

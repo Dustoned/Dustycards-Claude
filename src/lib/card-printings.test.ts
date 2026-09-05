@@ -156,6 +156,13 @@ describe("card printings", () => {
     expect(isEligiblePrintFamilyPair("a", "b", "Artist A", "Artist A", "manual-include")).toBe(true);
   });
 
+  it("sends otherwise credible missing-artist evidence to review, never directly to the family", () => {
+    const candidate = getPrintingMatchDetails(CHARIZARD_RULES, { ...CHARIZARD_RULES, illustrator: undefined }, 0.98);
+    expect(candidate).toMatchObject({ method: "likely-art" });
+    expect(qualifyPrintingMatchForEpisodes("a", "b", "5ban Graphics", null, candidate!)).toMatchObject({ method: "likely-art" });
+    expect(isEligiblePrintFamilyPair("a", "b", "5ban Graphics", null, "likely-art", 0.98)).toBe(false);
+  });
+
   it("normalizes illustrator names before comparing print evidence", () => {
     expect(haveSameKnownPrintingArtist(" 5ban Graphics ", "5BAN GRAPHICS")).toBe(true);
     expect(haveSameKnownPrintingArtist("5ban Graphics", "HYOGONOSUKE")).toBe(false);

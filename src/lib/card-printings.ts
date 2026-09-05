@@ -1,9 +1,11 @@
+import { haveSameKnownPrintingArtist, isEligiblePrintFamilyPair } from "@/lib/print-family-policy";
+export { haveSameKnownPrintingArtist, isEligiblePrintFamilyPair } from "@/lib/print-family-policy";
 import { db } from "@/lib/db";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v13-artwork-family";
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v14-review-uncertainty";
 const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.68;
 const STRONG_REPRINT_IMAGE_SIMILARITY = 0.92;
 const COLOR_SIGNATURE_PREFIX = "rgb1:";
@@ -104,23 +106,6 @@ export type CardPrintingMatch = {
   imageSimilarity: number;
 };
 
-/** Apply the same artwork-family contract to stored and newly computed pairs. */
-export function isEligiblePrintFamilyPair(
-  sourceEpisodeId: string,
-  targetEpisodeId: string,
-  sourceArtist: string | null | undefined,
-  targetArtist: string | null | undefined,
-  matchMethod: string,
-  imageSimilarity: number = 0
-): boolean {
-  if (!sourceEpisodeId || !targetEpisodeId ||
-      !haveSameKnownPrintingArtist(sourceArtist, targetArtist)) return false;
-  if (matchMethod === "manual-include") return true;
-  return ["strong-art", "rules-exact", "rules-and-art", "lineage-and-art"].includes(matchMethod) &&
-    Number.isFinite(imageSimilarity) && imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY &&
-    imageSimilarity <= 1;
-}
-
 export function qualifyPrintingMatchForEpisodes(
   sourceEpisodeId: string,
   targetEpisodeId: string,
@@ -128,7 +113,11 @@ export function qualifyPrintingMatchForEpisodes(
   targetArtist: string | null | undefined,
   match: CardPrintingMatch
 ): CardPrintingMatch | null {
-  if (!haveSameKnownPrintingArtist(sourceArtist, targetArtist)) return null;
+  if (!haveSameKnownPrintingArtist(sourceArtist, targetArtist)) {
+    if (normalizeText(sourceArtist) && normalizeText(targetArtist)) return null;
+    return Number.isFinite(match.imageSimilarity) && match.imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY && match.imageSimilarity <= 1
+      ? { ...match, method: "likely-art" } : null;
+  }
   if (isEligiblePrintFamilyPair(sourceEpisodeId, targetEpisodeId, sourceArtist, targetArtist,
       match.method, match.imageSimilarity)) {
     return match.method === "manual-include" ? match : { ...match, method: "strong-art" };
@@ -179,15 +168,6 @@ function normalizeStringArray(value: unknown): string[] {
   return Array.isArray(value)
     ? value.map(normalizeText).filter((item): item is string => Boolean(item))
     : [];
-}
-
-export function haveSameKnownPrintingArtist(
-  left: string | null | undefined,
-  right: string | null | undefined
-): boolean {
-  const normalizedLeft = normalizeText(left);
-  const normalizedRight = normalizeText(right);
-  return normalizedLeft != null && normalizedLeft === normalizedRight;
 }
 
 export function getTcgdexCardId(input: {
@@ -431,7 +411,8 @@ export function getPrintingMatchDetails(
     current.illustrator,
     candidate.illustrator
   );
-  if (!sameIllustrator || !Number.isFinite(imageSimilarity) || imageSimilarity < 0 || imageSimilarity > 1) return null;
+  if (!Number.isFinite(imageSimilarity) || imageSimilarity < 0 || imageSimilarity > 1) return null;
+  if (!sameIllustrator && normalizeText(current.illustrator) && normalizeText(candidate.illustrator)) return null;
 
   const currentFingerprint = buildCardIdentityFingerprint(current);
   const candidateFingerprint = buildCardIdentityFingerprint(candidate);
@@ -450,7 +431,7 @@ export function getPrintingMatchDetails(
       if (imageSimilarity < LIKELY_REPRINT_IMAGE_SIMILARITY) return null;
       return {
         matchType: "reprint",
-        method: imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY ? "strong-art" : "likely-art",
+        method: sameIllustrator && imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY ? "strong-art" : "likely-art",
         imageSimilarity,
       };
     }
@@ -471,7 +452,7 @@ export function getPrintingMatchDetails(
   }
 
   if (imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY) {
-    return { matchType: "reprint", method: "strong-art", imageSimilarity };
+    return { matchType: "reprint", method: sameIllustrator ? "strong-art" : "likely-art", imageSimilarity };
   }
 
   if (matchingLineage && imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY) {
@@ -749,7 +730,7 @@ export async function loadRelatedCardPrintings(
     where: {
       source_card_id: current.id,
       // Recheck legacy rows at read time while the worker rebuilds evidence.
-      model_version: { in: [CARD_REPRINT_MODEL_VERSION, "reprint-v12-exact-rules"] },
+      model_version: { in: [CARD_REPRINT_MODEL_VERSION, "reprint-v13-artwork-family", "reprint-v12-exact-rules"] },
       // Low-confidence visual candidates only become visible after approval.
       match_method: { not: "likely-art" },
     },
