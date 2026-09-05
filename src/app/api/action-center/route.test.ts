@@ -101,7 +101,7 @@ describe("Action Center", () => {
     expect(body).toEqual({ ok: true, count: 0, items: [] });
   });
 
-  it("links a signal result to the exact shared card detail with its game", async () => {
+  it("links daily results to the matching journal day", async () => {
     dbMock.user.findMany.mockResolvedValue([]);
     dbMock.externalSignalOutcome.findMany.mockResolvedValue([
       {
@@ -124,20 +124,16 @@ describe("Action Center", () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(dbMock.card.findMany).toHaveBeenCalledWith({
-      where: { id: { in: ["one-piece:card-42"] } },
-      select: { id: true, game: true },
-    });
     expect(body.items).toEqual([
       expect.objectContaining({
-        id: "signal-outcome-1",
+        id: "signal-day-2026-08-17",
         kind: "signal",
-        href: "/movers/signal-radar/learning?outcome=outcome-1",
+        href: "/movers/signal-radar/learning?day=2026-08-17&horizon=all",
       }),
     ]);
   });
 
-  it("does not show dead or disabled-library signal destinations", async () => {
+  it("keeps archived results reachable in the journal and excludes disabled games", async () => {
     dbMock.user.findMany.mockResolvedValue([]);
     settingsMock.getServerUserSettings.mockResolvedValue({ onePieceLibraryEnabled: false });
     dbMock.externalSignalOutcome.findMany.mockResolvedValue([
@@ -167,13 +163,8 @@ describe("Action Center", () => {
     const response = await GET();
     const body = await response.json();
 
-    expect(dbMock.card.findMany).toHaveBeenCalledWith({
-      where: {
-        id: { in: ["gone-card", "one-piece:card-42"] },
-        game: { not: "one-piece" },
-      },
-      select: { id: true, game: true },
-    });
-    expect(body).toEqual({ ok: true, count: 0, items: [] });
+    expect(body.items).toHaveLength(1);
+    expect(body.items[0].detail).toContain("1 correct · 0 missed");
+
   });
 });

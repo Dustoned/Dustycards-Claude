@@ -401,6 +401,11 @@ test("prediction notifications open a readable learning journal on mobile and de
     await expect(result).toContainText("Journal test card");
     await expect(result).toContainText("Missed");
     await expect(result).toContainText("-20.0%");
+    await page.goto(`/movers/signal-radar/learning?day=${now.slice(0,10)}&horizon=all`);
+    await expect(page.getByText(/Daily results/)).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Journal test card" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "All periods", exact: true })).toHaveAttribute("aria-current", "page");
+
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     await page.getByRole("navigation", { name: "Prediction horizon" }).getByRole("link", { name: "90 days" }).click();
     await expect(page.getByRole("link", { name: "90 days", exact: true })).toHaveAttribute("aria-current", "page");
