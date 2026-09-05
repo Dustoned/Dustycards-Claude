@@ -383,7 +383,7 @@ test("empty wants stay compact and every phone settings section is directly sele
   await expect(page.getByRole("tabpanel", { name: "Preferences" })).toBeVisible();
 });
 
-test("prediction notifications open a readable learning journal on mobile and desktop", async ({ page, uiAccount }) => {
+test("prediction notifications open a readable learning journal on mobile and desktop", async ({ page, uiAccount }, testInfo) => {
   expect(uiAccount).toBeTruthy();
   const db = new Database(process.env.DUSTYCARDS_DATABASE_PATH!);
   const id = `learning-${randomUUID()}`;
@@ -396,6 +396,7 @@ test("prediction notifications open a readable learning journal on mobile and de
     await page.goto(`/movers/signal-radar/learning?outcome=${id}`);
     await expect(page.getByRole("heading", { name: "What Radar is learning" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "From your notification" })).toBeVisible();
+    await page.screenshot({ path: testInfo.outputPath("learning-mobile.png"), fullPage: true });
     const result = page.locator(`[id="focused-${id}"]`);
     await expect(result).toContainText("Journal test card");
     await expect(result).toContainText("Missed");
@@ -404,8 +405,9 @@ test("prediction notifications open a readable learning journal on mobile and de
     await page.getByRole("navigation", { name: "Prediction horizon" }).getByRole("link", { name: "90 days" }).click();
     await expect(page.getByRole("link", { name: "90 days", exact: true })).toHaveAttribute("aria-current", "page");
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.getByRole("navigation", { name: "Filter results" }).getByRole("link", { name: "Missed", exact: true }).click();
-    await expect(page.getByRole("navigation", { name: "Filter results" }).getByRole("link", { name: "Missed", exact: true })).toHaveAttribute("aria-current", "page");
+    await page.screenshot({ path: testInfo.outputPath("learning-desktop.png"), fullPage: true });
+    await page.getByRole("navigation", { name: "Filter results" }).getByRole("link", { name: "missed", exact: true }).click();
+    await expect(page.getByRole("navigation", { name: "Filter results" }).getByRole("link", { name: "missed", exact: true })).toHaveAttribute("aria-current", "page");
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   } finally {
     db.prepare("DELETE FROM ExternalSignalOutcome WHERE entry_observation_id=?").run(id);
