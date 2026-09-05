@@ -128,12 +128,12 @@ export async function GET() {
           tone: ended ? ("neutral" as const) : ("warning" as const),
         };
       }),
-      ...reachableOutcomes.map(({ outcome, game }) => ({
+      ...reachableOutcomes.map(({ outcome }) => ({
         id: `signal-${outcome.id}`,
         kind: "signal" as const,
         title: outcome.meaningful_direction_hit ? "Signal prediction was correct" : "Signal prediction missed",
         detail: `${outcome.entry_observation.card_name} finished its ${outcome.horizon_days}-day check.`,
-        href: `/movers/signal-radar/${encodeURIComponent(outcome.entry_observation.card_id)}?game=${encodeURIComponent(game)}`,
+        href: `/movers/signal-radar/learning?outcome=${encodeURIComponent(outcome.id)}`,
         occurredAt: (outcome.evaluated_at ?? outcome.updated_at).toISOString(),
         tone: outcome.meaningful_direction_hit ? ("positive" as const) : ("warning" as const),
       })),

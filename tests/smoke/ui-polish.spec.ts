@@ -382,3 +382,35 @@ test("empty wants stay compact and every phone settings section is directly sele
   await picker.selectOption({ label: "Preferences" });
   await expect(page.getByRole("tabpanel", { name: "Preferences" })).toBeVisible();
 });
+
+test("prediction notifications open a readable learning journal on mobile and desktop", async ({ page, uiAccount }) => {
+  expect(uiAccount).toBeTruthy();
+  const db = new Database(process.env.DUSTYCARDS_DATABASE_PATH!);
+  const id = `learning-${randomUUID()}`;
+  const now = new Date().toISOString();
+  try {
+    db.prepare("INSERT INTO ExternalSignalRun (id,kind,status) VALUES (?,'test','complete')").run(id);
+    db.prepare("INSERT INTO ExternalSignalObservation (id,run_id,card_id,game,card_name,model_version,entry_outlook,reference_price,external_score,confidence,pressure_label,currency,max_deck_share_percent,max_inclusion_percent,archetype_count,reasons_json,evidence_json) VALUES (?,?,?,'pokemon','Journal test card','test','modest_up',100,75,'Medium','Test','EUR',0,0,0,'[]','[]')").run(id,id,id);
+    db.prepare("INSERT INTO ExternalSignalOutcome (id,entry_observation_id,horizon_days,status,meaningful_direction_hit,realized_return_pct,end_reference_price,evaluated_at,updated_at) VALUES (?,?,30,'complete',0,-20,80,?,?)").run(id,id,now,now);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(`/movers/signal-radar/learning?outcome=${id}`);
+    await expect(page.getByRole("heading", { name: "What Radar is learning" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "From your notification" })).toBeVisible();
+    const result = page.locator(`[id="focused-${id}"]`);
+    await expect(result).toContainText("Journal test card");
+    await expect(result).toContainText("Missed");
+    await expect(result).toContainText("-20.0%");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await page.getByRole("navigation", { name: "Prediction horizon" }).getByRole("link", { name: "90 days" }).click();
+    await expect(page.getByRole("link", { name: "90 days", exact: true })).toHaveAttribute("aria-current", "page");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole("navigation", { name: "Filter results" }).getByRole("link", { name: "Missed", exact: true }).click();
+    await expect(page.getByRole("navigation", { name: "Filter results" }).getByRole("link", { name: "Missed", exact: true })).toHaveAttribute("aria-current", "page");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  } finally {
+    db.prepare("DELETE FROM ExternalSignalOutcome WHERE entry_observation_id=?").run(id);
+    db.prepare("DELETE FROM ExternalSignalObservation WHERE id=?").run(id);
+    db.prepare("DELETE FROM ExternalSignalRun WHERE id=?").run(id);
+    db.close();
+  }
+});

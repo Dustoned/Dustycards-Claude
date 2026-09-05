@@ -132,7 +132,7 @@ describe("Action Center", () => {
       expect.objectContaining({
         id: "signal-outcome-1",
         kind: "signal",
-        href: "/movers/signal-radar/one-piece%3Acard-42?game=one-piece",
+        href: "/movers/signal-radar/learning?outcome=outcome-1",
       }),
     ]);
   });
