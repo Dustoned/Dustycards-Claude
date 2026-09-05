@@ -2545,17 +2545,6 @@ html.widescreen .settings-page {
   align-items: start;
 }
 
-.card-detail-collector-snapshot {
-  min-width: 0;
-  align-self: start;
-  border-color: rgb(var(--dc-primary-soft-rgb) / 0.16);
-  background: linear-gradient(145deg, rgb(var(--dc-primary-rgb) / 0.055), rgb(var(--dc-surface-primary-rgb) / 0.88));
-}
-
-.card-detail-collector-snapshot .card-detail-info-grid {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
 .card-detail-owned-copy {
   width: min(100%, 24rem);
   align-self: start;
@@ -2857,10 +2846,6 @@ html.widescreen .settings-page {
 
   .card-detail-section-grid[data-columns="2"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .card-detail-section-grid.card-detail-overview-grid[data-columns="2"] {
-    grid-template-columns: minmax(0, 1fr) minmax(19rem, 31rem);
   }
 
   .card-detail-printing-rail {
@@ -3197,10 +3182,6 @@ html.widescreen .settings-page {
 
   .card-detail-section-grid[data-columns="2"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .card-detail-section-grid.card-detail-overview-grid[data-columns="2"] {
-    grid-template-columns: minmax(0, 1fr) minmax(22rem, 32rem);
   }
 
   .card-detail-printing-rail {

@@ -3,8 +3,7 @@ import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
 import sharp from "sharp";
 
 const TCGDEX_CARD_ENDPOINT = "https://api.tcgdex.net/v2/en/cards";
-export const CARD_REPRINT_MODEL_VERSION = "reprint-v12-exact-rules";
-const MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY = 0.84;
+export const CARD_REPRINT_MODEL_VERSION = "reprint-v13-artwork-family";
 const LIKELY_REPRINT_IMAGE_SIMILARITY = 0.68;
 const STRONG_REPRINT_IMAGE_SIMILARITY = 0.92;
 const COLOR_SIGNATURE_PREFIX = "rgb1:";
@@ -105,24 +104,21 @@ export type CardPrintingMatch = {
   imageSimilarity: number;
 };
 
-/**
- * Cross-expansion matches keep the normal rules/artwork model. Within one
- * expansion we only publish a verified near-identical artwork match or an
- * explicit admin decision; matching rules alone can describe a rarity variant.
- */
+/** Apply the same artwork-family contract to stored and newly computed pairs. */
 export function isEligiblePrintFamilyPair(
   sourceEpisodeId: string,
   targetEpisodeId: string,
   sourceArtist: string | null | undefined,
   targetArtist: string | null | undefined,
-  matchMethod: string
+  matchMethod: string,
+  imageSimilarity: number = 0
 ): boolean {
-  return matchMethod === "manual-include" ||
-    sourceEpisodeId !== targetEpisodeId ||
-    (
-      matchMethod === "strong-art" &&
-      haveSameKnownPrintingArtist(sourceArtist, targetArtist)
-    );
+  if (!sourceEpisodeId || !targetEpisodeId ||
+      !haveSameKnownPrintingArtist(sourceArtist, targetArtist)) return false;
+  if (matchMethod === "manual-include") return true;
+  return ["strong-art", "rules-exact", "rules-and-art", "lineage-and-art"].includes(matchMethod) &&
+    Number.isFinite(imageSimilarity) && imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY &&
+    imageSimilarity <= 1;
 }
 
 export function qualifyPrintingMatchForEpisodes(
@@ -132,14 +128,13 @@ export function qualifyPrintingMatchForEpisodes(
   targetArtist: string | null | undefined,
   match: CardPrintingMatch
 ): CardPrintingMatch | null {
-  if (sourceEpisodeId !== targetEpisodeId || match.method === "manual-include") {
-    return match;
-  }
   if (!haveSameKnownPrintingArtist(sourceArtist, targetArtist)) return null;
-  if (match.imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY) {
-    return { ...match, method: "strong-art" };
+  if (isEligiblePrintFamilyPair(sourceEpisodeId, targetEpisodeId, sourceArtist, targetArtist,
+      match.method, match.imageSimilarity)) {
+    return match.method === "manual-include" ? match : { ...match, method: "strong-art" };
   }
-  if (match.imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY) {
+  if (Number.isFinite(match.imageSimilarity) && match.imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY &&
+      match.imageSimilarity <= 1) {
     return { ...match, method: "likely-art" };
   }
   return null;
@@ -436,6 +431,8 @@ export function getPrintingMatchDetails(
     current.illustrator,
     candidate.illustrator
   );
+  if (!sameIllustrator || !Number.isFinite(imageSimilarity) || imageSimilarity < 0 || imageSimilarity > 1) return null;
+
   const currentFingerprint = buildCardIdentityFingerprint(current);
   const candidateFingerprint = buildCardIdentityFingerprint(candidate);
   if (currentFingerprint && candidateFingerprint) {
@@ -450,19 +447,15 @@ export function getPrintingMatchDetails(
       );
 
     if (rulesMatch) {
-      // A regular, rainbow, gold, promo or trainer-gallery treatment can use
-      // entirely different artwork (and even a different credited artist)
-      // while still being the same playable card. Exact rules plus compatible
-      // identity fields are stronger evidence than artwork similarity.
+      if (imageSimilarity < LIKELY_REPRINT_IMAGE_SIMILARITY) return null;
       return {
         matchType: "reprint",
-        method: "rules-exact",
+        method: imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY ? "strong-art" : "likely-art",
         imageSimilarity,
       };
     }
   }
 
-  if (!sameIllustrator) return null;
 
   const currentLineage = buildCardLineageFingerprint(current);
   const candidateLineage = buildCardLineageFingerprint(candidate);
@@ -479,13 +472,6 @@ export function getPrintingMatchDetails(
 
   if (imageSimilarity >= STRONG_REPRINT_IMAGE_SIMILARITY) {
     return { matchType: "reprint", method: "strong-art", imageSimilarity };
-  }
-
-  if (
-    matchingLineage &&
-    imageSimilarity >= MIN_LINEAGE_VERIFIED_IMAGE_SIMILARITY
-  ) {
-    return { matchType: "reprint", method: "lineage-and-art", imageSimilarity };
   }
 
   if (matchingLineage && imageSimilarity >= LIKELY_REPRINT_IMAGE_SIMILARITY) {
@@ -762,7 +748,8 @@ export async function loadRelatedCardPrintings(
   const relations = await db.cardPrintingRelation.findMany({
     where: {
       source_card_id: current.id,
-      model_version: CARD_REPRINT_MODEL_VERSION,
+      // Recheck legacy rows at read time while the worker rebuilds evidence.
+      model_version: { in: [CARD_REPRINT_MODEL_VERSION, "reprint-v12-exact-rules"] },
       // Low-confidence visual candidates only become visible after approval.
       match_method: { not: "likely-art" },
     },
@@ -800,10 +787,8 @@ export async function loadRelatedCardPrintings(
         relation.targetCard.episode.id,
         current.artist,
         relation.targetCard.artist,
-        matchMethod
-      ) && (
-        matchMethod !== "rules-and-art" ||
-        haveSameKnownPrintingArtist(current.artist, relation.targetCard.artist)
+        matchMethod,
+        relation.image_similarity
       );
     })
     .map((relation): RelatedCardPrinting => {

@@ -53,21 +53,23 @@ describe("card printings", () => {
       .toBe(false);
   });
 
-  it("keeps cross-expansion, strong-art and explicit same-set reprints", () => {
+  it("requires artist evidence across expansions and for manual overrides", () => {
     expect(isEligiblePrintFamilyPair(
       "fusion-strike",
       "lost-origin",
       "Artist A",
       "Artist B",
-      "rules-exact"
+      "rules-exact",
+      0.99
     ))
-      .toBe(true);
+      .toBe(false);
     expect(isEligiblePrintFamilyPair(
       "fusion-strike",
       "fusion-strike",
       " 5ban Graphics ",
       "5BAN GRAPHICS",
-      "strong-art"
+      "strong-art",
+      0.95
     ))
       .toBe(true);
     expect(isEligiblePrintFamilyPair(
@@ -77,7 +79,7 @@ describe("card printings", () => {
       "Artist B",
       "manual-include"
     ))
-      .toBe(true);
+      .toBe(false);
   });
 
   it("rejects automatic same-set matches by different or unknown illustrators", () => {
@@ -140,6 +142,20 @@ describe("card printings", () => {
     )).toBeNull();
   });
 
+  it.each(["rules-exact", "rules-and-art", "lineage-and-art", "strong-art", "manual-include"])("blocks legacy cross-set different-artist %s rows", (method) => {
+    expect(isEligiblePrintFamilyPair("ascended-heroes", "phantasmal-flames", "Artist A", "Artist B", method, 0.99)).toBe(false);
+  });
+
+  it.each([0.1, 0.84, 0.919, NaN, Infinity, 1.1])("does not publish weak or invalid legacy artwork evidence %s", (similarity) => {
+    expect(isEligiblePrintFamilyPair("a", "b", "Artist A", "Artist A", "rules-exact", similarity)).toBe(false);
+  });
+
+  it("retains verified cross-set reissues while hiding review candidates", () => {
+    expect(isEligiblePrintFamilyPair("a", "b", "Artist A", "Artist A", "rules-exact", 0.95)).toBe(true);
+    expect(isEligiblePrintFamilyPair("a", "b", "Artist A", "Artist A", "likely-art", 0.95)).toBe(false);
+    expect(isEligiblePrintFamilyPair("a", "b", "Artist A", "Artist A", "manual-include")).toBe(true);
+  });
+
   it("normalizes illustrator names before comparing print evidence", () => {
     expect(haveSameKnownPrintingArtist(" 5ban Graphics ", "5BAN GRAPHICS")).toBe(true);
     expect(haveSameKnownPrintingArtist("5ban Graphics", "HYOGONOSUKE")).toBe(false);
@@ -169,14 +185,14 @@ describe("card printings", () => {
     ).toBe("swsh12.5gg-GG01");
   });
 
-  it("accepts identical rules when the artwork is visibly different", () => {
+  it("rejects identical rules when the artwork is visibly different", () => {
     expect(
       getPrintingMatchType(
         CHARIZARD_RULES,
         CHARIZARD_RULES,
         0.59
       )
-    ).toBe("reprint");
+    ).toBeNull();
   });
 
   it("matches a visually equivalent reprint when the complete card rules are equal", () => {
@@ -192,41 +208,38 @@ describe("card printings", () => {
     ).toBe("reprint");
   });
 
-  it("uses exact full rules even when alternate artwork has weak visual similarity", () => {
-    expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.12)).toMatchObject({
-      matchType: "reprint",
-      method: "rules-exact",
-    });
+  it("rejects exact rules with weak artwork similarity", () => {
+    expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.12)).toBeNull();
   });
 
-  it("links gold, promo or trainer-gallery variants when their full rules are exact", () => {
+  it("rejects alternate artwork despite exact rules", () => {
     expect(
       getPrintingMatchDetails(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: "Promo Studio" },
         0.28
       )
-    ).toMatchObject({ matchType: "reprint", method: "rules-exact" });
+    ).toBeNull();
   });
 
-  it("does not reject exact rules merely because the illustrator differs", () => {
+  it("rejects exact rules when the illustrator differs", () => {
     expect(
       getPrintingMatchDetails(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: "HYOGONOSUKE" },
         0.95
       )
-    ).toMatchObject({ matchType: "reprint", method: "rules-exact" });
+    ).toBeNull();
   });
 
-  it("links exact rules when optional illustrator data is absent", () => {
+  it("requires a known illustrator despite exact rules", () => {
     expect(
       getPrintingMatchDetails(
         CHARIZARD_RULES,
         { ...CHARIZARD_RULES, illustrator: undefined },
         0.24
       )
-    ).toMatchObject({ matchType: "reprint", method: "rules-exact" });
+    ).toBeNull();
   });
 
   it("accepts an updated reprint lineage when move names and art still match", () => {
@@ -264,18 +277,18 @@ describe("card printings", () => {
     ).toBe("reprint");
   });
 
-  it("automatically accepts exact-rule matches at every artwork similarity", () => {
+  it("keeps uncertain exact-rule artwork in review and publishes strong artwork", () => {
     expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.859)).toMatchObject({
       matchType: "reprint",
-      method: "rules-exact",
+      method: "likely-art",
     });
     expect(getPrintingMatchDetails(CHARIZARD_RULES, CHARIZARD_RULES, 0.92)).toMatchObject({
       matchType: "reprint",
-      method: "rules-exact",
+      method: "strong-art",
     });
   });
 
-  it("groups Mew VMAX regular, rainbow, alternate-art and trainer-gallery printings", () => {
+  it("does not group different-artist Mew VMAX artwork", () => {
     const mewVmax = {
       category: "Pokemon",
       name: "Mew VMAX",
@@ -306,7 +319,7 @@ describe("card printings", () => {
         { ...mewVmax, illustrator: "AKIRA EGAWA" },
         0.18
       )
-    ).toMatchObject({ matchType: "reprint", method: "rules-exact" });
+    ).toBeNull();
   });
 
   it("normalizes historical power labels before comparing otherwise identical reprints", () => {
@@ -379,7 +392,7 @@ describe("card printings", () => {
     const right = { ...left, name: "Rayquaza GX" };
 
     expect(getPrintingMatchDetails(left, right, 0.74)).toMatchObject({
-      method: "rules-exact",
+      method: "likely-art",
     });
   });
 
@@ -447,7 +460,7 @@ describe("card printings", () => {
     ).toBeNull();
   });
 
-  it("only returns direct matches while accepting exact-rule alternate artwork", () => {
+  it("only returns direct artwork candidates without alternate-artist or transitive matches", () => {
     const regular = CHARIZARD_RULES;
     const rainbow = { ...CHARIZARD_RULES };
     const gallery = {
@@ -471,7 +484,7 @@ describe("card printings", () => {
         [rainbow, regular, gallery, alternateArtwork],
         (leftIndex, rightIndex) => similarities[leftIndex][rightIndex]
       )
-    ).toEqual([1, 2, 3]);
+    ).toEqual([1]);
   });
 
   it("refuses weak identities without actual card rules", () => {
