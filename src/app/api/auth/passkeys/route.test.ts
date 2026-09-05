@@ -46,3 +46,10 @@ it("rejects a credential belonging to a disabled user", async () => {
   m.passkey.findUnique.mockResolvedValue({ user: { disabled: true } });
   expect((await post({ action: "login-verify", response: { id: "credential" } })).status).toBe(401); expect(m.verifyAuth).not.toHaveBeenCalled();
 });
+
+it("does not let an unverified password session add a replacement for an existing passkey", async () => {
+  m.requireUser.mockResolvedValue({ id: "user", mfaEnabled: true, mfaVerified: false });
+  m.user.findUniqueOrThrow.mockResolvedValue({ id: "user", mfa_enabled_at: null });
+  expect((await post({ action: "register-options", password: "correct" })).status).toBe(403);
+  expect(m.register).not.toHaveBeenCalled();
+});

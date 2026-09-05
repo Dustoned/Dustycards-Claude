@@ -33,6 +33,9 @@ async function currentSessionHash() {
 async function authorizeManagement(body: Record<string, unknown>) {
   const auth = await requireUser();
   const user = await db.user.findUniqueOrThrow({ where: { id: auth.id } });
+  if (!user.mfa_enabled_at && auth.mfaEnabled && !auth.mfaVerified) {
+    throw new PasskeyError("Sign in with your existing passkey before managing passkeys.", 403);
+  }
   const password = typeof body.password === "string" ? body.password : "";
   const code = typeof body.code === "string" ? body.code : "";
   let validMfa = !user.mfa_enabled_at;

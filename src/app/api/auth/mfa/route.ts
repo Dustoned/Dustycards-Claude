@@ -48,6 +48,9 @@ export async function POST(request: NextRequest) {
       throw error;
     }
     const user = await requireUser();
+    if (user.mfaEnabled && !user.mfaVerified) {
+      return NextResponse.json({ error: "Sign in with your existing passkey or authenticator before changing sign-in protection." }, { status: 403 });
+    }
     const throttled = await rejectThrottledMfa(request, user.id);
     if (throttled) return throttled;
     const action = body.action === "enable" ? "enable" : "prepare";

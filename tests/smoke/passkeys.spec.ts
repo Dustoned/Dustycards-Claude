@@ -27,9 +27,14 @@ test("passkey registration, verified sign-in, replay protection and removal", as
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBe(390);
     const stored = db.prepare("SELECT id,user_id FROM Passkey WHERE user_id = ?").get(id) as { id: string; user_id: string };
     expect(stored.user_id).toBe(id);
+    // The original password session may not replace or bypass the new passkey.
+    const unverifiedMfaSetup = await context.request.post(`${baseURL}/api/auth/mfa`, { headers: { Origin: baseURL }, data: { action: "prepare" } });
+    expect(unverifiedMfaSetup.status()).toBe(403);
+    const unverifiedPasskeySetup = await context.request.post(`${baseURL}/api/auth/passkeys`, { headers: { Origin: baseURL }, data: { action: "register-options", password } });
+    expect(unverifiedPasskeySetup.status()).toBe(403);
     // A wrong password cannot start a second enrollment or remove a credential.
     const wrong = await context.request.post(`${baseURL}/api/auth/passkeys`, { headers: { Origin: baseURL }, data: { action: "register-options", password: "wrong" } });
-    expect(wrong.status()).toBe(401);
+    expect(wrong.status()).toBe(403);
     await context.clearCookies();
     await page.goto("/login");
     let assertion: unknown;

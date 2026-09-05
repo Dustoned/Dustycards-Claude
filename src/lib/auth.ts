@@ -67,13 +67,14 @@ function toAuthUser(user: {
   role: string;
   disabled: boolean;
   mfa_enabled_at: Date | null;
+  _count?: { passkeys: number };
 }, session: { created_at: Date; mfa_verified_at: Date | null; passkey_id?: string | null }): AuthUser {
   return {
     id: user.id,
     email: user.email,
     role: user.role === "admin" ? "admin" : "user",
     disabled: user.disabled,
-    mfaEnabled: Boolean(user.mfa_enabled_at || session.passkey_id),
+    mfaEnabled: Boolean(user.mfa_enabled_at || user._count?.passkeys || session.passkey_id),
     mfaVerified: Boolean(session.mfa_verified_at),
     sessionCreatedAt: session.created_at,
   };
@@ -161,6 +162,7 @@ export const getCurrentUser = cache(async function getCurrentUser(): Promise<Aut
           role: true,
           disabled: true,
           mfa_enabled_at: true,
+          _count: { select: { passkeys: true } },
         },
       },
     },
