@@ -626,6 +626,7 @@ export function buildPriceScenario(input: {
   riskScore: number;
   evidenceCount: number;
   historyPoints: number;
+  priceAgeDays?: number | null;
   ebayDemandAdjustment?: number;
   competitiveScore?: number | null;
   catalystScore?: number | null;
@@ -901,8 +902,11 @@ export function buildPriceScenario(input: {
       : input.evidenceCount >= 2 || input.historyPoints >= 5
         ? "Medium"
         : "Low";
+  const priceRefreshDue = input.priceAgeDays === null ||
+    (input.priceAgeDays !== undefined &&
+      (!Number.isFinite(input.priceAgeDays) || input.priceAgeDays < 0 || input.priceAgeDays > 3));
   const confidence: ExternalPriceScenario["confidence"] =
-    volatility != null && volatility > 8
+    priceRefreshDue || (volatility != null && volatility > 8)
       ? "Low"
       : input.ageYears != null && input.ageYears < 1 && calculatedConfidence === "High"
         ? "Medium"
@@ -994,6 +998,7 @@ export function buildPriceScenario(input: {
     };
   });
   const drivers = [
+    priceRefreshDue ? "price refresh due" : null,
     input.sealedTrendPct != null ? "sealed trend" : null,
     input.rawTrend90dPct != null ? "market history" : null,
     input.scarcityScore >= 60 ? "structural scarcity" : null,

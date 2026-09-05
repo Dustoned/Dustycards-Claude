@@ -862,6 +862,10 @@ async function enrichSignalsWithMarketIntelligenceUncached(
     const rawTrend90dPct = calculateRobustPriceTrend(rawHistory, 90)?.percent ?? null;
     const rawTrend180dPct = calculateRobustPriceTrend(rawHistory, 180)?.percent ?? null;
     const latestRaw = card.prices[0];
+    const rawQuoteAt = card.prices.find((price) => isUsableMarketValue(
+      signal.currency === "EUR" ? price.cm_en_lowest_nm : price.tcp_market
+    ))?.fetched_at;
+    const gradedQuoteAt = psa10?.fetched_at ?? cardMarketPsa10?.fetched_at;
     const latestRawDay = rawHistory.at(-1)?.day.getTime() ?? null;
     const recentEnglishNmValues =
       latestRawDay == null
@@ -1046,6 +1050,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       riskScore: signal.riskScore ?? 0,
       evidenceCount: rawEvidenceCount,
       historyPoints: rawHistory.length,
+      priceAgeDays: rawQuoteAt ? (now.getTime() - rawQuoteAt.getTime()) / DAY_MS : null,
       ebayDemandAdjustment: ebayDemand.scoreAdjustment,
       competitiveScore:
         signal.sourceMode === "competitive" || signal.sourceMode === "hybrid"
@@ -1078,6 +1083,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       riskScore: signal.riskScore ?? 0,
       evidenceCount: gradedEvidenceCount + ((graded.sampleSize ?? 0) >= 2 ? 1 : 0),
       historyPoints: psa10 ? countPsa10HistoryDays(card.ebaySoldGradedPriceSnapshots, graded.currency, now) : 0,
+      priceAgeDays: gradedQuoteAt ? (now.getTime() - gradedQuoteAt.getTime()) / DAY_MS : null,
       ebayDemandAdjustment: gradedEbayDemand.scoreAdjustment,
       competitiveScore:
         signal.sourceMode === "competitive" || signal.sourceMode === "hybrid"

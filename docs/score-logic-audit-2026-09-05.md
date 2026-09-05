@@ -8,7 +8,7 @@ De keten van prijsdata naar Buy/Sell/Hold, DustyCards Market-score, opgeslagen z
 
 1. **eBay-bewijs in Market:** een oude of afgekapt aangeleverde inventaris kon de score en het vertrouwen verhogen. Alleen een volledige, geldig gedateerde inventaris van maximaal 72 uur oud telt nog mee. Een vraagtrend vereist zeven complete unieke dagen in het relevante weekvenster; de payload bewaart nu ook of een historische dag is afgekapt.
 2. **Geschatte balken in zoekresultaten:** vraag en liquiditeit op basis van prijs-/dekkingsproxies bleven neutraal in de totaalscore, maar werden wel opgeslagen als actieve marktvraag. De achtergrondtaak bewaart voor deze rangschikkingsvelden nu uitsluitend de rechtstreeks onderbouwde waarden. De bestaande achtergrondtaak vernieuwt opgeslagen kaartscores in batches; bestaande databasewaarden veranderen pas bij die herberekening.
-3. **Oude prijshistorie:** verse inventaris gaf een kaart met oude prijzen opnieuw veel vertrouwen. Prijshistorie ouder dan 30 dagen begrenst het vertrouwen nu op laag.
+3. **Oude prijshistorie:** verse inventaris gaf een kaart met oude prijzen opnieuw veel vertrouwen. Prijshistorie ouder dan 30 dagen begrenst het Market-vertrouwen nu op laag. Raw/graded Radar vereist bovendien een bekende quote van maximaal 72 uur oud voor een scenario boven laag vertrouwen; de bestaande scenario-koppeling voorkomt daarmee een actueel Breakout-label op oude prijzen.
 4. **Dubbel getelde graded bron:** het aantal verkochte exemplaren telde als extra onafhankelijke prijsbron. Een eBay-bron telt nu één keer. Zonder bruikbare huidige prijs is het aantal bronnen nul.
 5. **Verkeerde tijdvensters:** een beweging van één dag kon als 7d en 30d worden gepresenteerd. De berekening vereist nu passende tijddekking en verwerpt een te oude referentie over een groot gat.
 6. **Ongeldige prijzen:** nul, negatieve waarden, de ontbrekende-prijswaarde 9001 en niet-eindige waarden tellen niet als bruikbare Buy/Sell-prijs. Scenario's met onbruikbare invoer of niet-eindige doelprijzen worden niet gepubliceerd.
@@ -34,6 +34,6 @@ Deze kleine, overlappende selectie is geen representatieve onafhankelijke valida
 
 ## Validatie en operationele grenzen
 
-Er zijn 22 gerichte regressiegevallen toegevoegd. Alle 249 unit-testbestanden en 1.574 tests slagen; lint en TypeScript slagen. De productiebuild en browserregressies worden opnieuw voor de gewijzigde commit gecontroleerd.
+Er zijn 23 gerichte regressiegevallen toegevoegd. De volledige unit-suite, lint, TypeScript, productiebuild en browserregressies worden voor de definitieve commit gecontroleerd. De voorafgaande scorecommit slaagde lokaal voor 1.574 unittests en 31 productiebrowserchecks; de laatste toevoeging controleert quote-versheid in raw/graded scenario's.
 
 Er is niets naar productie gedeployd. Live mailbezorging en herstel van de productiebackup blijven onbewezen door ontbrekende leestoegang. De eerder gevonden ontwikkelserver-hydratiemismatch is niet als verholpen aangemerkt; de productiecontroles gebruiken de gebouwde app.

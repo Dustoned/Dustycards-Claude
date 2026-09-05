@@ -19,6 +19,20 @@ import {
 import type { ExternalPriceScenario } from "@/lib/external-signal-radar";
 
 describe("external market intelligence", () => {
+  it("requires a current quote before strong structural evidence can support a breakout", () => {
+    const input = { marketMode: "raw" as const, currentPrice: 100, currency: "EUR" as const,
+      ageYears: 5, opportunityScore: 95, sealedTrendPct: 20, rawTrend90dPct: 30,
+      scarcityScore: 90, gemRatePct: null, riskScore: 0, evidenceCount: 5, historyPoints: 40,
+    };
+    const fresh = buildPriceScenario({ ...input, priceAgeDays: 1 });
+    expect(fresh?.confidence).toBe("High");
+    for (const priceAgeDays of [null, 4, 30, NaN]) {
+      const stale = buildPriceScenario({ ...input, priceAgeDays });
+      expect(stale?.confidence).toBe("Low");
+      expect(stale?.drivers).toContain("price refresh due");
+      expect(alignOpportunityScoreWithScenario(95, stale)).toBeLessThan(80);
+    }
+  });
   it("counts independent days of the selected grade and currency, not repeated refreshes or other grades", () => {
     const quote = { company: "PSA", grade: "10", currency: "EUR", median_price: 100, fetched_at: new Date("2026-01-01T10:00:00Z") };
     expect(countPsa10HistoryDays([
