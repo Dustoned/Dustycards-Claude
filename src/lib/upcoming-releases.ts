@@ -6,6 +6,7 @@ import { readStoredUpcomingReveals } from "@/lib/upcoming-source-reveals";
 import { groupUpcomingSingles } from "@/lib/upcoming-single-groups";
 import { shouldShowUpcomingSourceReveal } from "@/lib/upcoming-reveal-policy";
 import { resolveUpcomingLibraryReferenceKind } from "@/lib/upcoming-card-links";
+import { createUpcomingCatalogPolicy } from "@/lib/upcoming-catalog-policy";
 
 export type UpcomingSingleStatus = "confirmed" | "reveal" | "leak" | "upcoming";
 export type UpcomingStoryStatus = "confirmed" | "reveal" | "rumour" | "release";
@@ -151,7 +152,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
   const releaseCutoff = `${todayKey.year}-${todayKey.month}-${todayKey.day}`;
   const sourceCutoff = new Date(now.getTime() - 180 * 24 * 60 * 60_000);
 
-  const [upcomingEpisodes, eligibleCatalystCards, sourceRows] = await Promise.all([
+  const [upcomingEpisodes, eligibleCatalystCards, sourceRows, catalogSets] = await Promise.all([
     db.episode.findMany({
       where: {
         game: "pokemon",
@@ -221,7 +222,12 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
         last_seen_at: true,
       },
     }),
+    db.episode.findMany({
+      where: { game: "pokemon", release_date: { not: null } },
+      select: { name: true, release_date: true },
+    }),
   ]);
+  const catalogPolicy = createUpcomingCatalogPolicy(catalogSets, releaseCutoff);
 
   const eligibleCatalystCardIds = eligibleCatalystCards.map((card) => card.id);
   const catalysts = eligibleCatalystCardIds.length
@@ -250,7 +256,10 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
     : [];
   const storedSourceRows = sourceRows.map((source) => ({
     source,
-    reveals: readStoredUpcomingReveals(source.metadata_json),
+    reveals: readStoredUpcomingReveals(source.metadata_json).map((reveal) => ({
+      ...reveal,
+      episodeName: reveal.episodeName ?? source.title,
+    })),
   }));
   const revealNames = [...new Set(storedSourceRows.flatMap(({ reveals }) =>
     reveals.map((reveal) => reveal.name)
@@ -363,7 +372,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
       .filter(Boolean)
       .join(" ");
     for (const [index, reveal] of reveals.entries()) {
-      if (!isUnreleasedUpcomingSingleDate(reveal.releaseDate, releaseCutoff)) {
+      if (!catalogPolicy.isUpcoming(reveal)) {
         continue;
       }
       const revealKey = `${reveal.name.trim().toLowerCase()}\u0000${reveal.cardNumber?.trim().toLowerCase() ?? ""}`;
@@ -447,7 +456,7 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
         // local episode/card ids are only the destination for Card Detail.
         episodeName: reveal.episodeName ?? source.title?.trim() ?? resolvedCard?.episode.name ?? "Source reveal",
         episodeCode: null,
-        releaseDate: reveal.releaseDate ?? resolvedCard?.episode.release_date ?? null,
+        releaseDate: catalogPolicy.releaseDate(reveal) ?? resolvedCard?.episode.release_date ?? null,
         status:
           source.source_type === "official"
             ? "confirmed"
@@ -463,11 +472,12 @@ export async function getUpcomingReleaseFeed(now = new Date()): Promise<Upcoming
     }
   }
 
-  const stories: UpcomingSourceStory[] = sourceRows
-    .flatMap((source) => {
+  const stories: UpcomingSourceStory[] = storedSourceRows
+    .flatMap(({ source, reveals }) => {
       if (source.published_at && source.published_at < sourceCutoff) return [];
       const title = source.title?.trim();
       if (!title) return [];
+      if (!catalogPolicy.showStory(title, reveals)) return [];
       const text = [title, source.description, source.content_excerpt].filter(Boolean).join(" ");
       if (!RELEVANT_SOURCE_PATTERN.test(text)) return [];
       return [{

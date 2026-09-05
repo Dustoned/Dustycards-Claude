@@ -23,7 +23,11 @@ export async function POST(
 ) {
   try {
     const user = await requireUser();
-    const { cardId } = await params;
+    const { cardId: rawCardId } = await params;
+    let cardId: string;
+    try { cardId = decodeURIComponent(rawCardId); } catch {
+      return NextResponse.json({ ok: false, error: "Invalid card id." }, { status: 400 });
+    }
     if (!cardId.trim()) {
       return NextResponse.json({ ok: false, error: "A card id is required." }, { status: 400 });
     }

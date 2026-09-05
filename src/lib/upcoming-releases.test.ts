@@ -26,6 +26,29 @@ describe("getUpcomingReleaseFeed", () => {
     dbMocks.findCatalysts.mockReset();
   });
 
+  it("automatically retires released galleries and stories using the set catalog", async () => {
+    dbMocks.findEpisodes.mockResolvedValueOnce([]).mockResolvedValueOnce([
+      { name: "Pitch Black", release_date: "2026-07-17" },
+      { name: "Future Set", release_date: "2026-10-01" },
+    ]);
+    dbMocks.findCards.mockResolvedValue([]);
+    dbMocks.findCatalysts.mockResolvedValue([]);
+    dbMocks.findSources.mockResolvedValue([
+      ["old", "Pokémon Pitch Black Card List: All 120 Cards & Rarities", null],
+      ["future", "Future Set gallery", null],
+      ["event", "Worlds promo cards revealed", "2026-08-28"],
+    ].map(([id, title, date]) => ({
+      id, title, canonical_url: `https://example.com/${id}`, domain: "example.com",
+      source_type: "community", description: null, content_excerpt: null,
+      published_at: new Date("2026-08-01"), last_seen_at: new Date("2026-09-05"),
+      metadata_json: JSON.stringify({ upcomingReveals: [{ name: `${id} card`, imageUrl: `https://example.com/${id}.png`, episodeName: null, releaseDate: date, status: "reveal" }] }),
+    })));
+    const feed = await getUpcomingReleaseFeed(new Date("2026-09-05T12:00:00Z"));
+    expect(feed.singles.map((item) => item.name)).toEqual(["future card"]);
+    expect(feed.singles[0].releaseDate).toBe("2026-10-01");
+    expect(feed.stories.map((item) => item.id)).toEqual(["future"]);
+  });
+
   it("never returns released cards as Upcoming Singles through catalyst or source paths", async () => {
     dbMocks.findEpisodes.mockResolvedValue([]);
     dbMocks.findCards
