@@ -12,7 +12,7 @@ function pair(left: string, right: string) {
 
 export async function GET() {
   try {
-    await requireAdmin();
+    const user = await requireAdmin();
     const [relations, overrides] = await Promise.all([
       db.cardPrintingRelation.findMany({
         where: {
@@ -25,7 +25,11 @@ export async function GET() {
         },
       }),
       db.cardPrintingOverride.findMany({
-        select: { source_card_id: true, target_card_id: true, decision: true },
+        orderBy: [{ updated_at: "desc" }, { id: "desc" }],
+        include: {
+          sourceCard: { select: { id: true, name: true, artist: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
+          targetCard: { select: { id: true, name: true, artist: true, card_number: true, image_url: true, episode: { select: { name: true } } } },
+        },
       }),
     ]);
     const candidates = relations.filter(relation => {
@@ -48,23 +52,62 @@ export async function GET() {
       };
     });
     const allItems = collapseReprintReviewCandidates({
-      candidates,
+      candidates: [
+        ...overrides.filter((override) => override.decision === "review").map((override) => ({
+          sourceCardId: override.source_card_id, targetCardId: override.target_card_id,
+          value: { source: override.sourceCard, target: override.targetCard, matchMethod: "returned-for-review", imageSimilarity: 0 },
+        })),
+        ...candidates,
+      ],
       confirmedPairs: [],
-      decisions: overrides.map((override) => ({
+      decisions: overrides.filter((override) => override.decision !== "review").map((override) => ({
         sourceCardId: override.source_card_id,
         targetCardId: override.target_card_id,
         decision: override.decision,
       })),
-      limit: Math.max(1, candidates.length),
+      limit: Math.max(1, candidates.length + overrides.length),
     });
     return NextResponse.json({
       ok: true,
       count: allItems.length,
-      reviewedCount: overrides.length,
+      reviewedCount: overrides.filter((override) => override.decision !== "review").length,
+      history: overrides.filter((override) => override.user_id === user.id && ["include", "exclude"].includes(override.decision)).slice(0, 20).map((override) => ({
+        id: override.id, updatedAt: override.updated_at.toISOString(), decision: override.decision,
+        source: override.sourceCard, target: override.targetCard,
+      })),
       items: allItems.slice(0, 100),
     });
   } catch (error) {
     return authErrorResponse(error) ?? NextResponse.json({ error: "Could not load reprint review" }, { status: 500 });
+  }
+}
+
+export async function DELETE(request: NextRequest) {
+  try {
+    const user = await requireAdmin();
+    const body = await request.json().catch(() => ({}));
+    if (typeof body.id !== "string" || typeof body.updatedAt !== "string" || !Number.isFinite(Date.parse(body.updatedAt))) {
+      return NextResponse.json({ error: "A review and its version are required" }, { status: 400 });
+    }
+    const restored = await db.$transaction(async (tx) => {
+      const review = await tx.cardPrintingOverride.findFirst({ where: {
+        id: body.id, user_id: user.id, decision: { in: ["include", "exclude"] },
+      } });
+      if (!review || review.updated_at.getTime() !== Date.parse(body.updatedAt)) return false;
+      const changed = await tx.cardPrintingOverride.updateMany({
+        where: { id: review.id, user_id: user.id, decision: review.decision },
+        data: { decision: "review", reason: `Returned for review after undoing ${review.decision}` },
+      });
+      if (!changed.count) return false;
+      await tx.cardPrintingRelation.deleteMany({ where: { OR: [
+        { source_card_id: review.source_card_id, target_card_id: review.target_card_id },
+        { source_card_id: review.target_card_id, target_card_id: review.source_card_id },
+      ] } });
+      return true;
+    });
+    return restored ? NextResponse.json({ ok: true }) : NextResponse.json({ error: "This review has changed. Refresh and try again." }, { status: 409 });
+  } catch (error) {
+    return authErrorResponse(error) ?? NextResponse.json({ error: "Could not undo reprint review" }, { status: 500 });
   }
 }
 
@@ -89,7 +132,7 @@ export async function POST(request: NextRequest) {
       await tx.cardPrintingOverride.upsert({
         where: { source_card_id_target_card_id: { source_card_id: sourceCardId, target_card_id: targetCardId } },
         create: { user_id: user.id, source_card_id: sourceCardId, target_card_id: targetCardId, decision },
-        update: { user_id: user.id, decision },
+        update: { user_id: user.id, decision, reason: null },
       });
       await tx.cardPrintingRelation.deleteMany({
         where: {

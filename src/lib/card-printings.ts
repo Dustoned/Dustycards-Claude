@@ -760,7 +760,13 @@ export async function loadRelatedCardPrintings(
       },
     },
   });
+  const blockedPairs = db.cardPrintingOverride?.findMany ? await db.cardPrintingOverride.findMany({
+    where: { decision: { in: ["exclude", "review"] }, OR: [{ source_card_id: current.id }, { target_card_id: current.id }] },
+    select: { source_card_id: true, target_card_id: true },
+  }) : [];
+  const blockedIds = new Set(blockedPairs.map((override) => override.source_card_id === current.id ? override.target_card_id : override.source_card_id));
   return relations
+    .filter((relation) => !blockedIds.has(relation.targetCard.id))
     .filter((relation) => {
       const matchMethod = relation.match_method as CardPrintingMatchMethod;
       return isEligiblePrintFamilyPair(
