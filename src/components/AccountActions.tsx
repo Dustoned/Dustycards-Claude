@@ -194,11 +194,11 @@ export default function AccountActions({
             <h2 className="text-base font-semibold text-white">Authenticator protection</h2>
           </div>
           <p className="mt-1 text-sm text-white/45">
-            {isAdmin ? "Required before admin controls can be used." : "Protect your account with a second sign-in factor."}
+            {isAdmin ? "Protect password sign-in before using admin controls." : "Protect your account with a second sign-in factor."}
           </p>
         </div>
         <span className={`inline-flex w-fit rounded-full border px-2.5 py-1 text-xs font-semibold ${mfaEnabled ? "border-emerald-400/20 bg-emerald-400/[0.08] text-emerald-200" : "border-amber-400/20 bg-amber-400/[0.08] text-amber-200"}`}>
-          {mfaEnabled ? "Enabled" : isAdmin ? "Setup required" : "Not enabled"}
+          {mfaEnabled ? "Enabled" : "Not enabled"}
         </span>
       </div>
 
