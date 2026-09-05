@@ -220,6 +220,9 @@ async function getCardDetailCostBasis(
 }
 
 export async function getCardDetailPayload(id: string, userId: string) {
+  // Next route params can retain percent encoding. Scoped One Piece IDs
+  // contain a colon, which every card link correctly encodes as %3A.
+  try { id = decodeURIComponent(id); } catch { return null; }
   const card = await db.card.findUnique({
     where: { id },
     select: {
@@ -710,6 +713,7 @@ export async function getCardDetailPayload(id: string, userId: string) {
 }
 
 export async function getCardRelatedPrintingsPayload(id: string) {
+  try { id = decodeURIComponent(id); } catch { return null; }
   const card = await db.card.findUnique({
     where: { id },
     select: {

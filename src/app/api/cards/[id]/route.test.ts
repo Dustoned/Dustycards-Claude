@@ -308,6 +308,15 @@ describe("GET /api/cards/[id]", () => {
     ]);
   });
 
+  it("decodes scoped IDs before loading a card and rejects malformed encoding", async () => {
+    dbMock.card.findUnique.mockResolvedValue(null);
+    await getCardDetailPayload("one-piece%3A28995", "user-1");
+    expect(dbMock.card.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "one-piece:28995" } }));
+    dbMock.card.findUnique.mockClear();
+    expect(await getCardDetailPayload("bad%ZZ", "user-1")).toBeNull();
+    expect(dbMock.card.findUnique).not.toHaveBeenCalled();
+  });
+
   it("keeps the newest usable English NM quote when the latest source snapshot has none", async () => {
     const card = makeCardRecord();
     card.prices.push({

@@ -38,6 +38,26 @@ const test = base.extend<{ uiAccount: string }>({
 // Fault-injection routes must reach Playwright, including in production builds.
 test.use({ serviceWorkers: "block" });
 
+test("One Piece Radar detail accepts scoped card IDs", async ({ page, uiAccount }) => {
+  const db = new Database(process.env.DUSTYCARDS_DATABASE_PATH!);
+  const id = `one-piece:radar-${randomUUID()}`;
+  try {
+    db.prepare("UPDATE User SET settings_json=? WHERE id=?").run(JSON.stringify({ onePieceLibraryEnabled: true }), uiAccount);
+    db.prepare("INSERT INTO Episode (id,game,name,release_date) VALUES (?,'one-piece','Radar regression set','2026-01-01')").run(id);
+    db.prepare("INSERT INTO Card (id,game,name,episode_id,updated_at) VALUES (?,'one-piece','Radar regression Luffy',?,?)").run(id, id, new Date().toISOString());
+    const errors: string[] = [];
+    page.on("pageerror", (error) => errors.push(error.message));
+    await page.goto(`/movers/signal-radar/${encodeURIComponent(id)}?game=one-piece`);
+    await expect(page.locator("[data-card-detail-shell]:not([data-detail-loading]):visible")).toBeVisible({ timeout: 60_000 });
+    await expect(page.getByRole("heading", { name: "Radar regression Luffy", exact: true })).toBeVisible();
+    expect(errors).toEqual([]);
+  } finally {
+    db.prepare("DELETE FROM Card WHERE id=?").run(id);
+    db.prepare("DELETE FROM Episode WHERE id=?").run(id);
+    db.close();
+  }
+});
+
 test("3D texture failure ends loading and can be retried", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   let attempts = 0;

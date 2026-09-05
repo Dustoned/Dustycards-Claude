@@ -100,6 +100,11 @@ DeploySha="${1:-${DUSTYCARDS_DEPLOY_SHA:-}}"
 DeployArchive="${DUSTYCARDS_DEPLOY_ARCHIVE:-/tmp/dustycards-deploy.tar.gz}"
 
 # Read-only aggregate inspection of public card relationships; no account data.
+if [ "${1:-}" = "--audit-upcoming-radar" ]; then
+  cd "$RemoteAppPath"
+  exec /usr/bin/node --no-warnings scripts/audit-upcoming-radar.mjs
+fi
+
 if [ "${1:-}" = "--audit-reprints" ]; then
   cd "$RemoteAppPath"
   exec /usr/bin/node --no-warnings scripts/audit-reprint-families.mjs
