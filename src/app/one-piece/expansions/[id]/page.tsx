@@ -1,6 +1,7 @@
 ﻿import Image from "next/image";
+import Link from "next/link";
 import { notFound } from "next/navigation";
-import { ArrowLeft, Calendar, CalendarClock, Coins, Layers } from "lucide-react";
+import { ArrowLeft, Calendar, CalendarClock, Coins, Layers, Package } from "lucide-react";
 import {
   HeaderStatCard,
   PageHeroHeader,
@@ -9,15 +10,19 @@ import BackNavigationLink from "@/components/BackNavigationLink";
 import { formatCollectionCurrency } from "@/lib/collection";
 import { db } from "@/lib/db";
 import { getEpisodeSetPriceSnapshotRows } from "@/lib/episode-set-prices";
+import { loadExpansionSealedProducts } from "@/lib/expansion-sealed-products";
 import { ONE_PIECE_GAME } from "@/lib/games";
 import { getCachedImageUrl } from "@/lib/image-cache";
 import { requirePageUser } from "@/lib/page-auth";
 import { buildEpisodeSetPriceHistory } from "@/lib/price-history";
 import { formatReleaseLabel, isFutureReleaseDate } from "@/lib/release-dates";
+import { getGroupedSealedProducts, resolveSealedFilter } from "@/lib/sealed-products";
 import { getServerUserSettings } from "@/lib/user-settings-server";
+import type { NormalizedSealedProduct } from "@/lib/tcggo";
 import type { CardData } from "@/types/card-data";
 import PriceHistoryPanel from "@/components/PriceHistoryPanel";
 import ExpansionCardsSection from "@/app/expansions/[id]/ExpansionCardsSection";
+import SealedProductsGrid from "@/app/expansions/[id]/SealedProductsGrid";
 
 export const dynamic = "force-dynamic";
 
@@ -156,12 +161,18 @@ function getKnownEpisodeCardCount(episode: {
 
 export default async function OnePieceExpansionDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ tab?: string; sealed?: string }>;
 }) {
   const { id: rawId } = await params;
   const id = decodeURIComponent(rawId);
-  const user = await requirePageUser(`/one-piece/expansions/${rawId}`);
+  const { tab, sealed } = await searchParams;
+  const requestedTab = tab === "sealed" ? "sealed" : "cards";
+  const user = await requirePageUser(
+    `/one-piece/expansions/${rawId}${requestedTab === "sealed" ? "?tab=sealed" : ""}`
+  );
   const settings = await getServerUserSettings(user.id);
   if (!settings.onePieceLibraryEnabled) {
     notFound();
@@ -171,7 +182,7 @@ export default async function OnePieceExpansionDetailPage({
     where: { id, game: ONE_PIECE_GAME },
     include: {
       _count: {
-        select: { cards: true },
+        select: { cards: true, sealedProducts: true },
       },
     },
   });
@@ -179,6 +190,18 @@ export default async function OnePieceExpansionDetailPage({
   if (!episode) {
     notFound();
   }
+
+  // Sealed products arrive through the daily sealed sync and the
+  // just-released check; the tab only appears once something is stored.
+  const hasSealed = episode._count.sealedProducts > 0;
+  const activeTab = requestedTab === "sealed" && hasSealed ? "sealed" : "cards";
+  const sealedProducts: NormalizedSealedProduct[] =
+    activeTab === "sealed" ? await loadExpansionSealedProducts(id, ONE_PIECE_GAME) : [];
+  const activeSealedFilter =
+    activeTab === "sealed"
+      ? resolveSealedFilter(sealed, getGroupedSealedProducts(sealedProducts))
+      : "all";
+  const sealedCountFormatted = episode._count.sealedProducts.toLocaleString("en-US");
 
   const cardCountDenominator =
     episode._count.cards > 0 ? episode._count.cards : getKnownEpisodeCardCount(episode);
@@ -318,7 +341,21 @@ export default async function OnePieceExpansionDetailPage({
               Icon={Layers}
               tone="sky"
             />
-            {releaseLabel ? (
+            {hasSealed && activeTab !== "sealed" ? (
+              <Link
+                href={`/one-piece/expansions/${encodeURIComponent(id)}?tab=sealed`}
+                prefetch={false}
+                className="group h-full min-w-0 rounded-[var(--ui-header-stat-radius)] no-underline outline-none transition-transform hover:-translate-y-0.5 focus-visible:ring-2 focus-visible:ring-violet-300/45"
+                aria-label={`Open sealed products for ${episode.name}`}
+              >
+                <HeaderStatCard
+                  label="Sealed"
+                  value={sealedCountFormatted}
+                  Icon={Package}
+                  tone="violet"
+                />
+              </Link>
+            ) : releaseLabel ? (
               <HeaderStatCard
                 label={releaseMetricLabel}
                 value={releaseLabel}
@@ -331,7 +368,41 @@ export default async function OnePieceExpansionDetailPage({
         sideClassName="grid min-w-0 auto-rows-fr grid-cols-2 gap-2 sm:gap-3 xl:grid-rows-2 xl:gap-3"
       />
 
-      {cards.length === 0 ? (
+      {hasSealed ? (
+        <div className="mb-4 inline-flex rounded-[calc(var(--ui-segment-radius)+0.25rem)] border border-white/8 bg-white/[0.045] p-[var(--ui-segment-shell-padding)]">
+          <Link
+            href={`/one-piece/expansions/${encodeURIComponent(id)}`}
+            prefetch={false}
+            className={`rounded-[var(--ui-segment-radius)] border border-transparent px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
+              activeTab === "cards"
+                ? "border-violet-400/40 bg-violet-600 text-white"
+                : "text-white/55 hover:bg-white/[0.07] hover:text-white"
+            }`}
+          >
+            Cards
+          </Link>
+          <Link
+            href={`/one-piece/expansions/${encodeURIComponent(id)}?tab=sealed`}
+            prefetch={false}
+            className={`rounded-[var(--ui-segment-radius)] border border-transparent px-[var(--ui-segment-x)] py-[var(--ui-segment-y)] text-[length:var(--ui-segment-font-size)] font-semibold leading-none transition-colors ${
+              activeTab === "sealed"
+                ? "border-violet-400/40 bg-violet-600 text-white"
+                : "text-white/55 hover:bg-white/[0.07] hover:text-white"
+            }`}
+          >
+            Sealed
+          </Link>
+        </div>
+      ) : null}
+
+      {activeTab === "sealed" ? (
+        <SealedProductsGrid
+          key={`${episode.id}:sealed`}
+          products={sealedProducts}
+          activeFilter={activeSealedFilter}
+          episode={{ id: episode.id, name: episode.name, code: episode.code }}
+        />
+      ) : cards.length === 0 ? (
         <div className="glass rounded-3xl p-8 text-center shadow-md shadow-black/5 sm:p-12">
           <p className="mb-1 font-semibold text-gray-800 dark:text-white">No cards loaded yet</p>
           <p className="mx-auto max-w-lg text-sm leading-6 text-gray-500 dark:text-white/52">

@@ -11,11 +11,11 @@ import BackNavigationLink from "@/components/BackNavigationLink";
 import { db } from "@/lib/db";
 import { getEpisodeSetPriceSnapshotRows } from "@/lib/episode-set-prices";
 import { isHiddenExpansion } from "@/lib/episodes";
+import { loadExpansionSealedProducts } from "@/lib/expansion-sealed-products";
 import {
   getGameFromScopedId,
   getGameLabel,
   POKEMON_GAME,
-  type TradingCardGame,
 } from "@/lib/games";
 import {
   buildEpisodeSealedSetPriceHistory,
@@ -44,45 +44,6 @@ import SealedProductsGrid from "./SealedProductsGrid";
 import SyncEpisodeButton from "./SyncEpisodeButton";
 
 export const dynamic = "force-dynamic";
-
-function toNormalizedSealedProduct(product: {
-  id: string;
-  name: string;
-  image_url: string | null;
-  tcggo_url: string | null;
-  cardmarket_url: string | null;
-  cardmarket_id: string | null;
-  tcgplayer_id: string | null;
-  cm_lowest: number | null;
-  cm_lowest_eu: number | null;
-  cm_lowest_de: number | null;
-  cm_lowest_fr: number | null;
-  cm_lowest_es: number | null;
-  cm_lowest_it: number | null;
-  cm_avg_7d: number | null;
-  cm_avg_30d: number | null;
-}, game: TradingCardGame = POKEMON_GAME): NormalizedSealedProduct {
-  return {
-    id: product.id,
-    game,
-    name: product.name,
-    image_url: product.image_url,
-    tcggo_url: product.tcggo_url,
-    cardmarket_url: product.cardmarket_url,
-    cardmarket_id: product.cardmarket_id,
-    tcgplayer_id: product.tcgplayer_id,
-    price: {
-      cm_lowest: product.cm_lowest,
-      cm_lowest_eu: product.cm_lowest_eu,
-      cm_lowest_de: product.cm_lowest_de,
-      cm_lowest_fr: product.cm_lowest_fr,
-      cm_lowest_es: product.cm_lowest_es,
-      cm_lowest_it: product.cm_lowest_it,
-      cm_avg_7d: product.cm_avg_7d,
-      cm_avg_30d: product.cm_avg_30d,
-    },
-  };
-}
 
 function getKnownEpisodeCardCount(episode: {
   card_count: number | null;
@@ -288,34 +249,8 @@ export default async function ExpansionDetailPage({
   const hasLocalSealedProducts = episode._count.sealedProducts > 0;
   let sealedProducts: NormalizedSealedProduct[] = [];
 
-  if (requestedTab === "sealed") {
-    if (hasLocalSealedProducts) {
-      const localSealedProducts = await db.sealedProduct.findMany({
-        where: { episode_id: id },
-        orderBy: [{ name: "asc" }, { id: "asc" }],
-        select: {
-          id: true,
-          name: true,
-          image_url: true,
-          tcggo_url: true,
-          cardmarket_url: true,
-          cardmarket_id: true,
-          tcgplayer_id: true,
-          cm_lowest: true,
-          cm_lowest_eu: true,
-          cm_lowest_de: true,
-          cm_lowest_fr: true,
-          cm_lowest_es: true,
-          cm_lowest_it: true,
-          cm_avg_7d: true,
-          cm_avg_30d: true,
-        },
-      });
-
-      sealedProducts = localSealedProducts.map((product) =>
-        toNormalizedSealedProduct(product, episodeGame)
-      );
-    }
+  if (requestedTab === "sealed" && hasLocalSealedProducts) {
+    sealedProducts = await loadExpansionSealedProducts(id, episodeGame);
   }
 
   const hasSealed = hasLocalSealedProducts || sealedProducts.length > 0;
