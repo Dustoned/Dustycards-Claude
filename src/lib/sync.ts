@@ -53,6 +53,7 @@ import {
 } from "@/lib/sync/card-helpers";
 import { buildCardEpisodeAssignment } from "@/lib/card-episode-overrides";
 import { reconcileSealedReleaseWatchMatches } from "@/lib/sealed-release-matching";
+import { SEALED_SYNC_GAMES } from "@/lib/sync/sealed-sync-scope";
 import {
   AUTHORITATIVE_DIRECT_CARDMARKET_SOURCES,
   hasPriceSourceProvenanceChanged,
@@ -5383,7 +5384,7 @@ export async function runSealedSync(options?: {
 
       const episodes = (
         await db.episode.findMany({
-          where: { game: POKEMON_GAME },
+          where: { game: { in: [...SEALED_SYNC_GAMES] } },
           select: { id: true, game: true, name: true, code: true },
           orderBy: [{ release_date: "desc" }, { id: "desc" }],
         })
@@ -5438,7 +5439,9 @@ export async function runSealedSync(options?: {
       // uses marketplace names. Once a newly released product arrives in the
       // catalogue, link unambiguous normalized identities automatically so
       // Upcoming/Just Released opens the exact DustyCards detail modal.
-      await reconcileSealedReleaseWatchMatches(POKEMON_GAME);
+      for (const game of SEALED_SYNC_GAMES) {
+        await reconcileSealedReleaseWatchMatches(game);
+      }
 
       return {
         synced,
@@ -5452,7 +5455,7 @@ export async function runSealedSync(options?: {
   );
 }
 
-async function syncEpisodeSealed(
+export async function syncEpisodeSealed(
   episodeId: string,
   options: {
     backfillNativeHistory: boolean;

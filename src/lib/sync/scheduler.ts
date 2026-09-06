@@ -41,6 +41,8 @@ import {
 } from "@/lib/sync/new-release-chase-price-job";
 import {
   maybeStartSealedSyncJob,
+  maybeSyncJustReleasedSealed,
+  type JustReleasedSealedSnapshot,
   type SealedSyncJobSnapshot,
 } from "@/lib/sync/sealed-sync-job";
 import {
@@ -119,6 +121,7 @@ export interface SyncSchedulerTickResult {
   priceAlerts: CardPriceAlertSweepResult;
   setLifecycle: SetLifecycleJobSnapshot;
   sealedSync: SealedSyncJobSnapshot;
+  sealedReleaseCheck: JustReleasedSealedSnapshot;
   quota: {
     requestsRemaining: number | null;
     requestsLimit: number | null;
@@ -425,6 +428,20 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
     allowReservedRequests: isCardHistoryQuotaDrainWindow(quota, checkedAt),
     now: checkedAt,
   });
+  // A set that was just released gets its sealed products fetched as soon as
+  // the marketplace lists them, without waiting for the daily full pass.
+  const sealedReleaseCheck = await maybeSyncJustReleasedSealed({
+    skip: scraperDisabled || sealedSync.running,
+    skipReason: scraperDisabled ? "scraper-disabled" : "sealed-sync-running",
+    requestsRemaining: quota.requestsRemaining,
+    now: checkedAt,
+  }).catch((error: unknown) => {
+    console.error(
+      "[sealed-sync-job] just-released sealed check failed:",
+      error instanceof Error ? error.message : String(error)
+    );
+    return { checked: 0, skippedReason: "error" };
+  });
   const currentSealedWorkPending = sealedSync.due || sealedSync.running;
   // History is strictly last: it only gets the final quota-window leftovers
   // after card prices, first prices, chase prices and sealed prices are all
@@ -505,6 +522,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
     priceAlerts,
     setLifecycle,
     sealedSync,
+    sealedReleaseCheck,
     quota: {
       requestsRemaining: quota.requestsRemaining,
       requestsLimit: quota.requestsLimit,

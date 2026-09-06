@@ -1,7 +1,15 @@
 import "server-only";
 
 import { db } from "@/lib/db";
-import { runSealedSync } from "@/lib/sync";
+import { runSealedSync, syncEpisodeSealed } from "@/lib/sync";
+import { isTcggoQuotaExceededError } from "@/lib/tcggo";
+import {
+  JUST_RELEASED_SEALED_CHECK_KEY,
+  pruneJustReleasedSealedChecks,
+  SEALED_SYNC_GAMES,
+  selectJustReleasedSealedCandidates,
+  type JustReleasedSealedChecks,
+} from "@/lib/sync/sealed-sync-scope";
 import { decodeSyncLogDetailsJson } from "@/lib/sync-log-details";
 
 // Sealed product prices (and their snapshots, which feed sealed sudden drops,
@@ -110,4 +118,97 @@ export async function maybeStartSealedSyncJob(options: {
     });
 
   return { ...base, started: true, running: true };
+}
+
+const JUST_RELEASED_WINDOW_DAY_MS = 24 * 60 * 60_000;
+
+export interface JustReleasedSealedSnapshot {
+  checked: number;
+  skippedReason: string | null;
+}
+
+function isoDay(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function parseChecks(value: string | null | undefined): JustReleasedSealedChecks {
+  if (!value) return {};
+  try {
+    const parsed: unknown = JSON.parse(value);
+    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+      ? (parsed as JustReleasedSealedChecks)
+      : {};
+  } catch {
+    return {};
+  }
+}
+
+/**
+ * The daily sealed sync walks every expansion once a day, but a set's sealed
+ * products appear on the marketplace around its release day. This check runs
+ * on every scheduler tick, finds sets released in the last two weeks that
+ * still have no sealed products, and fetches those few sets directly. Each
+ * set is re-asked at most every six hours until its products arrive.
+ */
+export async function maybeSyncJustReleasedSealed(options: {
+  skip: boolean;
+  skipReason?: string;
+  requestsRemaining?: number | null;
+  now?: Date;
+}): Promise<JustReleasedSealedSnapshot> {
+  const now = options.now ?? new Date();
+  const base: JustReleasedSealedSnapshot = { checked: 0, skippedReason: null };
+  if (options.skip) return { ...base, skippedReason: options.skipReason ?? "scraper-disabled" };
+  if (
+    options.requestsRemaining != null &&
+    options.requestsRemaining <= AUTOMATIC_SEALED_SYNC_QUOTA_RESERVE
+  ) {
+    return { ...base, skippedReason: "quota-reserve" };
+  }
+
+  const [episodes, setting] = await Promise.all([
+    db.episode.findMany({
+      where: {
+        game: { in: [...SEALED_SYNC_GAMES] },
+        release_date: {
+          gte: isoDay(new Date(now.getTime() - 14 * JUST_RELEASED_WINDOW_DAY_MS)),
+          lte: isoDay(new Date(now.getTime() + JUST_RELEASED_WINDOW_DAY_MS)),
+        },
+        sealedProducts: { none: {} },
+      },
+      select: { id: true, game: true, name: true, code: true, release_date: true },
+    }),
+    db.appSetting.findUnique({ where: { key: JUST_RELEASED_SEALED_CHECK_KEY } }),
+  ]);
+  const lastChecks = parseChecks(setting?.value);
+  const candidates = selectJustReleasedSealedCandidates({ episodes, lastChecks, now });
+  if (candidates.length === 0) return base;
+
+  const nextChecks = pruneJustReleasedSealedChecks(lastChecks, now);
+  let checked = 0;
+  let skippedReason: string | null = null;
+  for (const candidate of candidates) {
+    try {
+      await syncEpisodeSealed(candidate.id, { backfillNativeHistory: false });
+    } catch (error) {
+      if (isTcggoQuotaExceededError(error)) {
+        skippedReason = "quota-exceeded";
+        break;
+      }
+      console.error(
+        `[sealed-sync-job] release check failed for ${candidate.id}:`,
+        error instanceof Error ? error.message : String(error)
+      );
+    }
+    checked += 1;
+    nextChecks[candidate.id] = now.toISOString();
+  }
+
+  const value = JSON.stringify(nextChecks);
+  await db.appSetting.upsert({
+    where: { key: JUST_RELEASED_SEALED_CHECK_KEY },
+    create: { key: JUST_RELEASED_SEALED_CHECK_KEY, value },
+    update: { value },
+  });
+  return { checked, skippedReason };
 }
