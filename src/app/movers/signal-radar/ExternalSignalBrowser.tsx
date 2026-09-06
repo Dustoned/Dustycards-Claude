@@ -64,6 +64,7 @@ import type {
   ExternalSignalSourceStatus,
 } from "@/lib/external-signal-radar";
 import { isWatchablePriceScenario } from "@/lib/external-market-intelligence-core";
+import { FORECAST_TARGET_DISPLAY } from "@/lib/external-signal-forecast";
 import {
   getOlderHighRarityDisplayPrice,
   isOlderHighRarityValueSignal,
@@ -545,13 +546,6 @@ function MarketIntelligencePanel({
   );
 }
 
-const FORECAST_TARGETS = [
-  { key: "1.5x-30d", label: "1.5x", horizon: "30 days", minimum: 40 },
-  { key: "1.5x-90d", label: "1.5x", horizon: "90 days", minimum: 50 },
-  { key: "2x-90d", label: "2x", horizon: "90 days", minimum: 100 },
-  { key: "3x-180d", label: "3x", horizon: "180 days", minimum: 200 },
-] as const;
-
 function formatProbability(value: number): string {
   return `${Math.round(value * 100)}%`;
 }
@@ -583,7 +577,7 @@ function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
       <LiveForecastDataStatus forecast={signal.forecast} className="mt-2" />
       {!signal.forecast?.tracking ? (
         <div className="mt-2 grid grid-cols-2 gap-1.5 min-[480px]:grid-cols-4">
-          {FORECAST_TARGETS.map((target) => {
+          {FORECAST_TARGET_DISPLAY.map((target) => {
             const summary = signal.forecast?.targets[target.key];
             const interval = summary?.status === "calibrated" ? summary.interval : null;
             const calibrated = Boolean(interval);
@@ -604,9 +598,9 @@ function ForecastPanel({ signal }: { signal: ExternalCardSignal }) {
                 }
               >
                 <div className="flex items-baseline justify-between gap-1">
-                  <span className="text-[11px] font-black text-white/82">{target.label}</span>
+                  <span className="text-[11px] font-black text-white/82">{target.multiplierLabel}</span>
                   <span className="text-[8px] font-semibold uppercase text-white/30">
-                    {target.horizon}
+                    {target.horizonLabel}
                   </span>
                 </div>
                 <p

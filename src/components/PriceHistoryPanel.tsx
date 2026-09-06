@@ -21,13 +21,6 @@ export interface PriceHistoryValuePoint {
   value: number | null;
 }
 
-export interface PriceHistoryProjection {
-  label?: string;
-  points: PriceHistoryValuePoint[];
-  tone?: "strong-rise" | "rise" | "flat" | "decline";
-  summary?: string;
-}
-
 type Tone = "default" | "dark";
 export type PriceHistoryRangeKey = "1D" | "1W" | "1M" | "3M" | "6M" | "1Y" | "ALL";
 type RangeKey = PriceHistoryRangeKey;
@@ -55,7 +48,6 @@ interface Props {
   defaultRange?: RangeKey;
   fixedRange?: RangeKey;
   hideRangeControls?: boolean;
-  projection?: PriceHistoryProjection | null;
   stabilizeMobileHeader?: boolean;
   onRangeChange?: (range: PriceHistoryRangeKey) => void;
 }
@@ -68,7 +60,6 @@ interface ChartCoordinate extends ParsedHistoryPoint {
   value: number;
   x: number;
   y: number;
-  projected?: boolean;
 }
 
 interface RangeStorageKeys {
@@ -368,60 +359,22 @@ function buildTimeAxisTicks(domain: TimeDomain, width: number, compact: boolean)
   });
 }
 
-function buildProjectedAxisTicks(
-  historyCoordinates: ChartCoordinate[],
-  projectionCoordinates: ChartCoordinate[],
-  compact: boolean
-) {
-  const historyIndexes =
-    historyCoordinates.length <= (compact ? 2 : 3)
-      ? historyCoordinates.map((_, index) => index)
-      : compact
-        ? [0, historyCoordinates.length - 1]
-        : [0, Math.floor((historyCoordinates.length - 1) / 2), historyCoordinates.length - 1];
-  const futureCoordinates = projectionCoordinates.slice(1);
-  const futureIndexes =
-    compact && futureCoordinates.length > 1
-      ? [futureCoordinates.length - 1]
-      : futureCoordinates.map((_, index) => index);
-
-  return [
-    ...[...new Set(historyIndexes)].map((index) => ({
-      index,
-      x: historyCoordinates[index].x,
-      label: historyCoordinates[index].label,
-    })),
-    ...futureIndexes.map((index) => ({
-      index: historyCoordinates.length + index + 1,
-      x: futureCoordinates[index].x,
-      label: futureCoordinates[index].label,
-    })),
-  ];
-}
-
 function buildChart(
   points: ParsedHistoryPoint[],
   width: number,
   height: number,
   axisHeight: number,
-  timeDomain: TimeDomain | null = null,
-  projectionPoints: ParsedHistoryPoint[] = []
+  timeDomain: TimeDomain | null = null
 ) {
   const validPoints = points.filter(
     (point): point is ParsedHistoryPoint & { value: number } => point.value != null
   );
-  const validProjectionPoints = projectionPoints.filter(
-    (point): point is ParsedHistoryPoint & { value: number } => point.value != null
-  );
 
-  if (validPoints.length === 0 && validProjectionPoints.length === 0) {
+  if (validPoints.length === 0) {
     return null;
   }
 
-  const allValues = [
-    ...validPoints.map((point) => point.value),
-    ...validProjectionPoints.map((point) => point.value),
-  ];
+  const allValues = validPoints.map((point) => point.value);
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
   const isFlat = max === min;
@@ -430,20 +383,14 @@ function buildChart(
   const plotBottom = height - axisHeight - CHART_PADDING_Y;
   const usableWidth = width - CHART_PADDING_X * 2;
   const usableHeight = Math.max(plotBottom - plotTop, 1);
-  const hasProjection = validProjectionPoints.length > 1;
-  const forecastStartX =
-    hasProjection && validPoints.length > 0
-      ? CHART_PADDING_X + usableWidth * 0.7
-      : validPoints.length > 0
-        ? width - CHART_PADDING_X
-        : CHART_PADDING_X;
+  const plotRight = width - CHART_PADDING_X;
 
   const activeTimeDomain = timeDomain && timeDomain.end > timeDomain.start ? timeDomain : null;
   const coordinates: ChartCoordinate[] = validPoints.map((point, index) => {
     const x =
       activeTimeDomain && point.timestamp != null
         ? CHART_PADDING_X +
-          (forecastStartX - CHART_PADDING_X) *
+          usableWidth *
             clamp(
               (point.timestamp - activeTimeDomain.start) /
                 (activeTimeDomain.end - activeTimeDomain.start),
@@ -451,39 +398,12 @@ function buildChart(
               1
             )
         : validPoints.length === 1
-          ? hasProjection
-            ? forecastStartX
-            : width / 2
-          : CHART_PADDING_X +
-            ((forecastStartX - CHART_PADDING_X) * index) / (validPoints.length - 1);
+          ? width / 2
+          : CHART_PADDING_X + (usableWidth * index) / (validPoints.length - 1);
     const ratio = isFlat ? 0.5 : (point.value - min) / span;
     const y = plotBottom - ratio * usableHeight;
 
     return { ...point, x, y };
-  });
-  const projectionTimestamps = validProjectionPoints
-    .map((point) => point.timestamp)
-    .filter((timestamp): timestamp is number => timestamp != null);
-  const projectionStart = projectionTimestamps.length > 0 ? Math.min(...projectionTimestamps) : null;
-  const projectionEnd = projectionTimestamps.length > 0 ? Math.max(...projectionTimestamps) : null;
-  const projectionCoordinates: ChartCoordinate[] = validProjectionPoints.map((point, index) => {
-    const x =
-      projectionStart != null &&
-      projectionEnd != null &&
-      projectionEnd > projectionStart &&
-      point.timestamp != null
-        ? forecastStartX +
-          (width - CHART_PADDING_X - forecastStartX) *
-            clamp((point.timestamp - projectionStart) / (projectionEnd - projectionStart), 0, 1)
-        : validProjectionPoints.length === 1
-          ? forecastStartX
-          : forecastStartX +
-            ((width - CHART_PADDING_X - forecastStartX) * index) /
-              Math.max(1, validProjectionPoints.length - 1);
-    const ratio = isFlat ? 0.5 : (point.value - min) / span;
-    const y = plotBottom - ratio * usableHeight;
-
-    return { ...point, x, y, projected: true };
   });
   const pathCoordinates =
     activeTimeDomain && coordinates.length > 0
@@ -492,8 +412,8 @@ function buildChart(
             ? [{ ...coordinates[0], x: CHART_PADDING_X }]
             : []),
           ...coordinates,
-          ...(!hasProjection && coordinates[coordinates.length - 1].x < width - CHART_PADDING_X
-            ? [{ ...coordinates[coordinates.length - 1], x: width - CHART_PADDING_X }]
+          ...(coordinates[coordinates.length - 1].x < plotRight
+            ? [{ ...coordinates[coordinates.length - 1], x: plotRight }]
             : []),
         ]
       : coordinates;
@@ -505,18 +425,12 @@ function buildChart(
     pathCoordinates.length > 0
       ? `${linePath} L ${pathCoordinates[pathCoordinates.length - 1].x} ${plotBottom} L ${pathCoordinates[0].x} ${plotBottom} Z`
       : "";
-  const projectionLinePath = projectionCoordinates
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
-    .join(" ");
 
   return {
     coordinates,
-    projectionCoordinates,
     pathCoordinates,
     linePath,
-    projectionLinePath,
     areaPath,
-    forecastStartX,
     plotTop,
     plotBottom,
     guideLines: [plotTop, plotTop + usableHeight / 2, plotBottom],
@@ -570,7 +484,6 @@ export default function PriceHistoryPanel({
   defaultRange = DEFAULT_RANGE_KEY,
   fixedRange,
   hideRangeControls = false,
-  projection = null,
   stabilizeMobileHeader = false,
   onRangeChange,
 }: Props) {
@@ -691,18 +604,12 @@ export default function PriceHistoryPanel({
     ...point,
     timestamp: parsePointTimestamp(point),
   })) ?? [];
-  const parsedProjectionPoints = projection?.points.map((point) => ({
-    ...point,
-    timestamp: parsePointTimestamp(point),
-  })) ?? [];
   const scopedTimeDomain =
     parsedRangeScopePoints.length > 0
       ? buildScopedTimeDomain(parsedRangeScopePoints, selectedRange)
       : null;
   const filteredPoints = filterPointsByRange(parsedPoints, selectedRange, scopedTimeDomain);
-  const hasDrawablePoints =
-    filteredPoints.some((point) => point.value != null) ||
-    parsedProjectionPoints.some((point) => point.value != null);
+  const hasDrawablePoints = filteredPoints.some((point) => point.value != null);
 
   useLayoutEffect(() => {
     if (!rangeResolved || loading || !hasDrawablePoints) {
@@ -757,16 +664,11 @@ export default function PriceHistoryPanel({
     measuredChartWidth,
     height,
     axisHeight,
-    scopedTimeDomain,
-    parsedProjectionPoints
+    scopedTimeDomain
   );
   const visibleCoordinates = chart?.coordinates ?? [];
-  const hoverCoordinates = [
-    ...visibleCoordinates,
-    ...(chart?.projectionCoordinates.slice(1) ?? []),
-  ];
-  const latestPoint =
-    visibleCoordinates[visibleCoordinates.length - 1] ?? chart?.projectionCoordinates[0] ?? null;
+  const hoverCoordinates = visibleCoordinates;
+  const latestPoint = visibleCoordinates[visibleCoordinates.length - 1] ?? null;
   const activePoint =
     activeHover != null ? hoverCoordinates[activeHover.index] ?? null : null;
   const latestValue = currentValue ?? latestPoint?.value ?? null;
@@ -785,15 +687,9 @@ export default function PriceHistoryPanel({
   const hoverDateText = activePoint ? formatInlinePointDate(activePoint) : null;
   const primaryMetaText = rangeSummary;
   const secondaryMetaText = subtitle ?? null;
-  const axisTicks = chart?.projectionCoordinates.length
-    ? buildProjectedAxisTicks(
-        visibleCoordinates,
-        chart.projectionCoordinates,
-        compact || isMobileViewport || measuredChartWidth < 640
-      )
-    : scopedTimeDomain
-      ? buildTimeAxisTicks(scopedTimeDomain, measuredChartWidth, compact)
-      : buildAxisTicks(visibleCoordinates, compact);
+  const axisTicks = scopedTimeDomain
+    ? buildTimeAxisTicks(scopedTimeDomain, measuredChartWidth, compact)
+    : buildAxisTicks(visibleCoordinates, compact);
   const showRangeControls =
     !hideRangeControls &&
     fixedRange == null &&
@@ -885,15 +781,6 @@ export default function PriceHistoryPanel({
   const accentFillEnd =
     currency === "USD" ? "rgb(var(--dc-gold-rgb) / 0.02)" : "rgb(var(--dc-primary-rgb) / 0.02)";
   const dotFill = currency === "USD" ? "var(--dc-gold)" : "var(--dc-primary-soft)";
-  const projectionVisual =
-    projection?.tone === "strong-rise"
-      ? { stroke: "var(--dc-success)", text: "text-emerald-200/78" }
-      : projection?.tone === "decline"
-        ? { stroke: "var(--dc-negative)", text: "text-rose-200/78" }
-        : projection?.tone === "flat"
-          ? { stroke: "var(--dc-gold)", text: "text-amber-200/78" }
-          : { stroke: "var(--dc-cyan)", text: "text-sky-100/72" };
-  const projectionSummary = projection?.summary ?? null;
   const usesCornerTooltip =
     activeHover?.pointerType === "touch" || activeHover?.pointerType === "pen";
   const cornerTooltipPlacement =
@@ -1064,7 +951,7 @@ export default function PriceHistoryPanel({
                         data-chart-tooltip-placement={tooltipPlacement}
                       >
                         <p className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-60">
-                          {activePoint.projected ? `${projection?.label ?? "Prediction"} · ` : ""}{formatPointDate(activePoint)}
+                          {formatPointDate(activePoint)}
                         </p>
                         <p className="mt-1 text-sm font-semibold tabular-nums">
                           {formatCurrency(activePoint.value, currency)}
@@ -1076,7 +963,7 @@ export default function PriceHistoryPanel({
                       className="block w-full cursor-crosshair overflow-visible touch-pan-y select-none"
                       style={{ height }}
                       role="img"
-                      aria-label={projection ? "Historical price with attached base prediction" : "Historical price"}
+                      aria-label="Historical price"
                       data-chart-interaction-surface
                       data-chart-touch-tooltip="opposite-corner"
                       onPointerMove={updateHoverState}
@@ -1120,29 +1007,6 @@ export default function PriceHistoryPanel({
                           filter={isMobileViewport ? undefined : `url(#${chartId}-glow)`}
                           data-chart-series="history"
                         />
-                      ) : null}
-                      {chart.projectionLinePath ? (
-                        <>
-                          <line
-                            x1={chart.forecastStartX}
-                            x2={chart.forecastStartX}
-                            y1={chart.plotTop}
-                            y2={chart.plotBottom}
-                            stroke={projectionVisual.stroke}
-                            strokeOpacity="0.22"
-                            strokeDasharray="3 5"
-                            data-chart-seam
-                          />
-                          <path
-                            d={chart.projectionLinePath}
-                            fill="none"
-                            stroke={projectionVisual.stroke}
-                            strokeWidth="2.75"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            data-chart-series="prediction"
-                          />
-                        </>
                       ) : null}
                       {activePoint && (
                         <line
@@ -1314,28 +1178,6 @@ export default function PriceHistoryPanel({
         </div>
       ) : (
         <div className={isMobileHeroLayout ? "mt-3" : compact ? "mt-3" : "mt-5"}>
-          {projection && chart?.projectionLinePath ? (
-            <div
-              className="mb-2 flex flex-wrap items-center justify-end gap-3 text-[10px] font-semibold text-white/45"
-              data-chart-legend
-            >
-              {chart.coordinates.length ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <span className="h-0.5 w-5 rounded-full bg-violet-400" /> History
-                </span>
-              ) : null}
-              <span className={`inline-flex items-center gap-1.5 ${projectionVisual.text}`}>
-                <span
-                  className="h-0.5 w-5 rounded-full"
-                  style={{ backgroundColor: projectionVisual.stroke }}
-                />
-                {projection.label ?? "Prediction"}
-                {projection.summary ? (
-                  <strong className="tabular-nums text-white/80">{projection.summary}</strong>
-                ) : null}
-              </span>
-            </div>
-          ) : null}
           <div ref={chartFrameRef} className="relative w-full min-w-0">
             {!chart ? (
               <div className={emptyClass}>Loading chart...</div>
@@ -1351,7 +1193,7 @@ export default function PriceHistoryPanel({
                 data-chart-tooltip-placement={tooltipPlacement}
               >
                 <p className="text-[10px] font-semibold uppercase tracking-[0.12em] opacity-60">
-                  {activePoint.projected ? `${projection?.label ?? "Prediction"} · ` : ""}{formatPointDate(activePoint)}
+                  {formatPointDate(activePoint)}
                 </p>
                 <p className="mt-1 text-sm font-semibold tabular-nums">
                   {formatCurrency(activePoint.value, currency)}
@@ -1364,7 +1206,7 @@ export default function PriceHistoryPanel({
               className="block w-full cursor-crosshair overflow-visible touch-pan-y select-none"
               style={{ height }}
               role="img"
-              aria-label={projection ? "Historical price with attached base prediction" : "Historical price"}
+              aria-label="Historical price"
               data-chart-interaction-surface
               data-chart-touch-tooltip="opposite-corner"
               onPointerMove={updateHoverState}
@@ -1402,61 +1244,6 @@ export default function PriceHistoryPanel({
                   strokeLinejoin="round"
                   data-chart-series="history"
                 />
-              ) : null}
-
-              {chart.projectionLinePath ? (
-                <>
-                  <line
-                    x1={chart.forecastStartX}
-                    x2={chart.forecastStartX}
-                    y1={chart.plotTop}
-                    y2={chart.plotBottom}
-                    stroke={projectionVisual.stroke}
-                    strokeOpacity="0.22"
-                    strokeDasharray="3 5"
-                    data-chart-seam
-                  />
-                  <path
-                    d={chart.projectionLinePath}
-                    fill="none"
-                    stroke={projectionVisual.stroke}
-                    strokeWidth={compact ? "2.75" : isHeroLayout ? "3.25" : "3"}
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    data-chart-series="prediction"
-                  />
-                  {chart.projectionCoordinates.slice(1).map((point) => (
-                    <circle
-                      key={`${point.date}-${point.value}`}
-                      cx={point.x}
-                      cy={point.y}
-                      r={isHeroLayout ? "3.5" : "3"}
-                      fill="var(--dc-surface-primary)"
-                      stroke={projectionVisual.stroke}
-                      strokeWidth="2"
-                    />
-                  ))}
-                  {projectionSummary && !isMobileViewport && chart.projectionCoordinates.length > 1 ? (() => {
-                    const point = chart.projectionCoordinates[chart.projectionCoordinates.length - 1];
-                    return (
-                      <text
-                        x={point.x - 4}
-                        y={clamp(point.y - 10, chart.plotTop + 11, chart.plotBottom - 7)}
-                        fill={projectionVisual.stroke}
-                        fontSize="11"
-                        fontWeight="700"
-                        paintOrder="stroke"
-                        stroke="var(--dc-bg-main)"
-                        strokeWidth="4"
-                        strokeLinejoin="round"
-                        textAnchor="end"
-                        data-chart-projection-summary
-                      >
-                        {projectionSummary}
-                      </text>
-                    );
-                  })() : null}
-                </>
               ) : null}
 
               {activePoint && (

@@ -3644,8 +3644,13 @@ html[data-appearance-scheme="light"]
 }
 
 .home-widget-tile-grid--releases {
-  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
   align-content: start;
+}
+
+@media (min-width: 640px) {
+  .home-widget-tile-grid--releases {
+    grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  }
 }
 
 @media (max-width: 767px) {

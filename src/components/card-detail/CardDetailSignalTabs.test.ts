@@ -167,3 +167,64 @@ describe("CardDetailSignalTabs", () => {
     expect(markup).not.toContain("Focused research result");
   });
 });
+
+describe("forecast horizon tones", () => {
+  it("colours every horizon by the scenario outlook instead of its own small percentage", () => {
+    const signal = {
+      currentPrice: 100,
+      currency: "EUR",
+      horizon: "Long-term collector signal",
+      reasons: [],
+      evidence: [],
+      catalysts: [],
+      marketIntelligence: {
+        sealed: {
+          lifecycleLabel: null,
+          lifecycleOopProbability: null,
+          pressureLabel: "Low",
+          pressureScore: 10,
+          packPrice: null,
+        },
+        scarcity: {
+          label: "Watch",
+          score: 20,
+          pullOdds: null,
+          artistDemandScore: null,
+          collectorDemandScore: 30,
+        },
+        graded: {
+          available: false,
+          label: null,
+          supplyLabel: "Unknown",
+          psa10Price: null,
+          currency: "EUR",
+          gemRatePct: null,
+        },
+        confluence: { label: "Building", score: 25, drivers: [] },
+        rawScenario: {
+          marketMode: "raw",
+          currentPrice: 100,
+          currency: "EUR",
+          confidence: "Medium",
+          outlook: "modest_up",
+          expectedReturnPct180: 6,
+          points: [
+            { days: 30, low: 94, base: 102.1, high: 111 },
+            { days: 90, low: 92, base: 104, high: 118 },
+            { days: 180, low: 90, base: 106, high: 126 },
+          ],
+          drivers: [],
+        },
+      },
+    } as unknown as ExternalCardSignal;
+
+    const markup = renderTab("forecast", {
+      signal,
+      marketMode: "raw",
+      onResearch: vi.fn(),
+    });
+
+    expect(markup.match(/border-emerald-300\/16/g)).toHaveLength(3);
+    expect(markup).toContain("+2.1%");
+  });
+});

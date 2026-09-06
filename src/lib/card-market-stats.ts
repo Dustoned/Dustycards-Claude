@@ -53,6 +53,13 @@ export interface CardMarketStatsGradedComparison {
 export interface CardMarketStats {
   model: "dustycards-market-v2";
   score: number | null;
+  /**
+   * The lowest and highest total the currently scored drivers can produce.
+   * Drivers without verified evidence count as a neutral 50, so a card
+   * without live eBay data cannot reach the STRONG or WEAK ends; the UI uses
+   * this to say so instead of implying the full 0-100 scale is attainable.
+   */
+  score_range: { floor: number; ceiling: number } | null;
   tier: CardMarketStatsTier;
   confidence: CardMarketStatsConfidence;
   metrics: CardMarketStatsMetrics;
@@ -200,7 +207,10 @@ function calculateLookbackReturn(
   if (elapsedDays < 1 || elapsedDays < lookbackDays * 0.35) return null;
 
   const logReturn = Math.log(latest.value / baseline.value) * 100;
-  const normalization = Math.min(1.5, lookbackDays / elapsedDays);
+  // A baseline older than the window is scaled down to the window; a history
+  // shorter than the window is never scaled up, so two or three days of
+  // movement cannot masquerade as a full-window return.
+  const normalization = Math.min(1, lookbackDays / elapsedDays);
   return clamp(logReturn * normalization, -150, 150);
 }
 
@@ -577,6 +587,21 @@ function calculateOverallScore(metrics: CardMarketStatsMetrics): number | null {
   ));
 }
 
+function calculateScoreRange(
+  metrics: CardMarketStatsMetrics,
+  score: number | null
+): CardMarketStats["score_range"] {
+  if (score == null) return null;
+  const scoredWeight = (Object.keys(SCORE_WEIGHTS) as Array<keyof CardMarketStatsMetrics>)
+    .filter((key) => metrics[key] != null)
+    .reduce((sum, key) => sum + SCORE_WEIGHTS[key], 0);
+  const neutralShare = clamp(1 - scoredWeight, 0, 1);
+  return {
+    floor: round(50 * neutralShare, 1),
+    ceiling: round(100 - 50 * neutralShare, 1),
+  };
+}
+
 function getTier(score: number | null): CardMarketStatsTier {
   if (score == null) return "BUILDING";
   if (score >= 80) return "STRONG";
@@ -698,6 +723,7 @@ export function buildCardMarketStats(input: BuildCardMarketStatsInput): CardMark
   return {
     model: "dustycards-market-v2",
     score,
+    score_range: calculateScoreRange(scoringMetrics, score),
     tier: getTier(score),
     confidence: observations.length > 0 &&
       now.getTime() - observations[observations.length - 1].timestamp > 30 * DAY_MS

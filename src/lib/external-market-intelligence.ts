@@ -8,6 +8,7 @@ import {
 } from "@/lib/ebay-demand-signal";
 import { EBAY_DEMAND_COHORT_REVISION_AT } from "@/lib/ebay-demand";
 import { getEbayDemandRuntimeConfig } from "@/lib/ebay";
+import { buildGradedSoldDailyHistory } from "@/lib/graded-sold-history";
 import {
   getEpisodeSetPriceSnapshotRows,
   type EpisodeSetPriceSnapshotRow,
@@ -1068,6 +1069,34 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       currentVsEnglishNmAverage30dPct,
       extendedHistory,
     });
+    // The graded path runs on the modeled grade's own sold-price series when
+    // that series supports a robust 90-day trend. Only a thin graded history
+    // falls back to the raw market's momentum, and then the scenario says so.
+    const gradedHistory = psa10
+      ? buildGradedSoldDailyHistory(card.ebaySoldGradedPriceSnapshots, {
+          company: psa10.company,
+          grade: psa10.grade,
+          currency: psa10.currency,
+        })
+      : [];
+    const gradedTrend30dPct = calculateRobustPriceTrend(gradedHistory, 30)?.percent ?? null;
+    const gradedTrend90dPct = calculateRobustPriceTrend(gradedHistory, 90)?.percent ?? null;
+    const gradedTrend180dPct = calculateRobustPriceTrend(gradedHistory, 180)?.percent ?? null;
+    const gradedMomentumReady = gradedTrend90dPct != null;
+    const gradedExtendedHistory: ExtendedPriceHistoryFeatures = gradedMomentumReady
+      ? {
+          volatilityDaily90Pct: calculateDailyVolatilityPct(gradedHistory),
+          athDistancePct: calculateAthDistancePct(gradedHistory),
+          momentum365Pct: calculateMomentum365Pct(gradedHistory),
+          // Raw-market-only features have no graded counterpart.
+          jpLeadLagPct: null,
+          setRelativeStrength90Pct: null,
+          avg30AnchorGapPct: null,
+          // A hype reset describes the card's demand regime, so it carries
+          // over to the graded path.
+          hypeReset: extendedHistory.hypeReset,
+        }
+      : extendedHistory;
     const gradedScenario = buildPriceScenario({
       marketMode: "graded",
       currentPrice: graded.currentPrice,
@@ -1075,15 +1104,20 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       ageYears,
       opportunityScore: structuralOpportunity.graded,
       sealedTrendPct: sealed.trend30dPct ?? sealed.trend90dPct,
-      rawTrend30dPct,
-      rawTrend90dPct,
-      rawTrend180dPct,
+      rawTrend30dPct: gradedMomentumReady ? gradedTrend30dPct : rawTrend30dPct,
+      rawTrend90dPct: gradedMomentumReady ? gradedTrend90dPct : rawTrend90dPct,
+      rawTrend180dPct: gradedMomentumReady ? gradedTrend180dPct : rawTrend180dPct,
       scarcityScore: scarcity.score,
       gemRatePct,
       riskScore: signal.riskScore ?? 0,
       evidenceCount: gradedEvidenceCount + ((graded.sampleSize ?? 0) >= 2 ? 1 : 0),
-      historyPoints: psa10 ? countPsa10HistoryDays(card.ebaySoldGradedPriceSnapshots, graded.currency, now) : 0,
+      historyPoints: gradedMomentumReady
+        ? gradedHistory.length
+        : psa10
+          ? countPsa10HistoryDays(card.ebaySoldGradedPriceSnapshots, graded.currency, now)
+          : 0,
       priceAgeDays: gradedQuoteAt ? (now.getTime() - gradedQuoteAt.getTime()) / DAY_MS : null,
+      momentumSource: gradedMomentumReady ? "same-market" : "raw-proxy",
       ebayDemandAdjustment: gradedEbayDemand.scoreAdjustment,
       competitiveScore:
         signal.sourceMode === "competitive" || signal.sourceMode === "hybrid"
@@ -1098,7 +1132,7 @@ async function enrichSignalsWithMarketIntelligenceUncached(
       lifecycleStatus: sealed.lifecycleStatus,
       lifecycleConfidence: sealed.lifecycleConfidence,
       lifecycleOopProbability: sealed.lifecycleOopProbability,
-      extendedHistory,
+      extendedHistory: gradedExtendedHistory,
     });
     const rawOpportunity = alignOpportunityScoreWithScenario(
       structuralOpportunity.raw,
@@ -1142,6 +1176,10 @@ async function loadCards(cardIds: string[], now: Date) {
   // month and was incorrectly presented as a 90-day history. The long window
   // feeds the extended features (ATH distance, 365d momentum).
   const historyStart = new Date(now.getTime() - 1100 * DAY_MS);
+  // Graded sold snapshots feed the graded scenario's own trends (up to 180d)
+  // and its 365d momentum; the window and cap keep the query bounded when a
+  // card has several graded labels sampled daily.
+  const gradedHistoryStart = new Date(now.getTime() - 400 * DAY_MS);
   const cards = await db.card.findMany({
     where: { id: { in: cardIds } },
     select: {
@@ -1171,9 +1209,16 @@ async function loadCards(cardIds: string[], now: Date) {
         },
       },
       ebaySoldGradedPriceSnapshots: {
+        where: { fetched_at: { gte: gradedHistoryStart } },
         orderBy: { fetched_at: "desc" },
-        take: 60,
-        select: { fetched_at: true, company: true, grade: true, currency: true, median_price: true },
+        take: 900,
+        select: {
+          company: true,
+          grade: true,
+          currency: true,
+          median_price: true,
+          fetched_at: true,
+        },
       },
     },
   });

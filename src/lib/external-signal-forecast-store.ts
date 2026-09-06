@@ -2,6 +2,7 @@ import { loadSafeCardMarketHistoryRows } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import {
   FORECAST_PUBLISH_GATES,
+  evaluateMeaningfulVerdict,
   evaluateSignalOutcome,
   scoreForecastOutcome,
   summarizeForecastCohort,
@@ -602,6 +603,103 @@ export async function evaluatePendingExternalSignalOutcomes(
   };
 }
 
+const VERDICT_RESCORE_PAGE_SIZE = 500;
+let verdictsReconciledInProcess = false;
+
+export interface ExternalOutcomeVerdictRescoreResult {
+  checked: number;
+  updated: number;
+  skipped?: boolean;
+}
+
+/**
+ * Re-derives the meaningful-move verdicts of finished outcomes from their
+ * stored fields, so a rule change (such as the price-band euro floor) never
+ * leaves cohort accuracy mixing two rules. One full pass per process is
+ * enough: every outcome finished afterwards is written with the current rule.
+ * Never touches evaluated_at, so old results do not resurface as new events.
+ */
+export async function rescoreExternalSignalOutcomeVerdicts(
+  options: { force?: boolean } = {}
+): Promise<ExternalOutcomeVerdictRescoreResult> {
+  if (verdictsReconciledInProcess && !options.force) {
+    return { checked: 0, updated: 0, skipped: true };
+  }
+  let checked = 0;
+  let updated = 0;
+  let cursor: string | null = null;
+
+  for (;;) {
+    const rows: Array<{
+      id: string;
+      realized_return_pct: number | null;
+      absolute_change_eur: number | null;
+      direction_hit: boolean | null;
+      meaningful_move: boolean | null;
+      meaningful_direction_hit: boolean | null;
+      entry_observation: { reference_price: number | null; entry_outlook: string | null };
+    }> = await db.externalSignalOutcome.findMany({
+      where: { status: "complete" },
+      orderBy: { id: "asc" },
+      take: VERDICT_RESCORE_PAGE_SIZE,
+      ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
+      select: {
+        id: true,
+        realized_return_pct: true,
+        absolute_change_eur: true,
+        direction_hit: true,
+        meaningful_move: true,
+        meaningful_direction_hit: true,
+        entry_observation: { select: { reference_price: true, entry_outlook: true } },
+      },
+    });
+    if (rows.length === 0) break;
+
+    const writes: Array<{
+      id: string;
+      data: { meaningful_move: boolean | null; meaningful_direction_hit: boolean | null };
+    }> = [];
+    for (const row of rows) {
+      checked += 1;
+      const referencePrice = row.entry_observation.reference_price;
+      const verdict = evaluateMeaningfulVerdict({
+        entryOutlook: row.entry_observation.entry_outlook,
+        entryPrice: referencePrice != null && referencePrice >= 1 ? referencePrice : 0,
+        realizedReturnPct: row.realized_return_pct,
+        absoluteChangeEur: row.absolute_change_eur,
+        directionHit: row.direction_hit,
+      });
+      if (
+        verdict.meaningfulMove === row.meaningful_move &&
+        verdict.meaningfulDirectionHit === row.meaningful_direction_hit
+      ) {
+        continue;
+      }
+      writes.push({
+        id: row.id,
+        data: {
+          meaningful_move: verdict.meaningfulMove,
+          meaningful_direction_hit: verdict.meaningfulDirectionHit,
+        },
+      });
+    }
+    for (let index = 0; index < writes.length; index += OUTCOME_WRITE_CHUNK_SIZE) {
+      const chunk = writes.slice(index, index + OUTCOME_WRITE_CHUNK_SIZE);
+      await db.$transaction(
+        chunk.map((write) =>
+          db.externalSignalOutcome.update({ where: { id: write.id }, data: write.data })
+        )
+      );
+    }
+    updated += writes.length;
+    if (rows.length < VERDICT_RESCORE_PAGE_SIZE) break;
+    cursor = rows[rows.length - 1].id;
+  }
+
+  verdictsReconciledInProcess = true;
+  return { checked, updated };
+}
+
 function pairKey(game: string, modelVersion: string): string {
   return `${game}\u0000${modelVersion}`;
 }
@@ -1057,13 +1155,13 @@ export async function getExternalForecastSummaries(
   const summaries = new Map<string, ExternalCardForecastSummary>();
 
   for (const current of currentByCardId.values()) {
-    const fallbackVersion = FORECAST_MODEL_VERSION_FALLBACKS[current.modelVersion];
+    // Hand selectForecastCohort every version it may walk: the current one
+    // plus the whole predecessor chain, not just the first fallback. Otherwise
+    // cohorts two or more bumps back are loaded above but never consulted.
     const rows = [
-      ...(cohortRowsByPair.get(pairKey(current.game, current.modelVersion)) ?? []),
-      ...(fallbackVersion
-        ? (cohortRowsByPair.get(pairKey(current.game, fallbackVersion)) ?? [])
-        : []),
-    ];
+      current.modelVersion,
+      ...getForecastModelVersionChain(current.modelVersion),
+    ].flatMap((version) => cohortRowsByPair.get(pairKey(current.game, version)) ?? []);
     const targetEntries = EXTERNAL_FORECAST_TARGETS.map((target) => [
       target.key,
       selectForecastCohort({ current, rows, target }),

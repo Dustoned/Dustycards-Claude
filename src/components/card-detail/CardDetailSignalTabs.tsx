@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 import type { CardDetailTab } from "@/components/card-detail/CardDetailShell";
 import LiveForecastDataStatus from "@/components/LiveForecastDataStatus";
+import { FORECAST_TARGET_DISPLAY } from "@/lib/external-signal-forecast";
 import type {
   ExternalCardSignal,
   ExternalMarketMode,
@@ -40,12 +41,6 @@ export interface BuildCardDetailSignalTabsProps {
 }
 
 type ForecastDirection = "strong-rise" | "rise" | "flat" | "decline";
-
-const FORECAST_TARGETS = [
-  { key: "1.5x-90d", label: "1.5×", horizon: "90 days", minimum: 50 },
-  { key: "2x-90d", label: "2×", horizon: "90 days", minimum: 100 },
-  { key: "3x-180d", label: "3×", horizon: "180 days", minimum: 200 },
-] as const;
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(" ");
@@ -248,7 +243,10 @@ function buildForecastPanel(
                 displayPrice != null && displayPrice > 0
                   ? ((point.base - displayPrice) / displayPrice) * 100
                   : null;
-              const direction = getForecastDirection(undefined, changePct);
+              // Tone follows the scenario's outlook so a mild-upside call does
+              // not look flat on its 30-day card just because the early
+              // horizon carries a small percentage.
+              const direction = getForecastDirection(scenario.outlook, changePct);
               return (
                 <div
                   key={point.days}
@@ -289,7 +287,7 @@ function buildForecastPanel(
         <LiveForecastDataStatus forecast={signal.forecast} className="mb-3" />
         {!signal.forecast?.tracking ? (
           <div className="overflow-hidden rounded-2xl border border-white/8">
-            {FORECAST_TARGETS.map((target) => {
+            {FORECAST_TARGET_DISPLAY.map((target) => {
               const summary = signal?.forecast?.targets[target.key];
               const interval = summary?.status === "calibrated" ? summary.interval : null;
               return (
@@ -297,8 +295,8 @@ function buildForecastPanel(
                   key={target.key}
                   className="grid min-h-16 grid-cols-[0.55fr_0.8fr_1.35fr] items-center gap-3 border-b border-white/7 px-4 text-sm last:border-b-0"
                 >
-                  <strong className="text-white/82">{target.label}</strong>
-                  <span className="text-white/46">{target.horizon}</span>
+                  <strong className="text-white/82">{target.multiplierLabel}</strong>
+                  <span className="text-white/46">{target.horizonLabel}</span>
                   <span className="text-right font-semibold text-cyan-100/68">
                     {interval && summary
                       ? `${Math.round(interval.estimate * 100)}% · ${summary.hits}/${summary.samples} hits`

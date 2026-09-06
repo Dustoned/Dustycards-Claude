@@ -87,6 +87,32 @@ export const FORECAST_PUBLISH_GATES: readonly ForecastPublishGate[] = [
   },
 ] as const;
 
+export type ForecastTargetKey = "1.5x-30d" | "1.5x-90d" | "2x-90d" | "3x-180d";
+
+export interface ForecastTargetDisplay {
+  key: ForecastTargetKey;
+  targetMultiplier: 1.5 | 2 | 3;
+  horizonDays: 30 | 90 | 180;
+  multiplierLabel: string;
+  horizonLabel: string;
+  minimumSamples: number;
+}
+
+/**
+ * The one target list every forecast UI renders, derived from the publish
+ * gates so a new or re-gated target cannot be shown in one panel and missing
+ * from another.
+ */
+export const FORECAST_TARGET_DISPLAY: readonly ForecastTargetDisplay[] =
+  FORECAST_PUBLISH_GATES.map((gate) => ({
+    key: `${gate.targetMultiplier}x-${gate.horizonDays}d` as ForecastTargetKey,
+    targetMultiplier: gate.targetMultiplier,
+    horizonDays: gate.horizonDays,
+    multiplierLabel: `${gate.targetMultiplier}x`,
+    horizonLabel: `${gate.horizonDays} days`,
+    minimumSamples: gate.minimumSamples,
+  }));
+
 const DAY_MS = 24 * 60 * 60_000;
 const MINIMUM_COVERAGE_RATIO = 0.6;
 const FINAL_WINDOW_DAYS = 7;
@@ -94,7 +120,67 @@ const WILSON_80_Z = 1.28155;
 const DIRECTION_TOLERANCE_PCT = 2;
 const FLAT_TOLERANCE_PCT = 7;
 export const MEANINGFUL_SIGNAL_MOVE_PCT = 15;
-export const MEANINGFUL_SIGNAL_MOVE_EUR = 10;
+/**
+ * Minimum absolute move that counts as meaningful, by entry price. The floor
+ * follows the price scenario's own "visible move" table, so a call on a EUR 5
+ * card is judged on the scale it was made at. A flat EUR 10 floor made every
+ * directional call under EUR 10 unwinnable and every flat call there
+ * automatically right, which skewed cheap cohorts toward flat.
+ */
+export const MEANINGFUL_SIGNAL_MOVE_EUR_BANDS: readonly {
+  belowPrice: number;
+  absolute: number;
+}[] = [
+  { belowPrice: 5, absolute: 1 },
+  { belowPrice: 25, absolute: 2 },
+  { belowPrice: 100, absolute: 5 },
+  { belowPrice: Number.POSITIVE_INFINITY, absolute: 10 },
+];
+
+export function getMeaningfulSignalMove(entryPrice: number): {
+  percent: number;
+  absolute: number;
+} {
+  const band =
+    MEANINGFUL_SIGNAL_MOVE_EUR_BANDS.find((candidate) => entryPrice < candidate.belowPrice) ??
+    MEANINGFUL_SIGNAL_MOVE_EUR_BANDS[MEANINGFUL_SIGNAL_MOVE_EUR_BANDS.length - 1];
+  return { percent: MEANINGFUL_SIGNAL_MOVE_PCT, absolute: band.absolute };
+}
+
+/**
+ * Derives the meaningful-move verdict from the fields an outcome row stores,
+ * so finished outcomes can be re-scored without their daily price rows.
+ * Symmetric scoring: every completed outcome with price data produces a
+ * verdict for every outlook. A directional call that never produced a
+ * meaningful move counts as wrong, exactly like a flat call scored wrong on
+ * a breakout. The old rule dropped quiet directional calls as null while
+ * crediting flat by default, which let a flat-heavy model look accurate.
+ */
+export function evaluateMeaningfulVerdict(input: {
+  entryOutlook: string | null;
+  entryPrice: number;
+  realizedReturnPct: number | null;
+  absoluteChangeEur: number | null;
+  directionHit: boolean | null;
+}): { meaningfulMove: boolean | null; meaningfulDirectionHit: boolean | null } {
+  const threshold = getMeaningfulSignalMove(input.entryPrice);
+  const meaningfulMove =
+    input.realizedReturnPct != null && input.absoluteChangeEur != null
+      ? Math.abs(input.realizedReturnPct) >= threshold.percent &&
+        input.absoluteChangeEur >= threshold.absolute
+      : null;
+  let meaningfulDirectionHit: boolean | null = null;
+  if (meaningfulMove != null && input.entryOutlook != null) {
+    if (input.entryOutlook === "flat") {
+      meaningfulDirectionHit = !meaningfulMove;
+    } else if (meaningfulMove) {
+      meaningfulDirectionHit = input.directionHit;
+    } else {
+      meaningfulDirectionHit = false;
+    }
+  }
+  return { meaningfulMove, meaningfulDirectionHit };
+}
 
 function clamp(value: number, minimum: number, maximum: number): number {
   return Math.min(maximum, Math.max(minimum, value));
@@ -293,26 +379,13 @@ export function scoreForecastOutcome(input: {
     isValidPrice(input.entryPrice) && isValidPrice(input.endPrice)
       ? Math.abs(input.endPrice - input.entryPrice)
       : null;
-  const meaningfulMove =
-    realizedReturnPct != null && absoluteChangeEur != null
-      ? Math.abs(realizedReturnPct) >= MEANINGFUL_SIGNAL_MOVE_PCT &&
-        absoluteChangeEur >= MEANINGFUL_SIGNAL_MOVE_EUR
-      : null;
-  // Symmetric scoring: every completed outcome with price data produces a
-  // verdict for every outlook. A directional call that never produced a
-  // meaningful move counts as wrong, exactly like a flat call scored wrong on
-  // a breakout. The old rule dropped quiet directional calls as null while
-  // crediting flat by default, which let a flat-heavy model look accurate.
-  let meaningfulDirectionHit: boolean | null = null;
-  if (meaningfulMove != null && input.entryOutlook != null) {
-    if (input.entryOutlook === "flat") {
-      meaningfulDirectionHit = !meaningfulMove;
-    } else if (meaningfulMove) {
-      meaningfulDirectionHit = directionHit;
-    } else {
-      meaningfulDirectionHit = false;
-    }
-  }
+  const { meaningfulMove, meaningfulDirectionHit } = evaluateMeaningfulVerdict({
+    entryOutlook: input.entryOutlook,
+    entryPrice: input.entryPrice,
+    realizedReturnPct,
+    absoluteChangeEur,
+    directionHit,
+  });
 
   const band = parseScenarioBand(input.entryScenarioJson, input.horizonDays);
   const bandWithin =
@@ -398,12 +471,4 @@ export function summarizeForecastCohort(input: {
     interval,
     reason: learningReason,
   };
-}
-
-export function getSignalPriceBand(price: number | null): string | null {
-  if (!isValidPrice(price)) return null;
-  if (price < 5) return "EUR 1-5";
-  if (price < 25) return "EUR 5-25";
-  if (price < 100) return "EUR 25-100";
-  return "EUR 100+";
 }

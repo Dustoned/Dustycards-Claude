@@ -786,11 +786,20 @@ export function CardModalMarketSignalPanel({
 }) {
   const stats = card.market_stats;
   const updatedLabel = formatShortStatusDate(stats?.updated_at);
+  // Drivers without verified evidence count as neutral, which caps the total
+  // well inside 0-100. Say so instead of implying STRONG or WEAK is reachable.
+  const partialScoreRange =
+    stats?.score_range && stats.score_range.ceiling < 100 ? stats.score_range : null;
   const scoreSummary = stats
     ? stats.score == null
       ? "The score appears once there is enough price and demand data for this card."
-      : "One overall number that combines price trend, stability, liquidity, demand and graded-market activity."
+      : partialScoreRange
+        ? `Combines price trend, stability, liquidity, demand and graded-market activity. Drivers without live eBay evidence count as neutral, so the score can currently only range ${formatMarketStatsNumber(partialScoreRange.floor)}–${formatMarketStatsNumber(partialScoreRange.ceiling)}.`
+        : "One overall number that combines price trend, stability, liquidity, demand and graded-market activity."
     : "Market insights appear here once enough price and demand data is collected.";
+  const tierTitle = partialScoreRange
+    ? `Reachable range with current data: ${formatMarketStatsNumber(partialScoreRange.floor)}–${formatMarketStatsNumber(partialScoreRange.ceiling)}. STRONG and WEAK need live eBay demand evidence.`
+    : undefined;
   const analysisLinkLabel = signal ? "Open full analysis" : "Open Signal Radar";
 
   return (
@@ -815,7 +824,15 @@ export function CardModalMarketSignalPanel({
             </h3>
           </div>
         </div>
-        <span className={`shrink-0 rounded-full border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.07em] ${stats ? getMarketStatsTierClass(stats.tier) : "border-white/10 bg-white/[0.04] text-white/46"}`}>
+        <span
+          className={`shrink-0 rounded-full border px-2.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.07em] ${stats ? getMarketStatsTierClass(stats.tier) : "border-white/10 bg-white/[0.04] text-white/46"}`}
+          title={tierTitle}
+          data-market-score-range={
+            partialScoreRange
+              ? `${partialScoreRange.floor}-${partialScoreRange.ceiling}`
+              : undefined
+          }
+        >
           {stats?.tier ?? "Building"}
         </span>
       </div>

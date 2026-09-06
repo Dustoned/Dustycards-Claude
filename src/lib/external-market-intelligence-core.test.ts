@@ -1482,3 +1482,35 @@ describe("external market intelligence", () => {
     expect(highWidth / lowWidth).toBeCloseTo(1.5 / 1.35, 1);
   });
 });
+
+describe("graded scenario momentum source", () => {
+  const shared = {
+    marketMode: "graded" as const,
+    currentPrice: 400,
+    currency: "USD" as const,
+    ageYears: 4,
+    opportunityScore: 70,
+    sealedTrendPct: null,
+    rawTrend30dPct: 6,
+    rawTrend90dPct: 14,
+    rawTrend180dPct: 20,
+    scarcityScore: 60,
+    gemRatePct: 30,
+    riskScore: 0,
+    evidenceCount: 3,
+    historyPoints: 40,
+  };
+
+  it("labels a graded path that borrows raw momentum as a proxy", () => {
+    expect(buildPriceScenario({ ...shared, momentumSource: "raw-proxy" })?.drivers).toContain(
+      "raw-market momentum proxy"
+    );
+  });
+
+  it("does not label same-market graded momentum as a proxy", () => {
+    expect(buildPriceScenario({ ...shared })?.drivers).not.toContain("raw-market momentum proxy");
+    expect(
+      buildPriceScenario({ ...shared, momentumSource: "same-market" })?.drivers
+    ).not.toContain("raw-market momentum proxy");
+  });
+});

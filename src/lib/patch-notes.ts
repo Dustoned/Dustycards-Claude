@@ -17,6 +17,19 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.13.5",
+    releasedAt: "September 6, 2026",
+    title: "Fairer forecast verdicts and honest market tags",
+    summary: "Signal Radar predictions, market scores and forecast targets now judge and present cards on the scale they trade at.",
+    tone: "improved",
+    highlights: [
+      "A finished prediction on a cheap card can now be scored correct: the euro floor follows the price band (EUR 1 to EUR 10) next to the 15% rule, and earlier verdicts are re-scored once with the same rule.",
+      "Forecast calibration borrows finished outcomes from every earlier model version, so a model bump no longer resets the learning loop.",
+      "The graded value path runs on the PSA 10 sold history itself and says so when it still has to borrow raw momentum.",
+      "The market score shows the range its scored drivers can actually reach, momentum no longer extrapolates a few days of history, and every forecast panel lists the same four targets.",
+    ],
+  },
+  {
     version: "3.13.4",
     releasedAt: "September 4, 2026",
     title: "Pokémon collection photo inspections",
