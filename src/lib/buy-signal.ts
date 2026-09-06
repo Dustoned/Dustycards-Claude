@@ -15,6 +15,19 @@ export type BuySignalTone = "positive" | "negative" | "neutral" | "warning";
 // Bump whenever the scoring formula or its evidence rules change.
 export const BUY_SIGNAL_MODEL_VERSION = "buy-v2-value-quality";
 
+/**
+ * A bumped model starts with an empty advice journal until the background
+ * batch has re-walked every card. Until then the journal shows the version it
+ * replaced, clearly labelled, instead of an empty page.
+ */
+export const BUY_SIGNAL_MODEL_VERSION_FALLBACKS: Readonly<Record<string, string>> = {
+  "buy-v2-value-quality": "buy-v1-history",
+};
+
+export function getBuySignalModelVersionFallback(version: string): string | null {
+  return BUY_SIGNAL_MODEL_VERSION_FALLBACKS[version] ?? null;
+}
+
 export function getBuySignalReference(input: BuildBuySignalInput) {
   const ebay = findMatchingEbaySoldPrice(input.ebay_sold_graded_prices ?? [], input.collection_item);
   const graded = findMatchingCardMarketGradedPrice(input.graded_prices ?? [], input.collection_item);
