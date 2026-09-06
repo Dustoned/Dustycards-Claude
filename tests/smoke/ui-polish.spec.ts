@@ -48,7 +48,7 @@ test("admin learning overview separates market, private collection and historica
     db.prepare("INSERT INTO User (id,email,password_hash,role,disabled,created_at,updated_at) VALUES (?,?,'test-only','user',0,?,?)").run(other,`${other}@example.test`,stamp,stamp);
     db.prepare("INSERT INTO Episode (id,game,name,release_date) VALUES (?,'pokemon','Journal test set','2020-01-01')").run(prefix);
     db.prepare("INSERT INTO Card (id,game,name,episode_id,image_url,updated_at) VALUES (?,'pokemon','Journal public',?,'/icons/dustycards-pokeball-192.png',?)").run(`${prefix}-public`,prefix,stamp);
-    const insert=db.prepare("INSERT INTO AdviceObservation (id,owner_id,card_id,card_name,game,context,origin,model_version,label,score,confidence,source,currency,entry_price,observed_at,evidence_json) VALUES (?,?,?,?,'pokemon',?,?,'buy-v1-history','buy',70,'medium','cm-raw','EUR',100,?,'{}')");
+    const insert=db.prepare("INSERT INTO AdviceObservation (id,owner_id,card_id,card_name,game,context,origin,model_version,label,score,confidence,source,currency,entry_price,observed_at,evidence_json) VALUES (?,?,?,?,'pokemon',?,?,'buy-v2-value-quality','buy',70,'medium','cm-raw','EUR',100,?,'{}')");
     for(const [suffix,owner,origin] of [["public",null,"live"],["mine",uiAccount,"live"],["private",other,"live"],["replay",null,"replay"]] as const) {
       const id=`${prefix}-${suffix}`;
       insert.run(id,owner,id,`Journal ${suffix}`,owner?"owned":"market",origin,stamp);
@@ -62,7 +62,7 @@ test("admin learning overview separates market, private collection and historica
     await expect(page.getByRole("img",{name:"Journal public",exact:true})).toBeVisible();
     await expect(page.getByRole("link",{name:"Open Journal public",exact:true})).toHaveAttribute("href",`/movers/signal-radar/${prefix}-public?game=pokemon`);
     await page.getByText("Advice details",{exact:true}).first().click();
-    await expect(page.getByText(/buy-v1-history · 0 history points at entry/).first()).toBeVisible();
+    await expect(page.getByText(/buy-v2-value-quality · 0 history points at entry/).first()).toBeVisible();
     for(const width of [390,1440]) {
       await page.setViewportSize({width,height:900});
       expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
