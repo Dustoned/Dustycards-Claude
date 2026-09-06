@@ -13,7 +13,7 @@ export type BuySignalContext = "owned" | "market";
 export type BuySignalTone = "positive" | "negative" | "neutral" | "warning";
 
 // Bump whenever the scoring formula or its evidence rules change.
-export const BUY_SIGNAL_MODEL_VERSION = "buy-v1-history";
+export const BUY_SIGNAL_MODEL_VERSION = "buy-v2-value-quality";
 
 export function getBuySignalReference(input: BuildBuySignalInput) {
   const ebay = findMatchingEbaySoldPrice(input.ebay_sold_graded_prices ?? [], input.collection_item);
@@ -64,6 +64,7 @@ export interface BuySignalResult {
     history_range_change_pct: number | null;
     history_range_covered_days: number | null;
     raw_active_listing_outlier: boolean;
+    value_quality_penalty: number;
   };
 }
 
@@ -543,6 +544,14 @@ function formatAgeLabel(releaseAgeYears: number | null): string | null {
   return `${releaseAgeYears.toFixed(releaseAgeYears >= 10 ? 0 : 1)}y`;
 }
 
+function getValueQualityPenalty(value: number | null, marketMode: BuySignalMarketMode): number {
+  if (value == null || marketMode !== "raw") return 0;
+  if (value < 0.25) return 10;
+  if (value < 1) return 5;
+  if (value < 3) return 2;
+  return 0;
+}
+
 export function getBuySignalLabelForScore(score: number): BuySignalLabel {
   if (score <= 19) return "strong_sell";
   if (score <= 39) return "sell";
@@ -665,6 +674,7 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
     (currentValue != null ? 1 : 0) +
     (selection.raw_has_secondary_source || (currentValue != null && selection.comparison_value != null) ? 1 : 0);
   const dataAgeDays = getDataAgeDays(selection.data_fetched_at, now);
+  const valueQualityPenalty = getValueQualityPenalty(currentValue, selection.market_mode);
   const warnings: string[] = [];
   const reasons: string[] = [];
   const hasLongTermHoldValue = longTermScore >= 55;
@@ -720,6 +730,10 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
   if (currentValue == null) {
     score = 50;
   } else {
+    // Percentage moves on penny cards can look spectacular while adding almost no
+    // collectible value. Keep the signal useful for discovery, but require a
+    // stronger absolute value before calling a raw card Strong Buy.
+    score -= valueQualityPenalty;
     if (vs30dAvgPct != null) {
       const averageWeight = matureAverageDampens && vs30dAvgPct < 0 ? 0.32 : 1;
       score += clamp(vs30dAvgPct * 0.85 * averageWeight, -20, 20);
@@ -827,7 +841,11 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
     score = clamp(score, 20, 80);
   }
 
-  const roundedScore = round(clamp(score, 0, 100));
+  let roundedScore = round(clamp(score, 0, 100));
+  if (selection.market_mode === "raw" && currentValue != null) {
+    if (currentValue < 0.25) roundedScore = Math.min(roundedScore, 60);
+    else if (currentValue < 1) roundedScore = Math.min(roundedScore, 80);
+  }
   const label = getBuySignalLabelForScore(roundedScore);
   const rarityLabel =
     normalizeRarityLabel(input.rarity ?? input.pull_rate_info?.rarity_name) ??
@@ -956,6 +974,7 @@ export function buildBuySignal(input: BuildBuySignalInput): BuySignalResult {
         historyRangeChange?.change_pct == null ? null : round(historyRangeChange.change_pct, 1),
       history_range_covered_days: historyRangeChange?.covered_days ?? null,
       raw_active_listing_outlier: selection.raw_active_listing_outlier,
+      value_quality_penalty: valueQualityPenalty,
     },
   };
 }

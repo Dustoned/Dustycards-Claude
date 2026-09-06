@@ -443,4 +443,28 @@ describe("buy signal", () => {
     expect(signal.confidence).toBe("low");
     expect(signal.warnings).toContain("No current market value");
   });
+
+  it("does not call a raw penny card Strong Buy on percentage momentum alone", () => {
+    const signal = buildBuySignal(rawInput({
+      price: {
+        cm_en_lowest_nm: 0.08,
+        cm_de_lowest_nm: null,
+        cm_fr_lowest_nm: null,
+        cm_es_lowest_nm: null,
+        cm_it_lowest_nm: null,
+        cm_jp_lowest_nm: null,
+        tcp_market: null,
+        tcp_mid: null,
+        tcp_low: null,
+        cm_en_avg_7d: 0.04,
+        cm_en_avg_30d: 0.03,
+      },
+      price_history: [historyPoint("2026-05-27", 0.03), historyPoint("2026-05-29", 0.06), historyPoint("2026-05-30", 0.08)],
+      now: "2026-05-30T10:00:00.000Z",
+    }));
+
+    expect(signal.label).not.toBe("strong_buy");
+    expect(signal.score).toBeLessThanOrEqual(60);
+    expect(signal.metrics.value_quality_penalty).toBe(10);
+  });
 });
