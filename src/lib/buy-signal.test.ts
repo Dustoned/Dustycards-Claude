@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  getBuySignalModelVersionFallback,
   buildBuySignal,
   getBuySignalLabelForScore,
   type BuildBuySignalInput,
@@ -466,5 +467,13 @@ describe("buy signal", () => {
     expect(signal.label).not.toBe("strong_buy");
     expect(signal.score).toBeLessThanOrEqual(60);
     expect(signal.metrics.value_quality_penalty).toBe(10);
+  });
+});
+
+describe("buy signal model version fallback", () => {
+  it("points a bumped model at the version it replaced", () => {
+    expect(getBuySignalModelVersionFallback("buy-v2-value-quality")).toBe("buy-v1-history");
+    expect(getBuySignalModelVersionFallback("buy-v1-history")).toBeNull();
+    expect(getBuySignalModelVersionFallback("unknown")).toBeNull();
   });
 });

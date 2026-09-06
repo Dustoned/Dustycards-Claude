@@ -4,7 +4,7 @@ import { db } from "@/lib/db";
 import { requirePageAdmin } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { ADVICE_THRESHOLDS, adviceFamily } from "@/lib/advice-learning";
-import { BUY_SIGNAL_MODEL_VERSION } from "@/lib/buy-signal";
+import { BUY_SIGNAL_MODEL_VERSION, getBuySignalModelVersionFallback } from "@/lib/buy-signal";
 
 export const dynamic="force-dynamic";
 const base="/movers/signal-radar/learning/advice";
@@ -25,7 +25,13 @@ export default async function AdviceLearningPage({searchParams}:{searchParams:Pr
   const page=Math.max(1,Math.min(10000,parseInt(params.page??"1",10)||1));
   const cutoff=cutoffSetting?new Date(cutoffSetting.value):new Date(0);
   const link=(change:Record<string,string|number>)=>`${base}?${new URLSearchParams({context,origin,horizon:String(horizon),label,result,sample,page:"1",...Object.fromEntries(Object.entries(change).map(([key,value])=>[key,String(value)]))})}`;
-  const observation={owner_id:context==="owned"?user.id:null,context,origin,model_version:BUY_SIGNAL_MODEL_VERSION,...(!settings.onePieceLibraryEnabled?{game:{in:["pokemon","pokemon-jp"]}}:{}),...(origin==="replay" && sample==="validation"?{observed_at:{gte:cutoff}}:{})};
+  const baseObservation={owner_id:context==="owned"?user.id:null,context,origin,...(!settings.onePieceLibraryEnabled?{game:{in:["pokemon","pokemon-jp"]}}:{}),...(origin==="replay" && sample==="validation"?{observed_at:{gte:cutoff}}:{})};
+  // A freshly bumped model has no journal yet; show the version it replaced
+  // (labelled below) rather than an empty page while the batch rebuilds.
+  const currentVersionCount=await db.adviceObservation.count({where:{...baseObservation,model_version:BUY_SIGNAL_MODEL_VERSION}});
+  const fallbackVersion=getBuySignalModelVersionFallback(BUY_SIGNAL_MODEL_VERSION);
+  const modelVersion=currentVersionCount===0 && fallbackVersion?fallbackVersion:BUY_SIGNAL_MODEL_VERSION;
+  const observation={...baseObservation,model_version:modelVersion};
   const where={observation,horizon_days:horizon,...(origin==="replay" && sample==="development"?{due_at:{lt:cutoff}}:{})};
   const families={buy:["buy","strong_buy"],hold:["hold"],sell:["sell","strong_sell"]};
   const labelSets={...families,strong_buy:["strong_buy"],strong_sell:["strong_sell"]};
@@ -55,6 +61,7 @@ export default async function AdviceLearningPage({searchParams}:{searchParams:Pr
   return <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 text-white/85 sm:px-6 sm:py-10">
     <Link href="/movers/signal-radar/learning" className="text-sm text-white/50">← Prediction journal</Link>
     <header className="rounded-3xl border border-violet-300/15 bg-gradient-to-br from-violet-500/15 to-transparent p-6 sm:p-8"><p className="text-xs font-semibold uppercase tracking-widest text-violet-200">Advice journal</p><h1 className="mt-3 text-3xl font-bold">Buy, Hold &amp; Sell</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/55">Track the original advice, the evidence behind it and what happened next. Market calls and your collection stay separate.</p></header>
+    {modelVersion!==BUY_SIGNAL_MODEL_VERSION?<p className={`${panel} text-sm leading-6 text-white/60`} data-advice-model-fallback={modelVersion}>Showing results from the previous model <span className="font-semibold text-white/80">{modelVersion}</span>. The current model <span className="font-semibold text-white/80">{BUY_SIGNAL_MODEL_VERSION}</span> has no entries in this selection yet; its journal is rebuilt in background batches and takes over automatically once entries exist.</p>:null}
     {choice("Advice context",[{label:"Market",value:"market"},{label:"My collection",value:"owned"}],"context",context)}
     {context==="market"?choice("Advice evidence",[{label:"Recorded advice",value:"live"},{label:"Historical replay",value:"replay"}],"origin",origin):<p className="text-sm text-white/50">Only your saved collection advice is shown. Purchase cost and grading are frozen when recorded; personal advice is never reconstructed retroactively.</p>}
     {origin==="replay"?<section className={panel}><h2 className="font-semibold">Reconstructed, not past live advice</h2><p className="mt-2 text-sm leading-6 text-white/55">The current model uses all available EN NM history up to each entry, with current rarity and set metadata. Historical pull rates, owned costs, grading and external comparisons are omitted because their past state is not recorded. Entries are at least 180 days apart per card.</p><div className="mt-4">{choice("Replay period",[{label:"Later dates · validation",value:"validation"},{label:"Earlier dates · development",value:"development"}],"sample",sample)}</div><p className="mt-3 text-xs text-white/40">Split: {cutoffSetting ? day(cutoff) : "pending first batch"}. Earlier checks finish before this date; later entries start on or after it. Crossing checks are excluded. No model weights have been tuned on these results.</p></section>:null}
