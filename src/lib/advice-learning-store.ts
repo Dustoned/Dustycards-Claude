@@ -1,3 +1,4 @@
+import { latestUsablePriceField } from "@/lib/card-price-fields";
 import { createHash, randomUUID } from "node:crypto";
 import { db } from "@/lib/db";
 import { buildBuySignal, BUY_SIGNAL_MODEL_VERSION, getBuySignalReference, type BuildBuySignalInput, type BuySignalResult, type BuySignalLabel } from "@/lib/buy-signal";
@@ -80,7 +81,8 @@ async function processAdviceLearningBatch(now:Date,batchSize:number) {
   const histories=await loadSafeCardMarketHistoryRows(cards.map(identity),{fetchedAtLte:now});
   let captured=0,replayed=0;
   for(const card of cards) {
-    const rows=(histories.get(card.id)??[]).filter(row=>row.cm_en_lowest_nm!=null && row.cm_en_lowest_nm>0 && row.cm_en_lowest_nm!==9001).sort((a,b)=>new Date(a.cm_fetched_at??a.fetched_at).getTime()-new Date(b.cm_fetched_at??b.fetched_at).getTime());
+    const allRows=histories.get(card.id)??[];
+    const rows=allRows.filter(row=>row.cm_en_lowest_nm!=null && row.cm_en_lowest_nm>0 && row.cm_en_lowest_nm!==9001).sort((a,b)=>new Date(a.cm_fetched_at??a.fetched_at).getTime()-new Date(b.cm_fetched_at??b.fetched_at).getTime());
     const owners=await db.collectionCard.findMany({where:{card_id:card.id,sold_at:null},distinct:["user_id"],select:{user_id:true}});
     if(owners.length) {
       const {getCardDetailPayload}=await import("@/lib/card-detail-data");
@@ -89,12 +91,13 @@ async function processAdviceLearningBatch(now:Date,batchSize:number) {
     const latest=rows.at(-1);
     if(!latest) continue;
     const baseInput={rarity:card.rarity,episode_name:card.episode.name,episode_code:card.episode.code,episode_release_date:card.episode.release_date};
-    const history=buildCardPriceHistory(rows);
+    const history=buildCardPriceHistory(allRows);
+    const price={...latest,cm_en_avg_7d:latestUsablePriceField(allRows,"cm_en_avg_7d",{cardMarket:true}),cm_en_avg_30d:latestUsablePriceField(allRows,"cm_en_avg_30d",{cardMarket:true}),tcp_market:latestUsablePriceField(allRows,"tcp_market"),tcp_mid:latestUsablePriceField(allRows,"tcp_mid"),tcp_low:latestUsablePriceField(allRows,"tcp_low")};
     const recent=await db.adviceObservation.findFirst({where:{card_id:card.id,owner_id:null,origin:"live",model_version:BUY_SIGNAL_MODEL_VERSION,observed_at:{gte:new Date(now.getTime()-30*DAY)}},select:{id:true}});
     if(!recent && now.getTime()-new Date(latest.cm_fetched_at??latest.fetched_at).getTime()<=3*DAY) {
       const pull=await getPullRateInfoForSetRarity({setCode:card.episode.code,rarity:card.rarity});
       const pull_rate_info=pull?{rarity_name:pull.rarityName,pull_rate_odds:pull.pullRateOdds,specific_pull_odds:pull.specificPullOdds,pull_rate_weight:pull.pullRateWeight,psa_avg_gem_pct:pull.psaAvgGemPct}:null;
-      if(await recordAdvice({card,now,signalInput:{...baseInput,pull_rate_info,price:latest,price_fetched_at:new Date(latest.cm_fetched_at??latest.fetched_at).toISOString(),price_history:history}})) captured++;
+      if(await recordAdvice({card,now,signalInput:{...baseInput,pull_rate_info,price,price_fetched_at:new Date(latest.cm_fetched_at??latest.fetched_at).toISOString(),price_history:history}})) captured++;
     }
     for(const replay of buildAdviceReplayEntries(rows,baseInput,now)) {
       const observation=await recordAdvice({card,now:replay.at,origin:"replay",signalInput:replay.input});

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { evaluateAdvice, scoreAdvice, summarizeAdvice } from "./advice-learning";
 import { buildAdviceReplayEntries } from "./advice-replay";
+import { latestUsablePriceField } from "./card-price-fields";
 import { buildBuySignal } from "./buy-signal";
 import type { CardMarketHistoryPriceRow } from "./card-market-history";
 
@@ -63,4 +64,10 @@ describe("historical advice replay", () => {
     expect(buildAdviceReplayEntries(history.map(r=>({...r,cm_fetched_at:at(-20)})),{},at(499))).toEqual([]);
     expect(buildAdviceReplayEntries(history,{},at(30))).toEqual([]);
   });
+});
+
+it("resolves independent marketplace fields without hiding older source-pure quotes", () => {
+  const rows=[{...row(1),tcp_market:120,cm_en_avg_30d:90},{...row(2),tcp_market:null,cm_en_avg_30d:null}];
+  expect(latestUsablePriceField(rows,"tcp_market")).toBe(120);
+  expect(latestUsablePriceField(rows,"cm_en_avg_30d",{cardMarket:true})).toBe(90);
 });
