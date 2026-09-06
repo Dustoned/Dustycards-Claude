@@ -86,3 +86,61 @@ describe("live forecast tracking status", () => {
     });
   });
 });
+
+describe("forecast cohort assembly across model versions", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mocks.observationFindMany.mockResolvedValue([
+      {
+        card_id: "shaymin-94",
+        game: "pokemon",
+        model_version: "v12-hype-reset-calibrated",
+        pressure_label: "Strong",
+        price_band: "100-plus",
+        observed_at: new Date("2026-08-04T00:00:00.000Z"),
+      },
+    ]);
+    mocks.observationCount.mockResolvedValue(0);
+    mocks.outcomeFindMany.mockImplementation(
+      async (args: {
+        where?: { status?: unknown; entry_observation?: { model_version?: string } };
+      }) => {
+        // Tracking query has no status filter; cohort queries do.
+        if (!args?.where?.status) return [];
+        // Only the ancestor two hops down the chain has finished outcomes.
+        if (args.where.entry_observation?.model_version !== "v9-calibrated-inputs") return [];
+        return Array.from({ length: 12 }, (_, index) => ({
+          horizon_days: 90,
+          status: "complete",
+          hit_15x: index % 4 === 0,
+          hit_2x: false,
+          hit_3x: false,
+          realized_return_pct: 10,
+          direction_hit: true,
+          meaningful_direction_hit: true,
+          band_within: true,
+          entry_observation: {
+            card_id: `v9-card-${index}`,
+            game: "pokemon",
+            model_version: "v9-calibrated-inputs",
+            pressure_label: "Strong",
+            price_band: "100-plus",
+            observed_at: new Date(Date.UTC(2026, 0, 1 + index)),
+            entry_expected_return_pct_180: 12,
+          },
+        }));
+      }
+    );
+  });
+
+  it("borrows finished outcomes from every older version in the fallback chain", async () => {
+    const summaries = await getExternalForecastSummaries(["shaymin-94"]);
+    const target = summaries.get("shaymin-94")?.targets["1.5x-90d"];
+
+    expect(target).toMatchObject({
+      samples: 12,
+      hits: 3,
+      usingPreviousModelCohort: true,
+    });
+  });
+});

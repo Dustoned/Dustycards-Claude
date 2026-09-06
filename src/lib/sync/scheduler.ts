@@ -33,6 +33,7 @@ import {
 import {
   captureOpenExternalSignalOutcomePrices,
   evaluatePendingExternalSignalOutcomes,
+  rescoreExternalSignalOutcomeVerdicts,
 } from "@/lib/external-signal-forecast-store";
 import {
   maybeStartNewReleaseChasePriceJob,
@@ -140,6 +141,11 @@ export interface SyncSchedulerTickResult {
       complete: number;
       insufficient: number;
       truncated: boolean;
+    };
+    signalVerdictRescore: {
+      checked: number;
+      updated: number;
+      skipped?: boolean;
     };
     signalOutcomeError: string | null;
   };
@@ -295,6 +301,17 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
   await runAdviceLearningBatch(checkedAt).catch((error: unknown) => {
     console.error("[advice-learning] Scheduler batch failed", error instanceof Error ? error.message : "unknown error");
   });
+  // Finished verdicts are reconciled with the current meaningful-move rule
+  // once per process, so cohort accuracy never mixes two scoring rules.
+  const signalVerdictRescore = await rescoreExternalSignalOutcomeVerdicts().catch(
+    (error: unknown) => {
+      signalOutcomeError = [
+        signalOutcomeError,
+        error instanceof Error ? error.message : String(error),
+      ].filter(Boolean).join(" | ");
+      return { checked: 0, updated: 0 };
+    }
+  );
   // Evaluate only prices that are already committed. New background refresh
   // writes are intentionally picked up on the next scheduler tick.
   const failedAlertSweep = (error: unknown): CardPriceAlertSweepResult => ({
@@ -500,6 +517,7 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
       normalizedPriceCheckedAtCards,
       signalOutcomePrices,
       signalOutcomes,
+      signalVerdictRescore,
       signalOutcomeError,
     },
   };

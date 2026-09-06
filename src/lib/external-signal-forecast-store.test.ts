@@ -2,6 +2,7 @@
 
 vi.mock("@/lib/db", () => ({ db: {} }));
 
+import { FORECAST_TARGET_DISPLAY } from "@/lib/external-signal-forecast";
 import {
   EXTERNAL_FORECAST_TARGETS,
   FORECAST_MODEL_VERSION_FALLBACKS,
@@ -302,5 +303,13 @@ describe("external signal forecast store helpers", () => {
 
     expect(summary.usingPreviousModelCohort).toBeUndefined();
     expect(summary.samples).toBe(60);
+  });
+});
+
+describe("forecast target keys", () => {
+  it("keeps the persisted target keys aligned with the shared display list", () => {
+    expect(EXTERNAL_FORECAST_TARGETS.map((target) => target.key)).toEqual(
+      FORECAST_TARGET_DISPLAY.map((target) => target.key)
+    );
   });
 });

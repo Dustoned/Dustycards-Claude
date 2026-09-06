@@ -253,3 +253,24 @@ describe("buildCardMarketStats", () => {
     }));
   });
 });
+
+describe("buildCardMarketStats honesty", () => {
+  it("reports the score range that the scored drivers can actually reach", () => {
+    const partial = buildCardMarketStats(
+      buildInput({ demand: null, ebaySoldGradedPrices: [], gradedPrices: [] })
+    );
+    expect(partial.score_range).toEqual({ floor: 23.5, ceiling: 76.5 });
+
+    const complete = buildCardMarketStats(
+      buildInput({ gradedPrices: [{ label: "PSA 10", price: 120 }] })
+    );
+    expect(complete.score_range).toEqual({ floor: 0, ceiling: 100 });
+  });
+
+  it("does not extrapolate a short history beyond the observed window", () => {
+    const stats = buildCardMarketStats(
+      buildInput({ history: history([10, 10.3, 10.6, 11]), demand: null })
+    );
+    expect(stats.metrics.momentum).toBeLessThanOrEqual(66);
+  });
+});

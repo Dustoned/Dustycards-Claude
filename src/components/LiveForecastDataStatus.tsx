@@ -1,19 +1,6 @@
 import { ChevronDown, Clock3, Database } from "lucide-react";
-import type {
-  ExternalCardForecastSummary,
-  ExternalForecastTargetKey,
-} from "@/lib/external-signal-forecast-store";
-
-const TARGET_GATES: Array<{
-  key: ExternalForecastTargetKey;
-  label: string;
-  minimum: number;
-}> = [
-  { key: "1.5x-30d", label: "1.5x / 30d", minimum: 40 },
-  { key: "1.5x-90d", label: "1.5x / 90d", minimum: 50 },
-  { key: "2x-90d", label: "2x / 90d", minimum: 100 },
-  { key: "3x-180d", label: "3x / 180d", minimum: 200 },
-];
+import { FORECAST_TARGET_DISPLAY } from "@/lib/external-signal-forecast";
+import type { ExternalCardForecastSummary } from "@/lib/external-signal-forecast-store";
 
 function cx(...classes: Array<string | null | undefined | false>) {
   return classes.filter(Boolean).join(" ");
@@ -100,29 +87,31 @@ export default function LiveForecastDataStatus({
           ))}
         </div>
         <p className="mt-1.5 text-[8px] leading-3.5 text-white/28">
-          Every finished call gets a verdict: a directional call needs at least 15% and EUR 10 movement to count as correct, while a flat call is correct exactly when that movement stays away.
+          Every finished call gets a verdict: a directional call needs at least 15% plus a minimum move that scales with the price (EUR 1 under EUR 5, up to EUR 10 above EUR 100) to count as correct, while a flat call is correct exactly when that movement stays away.
         </p>
 
         <div className="mt-2.5 space-y-2">
-          {TARGET_GATES.map((target) => {
+          {FORECAST_TARGET_DISPLAY.map((target) => {
             const targetSummary = forecast.targets[target.key];
             const completed = targetSummary?.samples ?? 0;
             const hits = targetSummary?.hits ?? 0;
             const misses = Math.max(0, completed - hits);
-            const width = Math.min(100, (completed / target.minimum) * 100);
+            const width = Math.min(100, (completed / target.minimumSamples) * 100);
             const calibrated =
               targetSummary?.status === "calibrated" && targetSummary.interval != null;
             return (
               <div key={target.key}>
                 <div className="flex items-start justify-between gap-3 text-[9px]">
-                  <span className="font-semibold text-white/52">{target.label}</span>
+                  <span className="font-semibold text-white/52">
+                    {target.multiplierLabel} / {target.horizonDays}d
+                  </span>
                   <span className="text-right tabular-nums text-white/36">
                     <strong className="block font-semibold text-sky-100/62">
                       {calibrated
                         ? `${Math.round(targetSummary.interval!.estimate * 100)}% probability`
                         : completed > 0
-                          ? `Learning · ${completed} of ${target.minimum} complete`
-                          : `Learning · ${target.minimum} outcomes needed`}
+                          ? `Learning · ${completed} of ${target.minimumSamples} complete`
+                          : `Learning · ${target.minimumSamples} outcomes needed`}
                     </strong>
                     {completed > 0 ? (
                       <small className="mt-0.5 block text-[8px] font-medium text-white/28">

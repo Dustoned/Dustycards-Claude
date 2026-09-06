@@ -20,6 +20,31 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.13.5",
+    releasedAt: "September 6, 2026",
+    title: "Predictions are judged on the card's own scale",
+    summary: "The Signal Radar learning loop, the graded value path and the market score tag were audited and corrected together.",
+    tone: "improved",
+    sections: [
+      {
+        title: "A fair verdict for every price band",
+        highlights: [
+          "A directional call still needs a 15% move, but the euro floor now follows the price band instead of a flat EUR 10, so cheap cards can be right and flat calls there are no longer automatically right.",
+          "Finished verdicts stored under the old rule are re-scored once, so cohort accuracy and the Action Center never mix two rules.",
+          "Calibration reuses finished outcomes from every earlier model version instead of only the last one.",
+        ],
+      },
+      {
+        title: "Clearer market signals",
+        highlights: [
+          "The graded forecast follows the PSA 10 sold history and labels a raw-momentum proxy when that history is still thin.",
+          "The market score tag explains the range it can reach while liquidity and demand still count as neutral.",
+          "Forecast horizons take the colour of the scenario outlook, all panels list the same four targets, and the unused chart projection code is gone.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.13.4",
     releasedAt: "September 4, 2026",
     title: "Look inside Pokémon collections",

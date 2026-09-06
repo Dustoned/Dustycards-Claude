@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+  FORECAST_TARGET_DISPLAY,
   calculateWilsonInterval,
   collapseSignalPricesByUtcDay,
+  evaluateMeaningfulVerdict,
   evaluateSignalOutcome,
-  getSignalPriceBand,
+  getMeaningfulSignalMove,
   scoreForecastOutcome,
   summarizeForecastCohort,
 } from "@/lib/external-signal-forecast";
@@ -155,13 +157,6 @@ describe("forecast publication gates", () => {
     });
     expect(calibrated.status).toBe("calibrated");
   });
-
-  it("uses stable EUR price bands", () => {
-    expect(getSignalPriceBand(2)).toBe("EUR 1-5");
-    expect(getSignalPriceBand(24.99)).toBe("EUR 5-25");
-    expect(getSignalPriceBand(100)).toBe("EUR 100+");
-    expect(getSignalPriceBand(null)).toBeNull();
-  });
 });
 
 const scenarioJson = JSON.stringify({
@@ -193,7 +188,7 @@ describe("scoreForecastOutcome", () => {
     expect(score({ endPrice: 10 }).realizedReturnPct).toBe(0);
   });
 
-  it("scores every completed call symmetrically on the 15% and EUR 10 rule", () => {
+  it("scores every completed call symmetrically on the 15% and price-band euro rule", () => {
     expect(score({ entryPrice: 44, endPrice: 100 })).toMatchObject({
       absoluteChangeEur: 56,
       meaningfulMove: true,
@@ -204,7 +199,13 @@ describe("scoreForecastOutcome", () => {
       meaningfulMove: false,
       meaningfulDirectionHit: false,
     });
+    // EUR 40 -> 47 is +17.5% and EUR 7: above the EUR 5 floor of its band.
     expect(score({ entryPrice: 40, endPrice: 47 })).toMatchObject({
+      meaningfulMove: true,
+      meaningfulDirectionHit: true,
+    });
+    // The same percentage on a EUR 200 card needs EUR 10 of movement.
+    expect(score({ entryPrice: 200, endPrice: 208 })).toMatchObject({
       meaningfulMove: false,
       meaningfulDirectionHit: false,
     });
@@ -290,5 +291,68 @@ describe("scoreForecastOutcome", () => {
     expect(score({ entryScenarioJson: null }).bandWithin).toBeNull();
     // Direction scoring is unaffected by a broken band.
     expect(score({ entryScenarioJson: "{not json" }).directionHit).toBe(true);
+  });
+});
+
+describe("price-band aware meaningful moves", () => {
+  it("scales the euro floor with the entry price while keeping the 15% floor", () => {
+    expect(getMeaningfulSignalMove(2)).toEqual({ percent: 15, absolute: 1 });
+    expect(getMeaningfulSignalMove(10)).toEqual({ percent: 15, absolute: 2 });
+    expect(getMeaningfulSignalMove(40)).toEqual({ percent: 15, absolute: 5 });
+    expect(getMeaningfulSignalMove(250)).toEqual({ percent: 15, absolute: 10 });
+  });
+
+  it("lets a cheap card produce a meaningful directional verdict", () => {
+    expect(score({ entryOutlook: "strong_up", entryPrice: 5, endPrice: 9 })).toMatchObject({
+      meaningfulMove: true,
+      meaningfulDirectionHit: true,
+    });
+    expect(score({ entryOutlook: "flat", entryPrice: 5, endPrice: 9 })).toMatchObject({
+      meaningfulMove: true,
+      meaningfulDirectionHit: false,
+    });
+  });
+
+  it("still ignores cent-level drift on the cheapest cards", () => {
+    expect(score({ entryOutlook: "strong_up", entryPrice: 3, endPrice: 3.6 })).toMatchObject({
+      meaningfulMove: false,
+      meaningfulDirectionHit: false,
+    });
+  });
+
+  it("derives the same verdict from stored outcome fields as from prices", () => {
+    const fromPrices = score({ entryOutlook: "modest_up", entryPrice: 40, endPrice: 47 });
+    const fromFields = evaluateMeaningfulVerdict({
+      entryOutlook: "modest_up",
+      entryPrice: 40,
+      realizedReturnPct: fromPrices.realizedReturnPct,
+      absoluteChangeEur: fromPrices.absoluteChangeEur,
+      directionHit: fromPrices.directionHit,
+    });
+
+    expect(fromFields).toEqual({
+      meaningfulMove: fromPrices.meaningfulMove,
+      meaningfulDirectionHit: fromPrices.meaningfulDirectionHit,
+    });
+    expect(fromFields.meaningfulMove).toBe(true);
+  });
+});
+
+describe("forecast target display list", () => {
+  it("derives one shared target list from the publish gates", () => {
+    expect(FORECAST_TARGET_DISPLAY.map((target) => target.key)).toEqual([
+      "1.5x-30d",
+      "1.5x-90d",
+      "2x-90d",
+      "3x-180d",
+    ]);
+    expect(FORECAST_TARGET_DISPLAY.map((target) => target.minimumSamples)).toEqual([
+      40, 50, 100, 200,
+    ]);
+    expect(FORECAST_TARGET_DISPLAY[0]).toMatchObject({
+      multiplierLabel: "1.5x",
+      horizonDays: 30,
+      horizonLabel: "30 days",
+    });
   });
 });

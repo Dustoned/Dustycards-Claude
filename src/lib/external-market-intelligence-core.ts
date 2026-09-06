@@ -640,6 +640,12 @@ export function buildPriceScenario(input: {
   lifecycleOopProbability?: number | null;
   currentVsEnglishNmAverage30dPct?: number | null;
   extendedHistory?: ExtendedPriceHistoryFeatures | null;
+  /**
+   * Where the trend inputs come from. A graded path normally runs on its own
+   * sold-price series; when that series is too thin it borrows the raw
+   * market's momentum and says so in its drivers.
+   */
+  momentumSource?: "same-market" | "raw-proxy";
 }): ExternalPriceScenario | null {
   if (
     input.currentPrice == null ||
@@ -1001,6 +1007,7 @@ export function buildPriceScenario(input: {
     priceRefreshDue ? "price refresh due" : null,
     input.sealedTrendPct != null ? "sealed trend" : null,
     input.rawTrend90dPct != null ? "market history" : null,
+    input.momentumSource === "raw-proxy" ? "raw-market momentum proxy" : null,
     input.scarcityScore >= 60 ? "structural scarcity" : null,
     input.marketMode === "graded" && input.gemRatePct != null ? "gem-rate" : null,
     input.ebayDemandAdjustment != null && input.ebayDemandAdjustment !== 0
