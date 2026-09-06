@@ -48,6 +48,7 @@ model AppSetting {
 }
 
 model User {
+  adviceObservations AdviceObservation[]
   id                    String    @id @default(cuid())
   email                 String    @unique
   password_hash         String
@@ -90,6 +91,46 @@ model User {
   @@index([disabled])
   @@index([disabled, approval_requested_at])
   @@index([email_verified_at])
+}
+
+model AdviceObservation {
+  id             String @id
+  owner_id       String?
+  owner          User? @relation(fields: [owner_id], references: [id], onDelete: Cascade)
+  card_id        String
+  card_name      String
+  game           String
+  context        String
+  origin         String
+  model_version  String
+  label          String
+  score          Float
+  confidence     String
+  source         String
+  grade_label    String?
+  currency       String
+  entry_price    Float
+  observed_at    DateTime
+  evidence_json  String
+  outcomes       AdviceOutcome[]
+  @@index([owner_id, origin, observed_at])
+  @@index([card_id, observed_at])
+}
+
+model AdviceOutcome {
+  id             String @id @default(cuid())
+  observation_id String
+  observation    AdviceObservation @relation(fields: [observation_id], references: [id], onDelete: Cascade)
+  horizon_days   Int
+  due_at         DateTime
+  status         String @default("pending")
+  correct        Boolean?
+  return_pct     Float?
+  end_price      Float?
+  observed_days  Int @default(0)
+  evaluated_at   DateTime?
+  @@unique([observation_id, horizon_days])
+  @@index([status, due_at])
 }
 
 model ActionCenterReceipt {

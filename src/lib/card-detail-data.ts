@@ -22,7 +22,8 @@ import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
 import { parseBgsSubgrades } from "@/lib/graded-slabs";
-import { buildBuySignal } from "@/lib/buy-signal";
+import { buildBuySignal, type BuildBuySignalInput } from "@/lib/buy-signal";
+import { recordAdvice } from "@/lib/advice-learning-store";
 import { buildCardMarketStats } from "@/lib/card-market-stats";
 import { getEbayDemandPayload } from "@/lib/ebay-demand";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
@@ -595,7 +596,9 @@ export async function getCardDetailPayload(id: string, userId: string) {
           : null,
       }
     : null;
-  const buySignal = buildBuySignal({
+  const adviceAt = new Date();
+  const buySignalInput: BuildBuySignalInput = {
+    now: adviceAt,
     rarity: card.rarity,
     episode_name: card.episode.name,
     episode_code: card.episode.code,
@@ -617,7 +620,12 @@ export async function getCardDetailPayload(id: string, userId: string) {
     ebay_sold_graded_price_history: ebaySoldGradedPriceHistory,
     pull_rate_info: pullRateInfoPayload,
     collection_item: collectionItemPayload,
-  });
+  };
+  const buySignal = buildBuySignal(buySignalInput);
+  await Promise.all([
+    recordAdvice({ card, signalInput: { ...buySignalInput, collection_item: null }, now: adviceAt }),
+    ...(collectionItemPayload ? [recordAdvice({ card, signalInput: buySignalInput, signal: buySignal, ownerId: userId, copyId: collectionItemPayload.id, now: adviceAt })] : []),
+  ]).catch((error: unknown) => console.error("[advice-learning] Capture failed", error instanceof Error ? error.message : "unknown error"));
 
   return {
     id: card.id,

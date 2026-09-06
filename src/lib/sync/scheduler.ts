@@ -1,4 +1,5 @@
 import "server-only";
+import { runAdviceLearningBatch } from "@/lib/advice-learning-store";
 
 import {
   sweepCardPriceAlerts,
@@ -291,6 +292,9 @@ export async function runSyncSchedulerTick(): Promise<SyncSchedulerResult> {
       };
     }
   );
+  await runAdviceLearningBatch(checkedAt).catch((error: unknown) => {
+    console.error("[advice-learning] Scheduler batch failed", error instanceof Error ? error.message : "unknown error");
+  });
   // Evaluate only prices that are already committed. New background refresh
   // writes are intentionally picked up on the next scheduler tick.
   const failedAlertSweep = (error: unknown): CardPriceAlertSweepResult => ({

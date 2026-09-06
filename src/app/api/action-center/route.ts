@@ -43,7 +43,7 @@ export async function GET() {
         orderBy: { item_end_date: "asc" },
         take: 8,
       }),
-      db.externalSignalOutcome.findMany({
+      user.role === "admin" ? db.externalSignalOutcome.findMany({
         where: {
           status: "complete",
           evaluated_at: { gte: recent },
@@ -51,7 +51,7 @@ export async function GET() {
         },
         orderBy: { evaluated_at: "desc" },
         select: { evaluated_at: true, meaningful_direction_hit: true, entry_observation: { select: { game: true } } },
-      }),
+      }) : Promise.resolve([]),
       user.role === "admin"
         ? db.feedback.findMany({ where: { status: "new" }, orderBy: { created_at: "desc" }, take: 12 })
         : Promise.resolve([]),

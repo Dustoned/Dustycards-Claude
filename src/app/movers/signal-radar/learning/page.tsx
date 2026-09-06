@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { ArrowLeft, Activity, Target, CheckCircle2, Clock3 } from "lucide-react";
 import { db } from "@/lib/db";
-import { requirePageUser } from "@/lib/page-auth";
+import { requirePageAdmin } from "@/lib/page-auth";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { learningDayRange, summarizeLearning } from "@/lib/signal-learning";
 
@@ -14,7 +14,7 @@ const date = (value: Date) => value.toLocaleDateString("en-GB", { day: "numeric"
 const outlooks: Record<string, string> = { strong_up: "Strong rise", modest_up: "Modest rise", down: "Decline", flat: "Stable", sideways: "Stable" };
 
 export default async function LearningPage({ searchParams }: { searchParams: Promise<{ horizon?: string; result?: string; page?: string; outcome?: string; day?: string }> }) {
-  const user = await requirePageUser(base);
+  const user = await requirePageAdmin(base);
   const settings = await getServerUserSettings(user.id);
   const params = await searchParams;
   const visibility = settings.onePieceLibraryEnabled ? {} : { game: "pokemon" };
@@ -46,6 +46,7 @@ export default async function LearningPage({ searchParams }: { searchParams: Pro
     </article>;
   }
   return <main className="mx-auto max-w-7xl space-y-6 px-4 py-6 text-white/85 sm:px-6 sm:py-10">
+    <nav aria-label="Learning journals" className="flex flex-wrap gap-2"><span aria-current="page" className="rounded-xl bg-violet-500/20 px-4 py-2 text-sm">Predictions</span><Link prefetch={false} href="/movers/signal-radar/learning/advice" className="rounded-xl border border-white/10 px-4 py-2 text-sm text-white/65 hover:text-white">Buy / Hold / Sell →</Link></nav>
     <Link prefetch={false} href="/movers/signal-radar" className="inline-flex items-center gap-2 text-sm text-white/50 hover:text-white"><ArrowLeft className="h-4 w-4" />Signal Radar</Link>
     <header className="rounded-3xl border border-violet-300/15 bg-gradient-to-br from-violet-500/15 via-violet-500/5 to-transparent p-6 sm:p-8"><div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-violet-200"><Activity className="h-4 w-4" />Prediction journal</div><h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-4xl">What Radar is learning</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-white/55">Every saved call meets a real price check. See what worked, what missed and what still needs time.</p></header>
     {dayRange ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-violet-300/20 bg-violet-500/10 p-4 text-sm"><p>Daily results · {params.day} (UTC). Completed checks across the selected periods.</p><Link prefetch={false} href={base} className="text-violet-200 underline">View all dates</Link></div> : null}

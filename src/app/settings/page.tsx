@@ -1,3 +1,4 @@
+import Link from "next/link";
 import fs from "node:fs/promises";
 import { PageHeroHeader } from "@/components/PageHeader";
 import { appBuildLabel, appVersion, buildVersion, getServerUptimeMs, serverStartedAtIso } from "@/lib/app-version";
@@ -296,6 +297,8 @@ export default async function SettingsPage({
           description="Tune appearance, layout, defaults and background sync behavior."
           className="mb-8"
         />
+
+        <Link href="/movers/signal-radar/learning" prefetch={false} className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5 text-sm text-violet-100"><span><strong className="block text-base">Learning overview</strong><span className="mt-1 block text-white/50">Prediction results and Buy / Hold / Sell performance</span></span><span>Admin only · Open →</span></Link>
 
         <SettingsTabs
           defaultKey={activeSection}
@@ -920,6 +923,8 @@ export default async function SettingsPage({
         description="Tune appearance, layout, defaults and background sync behavior."
         className="mb-8"
       />
+
+      <Link href="/movers/signal-radar/learning" prefetch={false} className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-violet-400/20 bg-violet-500/10 p-5 text-sm text-violet-100"><span><strong className="block text-base">Learning overview</strong><span className="mt-1 block text-white/50">Prediction results and Buy / Hold / Sell performance</span></span><span>Admin only · Open →</span></Link>
 
       <SettingsTabs
         defaultKey={activeSection}
