@@ -12,6 +12,21 @@ export type BuySignalMarketMode = "raw" | "graded";
 export type BuySignalContext = "owned" | "market";
 export type BuySignalTone = "positive" | "negative" | "neutral" | "warning";
 
+// Bump whenever the scoring formula or its evidence rules change.
+export const BUY_SIGNAL_MODEL_VERSION = "buy-v1-history";
+
+export function getBuySignalReference(input: BuildBuySignalInput) {
+  const ebay = findMatchingEbaySoldPrice(input.ebay_sold_graded_prices ?? [], input.collection_item);
+  const graded = findMatchingCardMarketGradedPrice(input.graded_prices ?? [], input.collection_item);
+  if (getSavedGrading(input.collection_item) && getEbaySoldValueEur(ebay) != null && ebay) {
+    return { source: "ebay-graded", label: ebay.label, price: ebay.median_price, currency: ebay.currency.toUpperCase(), fetchedAt: ebay.fetched_at ?? input.ebay_sold_graded_synced_at };
+  }
+  if (getSavedGrading(input.collection_item) && usablePrice(graded?.price) != null && graded) {
+    return { source: "cm-graded", label: graded.label, price: graded.price, currency: "EUR", fetchedAt: graded.fetched_at };
+  }
+  return { source: "cm-raw", label: null, price: getRawCardMarketValue(input.price), currency: "EUR", fetchedAt: input.price_fetched_at };
+}
+
 export interface BuySignalEvidenceItem {
   label: string;
   value: string;
@@ -76,6 +91,7 @@ interface BuySignalCollectionItem {
 interface BuySignalGradedPrice {
   label: string;
   price: number;
+  fetched_at?: Date | string | null;
 }
 
 interface BuySignalEbaySoldGradedPrice {

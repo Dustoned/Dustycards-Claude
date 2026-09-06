@@ -98,6 +98,7 @@ describe("Action Center", () => {
 
     expect(response.status).toBe(200);
     expect(dbMock.user.findMany).not.toHaveBeenCalled();
+    expect(dbMock.externalSignalOutcome.findMany).not.toHaveBeenCalled();
     expect(body).toEqual({ ok: true, count: 0, items: [] });
   });
 

@@ -1,6 +1,6 @@
+import { latestUsablePriceField } from "@/lib/card-price-fields";
 import {
   loadSafeCardMarketHistoryRows,
-  type CardMarketHistoryPriceRow,
 } from "@/lib/card-market-history";
 import { db } from "@/lib/db";
 import {
@@ -13,7 +13,6 @@ import {
   buildCardEbaySoldGradedPriceHistory,
   buildCardGradedPriceHistory,
   buildCardPriceHistory,
-  normalizeCardMarketListingValue,
   type CardEbaySoldGradedPriceHistorySnapshot,
   type CardGradedPriceHistorySnapshot,
 } from "@/lib/price-history";
@@ -22,7 +21,8 @@ import { ONE_PIECE_GAME } from "@/lib/games";
 import { getServerUserSettings } from "@/lib/user-settings-server";
 import { getDisplayCardNumber } from "@/lib/card-number-display";
 import { parseBgsSubgrades } from "@/lib/graded-slabs";
-import { buildBuySignal } from "@/lib/buy-signal";
+import { buildBuySignal, type BuildBuySignalInput } from "@/lib/buy-signal";
+import { recordAdvice } from "@/lib/advice-learning-store";
 import { buildCardMarketStats } from "@/lib/card-market-stats";
 import { getEbayDemandPayload } from "@/lib/ebay-demand";
 import { getCurrentRawCardmarketValue } from "@/lib/market-price-sanity";
@@ -31,35 +31,6 @@ import { getCardCharacters } from "@/lib/card-characters-core";
 import { selectCardDetailSealedProducts } from "@/lib/sealed-products";
 import { getSealedOriginMarketPrice } from "@/lib/collection-sealed-origin";
 import { isPromoExpansion } from "@/lib/episodes";
-
-type IndependentlyResolvedPriceField =
-  | "cm_de_lowest_nm"
-  | "cm_fr_lowest_nm"
-  | "cm_es_lowest_nm"
-  | "cm_it_lowest_nm"
-  | "cm_jp_lowest_nm"
-  | "cm_en_avg_7d"
-  | "cm_en_avg_30d"
-  | "tcp_market"
-  | "tcp_mid"
-  | "tcp_low";
-
-function latestUsablePriceField(
-  rows: readonly CardMarketHistoryPriceRow[],
-  field: IndependentlyResolvedPriceField,
-  options: { cardMarket?: boolean } = {}
-): number | null {
-  for (let index = rows.length - 1; index >= 0; index -= 1) {
-    const value = rows[index]?.[field];
-    const normalized = options.cardMarket
-      ? normalizeCardMarketListingValue(value)
-      : value != null && Number.isFinite(value) && value > 0
-        ? value
-        : null;
-    if (normalized != null) return normalized;
-  }
-  return null;
-}
 
 type CardDetailCollectionItem = {
   id: string;
@@ -595,7 +566,9 @@ export async function getCardDetailPayload(id: string, userId: string) {
           : null,
       }
     : null;
-  const buySignal = buildBuySignal({
+  const adviceAt = new Date();
+  const buySignalInput: BuildBuySignalInput = {
+    now: adviceAt,
     rarity: card.rarity,
     episode_name: card.episode.name,
     episode_code: card.episode.code,
@@ -617,7 +590,12 @@ export async function getCardDetailPayload(id: string, userId: string) {
     ebay_sold_graded_price_history: ebaySoldGradedPriceHistory,
     pull_rate_info: pullRateInfoPayload,
     collection_item: collectionItemPayload,
-  });
+  };
+  const buySignal = buildBuySignal(buySignalInput);
+  await Promise.all([
+    recordAdvice({ card, signalInput: { ...buySignalInput, collection_item: null }, now: adviceAt }),
+    ...(collectionItemPayload ? [recordAdvice({ card, signalInput: buySignalInput, signal: buySignal, ownerId: userId, copyId: collectionItemPayload.id, now: adviceAt })] : []),
+  ]).catch((error: unknown) => console.error("[advice-learning] Capture failed", error instanceof Error ? error.message : "unknown error"));
 
   return {
     id: card.id,

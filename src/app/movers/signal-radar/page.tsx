@@ -129,7 +129,7 @@ export default async function SignalRadarPage({
                 Sudden drops
                 <ArrowUpRight className="h-4 w-4" />
               </Link>
-              <Link href="/movers/signal-radar/learning" prefetch={false} className="inline-flex items-center gap-2 font-medium transition hover:text-white">Prediction journal <ArrowUpRight className="h-4 w-4" /></Link>
+              {user.role === "admin" ? <Link href="/movers/signal-radar/learning" prefetch={false} className="inline-flex items-center gap-2 font-medium transition hover:text-white">Prediction journal <ArrowUpRight className="h-4 w-4" /></Link> : null}
             </div>
           }
           titleActions={

@@ -38,6 +38,54 @@ const test = base.extend<{ uiAccount: string }>({
 // Fault-injection routes must reach Playwright, including in production builds.
 test.use({ serviceWorkers: "block" });
 
+test("admin learning overview separates market, private collection and historical advice", async ({page,uiAccount}) => {
+  const db=new Database(process.env.DUSTYCARDS_DATABASE_PATH!);
+  db.pragma("foreign_keys=ON");
+  const prefix=`advice-${randomUUID()}`;
+  const other=`${prefix}-other`;
+  const stamp=new Date().toISOString();
+  try {
+    db.prepare("INSERT INTO User (id,email,password_hash,role,disabled,created_at,updated_at) VALUES (?,?,'test-only','user',0,?,?)").run(other,`${other}@example.test`,stamp,stamp);
+    const insert=db.prepare("INSERT INTO AdviceObservation (id,owner_id,card_id,card_name,game,context,origin,model_version,label,score,confidence,source,currency,entry_price,observed_at,evidence_json) VALUES (?,?,?,?,'pokemon',?,?,'buy-v1-history','buy',70,'medium','cm-raw','EUR',100,?,'{}')");
+    for(const [suffix,owner,origin] of [["public",null,"live"],["mine",uiAccount,"live"],["private",other,"live"],["replay",null,"replay"]] as const) {
+      const id=`${prefix}-${suffix}`;
+      insert.run(id,owner,id,`Journal ${suffix}`,owner?"owned":"market",origin,stamp);
+      db.prepare("INSERT INTO AdviceOutcome (id,observation_id,horizon_days,due_at,status,correct,return_pct,end_price,observed_days) VALUES (?,?,30,?,'complete',1,10,110,30)").run(id,id,stamp);
+    }
+    await page.goto("/settings");
+    await page.getByRole("link",{name:/Learning overview/}).click();
+    await expect(page.getByRole("heading",{name:"What Radar is learning",exact:true})).toBeVisible();
+    await page.getByRole("link",{name:"Buy / Hold / Sell →"}).click();
+    await expect(page.getByRole("heading",{name:"Journal public",exact:true})).toBeVisible();
+    await expect(page.getByRole("heading",{name:"Journal mine",exact:true})).toHaveCount(0);
+    await expect(page.getByRole("heading",{name:"Journal private",exact:true})).toHaveCount(0);
+    await page.getByRole("link",{name:"My collection",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"Journal mine",exact:true})).toBeVisible();
+    await expect(page.getByRole("heading",{name:"Journal private",exact:true})).toHaveCount(0);
+    await expect(page.getByRole("heading",{name:"Journal public",exact:true})).toHaveCount(0);
+    await page.getByRole("link",{name:"Market",exact:true}).click();
+    await page.getByRole("link",{name:"Historical replay",exact:true}).click();
+    await expect(page.getByRole("heading",{name:"Journal replay",exact:true})).toBeVisible();
+    await expect(page.getByRole("heading",{name:"Journal public",exact:true})).toHaveCount(0);
+    for(const width of [390,1440]) {
+      await page.setViewportSize({width,height:900});
+      expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+    }
+    db.prepare("UPDATE User SET role='user' WHERE id=?").run(uiAccount);
+    await page.goto("/settings");
+    await expect(page.getByRole("heading",{name:"Settings",exact:true})).toBeVisible();
+    await expect(page.getByRole("link",{name:/Learning overview/})).toHaveCount(0);
+    for(const path of ["/movers/signal-radar/learning","/movers/signal-radar/learning/advice?context=owned"]) {
+      await page.goto(path);
+      await expect(page).toHaveURL(/\/account/);
+    }
+  } finally {
+    db.prepare("DELETE FROM AdviceObservation WHERE id LIKE ?").run(`${prefix}%`);
+    db.prepare("DELETE FROM User WHERE id=?").run(other);
+    db.close();
+  }
+});
+
 test("reprint review can undo multiple saved decisions after reloading", async ({ page, uiAccount }) => {
   const db = new Database(process.env.DUSTYCARDS_DATABASE_PATH!);
   const id = `undo-${randomUUID()}`;
