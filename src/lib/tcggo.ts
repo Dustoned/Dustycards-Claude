@@ -1389,7 +1389,9 @@ export async function fetchAllEpisodes(
       `/${gamePath}/episodes?page=${page}&per_page=100`
     );
     const pageItems = data.data ?? [];
-    all.push(...pageItems.map((episode) => normalizeEpisode(episode, game)));
+    all.push(...pageItems
+      .filter((episode) => !episode.game?.slug || episode.game.slug === gamePath)
+      .map((episode) => normalizeEpisode(episode, game)));
     const totalPages = resolveCatalogTotalPages(data.paging, pageItems.length, 100);
     if (page >= totalPages) break;
     page++;

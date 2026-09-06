@@ -12,6 +12,7 @@ import { db } from "@/lib/db";
 import {
   getExpansionHref,
   getGameLabel,
+  getRemoteTcggoId,
   normalizeTradingCardGame,
   ONE_PIECE_GAME,
   POKEMON_GAME,
@@ -135,17 +136,30 @@ export default async function ExpansionsPage({
   const settings = await getServerUserSettings(user.id);
   const tileConfig = getExpansionTileScale(settings.uiScale, settings.widescreen);
 
+  // Older catalog responses imported Japanese sets under unscoped English IDs.
+  // The dedicated Japanese catalog is authoritative for those source IDs.
+  const japaneseEpisodes = !japaneseViewActive
+    ? await db.episode.findMany({
+        where: { game: POKEMON_JAPANESE_GAME },
+        select: { id: true },
+      })
+    : [];
+  const legacyJapaneseIds = japaneseEpisodes.map(({ id }) =>
+    getRemoteTcggoId(POKEMON_JAPANESE_GAME, id)
+  );
+
   const episodes = await db.episode.findMany({
     where: userViewActive
       ? {
           is_user_submitted: true,
+          id: { notIn: legacyJapaneseIds },
           game: {
             in: settings.onePieceLibraryEnabled
               ? [POKEMON_GAME, ONE_PIECE_GAME]
               : [POKEMON_GAME],
           },
         }
-      : { game: libraryGame, is_user_submitted: false },
+      : { game: libraryGame, is_user_submitted: false, id: { notIn: legacyJapaneseIds } },
     orderBy: userViewActive
       ? [{ created_at: "desc" }, { name: "asc" }]
       : [{ release_date: "desc" }, { name: "asc" }],
