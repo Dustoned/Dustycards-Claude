@@ -41,6 +41,16 @@ import {
 import { ONE_PIECE_GAME, POKEMON_JAPANESE_GAME } from "@/lib/games";
 
 describe("TCGGO request limiter", () => {
+  it("excludes explicitly Japanese expansions from an English catalog response", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+      data: [
+        { id: 1, name: "English set", game: { slug: "pokemon" } },
+        { id: 2, name: "Japanese set", game: { slug: "pokemon-jp" } },
+        { id: 3, name: "Legacy English set" },
+      ], paging: { current: 1, total: 1, per_page: 100 },
+    }), { status: 200 })));
+    expect((await fetchAllEpisodes()).map((episode) => episode.id)).toEqual(["1", "3"]);
+  });
   beforeEach(() => {
     vi.stubEnv("DUSTYCARDS_ENABLE_LOCAL_SYNC", "1");
     __tcggoTestUtils.resetRequestRuntime();
@@ -571,3 +581,4 @@ describe("TCGGO price extraction", () => {
     ]);
   });
 });
+

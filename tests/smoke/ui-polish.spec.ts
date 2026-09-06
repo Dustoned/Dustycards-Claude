@@ -421,3 +421,32 @@ test("prediction notifications open a readable learning journal on mobile and de
     db.close();
   }
 });
+
+test("Japanese expansions open from their own tab and exclude legacy English duplicates", async ({ page }) => {
+  const db = new Database(process.env.DUSTYCARDS_DATABASE_PATH!);
+  const rawId = `jp-route-${randomUUID()}`;
+  const jpId = `pokemon-jp:${rawId}`;
+  const setName = `Japanese routing ${rawId}`;
+  const cardId = `${jpId}-card`;
+  try {
+    for (const [id, game] of [[rawId, "pokemon"], [jpId, "pokemon-jp"]]) {
+      db.prepare("INSERT INTO Episode (id,game,name,release_date,card_count) VALUES (?,?,?,'2026-01-01',1)").run(id, game, setName);
+    }
+    db.prepare("INSERT INTO Card (id,game,name,episode_id,updated_at) VALUES (?,'pokemon-jp','Japanese routing Pikachu',?,?)").run(cardId, jpId, new Date().toISOString());
+    for (const width of [390, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      await page.goto("/expansions?range=all");
+      await expect(page.locator(`a[href="/expansions/${encodeURIComponent(rawId)}"]`)).toHaveCount(0);
+      await page.goto("/expansions?game=pokemon-jp&range=all");
+      const link = page.locator(`a[href="/expansions/${encodeURIComponent(jpId)}"]`);
+      await expect(link).toBeVisible();
+      await link.click();
+      await expect(page.getByRole("heading", { name: setName, exact: true })).toBeVisible();
+      await expect(page.getByText("Japanese routing Pikachu", { exact: true }).first()).toBeVisible();
+    }
+  } finally {
+    db.prepare("DELETE FROM Card WHERE id=?").run(cardId);
+    db.prepare("DELETE FROM Episode WHERE id IN (?,?)").run(rawId, jpId);
+    db.close();
+  }
+});

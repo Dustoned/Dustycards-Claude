@@ -229,7 +229,8 @@ export default async function ExpansionDetailPage({
   params: Promise<{ id: string }>;
   searchParams: Promise<{ tab?: string; sealed?: string; card?: string }>;
 }) {
-  const { id } = await params;
+  const { id: rawId } = await params;
+  const id = decodeURIComponent(rawId);
   const episodeGame = getGameFromScopedId(id);
   const { tab, sealed, card: initialCardId } = await searchParams;
   const requestedTab = tab === "sealed" ? "sealed" : "cards";
