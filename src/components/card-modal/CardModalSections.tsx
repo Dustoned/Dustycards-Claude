@@ -67,6 +67,7 @@ import type { CurrencyCode } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 import { buildCardShareCopy } from "@/lib/card-share";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
+import { buildCardMarktplaatsSearchUrl } from "@/lib/marktplaats-search-url";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import {
   modalBodyClass,
@@ -1627,6 +1628,11 @@ export function CardModalDesktopActionGroup({
     gradingCompany: normalizeGradingCompanyLabel(card.collection_item?.grading_company),
     gradingGrade: normalizeGradingGradeLabel(card.collection_item?.grading_grade),
   });
+  const marktplaatsHref = buildCardMarktplaatsSearchUrl({
+    name: card.name,
+    cardNumber: card.card_number,
+    game: card.game,
+  });
 
   useEffect(() => {
     return () => {
@@ -1703,6 +1709,7 @@ export function CardModalDesktopActionGroup({
             <CardDetailMobileMarketAction
               cardMarketHref={cardMarketHref}
               ebayHref={ebayHref}
+              marktplaatsHref={marktplaatsHref}
               onOpenCardMarket={onOpenCardMarket}
               className={mobileMarketClass}
             />
@@ -4417,6 +4424,20 @@ export function CardModalCardLinksPanel({
           className={DETAIL_MARKET_LINK_CLASS}
         >
           eBay Deals
+          <ExternalLink className="h-4 w-4" />
+        </a>
+
+        <a
+          href={buildCardMarktplaatsSearchUrl({
+            name: card.name,
+            cardNumber: card.card_number,
+            game: card.game,
+          })}
+          target="_blank"
+          rel="noopener noreferrer"
+          className={DETAIL_MARKET_LINK_CLASS}
+        >
+          Marktplaats
           <ExternalLink className="h-4 w-4" />
         </a>
 

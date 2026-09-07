@@ -2711,6 +2711,10 @@ html.widescreen .settings-page {
   min-height: var(--card-detail-control-height);
 }
 
+.card-detail-market-links--triple {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
 .card-detail-market-link {
   display: inline-flex;
   min-height: var(--card-detail-control-height);

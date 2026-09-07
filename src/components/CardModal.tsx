@@ -39,6 +39,7 @@ import {
 import useBodyScrollLock from "@/lib/useBodyScrollLock";
 import useModalA11y from "@/lib/useModalA11y";
 import { buildCardEbaySearchUrl } from "@/lib/ebay-search-url";
+import { buildCardMarktplaatsSearchUrl } from "@/lib/marktplaats-search-url";
 import { formatCurrency } from "@/lib/format";
 import { getExpansionHref } from "@/lib/games";
 import { MOBILE_EDGE_BACK_EVENT } from "@/lib/mobile-edge-back";
@@ -1227,7 +1228,7 @@ export default function CardModal({
               ]}
               media={previewPanel}
               mediaActions={
-                <div className="card-detail-market-links">
+                <div className="card-detail-market-links card-detail-market-links--triple">
                   <button type="button" onClick={() => void openCardMarket()} className="card-detail-market-link">
                     CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
                   </button>
@@ -1243,6 +1244,18 @@ export default function CardModal({
                     className="card-detail-market-link"
                   >
                     eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
+                  </a>
+                  <a
+                    href={buildCardMarktplaatsSearchUrl({
+                      name: modalCard.name,
+                      cardNumber: modalCard.card_number,
+                      game: modalCard.game,
+                    })}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="card-detail-market-link"
+                  >
+                    Marktplaats <ArrowUpRight className="h-3.5 w-3.5" />
                   </a>
                 </div>
               }
