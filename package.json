@@ -36,22 +36,22 @@
     "marktplaats:import": "node --no-warnings scripts/marktplaats-report-import.mjs"
   },
   "dependencies": {
-    "@prisma/adapter-better-sqlite3": "7.8.0",
-    "@prisma/client": "7.8.0",
+    "@prisma/adapter-better-sqlite3": "7.10.0",
+    "@prisma/client": "7.10.0",
     "@simplewebauthn/browser": "14.0.0",
     "@simplewebauthn/server": "14.0.1",
     "@tesseract.js-data/eng": "^1.0.0",
     "better-sqlite3": "^12.9.0",
     "dotenv": "^17.4.2",
-    "lucide-react": "^1.8.0",
-    "next": "^16.3.3",
-    "nodemailer": "^9.0.5",
+    "lucide-react": "^1.40.0",
+    "next": "^16.3.4",
+    "nodemailer": "^9.1.1",
     "qrcode": "1.5.4",
-    "react": "19.2.4",
-    "react-dom": "19.2.4",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
     "sharp": "^0.35.3",
     "tesseract.js": "^7.0.0",
-    "three": "^0.184.0"
+    "three": "^0.185.1"
   },
   "devDependencies": {
     "@playwright/test": "^1.59.1",
