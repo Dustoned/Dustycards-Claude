@@ -19,6 +19,7 @@ import {
 interface CardDetailMobileMarketActionProps {
   cardMarketHref?: string;
   ebayHref: string;
+  marktplaatsHref?: string;
   onOpenCardMarket?: () => void | Promise<void>;
   className?: string;
 }
@@ -30,6 +31,7 @@ interface ActivePress extends MobileLongPressPoint {
 export default function CardDetailMobileMarketAction({
   cardMarketHref,
   ebayHref,
+  marktplaatsHref,
   onOpenCardMarket,
   className = "",
 }: CardDetailMobileMarketActionProps) {
@@ -177,7 +179,9 @@ export default function CardDetailMobileMarketAction({
     "aria-controls": menuId,
     "aria-expanded": open,
     "aria-haspopup": "menu" as const,
-    "aria-label": "Open CardMarket. Hold for eBay Deals.",
+    "aria-label": marktplaatsHref
+      ? "Open CardMarket. Hold for eBay Deals or Marktplaats."
+      : "Open CardMarket. Hold for eBay Deals.",
     draggable: false,
     onClick: handleTriggerClick,
     onContextMenu: (event: MouseEvent<HTMLElement>) => {
@@ -260,6 +264,19 @@ export default function CardDetailMobileMarketAction({
             <span>eBay Deals</span>
             <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
           </a>
+          {marktplaatsHref ? (
+            <a
+              href={marktplaatsHref}
+              target="_blank"
+              rel="noopener noreferrer"
+              role="menuitem"
+              className={menuItemClass}
+              onClick={() => closeMenu()}
+            >
+              <span>Marktplaats</span>
+              <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            </a>
+          ) : null}
         </div>
       ) : null}
     </div>

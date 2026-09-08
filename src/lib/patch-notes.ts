@@ -17,6 +17,18 @@ export interface RoadmapItem {
 
 export const patchNotes: PatchNoteEntry[] = [
   {
+    version: "3.13.6",
+    releasedAt: "September 8, 2026",
+    title: "Marktplaats joins card detail",
+    summary: "Exact Marktplaats searches are now available beside the existing external market actions.",
+    tone: "improved",
+    highlights: [
+      "Desktop card detail shows CardMarket, eBay Deals and Marktplaats together.",
+      "The mobile CardMarket hold menu now contains both eBay Deals and Marktplaats.",
+      "The generated search uses the card game, name and collector number.",
+    ],
+  },
+  {
     version: "3.13.5",
     releasedAt: "September 6, 2026",
     title: "Fairer forecast verdicts and honest market tags",

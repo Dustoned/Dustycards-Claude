@@ -2294,7 +2294,7 @@ test.describe("DustyCards smoke", () => {
     ).toHaveCount(1);
     const mobileMarketAction = page.locator("[data-card-detail-mobile-market]");
     const mobileMarketTrigger = mobileMarketAction.locator(
-      '[aria-label="Open CardMarket. Hold for eBay Deals."]'
+      '[aria-label="Open CardMarket. Hold for eBay Deals or Marktplaats."]'
     );
     await expect(mobileMarketTrigger).toBeVisible();
     const mobileCardMarketHref = await mobileMarketTrigger.getAttribute("href");
@@ -2313,6 +2313,16 @@ test.describe("DustyCards smoke", () => {
       "[data-card-detail-mobile-market-menu]"
     );
     await expect(mobileMarketMenu).toBeVisible();
+    await expect(
+      mobileMarketMenu.getByRole("menuitem", { name: "eBay Deals" })
+    ).toBeVisible();
+    const mobileMarktplaatsLink = mobileMarketMenu.getByRole("menuitem", {
+      name: "Marktplaats",
+    });
+    await expect(mobileMarktplaatsLink).toBeVisible();
+    expect(await mobileMarktplaatsLink.getAttribute("href")).toMatch(
+      /^https:\/\/www\.marktplaats\.nl\/q\/Pokemon\+kaart\+/u
+    );
     const mobileMarketMenuBounds = await requiredBounds(mobileMarketMenu);
     expect(
       mobileMarketMenuBounds.y + mobileMarketMenuBounds.height

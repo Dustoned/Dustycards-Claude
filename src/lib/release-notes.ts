@@ -20,6 +20,23 @@ export interface ReleaseNoteChapter {
 // future “What’s new” modal without rewriting release copy.
 export const releaseNotes: ReleaseNoteChapter[] = [
   {
+    version: "3.13.6",
+    releasedAt: "September 8, 2026",
+    title: "Marktplaats from every card detail",
+    summary: "Every card now opens an exact Marktplaats search next to the existing market links.",
+    tone: "improved",
+    sections: [
+      {
+        title: "Desktop and mobile",
+        highlights: [
+          "Marktplaats sits next to CardMarket and eBay Deals on desktop card detail.",
+          "On mobile, hold the CardMarket action to choose eBay Deals or Marktplaats.",
+          "Searches include the card game, exact name and card number to reduce unrelated results.",
+        ],
+      },
+    ],
+  },
+  {
     version: "3.13.5",
     releasedAt: "September 6, 2026",
     title: "Predictions are judged on the card's own scale",
