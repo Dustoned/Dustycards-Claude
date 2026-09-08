@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowUpRight } from "lucide-react";
 import { useSettings } from "@/components/SettingsProvider";
 import CardDetailShell, {
   type CardDetailTab,
@@ -1230,7 +1229,7 @@ export default function CardModal({
               mediaActions={
                 <div className="card-detail-market-links card-detail-market-links--triple">
                   <button type="button" onClick={() => void openCardMarket()} className="card-detail-market-link">
-                    CardMarket <ArrowUpRight className="h-3.5 w-3.5" />
+                    CardMarket
                   </button>
                   <a
                     href={buildCardEbaySearchUrl({
@@ -1243,19 +1242,19 @@ export default function CardModal({
                     rel="noopener noreferrer"
                     className="card-detail-market-link"
                   >
-                    eBay Deals <ArrowUpRight className="h-3.5 w-3.5" />
+                    eBay
                   </a>
                   <a
                     href={buildCardMarktplaatsSearchUrl({
                       name: modalCard.name,
                       cardNumber: modalCard.card_number,
-                      game: modalCard.game,
+                      graded: effectiveHistoryChartMode === "graded" || Boolean(gradingCompanyLabel && gradingGradeLabel),
                     })}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="card-detail-market-link"
                   >
-                    Marktplaats <ArrowUpRight className="h-3.5 w-3.5" />
+                    Marktplaats
                   </a>
                 </div>
               }
@@ -1287,6 +1286,7 @@ export default function CardModal({
                   onCollectionItemSaved={onCollectionItemSaved}
                   onClose={onClose}
                   cardMarketHref={storedCardMarketUrl}
+                  marktplaatsGraded={effectiveHistoryChartMode === "graded" || Boolean(gradingCompanyLabel && gradingGradeLabel)}
                   onOpenCardMarket={() => void openCardMarket()}
                   onPriceAlertOpenChange={setPriceAlertOpen}
                   sharePrice={heroPriceValue}

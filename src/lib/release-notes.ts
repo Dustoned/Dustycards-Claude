@@ -31,7 +31,7 @@ export const releaseNotes: ReleaseNoteChapter[] = [
         highlights: [
           "Marktplaats sits next to CardMarket and eBay Deals on desktop card detail.",
           "On mobile, hold the CardMarket action to choose eBay Deals or Marktplaats.",
-          "Searches include the card game, exact name and card number to reduce unrelated results.",
+          "Searches use only the card name and number, with graded added for graded cards or the graded view.",
         ],
       },
     ],

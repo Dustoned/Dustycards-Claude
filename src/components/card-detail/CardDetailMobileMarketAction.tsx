@@ -180,8 +180,8 @@ export default function CardDetailMobileMarketAction({
     "aria-expanded": open,
     "aria-haspopup": "menu" as const,
     "aria-label": marktplaatsHref
-      ? "Open CardMarket. Hold for eBay Deals or Marktplaats."
-      : "Open CardMarket. Hold for eBay Deals.",
+      ? "Open CardMarket. Hold for eBay or Marktplaats."
+      : "Open CardMarket. Hold for eBay.",
     draggable: false,
     onClick: handleTriggerClick,
     onContextMenu: (event: MouseEvent<HTMLElement>) => {
@@ -261,8 +261,7 @@ export default function CardDetailMobileMarketAction({
             className={menuItemClass}
             onClick={() => closeMenu()}
           >
-            <span>eBay Deals</span>
-            <ExternalLink className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            <span>eBay</span>
           </a>
           {marktplaatsHref ? (
             <a

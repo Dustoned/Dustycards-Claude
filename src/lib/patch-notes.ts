@@ -25,7 +25,7 @@ export const patchNotes: PatchNoteEntry[] = [
     highlights: [
       "Desktop card detail shows CardMarket, eBay Deals and Marktplaats together.",
       "The mobile CardMarket hold menu now contains both eBay Deals and Marktplaats.",
-      "The generated search uses the card game, name and collector number.",
+      "The generated search uses only the card name and number, adding graded for graded cards or the graded view.",
     ],
   },
   {

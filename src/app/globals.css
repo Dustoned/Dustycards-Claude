@@ -2715,6 +2715,12 @@ html.widescreen .settings-page {
   grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
+.card-detail-market-links--triple .card-detail-market-link {
+  padding-inline: 0.25rem;
+  text-align: center;
+  white-space: nowrap;
+}
+
 .card-detail-market-link {
   display: inline-flex;
   min-height: var(--card-detail-control-height);
