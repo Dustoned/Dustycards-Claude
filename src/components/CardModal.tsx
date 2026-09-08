@@ -1249,7 +1249,7 @@ export default function CardModal({
                     href={buildCardMarktplaatsSearchUrl({
                       name: modalCard.name,
                       cardNumber: modalCard.card_number,
-                      game: modalCard.game,
+                      graded: effectiveHistoryChartMode === "graded" || Boolean(gradingCompanyLabel && gradingGradeLabel),
                     })}
                     target="_blank"
                     rel="noopener noreferrer"
@@ -1287,6 +1287,7 @@ export default function CardModal({
                   onCollectionItemSaved={onCollectionItemSaved}
                   onClose={onClose}
                   cardMarketHref={storedCardMarketUrl}
+                  marktplaatsGraded={effectiveHistoryChartMode === "graded" || Boolean(gradingCompanyLabel && gradingGradeLabel)}
                   onOpenCardMarket={() => void openCardMarket()}
                   onPriceAlertOpenChange={setPriceAlertOpen}
                   sharePrice={heroPriceValue}

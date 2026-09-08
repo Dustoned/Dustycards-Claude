@@ -1579,6 +1579,7 @@ export function CardModalDesktopActionGroup({
   onResearchSignal,
   researchingSignal = false,
   cardMarketHref,
+  marktplaatsGraded,
   onOpenCardMarket,
   onPriceAlertOpenChange,
   sharePrice,
@@ -1601,6 +1602,7 @@ export function CardModalDesktopActionGroup({
   onResearchSignal?: () => void;
   researchingSignal?: boolean;
   cardMarketHref?: string;
+  marktplaatsGraded?: boolean;
   onOpenCardMarket?: () => void;
   onPriceAlertOpenChange?: (open: boolean) => void;
   sharePrice?: number | null;
@@ -1631,7 +1633,7 @@ export function CardModalDesktopActionGroup({
   const marktplaatsHref = buildCardMarktplaatsSearchUrl({
     name: card.name,
     cardNumber: card.card_number,
-    game: card.game,
+    graded: marktplaatsGraded ?? Boolean(collectionItem?.grading_company && collectionItem?.grading_grade),
   });
 
   useEffect(() => {
@@ -4431,7 +4433,7 @@ export function CardModalCardLinksPanel({
           href={buildCardMarktplaatsSearchUrl({
             name: card.name,
             cardNumber: card.card_number,
-            game: card.game,
+            graded: Boolean(card.collection_item?.grading_company && card.collection_item?.grading_grade),
           })}
           target="_blank"
           rel="noopener noreferrer"

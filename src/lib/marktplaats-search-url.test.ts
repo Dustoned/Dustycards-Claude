@@ -7,25 +7,24 @@ describe("Marktplaats search urls", () => {
       buildCardMarktplaatsSearchUrl({
         name: "Charizard ex",
         cardNumber: "#199/165",
-        game: "pokemon",
       })
     );
 
     expect(url.hostname).toBe("www.marktplaats.nl");
     expect(decodeURIComponent(url.pathname)).toBe(
-      "/q/Pokemon+kaart+Charizard+ex+199/165/"
+      "/q/Charizard+ex+199/165/"
     );
   });
 
-  it("keeps One Piece searches in the correct card game", () => {
+  it("adds only graded for a graded card", () => {
     const url = buildCardMarktplaatsSearchUrl({
       name: "Monkey.D.Luffy",
       cardNumber: "OP05-119",
-      game: "one-piece",
+      graded: true,
     });
 
     expect(decodeURIComponent(new URL(url).pathname)).toBe(
-      "/q/One+Piece+kaart+Monkey.D.Luffy+OP05-119/"
+      "/q/Monkey.D.Luffy+OP05-119+graded/"
     );
   });
 });

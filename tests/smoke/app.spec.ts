@@ -2321,7 +2321,7 @@ test.describe("DustyCards smoke", () => {
     });
     await expect(mobileMarktplaatsLink).toBeVisible();
     expect(await mobileMarktplaatsLink.getAttribute("href")).toMatch(
-      /^https:\/\/www\.marktplaats\.nl\/q\/Pokemon\+kaart\+/u
+      /^https:\/\/www\.marktplaats\.nl\/q\//u
     );
     const mobileMarketMenuBounds = await requiredBounds(mobileMarketMenu);
     expect(
