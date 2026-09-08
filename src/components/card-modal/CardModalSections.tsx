@@ -4425,8 +4425,7 @@ export function CardModalCardLinksPanel({
           rel="noopener noreferrer"
           className={DETAIL_MARKET_LINK_CLASS}
         >
-          eBay Deals
-          <ExternalLink className="h-4 w-4" />
+          eBay
         </a>
 
         <a
