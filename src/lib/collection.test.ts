@@ -324,4 +324,21 @@ describe("graded collection values", () => {
       source: "raw_floor",
     });
   });
+
+  it("uses the stored BGS 9.5 value for Beckett-graded collection cards", () => {
+    const card = {
+      prices: [{ cm_en_lowest_nm: 550, cm_de_lowest_nm: null, cm_fr_lowest_nm: null, cm_es_lowest_nm: null, cm_it_lowest_nm: null }],
+      gradedPrices: [{ label: "BGS 9.5 Gem Mint", price: 700 }],
+      ebaySoldGradedPrices: [],
+    };
+
+    expect(getCollectionCardValueInfo(card, {
+      gradingCompany: "BECKETT®",
+      gradingGrade: "9.5",
+    })).toMatchObject({
+      value: 700,
+      label: "BGS 9.5 Gem Mint",
+      source: "cardmarket_graded",
+    });
+  });
 });
