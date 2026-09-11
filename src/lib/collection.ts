@@ -206,23 +206,6 @@ export function getCollectionMatchedGradedPrice(
     }
   }
 
-  // CardMarket sometimes has a nearby slab grade but not the exact grade
-  // entered by the collector (for example BGS 9 instead of BGS 9.5). Prefer
-  // that same-company observation over silently falling back to raw pricing.
-  if (normalizedCompany && normalizedGrade && /^\d+(?:\.\d+)?$/.test(normalizedGrade)) {
-    const requested = Number(normalizedGrade);
-    const nearby = (card?.gradedPrices ?? [])
-      .map((gradedPrice) => {
-        const match = normalizeGradedLabelKey(gradedPrice.label).match(
-          new RegExp(`^${escapeRegExp(normalizedCompany)}\\s+(\\d+(?:\\.\\d+)?)\\b`, "i")
-        );
-        return match ? { gradedPrice, distance: Math.abs(Number(match[1]) - requested) } : null;
-      })
-      .filter((entry): entry is { gradedPrice: { label: string; price: number }; distance: number } => Boolean(entry))
-      .sort((a, b) => a.distance - b.distance || b.gradedPrice.price - a.gradedPrice.price)[0];
-    if (nearby) return { ...nearby.gradedPrice, source: "cardmarket_graded" };
-  }
-
   for (const ebaySoldPrice of card?.ebaySoldGradedPrices ?? []) {
     const currency = ebaySoldPrice.currency.toUpperCase();
     const price =
@@ -253,6 +236,23 @@ export function getCollectionMatchedGradedPrice(
         source: "ebay_sold_graded",
       };
     }
+  }
+
+  // CardMarket sometimes has a nearby slab grade but not the exact grade
+  // entered by the collector (for example BGS 9 instead of BGS 9.5). Prefer
+  // that same-company observation over silently falling back to raw pricing.
+  if (normalizedCompany && normalizedGrade && /^\d+(?:\.\d+)?$/.test(normalizedGrade)) {
+    const requested = Number(normalizedGrade);
+    const nearby = (card?.gradedPrices ?? [])
+      .map((gradedPrice) => {
+        const match = normalizeGradedLabelKey(gradedPrice.label).match(
+          new RegExp(`^${escapeRegExp(normalizedCompany)}\\s+(\\d+(?:\\.\\d+)?)\\b`, "i")
+        );
+        return match ? { gradedPrice, distance: Math.abs(Number(match[1]) - requested) } : null;
+      })
+      .filter((entry): entry is { gradedPrice: { label: string; price: number }; distance: number } => Boolean(entry))
+      .sort((a, b) => a.distance - b.distance || b.gradedPrice.price - a.gradedPrice.price)[0];
+    if (nearby) return { ...nearby.gradedPrice, source: "cardmarket_graded" };
   }
 
   return null;
