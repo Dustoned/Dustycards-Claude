@@ -306,8 +306,8 @@ export async function confirmAdminCardMarketPriceCheck(input: {
           cm_en_lowest_nm: payload.priceEur,
         },
       });
-      await tx.cardGradedPrice.deleteMany({ where: { card_id: input.cardId } });
       if ((payload.gradedPrices?.length ?? 0) > 0) {
+        await tx.cardGradedPrice.deleteMany({ where: { card_id: input.cardId } });
         const rows = (payload.gradedPrices ?? []).map((item) => ({ card_id: input.cardId, label: item.label, price: item.price, fetched_at: now }));
         await tx.cardGradedPrice.createMany({ data: rows });
         await tx.cardGradedPriceSnapshot.createMany({ data: rows });
