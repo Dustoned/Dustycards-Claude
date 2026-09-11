@@ -1030,9 +1030,23 @@ function extractGradingLabelMatches(text: string): Array<{ label: string; index:
   return labels;
 }
 
-function extractSubmittedGradedPrices(scrape: FirecrawlPageScrapeResult): SubmittedGradedPrice[] {
+export function extractSubmittedGradedPrices(scrape: FirecrawlPageScrapeResult): SubmittedGradedPrice[] {
   const sources = [scrape.markdown, htmlToText(scrape.html)].filter(Boolean);
   const candidates: SubmittedGradedPrice[] = [];
+
+  // CardMarket mixes graded offers into the normal table. A grade may be in
+  // the title, attributes, or comments, so classify complete article rows.
+  for (const row of extractCardMarketArticleRows(scrape.html)) {
+    const rowText = htmlToText(row);
+    const labels = extractGradingLabelMatches(rowText);
+    const prices = extractCurrencyPriceMatchesFromText(rowText);
+    for (const label of labels) {
+      const price = prices
+        .map((candidate) => ({ ...candidate, distance: Math.abs(candidate.index - label.index) }))
+        .sort((a, b) => a.distance - b.distance)[0];
+      if (price && price.distance <= 360) candidates.push({ label: label.label, price: price.price });
+    }
+  }
 
   for (const text of sources) {
     const labelMatches = extractGradingLabelMatches(text);
