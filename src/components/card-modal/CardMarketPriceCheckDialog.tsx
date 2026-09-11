@@ -30,6 +30,7 @@ type PriceCheck = {
   scrapedSetName: string | null;
   scrapedCardNumber: string | null;
   token: string;
+  gradedPrices?: Array<{ label: string; price: number }>;
 };
 
 type PreviewResponse = { check?: PriceCheck; error?: string };
@@ -223,6 +224,24 @@ export default function CardMarketPriceCheckDialog({
                     Open source <ArrowUpRight className="h-3.5 w-3.5" />
                   </a>
                 </div>
+              </div>
+
+              <div className="mt-3 rounded-2xl border border-amber-200/15 bg-amber-400/[0.06] px-4 py-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100/58">
+                  Graded listings found
+                </p>
+                {check.gradedPrices?.length ? (
+                  <div className="mt-2 grid grid-cols-2 gap-2">
+                    {check.gradedPrices.map((graded) => (
+                      <div key={`${graded.label}-${graded.price}`} className="flex items-center justify-between gap-2 rounded-xl border border-white/8 bg-black/15 px-3 py-2">
+                        <span className="truncate text-xs font-semibold text-white/68">{graded.label}</span>
+                        <span className="shrink-0 text-sm font-black tabular-nums text-white">{formatCurrency(graded.price, "EUR")}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="mt-1 text-xs text-white/42">No graded listings were detected on this CardMarket page.</p>
+                )}
               </div>
             </>
           ) : null}
