@@ -381,8 +381,8 @@ export default function SealedProductModal({ product, onClose, backLabel = "Back
     return () => controller.abort();
   }, [product]);
 
-  async function runSealedAction(action: "refresh" | "sync-history") {
-    if (action === "refresh") setRefreshing(true);
+  async function runSealedAction(action: "refresh" | "sync-history" | "check-cardmarket") {
+    if (action === "refresh" || action === "check-cardmarket") setRefreshing(true);
     else setSyncingHistory(true);
     setActionError(null);
 
@@ -404,7 +404,7 @@ export default function SealedProductModal({ product, onClose, backLabel = "Back
       if (!response.ok) {
         throw new Error(
           data.error ??
-            (action === "refresh"
+            (action === "refresh" || action === "check-cardmarket"
               ? "Could not refresh this sealed product"
               : "Could not import price history for this sealed product")
         );
@@ -414,12 +414,12 @@ export default function SealedProductModal({ product, onClose, backLabel = "Back
       setActionError(
         error instanceof Error
           ? error.message
-          : action === "refresh"
+          : action === "refresh" || action === "check-cardmarket"
             ? "Could not refresh this sealed product"
             : "Could not import price history for this sealed product"
       );
     } finally {
-      if (action === "refresh") setRefreshing(false);
+      if (action === "refresh" || action === "check-cardmarket") setRefreshing(false);
       else setSyncingHistory(false);
     }
   }
@@ -982,7 +982,7 @@ export default function SealedProductModal({ product, onClose, backLabel = "Back
                   syncingHistory={syncingHistory}
                   removingCollectionItem={removingCollectionItem}
                   canManageSealedPrices={canManageSealedPrices}
-                  onRefresh={() => void runSealedAction("refresh")}
+                  onRefresh={() => void runSealedAction("check-cardmarket")}
                   onSyncHistory={() => void runSealedAction("sync-history")}
                   onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
                   onCollectionChanged={refreshModalProductFromServer}

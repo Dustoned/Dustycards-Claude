@@ -9,6 +9,7 @@ import {
   SyncCancelledError,
   SyncConflictError,
 } from "@/lib/sync";
+import { runSealedCardMarketProductCheck } from "@/lib/sync/sealed-cardmarket-base-price-job";
 import { resolveCardMarketSealedProductUrl } from "@/lib/cardmarket";
 import { isTcggoQuotaExceededError } from "@/lib/tcggo";
 import { getScraperDisabledResponse } from "@/app/api/scraper-disabled-response";
@@ -18,7 +19,7 @@ import {
   hasValidSealedCurrentPrice,
 } from "@/lib/sealed-price-preservation";
 
-type SealedAction = "refresh" | "sync-history";
+type SealedAction = "refresh" | "sync-history" | "check-cardmarket";
 
 function getFeaturedCardMarketPrice(price: {
   cm_en_lowest_nm: number | null;
@@ -304,6 +305,8 @@ export async function POST(
       };
       if (body.action === "sync-history") {
         action = "sync-history";
+      } else if (body.action === "check-cardmarket") {
+        action = "check-cardmarket";
       }
       preferredCollectionItemId =
         typeof body.collectionItemId === "string" ? body.collectionItemId : null;
@@ -313,6 +316,11 @@ export async function POST(
 
     if (action === "sync-history") {
       await runSealedProductHistorySync(id);
+    } else if (action === "check-cardmarket") {
+      const result = await runSealedCardMarketProductCheck(id);
+      if (!["updated", "already-priced"].includes(result.outcome)) {
+        return NextResponse.json({ error: result.error ?? "CardMarket check failed." }, { status: 502 });
+      }
     } else {
       await runSealedProductRefresh(id);
     }

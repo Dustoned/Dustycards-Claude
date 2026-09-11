@@ -271,9 +271,10 @@ export async function confirmAdminCardMarketPriceCheck(input: {
   cardId: string;
   token: string;
   decision: "changed" | "unchanged";
-}): Promise<{ savedPrice: boolean; checkedAt: string }> {
+}): Promise<{ savedPrice: boolean; savedGradedPrices: number; checkedAt: string }> {
   const now = new Date();
   const payload = parseAdminCardMarketPriceCheckToken(input.token, input.cardId, now);
+  let savedGradedPrices = 0;
 
   await db.$transaction(async (tx) => {
     const card = await tx.card.findUnique({
@@ -306,11 +307,17 @@ export async function confirmAdminCardMarketPriceCheck(input: {
           cm_en_lowest_nm: payload.priceEur,
         },
       });
-      await tx.cardGradedPrice.deleteMany({ where: { card_id: input.cardId } });
       if ((payload.gradedPrices?.length ?? 0) > 0) {
         const rows = (payload.gradedPrices ?? []).map((item) => ({ card_id: input.cardId, label: item.label, price: item.price, fetched_at: now }));
-        await tx.cardGradedPrice.createMany({ data: rows });
+        for (const row of rows) {
+          await tx.cardGradedPrice.upsert({
+            where: { card_id_label: { card_id: row.card_id, label: row.label } },
+            create: row,
+            update: { price: row.price, fetched_at: row.fetched_at },
+          });
+        }
         await tx.cardGradedPriceSnapshot.createMany({ data: rows });
+        savedGradedPrices = rows.length;
       }
     }
 
@@ -320,5 +327,5 @@ export async function confirmAdminCardMarketPriceCheck(input: {
     });
   });
 
-  return { savedPrice: input.decision === "changed", checkedAt: now.toISOString() };
+  return { savedPrice: input.decision === "changed", savedGradedPrices, checkedAt: now.toISOString() };
 }

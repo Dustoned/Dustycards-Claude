@@ -592,20 +592,23 @@ async function persistAcceptedPrice(input: {
   candidate: BacklogCandidate;
   priceEur: number;
   observedAt: Date;
+  force?: boolean;
 }): Promise<boolean> {
   return db.$transaction(async (tx) => {
     const updated = await tx.sealedProduct.updateMany({
       where: {
         id: input.candidate.id,
-        AND: currentPriceMissingConditions(),
+        ...(input.force ? {} : { AND: currentPriceMissingConditions() }),
       },
       data: {
         cm_lowest: input.priceEur,
-        cm_lowest_eu: null,
-        cm_lowest_de: null,
-        cm_lowest_fr: null,
-        cm_lowest_es: null,
-        cm_lowest_it: null,
+        ...(input.force ? {} : {
+          cm_lowest_eu: null,
+          cm_lowest_de: null,
+          cm_lowest_fr: null,
+          cm_lowest_es: null,
+          cm_lowest_it: null,
+        }),
       },
     });
     if (updated.count === 0) return false;
@@ -648,7 +651,8 @@ function makeAttemptResult(input: {
 async function processCandidate(
   candidate: BacklogCandidate,
   attempt: number,
-  startedAt: Date
+  startedAt: Date,
+  options?: { force?: boolean }
 ): Promise<SealedCardMarketBasePriceRunResult> {
   const sourceUrl = resolveSealedCardMarketExactSourceUrl({
     cardmarketId: candidate.cardmarket_id,
@@ -723,6 +727,7 @@ async function processCandidate(
       candidate,
       priceEur: offerTable.priceEur,
       observedAt: startedAt,
+      force: options?.force,
     });
     return makeAttemptResult({
       outcome: inserted ? "updated" : "already-priced",
@@ -775,6 +780,26 @@ function terminalStatus(outcome: AttemptOutcome): string {
   if (outcome === "failed") return "failed";
   if (["updated", "already-priced", "no-work"].includes(outcome)) return "success";
   return "partial";
+}
+
+/** Run an on-demand direct CardMarket check for one sealed product. */
+export async function runSealedCardMarketProductCheck(
+  productId: string,
+  now = new Date()
+): Promise<SealedCardMarketBasePriceRunResult> {
+  const candidate = await db.sealedProduct.findUnique({
+    where: { id: productId },
+    select: {
+      id: true,
+      name: true,
+      cardmarket_url: true,
+      cardmarket_id: true,
+      episode_id: true,
+      episode: { select: { id: true, name: true, code: true, release_date: true } },
+    },
+  });
+  if (!candidate) throw new Error("Sealed product not found.");
+  return processCandidate(candidate, 1, now, { force: true });
 }
 
 export async function runSealedCardMarketBasePriceJob(
