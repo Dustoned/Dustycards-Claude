@@ -4,6 +4,8 @@ import {
   hasConclusiveCardMarketOfferState,
   parseCardMarketScrape,
   parseStrictCardMarketEnglishNmPrice,
+  extractSubmittedGradedPrices,
+  type SubmittedGradedPrice,
   type StrictCardMarketEnglishNmPrice,
 } from "@/lib/card-submissions";
 import {
@@ -28,6 +30,7 @@ type CardMarketCheckTokenPayload = {
   sourceUrl: string;
   provider: string;
   observedAt: string;
+  gradedPrices?: SubmittedGradedPrice[];
 };
 
 export type AdminCardMarketPriceCheck = {
@@ -45,6 +48,7 @@ export type AdminCardMarketPriceCheck = {
   scrapedSetName: string | null;
   scrapedCardNumber: string | null;
   token: string;
+  gradedPrices: SubmittedGradedPrice[];
 };
 
 export class AdminCardMarketPriceCheckError extends Error {
@@ -221,6 +225,7 @@ export async function runAdminCardMarketPriceCheck(
   }
 
   const { scrape, strictPrice } = await loadAdminCardMarketEnglishNmPrice(sourceUrl);
+  const gradedPrices = extractSubmittedGradedPrices(scrape);
 
   const parsed = parseCardMarketScrape(scrape, "Near Mint");
   const observedAt = new Date();
@@ -240,6 +245,7 @@ export async function runAdminCardMarketPriceCheck(
     sourceUrl: scrape.sourceUrl,
     provider: scrape.provider,
     observedAt: observedAt.toISOString(),
+    gradedPrices,
   };
 
   return {
@@ -257,6 +263,7 @@ export async function runAdminCardMarketPriceCheck(
     scrapedSetName: parsed.setName,
     scrapedCardNumber: parsed.cardNumber,
     token: createAdminCardMarketPriceCheckToken(tokenPayload),
+    gradedPrices,
   };
 }
 
@@ -299,6 +306,12 @@ export async function confirmAdminCardMarketPriceCheck(input: {
           cm_en_lowest_nm: payload.priceEur,
         },
       });
+      await tx.cardGradedPrice.deleteMany({ where: { card_id: input.cardId } });
+      if ((payload.gradedPrices?.length ?? 0) > 0) {
+        const rows = (payload.gradedPrices ?? []).map((item) => ({ card_id: input.cardId, label: item.label, price: item.price, fetched_at: now }));
+        await tx.cardGradedPrice.createMany({ data: rows });
+        await tx.cardGradedPriceSnapshot.createMany({ data: rows });
+      }
     }
 
     await tx.card.update({

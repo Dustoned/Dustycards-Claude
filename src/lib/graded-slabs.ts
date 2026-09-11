@@ -23,12 +23,13 @@ const SUPPORTED_GRADED_SLAB_SET = new Set<string>(GRADED_SLAB_COMPANIES);
 export function normalizeGradingCompanyLabel(
   company: string | null | undefined
 ): SupportedGradedSlabCompany | null {
-  const normalized = company?.trim().toUpperCase() ?? "";
-  if (!normalized || !SUPPORTED_GRADED_SLAB_SET.has(normalized)) {
+  const normalized = company?.trim().toUpperCase().replace(/[®™]/g, "").replace(/\s+/g, " ") ?? "";
+  const canonical = normalized === "BECKETT" || normalized === "BECKETT GRADING SERVICES" ? "BGS" : normalized;
+  if (!canonical || !SUPPORTED_GRADED_SLAB_SET.has(canonical)) {
     return null;
   }
 
-  return normalized as SupportedGradedSlabCompany;
+  return canonical as SupportedGradedSlabCompany;
 }
 
 export function normalizeGradingGradeLabel(grade: string | null | undefined): string | null {
