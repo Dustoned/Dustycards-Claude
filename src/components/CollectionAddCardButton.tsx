@@ -109,6 +109,8 @@ export default function CollectionAddCardButton({
   defaultCardKind = "raw",
   defaultGradingCompany = null,
   defaultGradingGrade = null,
+  initialForSale = false,
+  openingSessionId,
 }: Props) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
