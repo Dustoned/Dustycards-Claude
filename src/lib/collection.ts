@@ -154,6 +154,7 @@ function escapeRegExp(value: string): string {
 function normalizeGradedLabelKey(value: string): string {
   return value
     .toUpperCase()
+    .replace(/\bBECKETT(?:\s+GRADING\s+SERVICES)?\b/g, "BGS")
     .replace(/[^A-Z0-9.]+/g, " ")
     .replace(/\s+/g, " ")
     .trim();

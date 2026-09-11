@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowUpRight,
+  BadgeEuro,
   Boxes,
   ChartNoAxesCombined,
   LineChart,
@@ -222,11 +223,14 @@ function SealedDetailActionGroup({
                   onClick={onRefresh}
                   disabled={isBusy}
                   className={menuButtonClass}
+                  aria-label="Check CardMarket sealed prices now"
                 >
-                  <RefreshCw
-                    className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`}
-                  />
-                  {refreshing ? "Refreshing prices..." : "Refresh prices"}
+                  {refreshing ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <BadgeEuro className="h-4 w-4" />
+                  )}
+                  {refreshing ? "Checking CardMarket..." : "Check CardMarket prices"}
                 </button>
               </div>
             ) : null}
