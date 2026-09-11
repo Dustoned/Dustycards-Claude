@@ -155,6 +155,8 @@ export async function GET(req: NextRequest) {
         card_number: card.printed_card_number ?? card.card_number,
         image_url: card.image_url,
         episode_name: card.episode.name,
+        episode_id: card.episode_id,
+        episode_code: card.episode.code,
         cm_en_lowest_nm: card.prices[0]?.cm_en_lowest_nm ?? null,
         included_promo: includedCardIdSet.has(card.id) && !episodeOrder.has(card.episode_id),
       }));

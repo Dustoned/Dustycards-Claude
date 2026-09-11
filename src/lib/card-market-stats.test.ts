@@ -202,7 +202,7 @@ describe("buildCardMarketStats", () => {
     });
   });
 
-  it("prefers eBay sold evidence and treats BGS 9.5 as a gem-mint peer", () => {
+  it("prefers CardMarket on overlapping company and grade and treats BGS 9.5 as a gem-mint peer", () => {
     const stats = buildCardMarketStats(buildInput({
       rawPrice: 50,
       gradedPrices: [
@@ -224,10 +224,10 @@ describe("buildCardMarketStats", () => {
 
     expect(stats.graded_comparisons[0]).toEqual(expect.objectContaining({
       label: "PSA 10",
-      price_eur: 240,
-      raw_multiple: 4.8,
-      source: "ebay_sold",
-      reliability: "high",
+      price_eur: 300,
+      raw_multiple: 6,
+      source: "cardmarket",
+      reliability: "low",
     }));
     expect(stats.graded_comparisons.map((comparison) => comparison.label)).toContain("BGS 9.5");
     expect(stats.metrics.grade_premium).toBeGreaterThan(50);

@@ -73,6 +73,8 @@ interface Props {
   defaultCardKind?: CardKind;
   defaultGradingCompany?: string | null;
   defaultGradingGrade?: string | null;
+  initialForSale?: boolean;
+  openingSessionId?: string;
 }
 
 function buttonClasses(mode: "icon" | "button", theme: "light" | "dark", className?: string) {
@@ -119,7 +121,7 @@ export default function CollectionAddCardButton({
   const [flashDestination, setFlashDestination] =
     useState<CollectionCardAddDestination | null>(null);
   const [showAdvanced, setShowAdvanced] = useState(false);
-  const [forSale, setForSale] = useState(false);
+  const [forSale, setForSale] = useState(initialForSale ?? false);
   const [binderId, setBinderId] = useState(initialBinderId ?? "");
   const [purchasePrice, setPurchasePrice] = useState(
     defaultPurchasePrice != null ? String(defaultPurchasePrice) : ""
@@ -204,6 +206,7 @@ export default function CollectionAddCardButton({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           cardId: card.id,
+          openingSessionId,
           binderId: forSale ? null : binderId || null,
           forSale,
           purchasePrice: purchasePrice || null,
@@ -253,7 +256,7 @@ export default function CollectionAddCardButton({
     setBindersLoading(true);
     setSaveError(null);
     setShowAdvanced(false);
-    setForSale(false);
+    setForSale(initialForSale ?? false);
     setCardKind(defaultCardKind);
     setGradingCompany(defaultGradingCompany ?? "");
     setGradingGrade(defaultGradingGrade ?? "");

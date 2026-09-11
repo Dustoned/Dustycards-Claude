@@ -1276,7 +1276,7 @@ export default function CardScannerClient() {
     setStage("results");
   }
 
-  async function addBatchToCollection() {
+  async function addBatchToCollection(forSale = false) {
     if (bulkAdding || scannedCards.length === 0) return;
     setBulkAdding(true);
     setBatchMessage(null);
@@ -1288,6 +1288,7 @@ export default function CardScannerClient() {
           cardIds: scannedCards.map((item) => item.match.id),
           condition: "Near Mint",
           language: "English",
+          forSale,
           openingSessionId,
         }),
       });
@@ -1301,7 +1302,9 @@ export default function CardScannerClient() {
       const count = scannedCards.length;
       setScannedCards([]);
       setBatchMessage(
-        `${count} ${count === 1 ? "copy" : "copies"} added as English Near Mint.`
+        `${count} ${count === 1 ? "copy" : "copies"} added as English Near Mint${
+          forSale ? " (for sale)" : ""
+        }.`
       );
     } catch (batchError) {
       setBatchMessage(
@@ -1468,19 +1471,34 @@ export default function CardScannerClient() {
                   </span>
                 </span>
               </div>
-              <button
-                type="button"
-                onClick={() => void addBatchToCollection()}
-                disabled={bulkAdding}
-                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--dc-primary-gradient)] px-4 text-xs font-black text-white shadow-[0_8px_22px_rgb(var(--dc-primary-rgb)/0.2)] disabled:opacity-60"
-              >
-                {bulkAdding ? (
-                  <LoaderCircle className="h-4 w-4 motion-safe:animate-spin" />
-                ) : (
-                  <Layers3 className="h-4 w-4" />
-                )}
-                Add batch
-              </button>
+              <div className="grid min-[550px]:grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => void addBatchToCollection()}
+                  disabled={bulkAdding}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-[var(--dc-primary-gradient)] px-4 text-xs font-black text-white shadow-[0_8px_22px_rgb(var(--dc-primary-rgb)/0.2)] disabled:opacity-60"
+                >
+                  {bulkAdding ? (
+                    <LoaderCircle className="h-4 w-4 motion-safe:animate-spin" />
+                  ) : (
+                    <Layers3 className="h-4 w-4" />
+                  )}
+                  Add batch to collection
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void addBatchToCollection(true)}
+                  disabled={bulkAdding}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-[rgb(var(--dc-border-rgb)/0.72)] bg-[rgb(var(--dc-surface-elevated-rgb)/0.7)] px-4 text-xs font-black text-[var(--dc-text-secondary)] disabled:opacity-60"
+                >
+                  {bulkAdding ? (
+                    <LoaderCircle className="h-4 w-4 motion-safe:animate-spin" />
+                  ) : (
+                    <Layers3 className="h-4 w-4" />
+                  )}
+                  Add batch to for-sale
+                </button>
+              </div>
             </div>
             <div className="flex items-center gap-2 overflow-x-auto">
               {scannedCards.map((item) => (
@@ -2027,10 +2045,23 @@ export default function CardScannerClient() {
                       <CollectionAddCardButton
                         card={cardRef(selectedMatch)}
                         mode="button"
-                        label="Add copy"
+                        label="Add to collection"
                         onAdded={() => continueScanning()}
+                        openingSessionId={openingSessionId ?? undefined}
+                        className="min-h-12 w-full rounded-2xl"
+                        defaultCondition="Near Mint"
+                      />
+                      <CollectionAddCardButton
+                        card={cardRef(selectedMatch)}
+                        mode="button"
+                        label="Add to for-sale"
+                        onAdded={() => continueScanning()}
+                        openingSessionId={openingSessionId ?? undefined}
+                        initialForSale={true}
                         className="min-h-12 w-full rounded-2xl"
                       />
+                    </div>
+                    <div className="grid gap-2 sm:grid-cols-2">
                       <CollectionWantButton
                         card={cardRef(selectedMatch)}
                         mode="button"
