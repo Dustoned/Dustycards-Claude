@@ -129,7 +129,8 @@ function buildGradedLabelCandidates(
   gradingCompany: string | null | undefined,
   gradingGrade: string | null | undefined
 ): string[] {
-  const company = gradingCompany?.trim().toUpperCase();
+  const rawCompany = gradingCompany?.trim().toUpperCase();
+  const company = rawCompany === "BECKETT" || rawCompany === "BECKETT GRADING SERVICES" ? "BGS" : rawCompany;
   const grade = normalizeGradeToken(gradingGrade);
 
   if (!company || !grade) return [];
@@ -186,7 +187,9 @@ export function getCollectionMatchedGradedPrice(
   );
 
   const normalizedCompany = options?.gradingCompany
-    ? normalizeGradedLabelKey(options.gradingCompany)
+    ? normalizeGradedLabelKey(
+        options.gradingCompany.trim().toUpperCase().replace(/^BECKETT(?: GRADING SERVICES)?$/, "BGS")
+      )
     : null;
   const normalizedGrade = normalizeGradeToken(options?.gradingGrade);
 
