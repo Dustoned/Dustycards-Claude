@@ -228,7 +228,7 @@ export default function CardMarketPriceCheckDialog({
 
               <div className="mt-3 rounded-2xl border border-amber-200/15 bg-amber-400/[0.06] px-4 py-3">
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100/58">
-                  Graded listings found
+                  {check.gradedPrices?.length ?? 0} nieuwe graded prijs{(check.gradedPrices?.length ?? 0) === 1 ? "" : "zen"} gevonden
                 </p>
                 {check.gradedPrices?.length ? (
                   <div className="mt-2 grid grid-cols-2 gap-2">
