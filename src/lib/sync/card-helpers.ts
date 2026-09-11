@@ -212,7 +212,10 @@ export function buildCardWriteData(
     supertype: normalizedSupertype ?? fallbackSupertype ?? existing?.supertype ?? null,
     subtypes: card.subtypes ?? existing?.subtypes ?? null,
     artist: card.artist ?? existing?.artist ?? null,
-    image_url: card.image_url ?? existing?.image_url ?? null,
+    // Reviewed, content-addressed local recoveries must survive upstream syncs.
+    image_url: /^\/card-images\/[a-f0-9]{64}\.webp$/.test(existing?.image_url ?? "")
+      ? existing!.image_url
+      : card.image_url ?? existing?.image_url ?? null,
     tcggo_url: card.tcggo_url ?? existing?.tcggo_url ?? null,
     cardmarket_url: card.cardmarket_url ?? existing?.cardmarket_url ?? null,
     tcgid: card.tcgid ?? existing?.tcgid ?? null,

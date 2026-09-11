@@ -118,6 +118,20 @@ describe("buildCardWriteData", () => {
     tcgdexMock.categoryToSupertype.mockImplementation((value: string | null) => value);
   });
 
+  it("preserves reviewed local images when the upstream image changes or disappears", () => {
+    const image = `/card-images/${"a".repeat(64)}.webp`;
+    for (const image_url of [null, "https://images.tcggo.com/replaced.png"]) {
+      expect(buildCardWriteData(makeCard({ image_url: image }), makeCard({ image_url })).image_url).toBe(image);
+    }
+  });
+
+  it("still refreshes ordinary remote images and rejects arbitrary archive-like paths", () => {
+    const incoming = makeCard({ image_url: "https://images.tcggo.com/new.png" });
+    for (const image_url of ["https://images.tcggo.com/old.png", "/card-images/not-reviewed.png"]) {
+      expect(buildCardWriteData(makeCard({ image_url }), incoming).image_url).toBe(incoming.image_url);
+    }
+  });
+
   it("preserves enriched One Piece variant rarities during base syncs", () => {
     const existing = makeCard({
       game: "one-piece",
