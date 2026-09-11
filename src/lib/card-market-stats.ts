@@ -466,8 +466,12 @@ function getCandidateRank(candidate: GradedCandidate): number {
 }
 
 function candidateEvidenceRank(candidate: GradedCandidate): number {
-  if (candidate.source === "ebay_sold") return 100 + (candidate.sample_size ?? 0);
-  return 1;
+  // CardMarket grade rows are the source of truth for this grade/company pair.
+  // If both CardMarket and eBay sold rows exist, keep CardMarket values visible
+  // in the card detail summary instead of allowing a lower-quality eBay row to
+  // replace them.
+  if (candidate.source === "cardmarket") return 200;
+  return 100 + (candidate.sample_size ?? 0);
 }
 
 function buildGradedCandidates(input: BuildCardMarketStatsInput): GradedCandidate[] {

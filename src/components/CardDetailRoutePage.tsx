@@ -10,6 +10,7 @@ interface CardDetailRoutePageProps {
   backHref: string;
   backLabel: string;
   initialMarketSource?: "cardmarket" | "tcgplayer";
+  gradedPriceSource?: "all" | "cardmarket-only";
 }
 
 /**
@@ -22,6 +23,7 @@ export default function CardDetailRoutePage({
   backHref,
   backLabel,
   initialMarketSource,
+  gradedPriceSource,
 }: CardDetailRoutePageProps) {
   const router = useRouter();
   const closeDetail = useCallback(() => {
@@ -33,6 +35,7 @@ export default function CardDetailRoutePage({
       card={card}
       backLabel={backLabel}
       initialMarketSource={initialMarketSource}
+      gradedPriceSource={gradedPriceSource}
       onClose={closeDetail}
       // Links inside a route-hosted detail already perform their own
       // navigation. They must not also trigger the route's Back behavior.

@@ -85,6 +85,7 @@ interface Props {
   showGradedSlabPreview?: boolean;
   backLabel?: string;
   initialMarketSource?: "cardmarket" | "tcgplayer";
+  gradedPriceSource?: "all" | "cardmarket-only";
   onClose: () => void;
   onNavigate?: () => void;
   onCollectionItemSaved?: (detail: CollectionCardSavedDetail) => void | Promise<void>;
@@ -227,11 +228,28 @@ function shouldOpenOnRawMarket(
   return rawFloorValue != null && ebaySoldValue != null && rawFloorValue > ebaySoldValue;
 }
 
+function getGradedPriceSourceMarketStats(
+  marketStats: ModalCardData["market_stats"],
+  gradedPriceSource: "all" | "cardmarket-only"
+): ModalCardData["market_stats"] | undefined {
+  if (gradedPriceSource !== "cardmarket-only" || !marketStats) return marketStats;
+  const gradedComparisons = marketStats.graded_comparisons.filter(
+    (comparison) => comparison.source === "cardmarket"
+  );
+  if (gradedComparisons.length === marketStats.graded_comparisons.length) return marketStats;
+
+  return {
+    ...marketStats,
+    graded_comparisons: gradedComparisons,
+  };
+}
+
 export default function CardModal({
   card,
   showGradedSlabPreview = false,
   backLabel = "Back",
   initialMarketSource,
+  gradedPriceSource = "all",
   onClose,
   onNavigate = onClose,
   onCollectionItemSaved,
@@ -241,11 +259,20 @@ export default function CardModal({
   // fixed controls when the underlying page was already scrolled.
   useBodyScrollLock(true, "overflow");
   const router = useRouter();
+  const initialCardForGradedPriceSources =
+    gradedPriceSource === "cardmarket-only"
+      ? {
+          ...card,
+          ebay_sold_graded_prices: [],
+          ebay_sold_graded_price_history: [],
+          market_stats: getGradedPriceSourceMarketStats(card.market_stats, gradedPriceSource),
+        }
+      : card;
 
   const savedCardMarketGradedLabel = findSavedGradedLabel(
     [
-      ...(card.graded_prices ?? []),
-      ...(card.graded_price_history ?? []).map((series) => ({
+      ...(initialCardForGradedPriceSources.graded_prices ?? []),
+      ...(initialCardForGradedPriceSources.graded_price_history ?? []).map((series) => ({
         label: series.label,
         price: getLatestSeriesValue(series.points),
       })),
@@ -253,11 +280,11 @@ export default function CardModal({
     card.collection_item
   );
   const savedEbaySoldGradedLabel = findSavedGradedLabel(
-    card.ebay_sold_graded_prices ?? [],
+    initialCardForGradedPriceSources.ebay_sold_graded_prices ?? [],
     card.collection_item
   );
   const defaultToRawMarket = shouldOpenOnRawMarket(
-    card,
+    initialCardForGradedPriceSources,
     savedCardMarketGradedLabel,
     savedEbaySoldGradedLabel
   );
@@ -345,14 +372,27 @@ export default function CardModal({
   }, [cardMarketPriceCheckOpen, onClose, priceAlertOpen, selectedSealedProduct, threeDOpen]);
 
   const collectionItem = modalCard.collection_item ?? null;
+  const cardForGradedPriceSources =
+    gradedPriceSource === "cardmarket-only"
+      ? {
+          ...modalCard,
+          ebay_sold_graded_prices: [],
+          ebay_sold_graded_price_history: [],
+          market_stats: getGradedPriceSourceMarketStats(
+            modalCard.market_stats,
+            gradedPriceSource
+          ),
+        }
+      : modalCard;
   const layout = getCardModalLayoutClasses(
     displaySettings.modalSize,
     displaySettings.widescreen
   );
-  const gradedPrices = modalCard.graded_prices ?? [];
-  const ebaySoldGradedPrices = modalCard.ebay_sold_graded_prices ?? [];
-  const gradedPriceHistory = modalCard.graded_price_history ?? [];
-  const ebaySoldGradedPriceHistory = modalCard.ebay_sold_graded_price_history ?? [];
+  const gradedPrices = cardForGradedPriceSources.graded_prices ?? [];
+  const ebaySoldGradedPrices = cardForGradedPriceSources.ebay_sold_graded_prices ?? [];
+  const gradedPriceHistory = cardForGradedPriceSources.graded_price_history ?? [];
+  const ebaySoldGradedPriceHistory =
+    cardForGradedPriceSources.ebay_sold_graded_price_history ?? [];
   const gradingCompanyLabel = normalizeGradingCompanyLabel(collectionItem?.grading_company);
   const gradingGradeLabel = normalizeGradingGradeLabel(collectionItem?.grading_grade);
   const showGradedPreview = Boolean(
@@ -364,7 +404,8 @@ export default function CardModal({
   const isBusy = refreshing || syncingHistory;
   const canManageCardPrices = currentUserRole === "admin";
   const gradePremiumScore = modalCard.market_stats?.metrics.grade_premium ?? null;
-  const gradedComparisons = modalCard.market_stats?.graded_comparisons ?? [];
+  const gradedComparisons =
+    cardForGradedPriceSources.market_stats?.graded_comparisons ?? [];
   // Prefer the PSA 10 benchmark; otherwise show the best available graded quote.
   const topGradedComparison =
     gradedComparisons.find((entry) => /psa\s*10\b/i.test(entry.label)) ??
@@ -502,13 +543,28 @@ export default function CardModal({
   }
 
   function applyRefreshedCard(nextCard: ModalCardData) {
+    const refreshedForGradedPriceSources =
+      gradedPriceSource === "cardmarket-only"
+        ? {
+            ...nextCard,
+            ebay_sold_graded_prices: [],
+            ebay_sold_graded_price_history: [],
+            market_stats: getGradedPriceSourceMarketStats(
+              nextCard.market_stats,
+              gradedPriceSource
+            ),
+          }
+        : nextCard;
     setModalCard({
       ...nextCard,
       collection_item: nextCard.collection_item ?? null,
     });
     setGradedHeroState({
       cardId: nextCard.id,
-      price: getPreferredCardModalGradedDisplayPrice(nextCard, nextCard.collection_item),
+      price: getPreferredCardModalGradedDisplayPrice(
+        refreshedForGradedPriceSources,
+        nextCard.collection_item
+      ),
     });
     setResolvedUrl(null);
   }
@@ -647,10 +703,25 @@ export default function CardModal({
       });
       if (!response.ok) return;
       const data: ModalCardData = await response.json();
+      const refreshedForGradedPriceSources =
+        gradedPriceSource === "cardmarket-only"
+          ? {
+              ...data,
+              ebay_sold_graded_prices: [],
+              ebay_sold_graded_price_history: [],
+              market_stats: getGradedPriceSourceMarketStats(
+                data.market_stats,
+                gradedPriceSource
+              ),
+            }
+          : data;
       setModalCard(data);
       setGradedHeroState({
         cardId: data.id,
-        price: getPreferredCardModalGradedDisplayPrice(data, data.collection_item),
+        price: getPreferredCardModalGradedDisplayPrice(
+          refreshedForGradedPriceSources,
+          data.collection_item
+        ),
       });
       setResolvedUrl(null);
     } catch {
@@ -792,7 +863,7 @@ export default function CardModal({
   const activeGradedHeroPrice =
     gradedHeroState?.cardId === modalCard.id
       ? gradedHeroState.price
-      : getPreferredCardModalGradedDisplayPrice(modalCard, collectionItem);
+      : getPreferredCardModalGradedDisplayPrice(cardForGradedPriceSources, collectionItem);
   const historyPanel = (
     <CardModalHistorySection
       historyChartMode={effectiveHistoryChartMode}
@@ -800,7 +871,7 @@ export default function CardModal({
       cardMarketHistory={cardMarketHistory}
       activeCardMarketCurrentValue={activeCardMarketCurrentValue}
       showTcgPlayerSource={hasTcgPlayerData}
-      card={modalCard}
+      card={cardForGradedPriceSources}
       collectionItem={collectionItem}
       availableCardMarketHistorySeries={availableCardMarketHistorySeries}
       activeCardMarketHistorySeries={activeCardMarketHistorySeries}
@@ -1015,7 +1086,7 @@ export default function CardModal({
     <div className="card-detail-section-grid" data-columns="2">
       <CardModalMarketSignalPanel
         signal={signalSummary}
-        card={modalCard}
+        card={cardForGradedPriceSources}
         loading={signalSummaryLoading}
         onNavigate={onNavigate}
         showFullAnalysisLink={false}
