@@ -110,6 +110,11 @@ if [ "${1:-}" = "--audit-reprints" ]; then
   exec /usr/bin/node --no-warnings scripts/audit-reprint-families.mjs
 fi
 
+if [ "${1:-}" = "--apply-card-image-recovery" ]; then
+  cd "$RemoteAppPath"
+  exec runuser -u dustycards -- /usr/bin/node scripts/apply-card-image-recovery.mjs --apply /opt/dustycards/card-images/import/manifest.json "$RemoteAppPath/dustycards.db"
+fi
+
 
 mkdir -p /opt/dustycards /opt/dustycards/backups /opt/dustycards/cache
 install -d -o dustycards -g dustycards -m 0700 /opt/dustycards/backups
