@@ -951,8 +951,8 @@ function extractCurrencyPriceMatchesFromText(text: string): Array<{ price: numbe
 }
 
 function normalizeGradingCompany(value: string): string | null {
-  const company = value.replace(/\s+/g, "").toUpperCase();
-  if (company === "BECKETT") return "BGS";
+  const company = value.replace(/[®™]/g, "").replace(/\s+/g, "").toUpperCase();
+  if (company === "BECKETT" || company === "BECKETTGRADINGSERVICES") return "BGS";
   if (["AIGRAD", "AIGRADE", "AIGRADING"].includes(company)) return "AIGRAD";
   if (["PSA", "BGS", "CGC", "SGC", "ACE", "TAG", "AOG"].includes(company)) return company;
   return null;
