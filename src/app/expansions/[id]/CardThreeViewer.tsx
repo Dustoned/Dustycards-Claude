@@ -43,6 +43,7 @@ import {
 } from "@/lib/card-holo-mask";
 import { normalizeRarityLabel } from "@/lib/rarity";
 import { rarityBadgeDark } from "@/lib/rarity-styles";
+import { getCardBackTextureUrl } from "@/lib/card-back-texture";
 import useModalA11y from "@/lib/useModalA11y";
 import {
   getCardThreeAutoRotateResumeDelay,
@@ -126,7 +127,6 @@ const CARD_FACE_OFFSET = 0.0009;
 const CARD_FRONT_TEXTURE_INSET = 0;
 const CARD_FRONT_TEXTURE_BLEED = 0.02;
 const CARD_BACK_TEXTURE_INSET = 0.02;
-const CARD_BACK_URL = "/assets/pokemon-card-back.jpg";
 const CARD_PAPER_COLOR = "#ece7df";
 const PSA_SLAB_WIDTH = (CARD_WIDTH * PSA_SLAB_MODEL_DIMENSIONS.width) / RAW_TCG_CARD_DIMENSIONS.width;
 const PSA_SLAB_HEIGHT =
@@ -1274,6 +1274,7 @@ export default function CardThreeViewer({
   const isInline = variant === "inline";
   const { displaySettings, isMobileViewport } = useSettings();
   const card3dSize = displaySettings.card3dSize;
+  const cardBackTextureUrl = getCardBackTextureUrl(card);
   const [priceSource, setPriceSource] = useState<"cardmarket" | "tcgplayer">("cardmarket");
   const [gradedSource, setGradedSource] = useState<"cardmarket" | "ebay">("cardmarket");
   const [selectedGradedLabel, setSelectedGradedLabel] = useState<string | null>(
@@ -1452,7 +1453,7 @@ export default function CardThreeViewer({
 
         const [loadedFrontTexture, backTexture, stlLoaderModule] = await Promise.all([
           loadTexture(getTextureImageUrl(frontImageUrl) ?? frontImageUrl),
-          loadTexture(CARD_BACK_URL),
+          loadTexture(cardBackTextureUrl),
           isPsaSlabViewer ? import("three/examples/jsm/loaders/STLLoader.js") : Promise.resolve(null),
         ]);
 
@@ -2336,9 +2337,11 @@ export default function CardThreeViewer({
     };
   }, [
     frontImageUrl,
+    cardBackTextureUrl,
     card.game,
     card.rarity,
     card.supertype,
+    card.subtypes,
     card.name,
     card.card_number,
     card.episode_name,
