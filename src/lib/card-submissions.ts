@@ -59,7 +59,7 @@ type SubmissionStatus =
 
 type SubmissionRecord = Awaited<ReturnType<typeof db.cardSubmission.findFirst>>;
 
-interface SubmittedGradedPrice {
+export interface SubmittedGradedPrice {
   label: string;
   price: number;
 }
