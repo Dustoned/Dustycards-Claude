@@ -297,7 +297,7 @@ function parsePriceToken(value: string): number | null {
     : null;
 }
 
-function extractArticleRows(html: string): string[] {
+export function extractArticleRows(html: string): string[] {
   const starts = [...html.matchAll(/<div\b[^>]*\bid=["']articleRow[^"']*["'][^>]*>/gi)]
     .map((match) => match.index)
     .filter((index): index is number => index != null);
@@ -310,7 +310,7 @@ function extractArticleRows(html: string): string[] {
   });
 }
 
-function extractArticlePrice(row: string): number | null {
+export function extractArticlePrice(row: string): number | null {
   for (const match of row.matchAll(/<span\b([^>]*)>([\s\S]*?)<\/span>/gi)) {
     const classes = match[1]?.match(/\bclass=["']([^"']+)["']/i)?.[1]?.split(/\s+/) ?? [];
     if (!classes.includes("color-primary")) continue;
