@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import CardDetailMobileMarketAction from "@/components/card-detail/CardDetailMobileMarketAction";
+import CardMarketPriceCheckDialog from "@/components/card-modal/CardMarketPriceCheckDialog";
 import CardPriceAlertButton from "@/components/card-detail/CardPriceAlertButton";
 import CardDetailShell, {
   CardDetailMobileActionPortal,
@@ -108,6 +109,7 @@ function SealedDetailActionGroup({
   canManageSealedPrices,
   onRefresh,
   onSyncHistory,
+  onPriceCheck,
   onRemoveCollectionItem,
   onCollectionChanged,
 }: {
@@ -121,6 +123,7 @@ function SealedDetailActionGroup({
   canManageSealedPrices: boolean;
   onRefresh: () => void;
   onSyncHistory: () => void;
+  onPriceCheck: () => void;
   onRemoveCollectionItem: () => void;
   onCollectionChanged: () => void | Promise<void>;
 }) {
@@ -218,19 +221,22 @@ function SealedDetailActionGroup({
                   />
                   {syncingHistory ? "Syncing history..." : "Sync price history"}
                 </button>
+                <button type="button" onClick={onPriceCheck} disabled={isBusy} className={menuButtonClass}>
+                  <RefreshCw className="h-4 w-4" /> Check CM price now
+                </button>
                 <button
                   type="button"
                   onClick={onRefresh}
                   disabled={isBusy}
                   className={menuButtonClass}
-                  aria-label="Check CardMarket sealed prices now"
+                  aria-label="Refresh sealed prices"
                 >
                   {refreshing ? (
                     <RefreshCw className="h-4 w-4 animate-spin" />
                   ) : (
                     <BadgeEuro className="h-4 w-4" />
                   )}
-                  {refreshing ? "Checking CardMarket..." : "Check CardMarket prices"}
+                  {refreshing ? "Refreshing prices..." : "Refresh prices"}
                 </button>
               </div>
             ) : null}
@@ -250,6 +256,7 @@ export default function SealedProductModal({ product, onClose, backLabel = "Back
     buildInitialSealedDetail(product)
   );
   const [detailsLoading, setDetailsLoading] = useState(true);
+  const [priceCheckOpen, setPriceCheckOpen] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [syncingHistory, setSyncingHistory] = useState(false);
   const [removingCollectionItem, setRemovingCollectionItem] = useState(false);
@@ -982,7 +989,8 @@ export default function SealedProductModal({ product, onClose, backLabel = "Back
                   syncingHistory={syncingHistory}
                   removingCollectionItem={removingCollectionItem}
                   canManageSealedPrices={canManageSealedPrices}
-                  onRefresh={() => void runSealedAction("check-cardmarket")}
+                  onRefresh={() => void runSealedAction("refresh")}
+                  onPriceCheck={() => setPriceCheckOpen(true)}
                   onSyncHistory={() => void runSealedAction("sync-history")}
                   onRemoveCollectionItem={() => void removeCurrentCollectionItem()}
                   onCollectionChanged={refreshModalProductFromServer}
@@ -998,6 +1006,18 @@ export default function SealedProductModal({ product, onClose, backLabel = "Back
         </div>
       </div>
 
+      {priceCheckOpen ? (
+        <CardMarketPriceCheckDialog
+          key={modalProduct.id}
+          card={modalProduct}
+          kind="sealed"
+          onClose={() => setPriceCheckOpen(false)}
+          onSaved={(updated) => {
+            setModalProduct((current) => ({ ...updated, collection_item: current.collection_item, collection_item_id: current.collection_item_id }));
+            router.refresh();
+          }}
+        />
+      ) : null}
       {selectedFeaturedCard ? (
         <CardModal
           card={selectedFeaturedCard}
