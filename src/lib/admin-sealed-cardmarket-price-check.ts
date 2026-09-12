@@ -68,7 +68,7 @@ export async function runAdminSealedCardMarketPriceCheck(id: string) {
   const marketOffer = sellerOffers[0];
   if (!marketOffer)
     throw new AdminCardMarketPriceCheckError(
-      "No English sealed offers with a readable seller row could be found. No prices were saved.",
+      "No English sealed offers with a readable seller country could be found. No prices were saved.",
       422,
     );
   const euOffer = sellerOffers.find((offer) => offer.isEu) ?? null;

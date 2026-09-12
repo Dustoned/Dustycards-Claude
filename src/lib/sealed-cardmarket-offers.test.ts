@@ -31,11 +31,16 @@ describe("sealed seller market comparison", () => {
     });
   });
 
-  it("does not classify an unknown location or non-EU European country as EU", () => {
-    for (const country of [null, "Norway", "Switzerland", "United Kingdom"]) {
-      expect(parseSealedMarketOffers(row("1", country, "99,00"))[0].isEu).toBe(
-        false,
-      );
+  it("requires a seller country and keeps known non-EU countries outside EU Market", () => {
+    expect(parseSealedMarketOffers(row("1", null, "99,00"))).toEqual([]);
+
+    for (const country of ["Norway", "Switzerland", "United Kingdom"]) {
+      expect(
+        parseSealedMarketOffers(row("1", country, "99,00"))[0],
+      ).toMatchObject({
+        country,
+        isEu: false,
+      });
     }
   });
 

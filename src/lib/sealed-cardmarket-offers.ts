@@ -132,13 +132,14 @@ export function parseSealedMarketOffers(html: string): SealedMarketOffer[] {
     const seller = text(sellerMatch[2]);
     if (!seller) continue;
     const country = extractSellerCountry(row);
+    if (!country) continue;
     offers.push({
       articleId: row.match(/id=["'](articleRow[^"']+)["']/i)?.[1] ?? "",
       priceEur,
       seller,
       sellerUrl: sellerUrl.toString(),
       country,
-      isEu: country != null && EU_COUNTRIES.has(country.toLowerCase()),
+      isEu: EU_COUNTRIES.has(country.toLowerCase()),
       professional: /fonticon-users-professional/.test(row),
     });
   }
