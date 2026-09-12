@@ -364,13 +364,14 @@ export function buildSealedCardMarketSnapshotData(input: {
   episodeId: string;
   priceEur: number;
   observedAt: Date;
+  euPrice?: number | null;
 }) {
   return {
     product_id: input.productId,
     episode_id: input.episodeId,
     fetched_at: input.observedAt,
     cm_lowest: input.priceEur,
-    cm_lowest_eu: null,
+    cm_lowest_eu: input.euPrice ?? null,
     cm_lowest_de: null,
     cm_lowest_fr: null,
     cm_lowest_es: null,
@@ -608,7 +609,7 @@ async function persistAcceptedPrice(input: {
       },
       data: {
         cm_lowest: input.priceEur,
-        ...(input.force ? {} : {
+        ...(input.force ? { cm_lowest_eu: input.priceEur } : {
           cm_lowest_eu: null,
           cm_lowest_de: null,
           cm_lowest_fr: null,
@@ -625,6 +626,7 @@ async function persistAcceptedPrice(input: {
         episodeId: input.candidate.episode_id,
         priceEur: input.priceEur,
         observedAt: input.observedAt,
+        euPrice: input.force ? input.priceEur : null,
       }),
     });
     return true;
