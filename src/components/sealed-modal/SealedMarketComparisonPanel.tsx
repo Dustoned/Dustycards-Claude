@@ -94,8 +94,9 @@ export default function SealedMarketComparisonPanel({
                 </div>
               ) : label === "EU Market" ? (
                 <p className="mt-3 text-xs text-amber-100/70">
-                  No English offer from an EU seller was present in the captured
-                  listings. EU Market was not updated.
+                  This scrape did not expose a readable EU seller location. That
+                  does not mean CardMarket has no EU listings. EU Market was not
+                  updated.
                 </p>
               ) : null}
             </section>
@@ -142,10 +143,9 @@ export default function SealedMarketComparisonPanel({
 
       <p className="text-xs leading-relaxed text-white/45">
         Lowest observed English product offers, excluding shipping and import
-        charges. EU Market is updated only when the captured offer itself names
-        a seller location in an EU country. UK, Switzerland and Norway are
-        excluded. Saved prices have no recorded seller; sellers above belong to
-        this live check.
+        charges. EU Market is updated only when a captured offer exposes an EU
+        seller location. UK, Switzerland and Norway are excluded. Saved prices
+        have no recorded seller; sellers above belong to this live check.
       </p>
     </div>
   );

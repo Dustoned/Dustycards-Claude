@@ -47,6 +47,14 @@ const EU_COUNTRIES = new Set([
   "spain",
   "sweden",
 ]);
+const CARDMARKET_SELLER_COUNTRIES = new Set([
+  ...EU_COUNTRIES,
+  "iceland",
+  "liechtenstein",
+  "norway",
+  "switzerland",
+  "united kingdom",
+]);
 function text(value: string) {
   return value
     .replace(/<[^>]*>/g, "")
@@ -56,6 +64,40 @@ function text(value: string) {
     .replace(/&quot;/g, '"')
     .trim();
 }
+
+function extractSellerCountry(row: string): string | null {
+  const explicitCountry = text(
+    row.match(
+      /(?:aria-label|title|data-(?:bs-)?original-title)=["']Item location:\s*([^"']+)["']/i,
+    )?.[1] ?? "",
+  );
+  if (explicitCountry) return explicitCountry;
+
+  const sellerSectionEnd = row.search(
+    /class=["'][^"']*product-attributes[^"']*["']/i,
+  );
+  const sellerSection =
+    sellerSectionEnd >= 0 ? row.slice(0, sellerSectionEnd) : row;
+
+  for (const tagMatch of sellerSection.matchAll(/<span\b[^>]*>/gi)) {
+    const tag = tagMatch[0];
+    const classes = tag.match(/\bclass=["']([^"']+)["']/i)?.[1] ?? "";
+    if (!/(?:^|\s)icon(?:\s|$)/i.test(classes)) continue;
+
+    const rawCountry = tag.match(
+      /(?:aria-label|title|data-(?:bs-)?original-title)=["']([^"']+)["']/i,
+    )?.[1];
+    if (!rawCountry) continue;
+
+    const country = text(rawCountry)
+      .replace(/^Item location:\s*/i, "")
+      .trim();
+    if (CARDMARKET_SELLER_COUNTRIES.has(country.toLowerCase())) return country;
+  }
+
+  return null;
+}
+
 export function parseSealedMarketOffers(html: string): SealedMarketOffer[] {
   const offers: SealedMarketOffer[] = [];
   for (const row of extractArticleRows(html)) {
@@ -89,12 +131,7 @@ export function parseSealedMarketOffers(html: string): SealedMarketOffer[] {
       continue;
     const seller = text(sellerMatch[2]);
     if (!seller) continue;
-    const country =
-      text(
-        row.match(
-          /(?:aria-label|data-(?:bs-)?original-title)=["']Item location:\s*([^"']+)["']/i,
-        )?.[1] ?? "",
-      ) || null;
+    const country = extractSellerCountry(row);
     offers.push({
       articleId: row.match(/id=["'](articleRow[^"']+)["']/i)?.[1] ?? "",
       priceEur,
