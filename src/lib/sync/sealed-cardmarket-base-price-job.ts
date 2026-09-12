@@ -16,6 +16,7 @@ import {
   scrapeFirecrawlPage,
   type FirecrawlPageScrapeResult,
 } from "@/lib/firecrawl";
+import { scrapePageWithFallback } from "@/lib/scrape-provider";
 import { buildNormalizedSealedPriceFields } from "@/lib/sealed-price-preservation";
 
 const JOB_TYPE = "sealed-cardmarket-base-price";
@@ -572,7 +573,12 @@ async function budgetedScrape(input: {
   productId: string;
   attempt: number;
   url: string;
+  direct?: boolean;
 }): Promise<{ scrape: FirecrawlPageScrapeResult | null; creditsUsed: number }> {
+  if (input.direct) {
+    const result = await scrapePageWithFallback(input.url, { onlyMainContent: false });
+    return { scrape: result, creditsUsed: 0 };
+  }
   const request = await runBudgetedFirecrawlRequest({
     consumer: FIRECRAWL_CONSUMER,
     operation: "cardmarket-sealed-product",
@@ -652,7 +658,7 @@ async function processCandidate(
   candidate: BacklogCandidate,
   attempt: number,
   startedAt: Date,
-  options?: { force?: boolean }
+  options?: { force?: boolean; direct?: boolean }
 ): Promise<SealedCardMarketBasePriceRunResult> {
   const sourceUrl = resolveSealedCardMarketExactSourceUrl({
     cardmarketId: candidate.cardmarket_id,
@@ -673,6 +679,7 @@ async function processCandidate(
       productId: candidate.id,
       attempt,
       url: sourceUrl,
+      direct: options?.direct,
     });
     creditsUsed += product.creditsUsed;
     if (!product.scrape) {
@@ -799,7 +806,7 @@ export async function runSealedCardMarketProductCheck(
     },
   });
   if (!candidate) throw new Error("Sealed product not found.");
-  return processCandidate(candidate, 1, now, { force: true });
+  return processCandidate(candidate, 1, now, { force: true, direct: true });
 }
 
 export async function runSealedCardMarketBasePriceJob(
