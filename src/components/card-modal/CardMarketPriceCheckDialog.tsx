@@ -1,7 +1,7 @@
 "use client";
 
 import { ArrowUpRight, CheckCircle2, Loader2, RefreshCw, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   modalBodyClass,
@@ -13,7 +13,7 @@ import {
   modalSecondaryButtonClass,
 } from "@/components/modal-glass-styles";
 import { formatCurrency } from "@/lib/format";
-import type { ModalCardData } from "./types";
+import useModalA11y from "@/lib/useModalA11y";
 
 type PriceCheck = {
   cardId: string;
@@ -34,15 +34,15 @@ type PriceCheck = {
 };
 
 type PreviewResponse = { check?: PriceCheck; error?: string };
-type ConfirmResponse = { card?: ModalCardData; error?: string };
+type ConfirmResponse<T> = { card?: T; error?: string };
 
 const previewRequests = new Map<string, Promise<PriceCheck>>();
 
-function requestLiveCheck(cardId: string): Promise<PriceCheck> {
-  const existing = previewRequests.get(cardId);
+function requestLiveCheck(cardId: string, kind: "cards" | "sealed"): Promise<PriceCheck> {
+  const existing = previewRequests.get(`${kind}:${cardId}`);
   if (existing) return existing;
 
-  const request = fetch(`/api/cards/${encodeURIComponent(cardId)}/cardmarket-price-check`, {
+  const request = fetch(`/api/${kind}/${encodeURIComponent(cardId)}/cardmarket-price-check`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "preview" }),
@@ -52,24 +52,26 @@ function requestLiveCheck(cardId: string): Promise<PriceCheck> {
     if (!response.ok || !payload?.check) {
       throw new Error(payload?.error ?? "CardMarket could not be checked.");
     }
-    window.setTimeout(() => previewRequests.delete(cardId), 30_000);
+    window.setTimeout(() => previewRequests.delete(`${kind}:${cardId}`), 30_000);
     return payload.check;
   }).catch((error) => {
-    previewRequests.delete(cardId);
+    previewRequests.delete(`${kind}:${cardId}`);
     throw error;
   });
-  previewRequests.set(cardId, request);
+  previewRequests.set(`${kind}:${cardId}`, request);
   return request;
 }
 
-export default function CardMarketPriceCheckDialog({
+export default function CardMarketPriceCheckDialog<T extends { id: string; name: string }>({
   card,
+  kind = "cards",
   onClose,
   onSaved,
 }: {
-  card: ModalCardData;
+  card: T;
+  kind?: "cards" | "sealed";
   onClose: () => void;
-  onSaved: (card: ModalCardData) => void;
+  onSaved: (card: T) => void;
 }) {
   const [check, setCheck] = useState<PriceCheck | null>(null);
   const [loading, setLoading] = useState(true);
@@ -79,7 +81,7 @@ export default function CardMarketPriceCheckDialog({
 
   useEffect(() => {
     let active = true;
-    void requestLiveCheck(card.id)
+    void requestLiveCheck(card.id, kind)
       .then((result) => {
         if (active) setCheck(result);
       })
@@ -94,15 +96,10 @@ export default function CardMarketPriceCheckDialog({
     return () => {
       active = false;
     };
-  }, [attempt, card.id]);
+  }, [attempt, card.id, kind]);
 
-  useEffect(() => {
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape" && !saving) onClose();
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [onClose, saving]);
+  const dialogRef = useRef<HTMLElement | null>(null);
+  useModalA11y({ dialogRef, onClose: () => { if (!saving) onClose(); } });
 
   async function confirm(decision: "changed" | "unchanged") {
     if (!check || saving) return;
@@ -110,7 +107,7 @@ export default function CardMarketPriceCheckDialog({
     setError(null);
     try {
       const response = await fetch(
-        `/api/cards/${encodeURIComponent(card.id)}/cardmarket-price-check`,
+        `/api/${kind}/${encodeURIComponent(card.id)}/cardmarket-price-check`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -118,11 +115,11 @@ export default function CardMarketPriceCheckDialog({
           cache: "no-store",
         }
       );
-      const payload = (await response.json().catch(() => null)) as ConfirmResponse | null;
+      const payload = (await response.json().catch(() => null)) as ConfirmResponse<T> | null;
       if (!response.ok || !payload?.card) {
         throw new Error(payload?.error ?? "The price check could not be saved.");
       }
-      previewRequests.delete(card.id);
+      previewRequests.delete(`${kind}:${card.id}`);
       onSaved(payload.card);
       onClose();
     } catch (saveError) {
@@ -147,6 +144,8 @@ export default function CardMarketPriceCheckDialog({
       }}
     >
       <section
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
         aria-modal="true"
         aria-labelledby="live-cardmarket-check-title"
@@ -158,7 +157,7 @@ export default function CardMarketPriceCheckDialog({
               Admin · live market check
             </p>
             <h2 id="live-cardmarket-check-title" className="mt-1 truncate text-xl font-black text-white">
-              CardMarket English NM
+              {kind === "sealed" ? "CardMarket English sealed" : "CardMarket English NM"}
             </h2>
             <p className="mt-1 truncate text-xs text-white/42">{card.name}</p>
           </div>
@@ -173,7 +172,7 @@ export default function CardMarketPriceCheckDialog({
               <Loader2 className="h-7 w-7 animate-spin text-violet-200" />
               <div>
                 <p className="text-sm font-bold text-white/82">Checking CardMarket now…</p>
-                <p className="mt-1 text-xs text-white/38">Reading explicit English Near Mint offers.</p>
+                <p className="mt-1 text-xs text-white/38">{kind === "sealed" ? "Reading English sealed product offers." : "Reading explicit English Near Mint offers."}</p>
               </div>
             </div>
           ) : check ? (
@@ -226,7 +225,7 @@ export default function CardMarketPriceCheckDialog({
                 </div>
               </div>
 
-              <div className="mt-3 rounded-2xl border border-amber-200/15 bg-amber-400/[0.06] px-4 py-3">
+              {kind === "cards" ? <div className="mt-3 rounded-2xl border border-amber-200/15 bg-amber-400/[0.06] px-4 py-3">
                 <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-amber-100/58">
                   {check.gradedPrices?.length ?? 0} nieuwe graded prijs{(check.gradedPrices?.length ?? 0) === 1 ? "" : "zen"} gevonden
                 </p>
@@ -242,7 +241,7 @@ export default function CardMarketPriceCheckDialog({
                 ) : (
                   <p className="mt-1 text-xs text-white/42">No graded listings were detected on this CardMarket page.</p>
                 )}
-              </div>
+              </div> : null}
             </>
           ) : null}
 
@@ -256,7 +255,7 @@ export default function CardMarketPriceCheckDialog({
             <button
               type="button"
               onClick={() => {
-                previewRequests.delete(card.id);
+                previewRequests.delete(`${kind}:${card.id}`);
                 setLoading(true);
                 setError(null);
                 setAttempt((value) => value + 1);
@@ -276,7 +275,7 @@ export default function CardMarketPriceCheckDialog({
                 className={`${modalSecondaryButtonClass} inline-flex min-h-12 items-center justify-center gap-2`}
               >
                 {saving === "unchanged" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                No price change
+                {kind === "sealed" ? "Keep saved price" : "No price change"}
               </button>
               <button
                 type="button"
