@@ -31,6 +31,7 @@ type CardMarketCheckTokenPayload = {
   provider: string;
   observedAt: string;
   gradedPrices?: SubmittedGradedPrice[];
+  sealedEuPriceEur?: number | null;
 };
 
 export type AdminCardMarketPriceCheck = {

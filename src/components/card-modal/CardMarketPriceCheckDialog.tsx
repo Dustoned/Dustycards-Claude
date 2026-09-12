@@ -12,6 +12,8 @@ import {
   modalPrimaryButtonClass,
   modalSecondaryButtonClass,
 } from "@/components/modal-glass-styles";
+import SealedMarketComparisonPanel from "@/components/sealed-modal/SealedMarketComparisonPanel";
+import type { SealedMarketComparison, SealedMarketOffer } from "@/lib/sealed-cardmarket-offers";
 import { formatCurrency } from "@/lib/format";
 import useModalA11y from "@/lib/useModalA11y";
 
@@ -30,6 +32,8 @@ type PriceCheck = {
   scrapedSetName: string | null;
   scrapedCardNumber: string | null;
   token: string;
+  sealedMarkets?: SealedMarketComparison[];
+  sealedOffers?: SealedMarketOffer[];
   gradedPrices?: Array<{ label: string; price: number }>;
 };
 
@@ -177,6 +181,7 @@ export default function CardMarketPriceCheckDialog<T extends { id: string; name:
             </div>
           ) : check ? (
             <>
+              {kind === "sealed" && check.sealedMarkets ? <SealedMarketComparisonPanel markets={check.sealedMarkets} offers={check.sealedOffers ?? []} /> : <>
               <div className="grid grid-cols-2 gap-2.5">
                 <div className="rounded-2xl border border-white/9 bg-white/[0.035] p-3.5">
                   <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/34">Saved price</p>
@@ -211,6 +216,7 @@ export default function CardMarketPriceCheckDialog<T extends { id: string; name:
                 </div>
               </div>
 
+              </>}
               <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.025] px-4 py-3 text-xs text-white/44">
                 <p className="font-semibold text-white/64">
                   {[check.scrapedName, check.scrapedSetName, check.scrapedCardNumber ? `#${check.scrapedCardNumber}` : null]
@@ -284,7 +290,7 @@ export default function CardMarketPriceCheckDialog<T extends { id: string; name:
                 className={`${modalPrimaryButtonClass} inline-flex min-h-12 items-center justify-center gap-2`}
               >
                 {saving === "changed" ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                Save live price
+                {kind === "sealed" ? "Save observed prices" : "Save live price"}
               </button>
             </div>
           ) : null}
